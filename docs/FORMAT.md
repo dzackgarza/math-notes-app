@@ -120,12 +120,14 @@ conflict. Assets are separate files, not base64 inside SVG.
 - Element order: `metadata`, then `g#background`, then one `g` per layer in
   `notebook.json` order, with the layer id as its `id`.
 - A stroke is a filled `path` whose `d` is the brush outline: every outline
-  of the stroke as one `M…Z` subpath, `fill-rule` nonzero (the default). Any
-  SVG renderer draws the variable-width ink correctly.
+  of the stroke is a closed subpath, with nonzero fill. A constant-width
+  stroke can use an SVG stroked path. Preserve the selected ink owner's
+  path commands and brush classes so its eraser can edit the same element.
+  Both forms display in a standard SVG renderer.
 - A typed text box is an SVG `text` element with `x`, `y`, `font-size`,
   `font-family`, and `fill`. Each line is a `tspan`; its baseline and the
-  later lines' `dy` values come from the selected text-layout engine with
-  the same font and layout properties used for rendering. Its `transform`
+  later lines' `dy` values come from Skia Paragraph with
+  the same bundled font bytes and layout properties used for rendering. Its `transform`
   stores a move or resize. The first `y` is the text baseline. Preserve the
   authored text and its explicit line breaks through layout and save.
 - The stroke's input samples are an [InkML](https://www.w3.org/TR/InkML/)
@@ -140,9 +142,10 @@ conflict. Assets are separate files, not base64 inside SVG.
   page.
 - Stroke attributes, in this order: `id`, `transform`, `fill`, `fill-opacity`,
   `mn:brush`, `mn:brush-version`,
-  `mn:size`, `mn:time`, `d`. `mn:brush` names a google/ink stock brush
-  family and `mn:brush-version` its version enum, so a stored stroke
-  regenerates the same way after a library upgrade. `mn:time` is the UTC
+  `mn:size`, `mn:time`, `d`. `mn:brush` names the ink owner's brush
+  family and `mn:brush-version` its pinned encoding version. The owner and
+  source-fidelity extension are fixed in [ARCHITECTURE.md](ARCHITECTURE.md).
+  A library update must preserve the stored outline. `mn:time` is the UTC
   start time of the stroke.
 - `d` and the samples are in stroke-local coordinates. Moving, resizing, or
   rotating a stroke writes only its `transform` attribute
@@ -163,7 +166,7 @@ conflict. Assets are separate files, not base64 inside SVG.
   `a`, `b`, `c`, `d` with 6 decimals (a scaled or rotated stroke then stays
   within 0.001 pt anywhere on the page); force and angles with 3 decimals; `T` in whole milliseconds. Written with
   `std::to_chars` fixed format, `-0` written as `0`, trailing zeros removed.
-  `d` is an absolute `M` followed by relative `l` commands. Colors are
+  `d` retains the ink owner's SVG path commands, including curve controls. Colors are
   `#RRGGBB` in upper case; opacity goes in `fill-opacity`.
 - XML is written one element per line, two-space indent, attributes in the
   orders above. No generated thumbnails in the file. Diffs, git, and sync

@@ -31,7 +31,9 @@ These define the app. New features must not break them.
 - Clippings library.
 - Split view of two documents.
 - SVG page backgrounds (paper color, lined, grid, dotted) and templates.
-- Configurable pens, built on google/ink brushes.
+- Configurable pressure-sensitive pens and highlighter, with original samples
+  retained in the note. The selected replacement uses Write `StrokeBuilder`
+  and its matching free-erase path; see the [ink ownership decision](ink-reflow-owners.md).
 - Unlimited undo and redo.
 - PDF export.
 - Folders on the filesystem are the library. Sync is the filesystem's job (iCloud Drive,

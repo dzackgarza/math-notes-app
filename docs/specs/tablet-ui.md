@@ -71,11 +71,15 @@ are the reference for look and interaction.
 - Pages have a 6 pt desk-colored gap between them. In the default view a page
   fills the full width of the canvas.
 - One finger pans the pages. Two fingers pinch to zoom. Pen input draws.
-- The host scroll component owns page motion and boundary behavior. The
-  page-end action uses a mature interaction component selected in #21. It
-  lets the user deliberately append a page with a held pull and release;
-  ordinary scrolling leaves the document unchanged. Math Notes handles the
-  completed add-page command. The component supplies the interaction.
+- On the web, Framework7 9.1.2 `page-content` owns the editor viewport's
+  browser scroll and bottom-pull motion. On iPad, `UIScrollView` and
+  MJRefresh 3.7.9 `MJRefreshBackFooter` own the same native behavior. A held
+  ready state followed by release issues one add-page command; the notebook
+  supplies the new page and its template. Framework7 and MJRefresh keep their
+  motion, resistance, release, and boundary behavior. The browser uses
+  `@use-gesture/vanilla` 10.3.1 for pinch recognition. The
+  [UI ownership decision](../research_notes/Component%20ownership%20decisions/ui.md)
+  gives the component contracts and same-surface pen/finger input boundary.
 - Ink cannot land outside a page. On pen-up, the parts of the stroke outside
   its page are removed (Noteful's behavior); a stroke entirely outside is
   removed.
@@ -97,7 +101,7 @@ chips, thin gray borders, system sans-serif type. Paper is warm off-white.
 | Mockup | Current model ([FORMAT.md](../FORMAT.md), [FEATURES.md](../FEATURES.md)) |
 | --- | --- |
 | Paper Style, Starting Template (backgrounds) | Built-in templates: blank, lined-*, grid-*, dotted (#21) |
-| Pen, Highlighter, color palette | Pen presets (#25), google/ink brushes |
+| Pen, Highlighter, color palette | Pen presets (#25); Write `StrokeBuilder` in the selected replacement architecture ([ink decision](../ink-reflow-owners.md)) |
 | Eraser, Lasso, Drawing mode | #23, #24, [TikZ drawing mode](tikz-drawing-mode.md) |
 | Undo and redo, zoom, page indicator | #22, #21 |
 | Tabs of open notes | A tab per open note, as in GoodNotes and Noteful |
