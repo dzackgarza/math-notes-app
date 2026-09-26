@@ -1,0 +1,29 @@
+{
+  "format": "math-notes",
+  "version": 1,
+  "title": "Published",
+  "pageSize": "A4",
+  "template": "blank",
+  "layers": [
+    {
+      "id": "l-inkaaa",
+      "name": "Ink",
+      "hidden": false,
+      "locked": false
+    }
+  ],
+  "pages": [
+    {
+      "id": "p-redink",
+      "file": "pages/0001.svg"
+    },
+    {
+      "id": "p-bluink",
+      "file": "pages/0002.svg"
+    },
+    {
+      "id": "p-greimg",
+      "file": "pages/0003.svg"
+    }
+  ]
+}
