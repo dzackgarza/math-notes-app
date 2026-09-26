@@ -2,33 +2,38 @@ import { Button } from "@kobalte/core/button";
 import { createEffect, createResource, createSignal, Match, onCleanup, onMount, Show, Switch } from "solid-js";
 
 import { Editor, type Tab } from "./editor/Editor.tsx";
-import { createNotebook, openNotebook, type OpenNotebook } from "./editor/notebook.ts";
+import { createNotebook, openNotebook, openPublishedNotebook, type OpenNotebook } from "./editor/notebook.ts";
 import type { Engine } from "./engine/engine.ts";
 import { loadEngine } from "./engine/load.ts";
-import { ensureTemplates, hasPermission, listTemplates, pickRoot, requestPermission, savedRoot } from "./storage/folder.ts";
+import { connectWebDav, ensureTemplates, hasPermission, listTemplates, pickRoot, requestPermission, savedRoot } from "./storage/folder.ts";
 import { createFolder, moveEntry, moveToTrash, type Note, pathKey, scanLibrary, scanTrash } from "./storage/library.ts";
 import { type LibraryMetadata, moveNotes, readMetadata, writeMetadata } from "./storage/metadata.ts";
 import { noteThumbnail, thumbnailStats } from "./storage/thumbnails.ts";
+import { FolderStore, type Store, WebDavStore } from "./storage/store.ts";
+import { Connect } from "./ui/Connect.tsx";
 import { NewNote, NewNotebook } from "./ui/Create.tsx";
 import { AppMark, Library, type Section } from "./ui/Library.tsx";
 
-// `?root=opfs` uses the origin-private file system as the notes folder: the
-// automated tests cannot drive the native folder picker.
-async function initialRoot(): Promise<{ root?: FileSystemDirectoryHandle; needsGesture: boolean }> {
+// The notes root at start: the one chosen before, or `?root=opfs`, the
+// origin-private file system, which the automated tests use because they
+// cannot drive the native folder picker. A saved folder whose permission
+// lapsed needs a click to reconnect.
+async function initialRoot(): Promise<{ store?: Store; reconnect?: FileSystemDirectoryHandle }> {
   if (new URLSearchParams(location.search).get("root") === "opfs") {
     window.mathNotesWrites = [];
     window.mathNotesThumbnails = thumbnailStats;
-    return { root: await navigator.storage.getDirectory(), needsGesture: false };
+    return { store: new FolderStore(await navigator.storage.getDirectory()) };
   }
-  const root = await savedRoot();
-  if (!root) return { needsGesture: false };
-  return (await hasPermission(root)) ? { root, needsGesture: false } : { root, needsGesture: true };
+  const saved = await savedRoot();
+  if (!saved) return {};
+  if (saved.kind === "webdav") return { store: new WebDavStore(saved.url) };
+  return (await hasPermission(saved.handle)) ? { store: new FolderStore(saved.handle) } : { reconnect: saved.handle };
 }
 
 type Screen = { kind: "library" } | { kind: "new-notebook" } | { kind: "new-note"; folder: string[] } | { kind: "editor" };
 
 // Everything the library screens show, read from the notes root.
-async function readLibrary(args: { root: FileSystemDirectoryHandle; engine: Engine }) {
+async function readLibrary(args: { root: Store; engine: Engine }) {
   await ensureTemplates(args.root, args.engine);
   const [folders, trash, metadata, templates] = await Promise.all([
     scanLibrary(args.root),
@@ -39,10 +44,27 @@ async function readLibrary(args: { root: FileSystemDirectoryHandle; engine: Engi
   return { folders, trash, metadata, templates };
 }
 
+// `?open=<URL of notebook.json>`: that notebook, read-only.
+function Published(props: { url: string }) {
+  const [engine] = createResource<Engine>(loadEngine);
+  const [notebook] = createResource(engine, (e) => openPublishedNotebook(e, props.url));
+  const none = () => {};
+  return (
+    <>
+      <Show when={engine.error ?? notebook.error}>{(e) => <p class="error banner">{String(e())}</p>}</Show>
+      <Show when={notebook()}>
+        {(n) => <Editor notebook={n()} folderName="" tabs={[]} onLibrary={none} onSelectTab={none} onCloseTab={none} />}
+      </Show>
+    </>
+  );
+}
+
 export function App() {
+  const published = new URLSearchParams(location.search).get("open");
+  if (published) return <Published url={published} />;
   const [engine] = createResource<Engine>(loadEngine);
   const [start] = createResource(initialRoot);
-  const [root, setRoot] = createSignal<FileSystemDirectoryHandle>();
+  const [root, setRoot] = createSignal<Store>();
   const [error, setError] = createSignal("");
   const [screen, setScreen] = createSignal<Screen>({ kind: "library" });
   const [section, setSection] = createSignal<Section>("library");
@@ -50,7 +72,7 @@ export function App() {
   const [open, setOpen] = createSignal<OpenNotebook>();
   const [tabs, setTabs] = createSignal<Tab[]>([]);
 
-  const current = () => root() ?? (start()?.needsGesture ? undefined : start()?.root);
+  const current = () => root() ?? start()?.store;
   const [library, { refetch, mutate }] = createResource(
     () => {
       const r = current(), e = engine();
@@ -67,10 +89,14 @@ export function App() {
     run(async () => {
       setRoot(await pickRoot());
     });
+  const connect = (url: string) =>
+    run(async () => {
+      setRoot(await connectWebDav(url));
+    });
   const reconnect = () =>
     run(async () => {
-      const saved = start()?.root;
-      if (saved && (await requestPermission(saved))) setRoot(saved);
+      const saved = start()?.reconnect;
+      if (saved && (await requestPermission(saved))) setRoot(new FolderStore(saved));
     });
 
   const showNotebook = (notebook: OpenNotebook) => {
@@ -132,7 +158,7 @@ export function App() {
   // Renames, moves or trashes the notebook or folder at `path`. Its notes
   // close first, as Write's DocumentList closes the documents it renames
   // (documentlist.cpp:576), and their metadata follows them.
-  const relocate = (path: string[], move: (r: FileSystemDirectoryHandle) => Promise<string[] | null>) =>
+  const relocate = (path: string[], move: (r: Store) => Promise<string[] | null>) =>
     run(async () => {
       const r = current(), data = library();
       if (!r || !data) return;
@@ -178,14 +204,12 @@ export function App() {
             <h1>Math Notes</h1>
             <Show when={!start.loading && !current()}>
               <div class="row">
-                <Show when={start()?.needsGesture}>
+                <Show when={start()?.reconnect}>
                   <Button class="button" onClick={reconnect}>
                     Reconnect folder
                   </Button>
                 </Show>
-                <Button class="button primary" onClick={choose}>
-                  Choose notes folder
-                </Button>
+                <Connect onChooseFolder={choose} onConnectWebDav={connect} />
               </div>
             </Show>
           </main>
@@ -268,6 +292,7 @@ export function App() {
                   onMove={move}
                   thumbnail={thumbnail}
                   onChooseFolder={choose}
+                  onConnectWebDav={connect}
                 />
               </Match>
             </Switch>

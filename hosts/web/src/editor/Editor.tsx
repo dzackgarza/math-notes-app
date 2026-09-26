@@ -175,8 +175,10 @@ export function Editor(props: {
   let frame = 0;
   const ids = { next: 0 };
   const engineName = browserEngine();
-  const { document: doc, saver, root } = props.notebook;
-  const [templates] = createResource(() => listTemplates(root));
+  const { document: doc, storage } = props.notebook;
+  // A notebook opened read-only from a URL takes no input but view gestures.
+  const readOnly = storage === null;
+  const [templates] = createResource(() => (storage ? listTemplates(storage.store) : Promise.resolve([])));
   const [template, setTemplate] = createSignal(props.notebook.template);
   // The presets of Notes/.pens.json, in toolbar order.
   const [pens, setPens] = createSignal<Pen[]>([]);
@@ -203,7 +205,7 @@ export function Editor(props: {
   const writePensNow = () => {
     clearTimeout(penWrite);
     penWrite = 0;
-    penWritePending = writePens(root, doc.engine, pens());
+    penWritePending = storage ? writePens(storage.store, doc.engine, pens()) : undefined;
     return penWritePending;
   };
   const editPen = (change: Partial<ToolSettings>) => {
@@ -214,8 +216,8 @@ export function Editor(props: {
   // Reads the presets again: on opening and when the window gains focus, as
   // another device may have changed the file. An edit not yet written wins.
   const loadPens = async () => {
-    if (penWrite) return;
-    const list = await readPens(root, doc.engine);
+    if (penWrite || !storage) return;
+    const list = await readPens(storage.store, doc.engine);
     setPens(list);
     if (!list.some((p) => p.id === penId())) setPenId(list[0]?.id ?? "");
     if (tool() === "" || (tool() !== ERASER && tool() !== SELECT && !list.some((p) => p.id === tool()))) setTool(penId());
@@ -304,6 +306,7 @@ export function Editor(props: {
       if (e.type === "pointerdown") element.setPointerCapture(e.pointerId);
       return;
     }
+    if (readOnly) return;
     if (e.type === "pointerdown") {
       element.setPointerCapture(e.pointerId);
       setSelection(null); // the actions return where the gesture leaves the selection
@@ -311,7 +314,7 @@ export function Editor(props: {
     canvas.input(penSamples(e, at, capabilities(engineName, e.pointerType), ids));
     if (e.type === "pointerup" || e.type === "pointercancel") {
       refreshSelection();
-      saver.schedule();
+      storage?.saver.schedule();
     }
   };
 
@@ -338,9 +341,10 @@ export function Editor(props: {
   };
 
   const edit = (change: () => void) => {
+    if (!storage) return;
     change();
     controller.set(controller.view);
-    saver.schedule();
+    storage.saver.schedule();
   };
 
   // The system clipboard holds the selection as SVG text (#24).
@@ -449,7 +453,7 @@ export function Editor(props: {
 
   // Saves and frees the notebook, then `next` moves to another screen.
   const leave = async (next: () => void) => {
-    await saver.save();
+    await storage?.saver.save();
     if (penWrite) await writePensNow();
     await penWritePending;
     canvas?.free();
@@ -464,14 +468,17 @@ export function Editor(props: {
   return (
     <div class="editor">
       <header class="editor-top">
+        <Show when={!readOnly}>
         <Button class="link-button" aria-label="Library" onClick={() => void leave(props.onLibrary)}>
           <ChevronLeft size={18} />
           <AppMark />
         </Button>
+        </Show>
         <div class="editor-title">
           <div class="editor-folder">{props.folderName}</div>
           <div class="editor-note">{props.notebook.name}</div>
         </div>
+        <Show when={!readOnly}>
         <div class="tabs" role="tablist" aria-label="Open notes">
           <For each={props.tabs}>
             {(tab) => (
@@ -546,8 +553,10 @@ export function Editor(props: {
             </DropdownMenu.Content>
           </DropdownMenu.Portal>
         </DropdownMenu>
+        </Show>
       </header>
       <div class="editor-body">
+        <Show when={!readOnly}>
         <aside class="tool-rail" aria-label="Tools">
           <ToggleGroup
             class="tools"
@@ -635,6 +644,7 @@ export function Editor(props: {
             </Popover.Portal>
           </Popover>
         </aside>
+        </Show>
         <div class="canvas-area" ref={area}>
           <canvas
             id="ink-canvas"
@@ -679,6 +689,7 @@ export function Editor(props: {
               </div>
             )}
           </Show>
+          <Show when={!readOnly}>
           <div
             class="pull-indicator"
             data-active={pull() > 0 ? "" : undefined}
@@ -688,7 +699,9 @@ export function Editor(props: {
             <Plus size={16} />
             {pull() >= PULL_THRESHOLD ? "Release to add a page" : "Pull to add a page"}
           </div>
+          </Show>
           <div class="bottom-bar">
+            <Show when={!readOnly}>
             <div class="bar-group">
               <Button class="icon-button" aria-label="Undo" title="Undo (Ctrl+Z)" onClick={() => history("undo")}>
                 <Undo2 size={18} />
@@ -697,6 +710,7 @@ export function Editor(props: {
                 <Redo2 size={18} />
               </Button>
             </div>
+            </Show>
             <DropdownMenu>
               <DropdownMenu.Trigger class="bar-group bar-menu" aria-label="Zoom">
                 {zoomLabel()} <ChevronDown size={14} />
@@ -716,6 +730,7 @@ export function Editor(props: {
                 </DropdownMenu.Content>
               </DropdownMenu.Portal>
             </DropdownMenu>
+            <Show when={!readOnly}>
             <DropdownMenu>
               <DropdownMenu.Trigger class="bar-group bar-menu" aria-label="Paper">
                 <Grip size={16} /> {paperLabel(template())} <ChevronDown size={14} />
@@ -725,7 +740,7 @@ export function Editor(props: {
                   <DropdownMenu.RadioGroup
                     value={template()}
                     onChange={(name) =>
-                      void applyTemplate(root, doc, name).then(() => {
+                      storage && void applyTemplate(storage.store, doc, name).then(() => {
                         setTemplate(name);
                         edit(() => {});
                       })
@@ -742,6 +757,7 @@ export function Editor(props: {
                 </DropdownMenu.Content>
               </DropdownMenu.Portal>
             </DropdownMenu>
+            </Show>
             <div class="bar-spacer" />
             <div class="bar-group">
               <Button class="icon-button" aria-label="Previous page" onClick={() => goToPage(currentPage() - 1)}>

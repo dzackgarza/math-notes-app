@@ -6,7 +6,8 @@
 // invariant 3).
 import type { Engine } from "../engine/engine.ts";
 import { EngineError, Status } from "../engine/engine.ts";
-import { directoryAt, type Note, pathKey } from "./library.ts";
+import { type Note, pathKey } from "./library.ts";
+import type { Bytes, Entry, Store } from "./store.ts";
 
 export const THUMBNAIL_WIDTH = 240;
 
@@ -54,22 +55,10 @@ export function lastThumbnail(note: Note): Blob | undefined {
   return shown.get(pathKey(note.path));
 }
 
-// The file at `path` (relative to the notebook directory), or null.
-async function fileAt(dir: FileSystemDirectoryHandle, path: string): Promise<File | null> {
-  const parts = path.split("/");
-  try {
-    for (const part of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(part);
-    return await (await dir.getFileHandle(parts[parts.length - 1])).getFile();
-  } catch (e) {
-    if (notFound(e)) return null;
-    throw e;
-  }
-}
-
 // The notebook paths of the images page `file` shows: the href of each SVG
 // `image`, relative to the page file (docs/FORMAT.md, Page SVG), as the
 // engine's NotebookPath resolves it.
-function imagePaths(file: string, svg: string): string[] {
+export function imagePaths(file: string, svg: string): string[] {
   const base = new URL(file, "notebook:/");
   const page = new DOMParser().parseFromString(svg, "image/svg+xml");
   const paths = new Set<string>();
@@ -82,26 +71,26 @@ function imagePaths(file: string, svg: string): string[] {
   return [...paths].sort();
 }
 
-async function load(engine: Engine, root: FileSystemDirectoryHandle, note: Note): Promise<Blob | null> {
-  const dir = await directoryAt(root, note.path);
-  const json = new Uint8Array(await (await (await dir.getFileHandle("notebook.json")).getFile()).arrayBuffer());
+async function load(engine: Engine, store: Store, note: Note): Promise<Blob | null> {
+  const json = await store.read([...note.path, "notebook.json"]);
+  if (!json) return null;
   const { pages } = JSON.parse(new TextDecoder().decode(json)) as { pages?: { file: string }[] };
   const first = pages?.[0]?.file;
   if (!first) return null;
-  const page = await fileAt(dir, first);
-  if (!page) return null;
-  const bytes = new Uint8Array(await page.arrayBuffer());
+  const pagePath = [...note.path, ...first.split("/")];
+  const [page, bytes] = [await store.stat(pagePath), await store.read(pagePath)];
+  if (!page || !bytes) return null;
   const svg = new TextDecoder().decode(bytes);
-  const images: { path: string; file: File }[] = [];
+  const images: { path: string; stat: Entry }[] = [];
   for (const path of imagePaths(first, svg)) {
-    const file = await fileAt(dir, path);
-    if (file) images.push({ path, file });
+    const stat = await store.stat([...note.path, ...path.split("/")]);
+    if (stat?.kind === "file") images.push({ path, stat });
   }
 
   // The key: page 1's file and each image it shows, by name, modification
   // time and size.
-  const stamp = (path: string, file: File) => `${path}:${file.lastModified}:${file.size}`;
-  const key = `${await hex([stamp(first, page), ...images.map((i) => stamp(i.path, i.file))].join("\n"))}.png`;
+  const stamp = (path: string, file: Entry) => `${path}:${file.modified}:${file.size}`;
+  const key = `${await hex([stamp(first, page), ...images.map((i) => stamp(i.path, i.stat))].join("\n"))}.png`;
   const cache = await (await navigator.storage.getDirectory()).getDirectoryHandle(CACHE, { create: true });
   const entry = await cache.getDirectoryHandle(await hex(pathKey(note.path)), { create: true });
   try {
@@ -112,7 +101,11 @@ async function load(engine: Engine, root: FileSystemDirectoryHandle, note: Note)
     if (!notFound(e)) throw e;
   }
 
-  const assets = await Promise.all(images.map(async (i) => ({ path: i.path, bytes: new Uint8Array(await i.file.arrayBuffer()) })));
+  const assets: { path: string; bytes: Bytes }[] = [];
+  for (const i of images) {
+    const asset = await store.read([...note.path, ...i.path.split("/")]);
+    if (asset) assets.push({ path: i.path, bytes: asset });
+  }
   const png = render(engine, json, { path: first, bytes }, assets);
   thumbnailStats.renders++;
   for await (const old of entry.keys()) await entry.removeEntry(old);
@@ -124,11 +117,11 @@ async function load(engine: Engine, root: FileSystemDirectoryHandle, note: Note)
 
 // The thumbnail of `note`'s page 1, or null for a note without one. Requests
 // for one note while its thumbnail loads share the load.
-export function noteThumbnail(engine: Engine, root: FileSystemDirectoryHandle, note: Note): Promise<Blob | null> {
+export function noteThumbnail(engine: Engine, store: Store, note: Note): Promise<Blob | null> {
   const id = `${pathKey(note.path)}@${note.modified}`;
   let request = pending.get(id);
   if (!request) {
-    request = load(engine, root, note)
+    request = load(engine, store, note)
       .then((blob) => {
         if (blob) shown.set(pathKey(note.path), blob);
         else shown.delete(pathKey(note.path));

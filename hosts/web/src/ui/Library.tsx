@@ -27,12 +27,14 @@ import { createMemo, createSignal, For, type JSX, Match, mergeProps, Show, Switc
 
 import { compareBy, type Folder, MY_NOTES, nameError, type Note, pathKey, type Sort } from "../storage/library.ts";
 import { emptyNote, type LibraryMetadata, type NoteMetadata, TAG_COLORS } from "../storage/metadata.ts";
+import type { Store } from "../storage/store.ts";
+import { Connect } from "./Connect.tsx";
 import { NoteCover, type Thumbnails } from "./paper.tsx";
 
 export type Section = "library" | "search" | "recent" | "favorites" | "trash" | "settings" | `tag:${string}`;
 
 export interface LibraryProps {
-  root: FileSystemDirectoryHandle;
+  root: Store;
   folders: Folder[];
   trash: Note[];
   metadata: LibraryMetadata;
@@ -49,6 +51,7 @@ export interface LibraryProps {
   onMove: (path: string[], parent: string[]) => void;
   thumbnail: Thumbnails;
   onChooseFolder: () => void;
+  onConnectWebDav: (url: string) => void;
 }
 
 const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
@@ -642,9 +645,7 @@ export function Library(props: LibraryProps) {
             <section class="settings">
               <h2>Notes folder</h2>
               <p class="lede">{props.root.name}</p>
-              <Button class="button" onClick={() => props.onChooseFolder()}>
-                <FolderOpen size={16} /> Choose notes folder
-              </Button>
+              <Connect onChooseFolder={props.onChooseFolder} onConnectWebDav={props.onConnectWebDav} />
             </section>
           </Match>
           <Match when={tag()}>

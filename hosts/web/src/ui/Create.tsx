@@ -8,6 +8,7 @@ import { Check, ChevronDown, ChevronLeft, Folder as FolderIcon, Plus } from "luc
 import { createMemo, createSignal, For, Show } from "solid-js";
 
 import { type Folder, MY_NOTES, pathKey } from "../storage/library.ts";
+import type { Store } from "../storage/store.ts";
 import { noteCount, Sidebar, type SidebarProps } from "./Library.tsx";
 import { PaperTile, paperLabel } from "./paper.tsx";
 
@@ -101,7 +102,7 @@ export function NewNotebook(
 }
 
 export function NewNote(props: {
-  root: FileSystemDirectoryHandle;
+  root: Store;
   folders: Folder[];
   templates: string[];
   folder: string[];

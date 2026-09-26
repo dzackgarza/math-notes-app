@@ -5,12 +5,13 @@
 import { createMemo, createResource, onCleanup, Show } from "solid-js";
 
 import { readTemplatePage } from "../storage/folder.ts";
+import type { Store } from "../storage/store.ts";
 import type { Note } from "../storage/library.ts";
 import { lastThumbnail } from "../storage/thumbnails.ts";
 
-const urls = new WeakMap<FileSystemDirectoryHandle, Map<string, Promise<string>>>();
+const urls = new WeakMap<Store, Map<string, Promise<string>>>();
 
-function templateUrl(root: FileSystemDirectoryHandle, name: string): Promise<string> {
+function templateUrl(root: Store, name: string): Promise<string> {
   let byName = urls.get(root);
   if (!byName) urls.set(root, (byName = new Map()));
   let url = byName.get(name);
@@ -24,7 +25,7 @@ function templateUrl(root: FileSystemDirectoryHandle, name: string): Promise<str
   return url;
 }
 
-export function PaperTile(props: { root: FileSystemDirectoryHandle; template: string; class?: string }) {
+export function PaperTile(props: { root: Store; template: string; class?: string }) {
   const [url] = createResource(() => [props.root, props.template] as const, ([root, name]) => templateUrl(root, name));
   return (
     <div class={`paper-tile ${props.class ?? ""}`}>
@@ -43,7 +44,7 @@ export function paperLabel(template: string): string {
 
 // A note's cover: its page 1 as the engine draws it (src/storage/thumbnails.ts),
 // or the paper of its template until that loads or when it has no page.
-export function NoteCover(props: { root: FileSystemDirectoryHandle; note: Note; thumbnail: Thumbnails; class?: string }) {
+export function NoteCover(props: { root: Store; note: Note; thumbnail: Thumbnails; class?: string }) {
   const [png] = createResource(() => props.note, props.thumbnail, { initialValue: lastThumbnail(props.note) ?? null });
   const url = createMemo(() => {
     const blob = png.latest;

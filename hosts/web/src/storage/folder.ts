@@ -1,23 +1,42 @@
-// The notes folder in Chromium: a directory handle from the File System
-// Access API, kept in IndexedDB so it survives reloads. Follows Chrome's
-// articles "The File System Access API" and "Persistent permissions for the
-// File System Access API". A notebook is a subdirectory with notebook.json
-// (docs/FORMAT.md).
-import { get, set } from "idb-keyval";
+// The notes folder: which store holds it, kept in IndexedDB so it survives
+// reloads, and the notebook files in it. A notebook is a directory with
+// notebook.json (docs/FORMAT.md).
+import { del, get, set } from "idb-keyval";
 
 import type { Engine, FileChange, NotebookFile } from "../engine/engine.ts";
+import { type Bytes, FolderStore, type Path, type Store, SWAP_SUFFIX, WebDavStore } from "./store.ts";
 
 const ROOT_KEY = "notes-root";
+const WEBDAV_KEY = "notes-webdav";
 
-export async function pickRoot(): Promise<FileSystemDirectoryHandle> {
+// Chromium only: the File System Access folder picker.
+export const canPickFolder = (): boolean => "showDirectoryPicker" in window;
+
+export async function pickRoot(): Promise<FolderStore> {
   const root = await window.showDirectoryPicker({ id: "notes", mode: "readwrite" });
   await set(ROOT_KEY, root);
-  return root;
+  await del(WEBDAV_KEY);
+  return new FolderStore(root);
 }
 
-// The folder chosen before, if any.
-export async function savedRoot(): Promise<FileSystemDirectoryHandle | undefined> {
-  return get<FileSystemDirectoryHandle>(ROOT_KEY);
+// Connects to the WebDAV server at `url`: a listing of the root checks that
+// it answers and allows this origin.
+export async function connectWebDav(url: string): Promise<WebDavStore> {
+  const store = new WebDavStore(url);
+  if (!(await store.list([]))) throw new Error(`${url} has no root directory`);
+  await set(WEBDAV_KEY, url);
+  await del(ROOT_KEY);
+  return store;
+}
+
+export type SavedRoot = { kind: "folder"; handle: FileSystemDirectoryHandle } | { kind: "webdav"; url: string };
+
+// The notes folder chosen before, if any.
+export async function savedRoot(): Promise<SavedRoot | undefined> {
+  const url = await get<string>(WEBDAV_KEY);
+  if (url) return { kind: "webdav", url };
+  const handle = await get<FileSystemDirectoryHandle>(ROOT_KEY);
+  return handle ? { kind: "folder", handle } : undefined;
 }
 
 export async function hasPermission(root: FileSystemDirectoryHandle): Promise<boolean> {
@@ -29,110 +48,73 @@ export async function requestPermission(root: FileSystemDirectoryHandle): Promis
   return (await root.requestPermission({ mode: "readwrite" })) === "granted";
 }
 
-export async function listNotebooks(root: FileSystemDirectoryHandle): Promise<string[]> {
-  const names: string[] = [];
-  for await (const [name, handle] of root.entries()) {
-    if (handle.kind !== "directory") continue;
-    try {
-      await handle.getFileHandle("notebook.json");
-      names.push(name);
-    } catch {
-      // A directory without notebook.json is not a notebook.
-    }
-  }
-  return names.sort();
-}
-
 export interface NotebookFiles {
-  notebookJson: Uint8Array;
+  notebookJson: Bytes;
   pages: NotebookFile[];
   assets: NotebookFile[];
 }
 
-async function readDirectory(dir: FileSystemDirectoryHandle, prefix: string): Promise<NotebookFile[]> {
+// The files of directory `sub` of notebook `dir`, without swap files.
+async function readDirectory(store: Store, dir: Path, sub: string): Promise<NotebookFile[]> {
   const files: NotebookFile[] = [];
-  for await (const [name, handle] of dir.entries()) {
-    if (handle.kind !== "file") continue;
-    const file = await handle.getFile();
-    files.push({ path: `${prefix}/${name}`, bytes: new Uint8Array(await file.arrayBuffer()) });
+  for (const entry of (await store.list([...dir, sub])) ?? []) {
+    if (entry.kind !== "file" || entry.name.endsWith(SWAP_SUFFIX)) continue;
+    const bytes = await store.read([...dir, sub, entry.name]);
+    if (bytes) files.push({ path: `${sub}/${entry.name}`, bytes });
   }
   return files;
 }
 
-async function subdirectory(dir: FileSystemDirectoryHandle, name: string): Promise<FileSystemDirectoryHandle | null> {
-  try {
-    return await dir.getDirectoryHandle(name);
-  } catch {
-    return null;
-  }
-}
-
-export async function readNotebook(dir: FileSystemDirectoryHandle): Promise<NotebookFiles> {
-  const json = await (await dir.getFileHandle("notebook.json")).getFile();
-  const pages = await subdirectory(dir, "pages");
-  const assets = await subdirectory(dir, "assets");
+export async function readNotebook(store: Store, dir: Path): Promise<NotebookFiles> {
+  const json = await store.read([...dir, "notebook.json"]);
+  if (!json) throw new Error(`${dir.join("/")} has no notebook.json`);
   return {
-    notebookJson: new Uint8Array(await json.arrayBuffer()),
-    pages: pages ? (await readDirectory(pages, "pages")).filter((f) => f.path.endsWith(".svg")) : [],
-    assets: assets ? await readDirectory(assets, "assets") : [],
+    notebookJson: json,
+    pages: (await readDirectory(store, dir, "pages")).filter((f) => f.path.endsWith(".svg")),
+    assets: await readDirectory(store, dir, "assets"),
   };
 }
 
-// Chromium's exclusive writer: no other writer of the file while this one is
-// open. Not yet in the File System Access type definitions.
-type ExclusiveWritableOptions = FileSystemCreateWritableOptions & { mode: "exclusive" };
-
-// Writes or deletes each file under `dir`, creating directories on the way.
-export async function writeFiles(dir: FileSystemDirectoryHandle, files: readonly FileChange[]): Promise<void> {
+// Writes or deletes each file under `dir`.
+export async function writeFiles(store: Store, dir: Path, files: readonly FileChange[]): Promise<void> {
   for (const file of files) {
-    const parts = file.path.split("/");
-    let parent = dir;
-    for (const part of parts.slice(0, -1)) parent = await parent.getDirectoryHandle(part, { create: true });
-    if (file.kind === "delete") {
-      await parent.removeEntry(parts[parts.length - 1]).catch((e: unknown) => {
-        if (!(e instanceof DOMException && e.name === "NotFoundError")) throw e;
-      });
-      continue;
-    }
-    const handle = await parent.getFileHandle(parts[parts.length - 1], { create: true });
-    const options: ExclusiveWritableOptions = { keepExistingData: false, mode: "exclusive" };
-    const writable = await handle.createWritable(options);
-    await writable.write(file.bytes);
-    await writable.close();
+    const path = [...dir, ...file.path.split("/")];
+    if (file.kind === "delete") await store.remove(path);
+    else await store.write(path, file.bytes);
   }
 }
 
 const TEMPLATES = ".templates";
 
+// The notebook directories directly in `dir`, by name.
+export async function listNotebooks(store: Store, dir: Path): Promise<string[]> {
+  const names: string[] = [];
+  for (const entry of (await store.list(dir)) ?? []) {
+    if (entry.kind === "directory" && (await store.stat([...dir, entry.name, "notebook.json"]))) names.push(entry.name);
+  }
+  return names.sort();
+}
+
 // Creates Notes/.templates/<name>/ for each built-in template that is
 // missing (docs/FORMAT.md, Other files).
-export async function ensureTemplates(root: FileSystemDirectoryHandle, engine: Engine): Promise<void> {
-  const templates = await root.getDirectoryHandle(TEMPLATES, { create: true });
+export async function ensureTemplates(store: Store, engine: Engine): Promise<void> {
+  const present = new Set(((await store.list([TEMPLATES])) ?? []).map((e) => e.name));
   for (const name of engine.builtinTemplates()) {
-    if (await subdirectory(templates, name)) continue;
+    if (present.has(name)) continue;
     const document = engine.createBuiltinTemplate(name, 1n);
     try {
-      await writeFiles(await templates.getDirectoryHandle(name, { create: true }), document.dirtyFiles());
+      await writeFiles(store, [TEMPLATES, name], document.dirtyFiles());
     } finally {
       document.free();
     }
   }
 }
 
-export async function listTemplates(root: FileSystemDirectoryHandle): Promise<string[]> {
-  const templates = await subdirectory(root, TEMPLATES);
-  return templates ? listNotebooks(templates) : [];
+export async function listTemplates(store: Store): Promise<string[]> {
+  return listNotebooks(store, [TEMPLATES]);
 }
 
 // Page 1 of template `name`, whose background new pages copy.
-export async function readTemplatePage(root: FileSystemDirectoryHandle, name: string): Promise<Uint8Array<ArrayBuffer> | null> {
-  try {
-    const templates = await root.getDirectoryHandle(TEMPLATES);
-    const pages = await (await templates.getDirectoryHandle(name)).getDirectoryHandle("pages");
-    const file = await (await pages.getFileHandle("0001.svg")).getFile();
-    return new Uint8Array(await file.arrayBuffer());
-  } catch (e) {
-    if (e instanceof DOMException && e.name === "NotFoundError") return null;
-    throw e;
-  }
+export async function readTemplatePage(store: Store, name: string): Promise<Bytes | null> {
+  return store.read([TEMPLATES, name, "pages", "0001.svg"]);
 }

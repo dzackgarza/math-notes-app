@@ -2,13 +2,14 @@
 // the current model"): a folder is a directory without notebook.json, a note
 // is a notebook directory (docs/FORMAT.md). Notes at the top level form the
 // "My Notes" group. Dot directories (.templates, .trash, ...) are not folders.
+import type { Entry, Path, Store } from "./store.ts";
 
 export interface Note {
   // Path segments from the root, the note's own directory last.
   path: string[];
   name: string;
   template: string;
-  // Latest lastModified of notebook.json and the page files, ms since epoch.
+  // Latest modification of notebook.json and the page files, ms since epoch.
   modified: number;
 }
 
@@ -25,30 +26,12 @@ export const MY_NOTES = "My Notes";
 
 export const pathKey = (path: readonly string[]): string => path.join("/");
 
-export async function directoryAt(root: FileSystemDirectoryHandle, path: readonly string[]): Promise<FileSystemDirectoryHandle> {
-  let dir = root;
-  for (const part of path) dir = await dir.getDirectoryHandle(part);
-  return dir;
-}
-
-async function fileIfPresent(dir: FileSystemDirectoryHandle, name: string): Promise<File | null> {
-  try {
-    return await (await dir.getFileHandle(name)).getFile();
-  } catch (e) {
-    if (e instanceof DOMException && (e.name === "NotFoundError" || e.name === "TypeMismatchError")) return null;
-    throw e;
-  }
-}
-
-async function readNote(dir: FileSystemDirectoryHandle, path: string[], json: File): Promise<Note> {
-  const { template } = JSON.parse(await json.text()) as { template?: string };
-  let modified = json.lastModified;
-  try {
-    for await (const [, handle] of (await dir.getDirectoryHandle("pages")).entries()) {
-      if (handle.kind === "file") modified = Math.max(modified, (await handle.getFile()).lastModified);
-    }
-  } catch (e) {
-    if (!(e instanceof DOMException && e.name === "NotFoundError")) throw e;
+async function readNote(store: Store, path: string[], json: Entry): Promise<Note> {
+  const bytes = await store.read([...path, "notebook.json"]);
+  const { template } = JSON.parse(new TextDecoder().decode(bytes ?? new Uint8Array())) as { template?: string };
+  let modified = json.modified;
+  for (const entry of (await store.list([...path, "pages"])) ?? []) {
+    if (entry.kind === "file") modified = Math.max(modified, entry.modified);
   }
   return { path, name: path[path.length - 1], template: template ?? "blank", modified };
 }
@@ -63,21 +46,33 @@ function folder(path: string[], notes: Note[]): Folder {
   };
 }
 
-// Every folder under `root`, nested ones included, with its notes. "My Notes"
-// comes first, then the folders by path.
-export async function scanLibrary(root: FileSystemDirectoryHandle): Promise<Folder[]> {
-  const folders: Folder[] = [];
-  const visit = async (dir: FileSystemDirectoryHandle, path: string[]): Promise<void> => {
-    const notes: Note[] = [];
-    for await (const [name, handle] of dir.entries()) {
-      if (handle.kind !== "directory" || name.startsWith(".")) continue;
-      const json = await fileIfPresent(handle, "notebook.json");
-      if (json) notes.push(await readNote(handle, [...path, name], json));
-      else await visit(handle, [...path, name]);
-    }
-    folders.push(folder(path, notes));
-  };
-  await visit(root, []);
+// Visits the directories under `dir`: `onNote` for each notebook; each other
+// directory is visited in turn when `enter` accepts it.
+async function walk(store: Store, dir: string[], onNote: (note: Note) => void, enter: (path: string[]) => boolean): Promise<void> {
+  for (const entry of (await store.list(dir)) ?? []) {
+    if (entry.kind !== "directory") continue;
+    const path = [...dir, entry.name];
+    const json = await store.stat([...path, "notebook.json"]);
+    if (json?.kind === "file") onNote(await readNote(store, path, json));
+    else if (enter(path)) await walk(store, path, onNote, enter);
+  }
+}
+
+// Every folder under the root, nested ones included, with its notes. "My
+// Notes" comes first, then the folders by path.
+export async function scanLibrary(store: Store): Promise<Folder[]> {
+  const notes = new Map<string, Note[]>([["", []]]);
+  await walk(
+    store,
+    [],
+    (note) => notes.get(pathKey(note.path.slice(0, -1)))!.push(note),
+    (path) => {
+      if (path[path.length - 1].startsWith(".")) return false;
+      notes.set(pathKey(path), []);
+      return true;
+    },
+  );
+  const folders = [...notes].map(([key, list]) => folder(key ? key.split("/") : [], list));
   return folders.sort((a, b) => (a.path.length === 0 ? -1 : b.path.length === 0 ? 1 : a.name.localeCompare(b.name)));
 }
 
@@ -85,24 +80,9 @@ export const TRASH = ".trash";
 
 // The notes moved to Notes/.trash/ (docs/FORMAT.md, Layout), those inside a
 // trashed folder included, most recently modified first.
-export async function scanTrash(root: FileSystemDirectoryHandle): Promise<Note[]> {
-  let trash: FileSystemDirectoryHandle;
-  try {
-    trash = await root.getDirectoryHandle(TRASH);
-  } catch (e) {
-    if (e instanceof DOMException && e.name === "NotFoundError") return [];
-    throw e;
-  }
+export async function scanTrash(store: Store): Promise<Note[]> {
   const notes: Note[] = [];
-  const visit = async (dir: FileSystemDirectoryHandle, path: string[]): Promise<void> => {
-    for await (const [name, handle] of dir.entries()) {
-      if (handle.kind !== "directory") continue;
-      const json = await fileIfPresent(handle, "notebook.json");
-      if (json) notes.push(await readNote(handle, [...path, name], json));
-      else await visit(handle, [...path, name]);
-    }
-  };
-  await visit(trash, [TRASH]);
+  await walk(store, [TRASH], (note) => notes.push(note), () => true);
   return notes.sort((a, b) => b.modified - a.modified);
 }
 
@@ -121,34 +101,16 @@ export function nameError(name: string, siblings: readonly string[]): string | n
 }
 
 // The names in the directory at `path`.
-export async function entryNames(root: FileSystemDirectoryHandle, path: readonly string[]): Promise<string[]> {
-  const names: string[] = [];
-  for await (const name of (await directoryAt(root, path)).keys()) names.push(name);
-  return names;
+export async function entryNames(store: Store, path: Path): Promise<string[]> {
+  return ((await store.list(path)) ?? []).map((e) => e.name);
 }
 
-export async function createFolder(root: FileSystemDirectoryHandle, parent: readonly string[], name: string): Promise<string[]> {
-  const error = nameError(name, await entryNames(root, parent));
+export async function createFolder(store: Store, parent: Path, name: string): Promise<string[]> {
+  const error = nameError(name, await entryNames(store, parent));
   if (error) throw new Error(error);
-  await (await directoryAt(root, parent)).getDirectoryHandle(name.trim(), { create: true });
-  return [...parent, name.trim()];
-}
-
-// Copies directory `source` with its contents to a new directory `name` in
-// `parent`. File System Access has no directory move outside the
-// origin-private file system (FileSystemHandle.move moves files only), so a
-// move is this copy, then the removal of the source.
-async function copyDirectory(source: FileSystemDirectoryHandle, parent: FileSystemDirectoryHandle, name: string): Promise<void> {
-  const target = await parent.getDirectoryHandle(name, { create: true });
-  for await (const [entry, handle] of source.entries()) {
-    if (handle.kind === "directory") {
-      await copyDirectory(handle, target, entry);
-      continue;
-    }
-    const writable = await (await target.getFileHandle(entry, { create: true })).createWritable();
-    await writable.write(await handle.getFile());
-    await writable.close();
-  }
+  const path = [...parent, name.trim()];
+  await store.makeDirectory(path);
+  return path;
 }
 
 // Moves the notebook or folder at `from` into folder `toParent` as `name`: a
@@ -156,35 +118,28 @@ async function copyDirectory(source: FileSystemDirectoryHandle, parent: FileSyst
 // DocumentList::renameItem and pasteItem (documentlist.cpp:567-592,
 // 648-681): the target must not exist, and a move into the same folder
 // under the same name does nothing.
-export async function moveEntry(
-  root: FileSystemDirectoryHandle,
-  from: readonly string[],
-  toParent: readonly string[],
-  name: string,
-): Promise<string[]> {
+export async function moveEntry(store: Store, from: Path, toParent: Path, name: string): Promise<string[]> {
   const to = [...toParent, name.trim()];
   if (pathKey(to) === pathKey(from)) return to;
   if (toParent.length >= from.length && from.every((part, i) => toParent[i] === part)) {
     throw new Error("A folder cannot move into itself.");
   }
-  const error = nameError(name, await entryNames(root, toParent));
+  const error = nameError(name, await entryNames(store, toParent));
   if (error) throw new Error(error);
-  const source = await directoryAt(root, from);
-  await copyDirectory(source, await directoryAt(root, toParent), name.trim());
-  await (await directoryAt(root, from.slice(0, -1))).removeEntry(from[from.length - 1], { recursive: true });
+  await store.move(from, to);
   return to;
 }
 
 // Moves the notebook or folder at `path` into Notes/.trash/, where any file
 // manager can restore it, keeping its name; a name already in the trash gets
 // " 2", " 3", ... appended.
-export async function moveToTrash(root: FileSystemDirectoryHandle, path: readonly string[]): Promise<void> {
-  await root.getDirectoryHandle(TRASH, { create: true });
-  const taken = new Set(await entryNames(root, [TRASH]));
+export async function moveToTrash(store: Store, path: Path): Promise<void> {
+  await store.makeDirectory([TRASH]);
+  const taken = new Set(await entryNames(store, [TRASH]));
   const name = path[path.length - 1];
   let target = name;
   for (let i = 2; taken.has(target); i++) target = `${name} ${i}`;
-  await moveEntry(root, path, [TRASH], target);
+  await moveEntry(store, path, [TRASH], target);
 }
 
 export type Sort = "modified" | "name";
