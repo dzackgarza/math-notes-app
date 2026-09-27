@@ -36,7 +36,8 @@ until the source build below is installed and the host is rebuilt.
 
 ## Compiler build running in the background
 
-The compiler recipe is running under `nohup`, with output in
+The compiler recipe is running as the user service
+`math-notes-tex-build.service`, with output in
 `/tmp/math-notes-tex-build.log`. Inspect that log and the running process before
 starting another build. Downloads and builds can continue across this handoff.
 The recipe resumes partial downloads and verifies the complete pinned
