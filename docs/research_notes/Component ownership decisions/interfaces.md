@@ -9,7 +9,7 @@ claims that the current bindings already use them.
 Select Emscripten 4.0.7 Embind and `--emit-tsd` for web command bindings.
 Embind binds value objects, vectors, functions, and typed memory views and
 generates their TypeScript declarations. Swift imports the engine's C ABI
-through Clang. Both bindings call the same fork command interface.
+through Clang. Both bindings call the current engine commands.
 [Embind API](https://emscripten.org/docs/porting/connecting_cpp_and_javascript/embind.html),
 [pinned binding implementation](https://github.com/emscripten-core/emscripten/blob/4.0.7/system/include/emscripten/bind.h).
 
@@ -23,20 +23,18 @@ between the chosen engine and hosts; it adds no editor mechanism.
 
 ## Existing parsers own notebook syntax
 
-Select the Write fork's usvg tree and parser/writer for editable SVG,
-pugixml 1.16 for the notebook's InkML and namespaced metadata mapping, and
+Use the current Math Notes document model with pugixml 1.16 for page SVG,
+InkML, and namespaced metadata, and
 nlohmann-json from vcpkg baseline
 `10541e317a660f4165ba4ac2851ab54a8d4577b1` for notebook JSON.
 These are syntax owners. The adapter supplies only the documented field
 mapping, path identity, original trace retention, and deterministic attribute
-order. It updates the same Write element rather than maintaining another
-document model.
-[Write SVG writer](https://github.com/styluslabs/Write/blob/401b65d5fe0294cc83171b76a0273b6df3afc979/usvg/svgwriter.cpp),
+order. It updates the same current document model.
 [pugixml manual](https://pugixml.org/docs/manual.html),
 [nlohmann-json API](https://json.nlohmann.me/api/basic_json/),
 [pinned vcpkg baseline](https://github.com/microsoft/vcpkg/blob/10541e317a660f4165ba4ac2851ab54a8d4577b1/versions/baseline.json).
 
-The source-fidelity gap and complete-editor alternatives are assessed in
+Complete-editor alternatives are recorded for post-v1 review in
 [ink.md](ink.md). The library parser handles syntax; the notebook contract
 requires retaining `mn:` fields, raw InkML samples, and authored figure files.
 
@@ -74,4 +72,4 @@ authority with conditional writes, not more comparison code.
 Exact searches: `site:emscripten.org docs embind TypeScript emit-tsd typed_memory_view`;
 `site:developer.chrome.com file system access filehandle move directories supported`.
 Source inspection also covered the existing C ABI, engine dependency manifest,
-the pinned upstream Write model, and the primary parser APIs linked above.
+and the primary parser APIs linked above.
