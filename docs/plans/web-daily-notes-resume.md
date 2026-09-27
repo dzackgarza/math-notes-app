@@ -7,8 +7,9 @@ Implementation checkpoint: `890c083`.
 
 Continue the complete [daily-use milestone](web-daily-notes-handoff.md).
 The milestone remains incomplete. The current pause is a requested session
-handoff. Framework selection and feature scope remain settled by
-[ARCHITECTURE.md](../ARCHITECTURE.md) and the linked product contracts.
+handoff. The corrected [TikZ mode contract](../specs/tikz-drawing-mode.md)
+owns figure scope: drawing interpretation, source editing, and copying code
+into a separate typeset document.
 
 Prioritize the usable product and complete user workflows. Defer broad test
 expansion and release administration until the working v1 warrants them.
@@ -30,45 +31,22 @@ pre-existing user files with their current untracked status:
 | `http://localhost/math-notes/flutter/` | Flutter preview, with the saved folder connection. |
 | `http://localhost/math-notes/flutter/?root=opfs` | Flutter preview using browser storage. |
 
-The preview includes the implementation through `890c083`. The figure editor
-loads, but its compiler assets are still absent. Compilation cannot complete
-until the source build below is installed and the host is rebuilt.
+The preview includes the implementation through `890c083`. Its figure
+compiler controls and compiled-view path still reflect superseded scope.
+The compiler service is stopped. Generated inputs remain under
+`.ci/busytex-build`.
 
-## Compiler build running in the background
+## Resume the corrected figure workflow
 
-The compiler recipe is running as the user service
-`math-notes-tex-build.service`, with output in
-`/tmp/math-notes-tex-build.log`. Inspect that log and the running process before
-starting another build. Downloads and builds can continue across this handoff.
-The recipe resumes partial downloads and verifies the complete pinned
-SHA-512 digest before extraction. Retain the ISO at
-`.ci/busytex-build/source/texlive2026.iso`.
+Implement the interpreted-drawing-to-source path and a clear Copy TikZ
+action. Preserve notebook ink and saved source. Remove the compiler,
+preamble, and compiled-page-view integration added for the superseded
+typesetting workflow, including its build and cache dependencies. Existing
+figure capture, source editing, and durable storage remain useful.
 
-If the process has exited before completion, resume with:
-
-```sh
-MATH_NOTES_TEX_BUILD="$PWD/.ci/busytex-build" just web-figure-compiler \
-  > /tmp/math-notes-tex-build.log 2>&1
-```
-
-The builder is pinned to `f544a51a99e7d3978bb70608e927a9a23f96d4a7`.
-The input is `texlive2026-20260301.iso`. The recipe extends the generated
-extra profile with `collection-pictures 1` and builds
-`build/wasm/texlive-extra.fmt-rebuilt`. The source build has not reached
-extraction or compilation. Resolve actual build errors against upstream
-sources; preserve the selected compiler and package profile.
-
-`gperf` and `strace` were installed from system packages. Other inspected
-prerequisites include `7z`, `bsdtar`, `dos2unix`, `bwrap`, `tex`, Perl, and wget.
-The recipe uses the repository Emscripten environment. Successful completion
-places browser assets and a manifest in `.ci/figure-compiler`.
-
-Then run `just _flutter-host` and copy `hosts/web/flutter/build/web/` to
-`/var/www/math-notes/flutter/` with `rsync -a`. Exercise actual source editing,
-compilation, save, reopen, undo, copy, and PDF export before calling the figure
-workflow complete. `just web-deploy` still deploys the primary host and can
-delete the preview directory; adapt the primary entry points when completing
-the Flutter transition.
+The primary deployment transition still remains. `just web-deploy` can
+delete the Flutter preview directory; adapt the entry points when completing
+that transition.
 
 ## Implemented paths and ownership
 
@@ -103,14 +81,10 @@ still the capture geometry; it is not a complete semantic mapping of edits.
 
 ### Figures: issue #10
 
-- Finish source-object identity and scene/source mappings for edited geometry.
-- Integrate the selected Planegcs constraint solver, reversible primitive
-  suggestions, Hobby curves, and the specified precision tools and labels.
-- Preserve authored and opaque source through all visual edits. Use the
-  selected editor and dependency owners rather than a replacement subsystem.
-- Complete compiled preview and saved/reopened figure workflows after the
-  compiler build. The existing iframe and compiler button alone do not meet
-  the complete figure contract.
+- Connect captured drawing interpretation to editable TikZ source.
+- Provide selection and Copy TikZ, preserving source through save and reopen.
+- Demonstrate copied source in a separate typeset document.
+- Complete the compiler integration removal described above.
 
 ### Durability, conflicts, and transfers
 
@@ -152,7 +126,7 @@ The form exposed the new location picker and removable tag control. Creating
 `Lecture notes` with the `algebra` tag produced the corresponding folder and
 tag controls in the library. This used an isolated browser-storage context.
 Screenshot: `/tmp/math-notes-creation.png`. Full deployed daily-use sessions,
-physical pen/touch, and actual TeX compilation remain unverified.
+physical pen/touch, and the complete interpreted-diagram copy workflow remain unverified.
 
 The configured Chrome MCP tool expects a missing Google Chrome executable.
 The existing Chromium executable works with the installed CLI:

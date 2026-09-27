@@ -1,5 +1,10 @@
 # FreeTikZ drawing editor: component ownership decision
 
+Status: historical component research. The current implementation scope is
+defined by [TikZ drawing mode](../../specs/tikz-drawing-mode.md).
+Use this survey as dependency evidence; use the current contract for product
+requirements and acceptance.
+
 ## Which component owns the complete vector and TikZ editing surface?
 
 ### Takeaway
