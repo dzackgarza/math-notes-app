@@ -1,5 +1,9 @@
 # Storage and file format
 
+The [initial file-format proposal](source/initial-file-format-proposal.md)
+is the source record. This document is the adopted format contract; the
+[v1 ownership map](V1_OWNERSHIP_MAP.md) names its parser and host file APIs.
+
 The authoritative state is an ordinary directory tree of documented,
 standard files at a location the user chooses. The app has no private library
 and no sync of its own. Saving writes the file in place; whatever owns the
@@ -111,7 +115,7 @@ conflict. Assets are separate files, not base64 inside SVG.
 </svg>
 ```
 
-- Only core SVG elements: `path`, `g`, `image`, `a`, `rect`, `line`,
+- Only core SVG elements: `path`, `g`, `image`, `text`, `tspan`, `a`, `rect`, `line`,
   `polygon`, `ellipse`, `circle`, `metadata`, transforms. No
   `foreignObject`, no `<style>`, no `<use>` across files.
 - Units: the `viewBox` is in PostScript points (1/72 inch), the unit of PDF
@@ -120,8 +124,16 @@ conflict. Assets are separate files, not base64 inside SVG.
 - Element order: `metadata`, then `g#background`, then one `g` per layer in
   `notebook.json` order, with the layer id as its `id`.
 - A stroke is a filled `path` whose `d` is the brush outline: every outline
-  of the stroke as one `M…Z` subpath, `fill-rule` nonzero (the default). Any
-  SVG renderer draws the variable-width ink correctly.
+  of the stroke is a closed subpath, with nonzero fill. A constant-width
+  stroke can use an SVG stroked path. Preserve the selected ink owner's
+  path commands and brush classes so its eraser can edit the same element.
+  Both forms display in a standard SVG renderer.
+- A typed text box is an SVG `text` element with `x`, `y`, `font-size`,
+  `font-family`, and `fill`. Each line is a `tspan`; its baseline and the
+  later lines' `dy` values come from Skia Paragraph with
+  the same bundled font bytes and layout properties used for rendering. Its `transform`
+  stores a move or resize. The first `y` is the text baseline. Preserve the
+  authored text and its explicit line breaks through layout and save.
 - The stroke's input samples are an [InkML](https://www.w3.org/TR/InkML/)
   `trace` in the path's `metadata`. The page's root `metadata` declares one
   `inkml:traceFormat` per channel set that its strokes use. Channels, in
@@ -132,11 +144,12 @@ conflict. Assets are separate files, not base64 inside SVG.
   Wacom's universal-ink-library, microsoft/InkMLjs, and the CROHME
   handwritten-math tools, so external scripts can read the samples of any
   page.
-- Stroke attributes, in this order: `id`, `class` (only for shape elements),
-  `transform`, `fill`, `fill-opacity`, `mn:brush`, `mn:brush-version`,
-  `mn:size`, `mn:time`, `d`. `mn:brush` names a google/ink stock brush
-  family and `mn:brush-version` its version enum, so a stored stroke
-  regenerates the same way after a library upgrade. `mn:time` is the UTC
+- Stroke attributes, in this order: `id`, `transform`, `fill`, `fill-opacity`,
+  `mn:brush`, `mn:brush-version`,
+  `mn:size`, `mn:time`, `d`. `mn:brush` names the ink owner's brush
+  family and `mn:brush-version` its pinned encoding version. The owner and
+  source-fidelity extension are fixed in [ARCHITECTURE.md](ARCHITECTURE.md).
+  A library update must preserve the stored outline. `mn:time` is the UTC
   start time of the stroke.
 - `d` and the samples are in stroke-local coordinates. Moving, resizing, or
   rotating a stroke writes only its `transform` attribute
@@ -144,9 +157,9 @@ conflict. Assets are separate files, not base64 inside SVG.
 - The engine regenerates a stroke's outline only when the stroke is created
   or its samples or brush change. A loaded outline is written back as it was
   read.
-- IDs: `p-` pages, `l-` layers, `s-` strokes and shape elements, `b-`
-  bookmarks. Each is the prefix plus 6 (pages, layers) or 12 (strokes,
-  bookmarks) characters of lowercase base32 from a seedable generator.
+- IDs: `p-` pages, `l-` layers, `s-` strokes, `b-` bookmarks, `f-`
+  figures. Each is the prefix plus 6 (pages, layers) or 12 (strokes,
+  bookmarks, figures) characters of lowercase base32 from a seedable generator.
   Reordering or renaming never changes an id. A pasted element whose id
   already exists on the page gets a new id.
 - Clipboard: copy and cut write the selected elements as a standalone page
@@ -157,7 +170,7 @@ conflict. Assets are separate files, not base64 inside SVG.
   `a`, `b`, `c`, `d` with 6 decimals (a scaled or rotated stroke then stays
   within 0.001 pt anywhere on the page); force and angles with 3 decimals; `T` in whole milliseconds. Written with
   `std::to_chars` fixed format, `-0` written as `0`, trailing zeros removed.
-  `d` is an absolute `M` followed by relative `l` commands. Colors are
+  `d` retains the ink owner's SVG path commands, including curve controls. Colors are
   `#RRGGBB` in upper case; opacity goes in `fill-opacity`.
 - XML is written one element per line, two-space indent, attributes in the
   orders above. No generated thumbnails in the file. Diffs, git, and sync
@@ -188,11 +201,40 @@ conflict. Assets are separate files, not base64 inside SVG.
   works in a browser that opens the page file, and keeps working when the
   whole tree moves.
 
-### Shape elements
+### TikZ figures
 
-A recognized shape (FEATURES.md) is a `line`, `polygon`, `rect`, `ellipse`,
-or `path` (arrow) with `class="mn-shape"`, `fill="none"`, and the pen's
-color and size as `stroke` and `stroke-width`.
+One Drawing mode session completes as one figure. Its page element is a group
+with stable `f-` id, `class="mn-figure"`, optional `transform`, and
+`mn:scene` and `mn:tikz` paths relative to the page file. The group contains
+the current vector view of the figure as ordinary SVG children. A browser
+that opens the page file draws those children without loading either sidecar.
+The group is one selectable page object; its children are edited through the
+figure editor, not as separate page strokes.
+
+```xml
+<g id="f-c718xa2kq9mz" class="mn-figure"
+   mn:scene="../assets/f-c718xa2kq9mz.scene.json"
+   mn:tikz="../assets/f-c718xa2kq9mz.tikz">
+  <path id="s-3kd92lq0mzpa" ...>
+    <metadata><inkml:trace contextRef="#xytfa">…</inkml:trace></metadata>
+  </path>
+</g>
+```
+
+The `.scene.json` file is the forked FreeTikZ scene: stable object ids,
+original pen samples, interpreted geometric objects, and their relations.
+The `.tikz` file holds the exact TikZ source, including user edits. A canvas
+edit changes only the source range owned by that operation. A page save must
+not regenerate the `.tikz` file from the scene. A scene edit updates the
+group's vector children so page SVG, thumbnails, and PDF export show the
+current figure. Figure move and resize change the group transform and bounds
+together. Copy gives the figure and its sidecars new ids and paths. Deleting
+the last reference deletes the sidecars as part of the notebook save.
+
+Both sidecars belong to the notebook's `assets/` directory and follow the
+same in-place save and dirty-file contract as page files. A missing or invalid
+sidecar is an explicit figure error; the page's visible SVG children remain
+available for viewing and recovery.
 
 Plain `.svg` only; `.svgz` is not written. ZIP is only a transport form of
 a notebook directory (send, archive, download).
@@ -248,14 +290,41 @@ a notebook directory (send, archive, download).
         "tags": ["Research"],
         "description": "Outline of the proof and key references."
       }
+    },
+    "folders": {
+      "Algebraic Geometry": {
+        "description": "Notes on moduli and geometry.",
+        "paper": "grid-medium",
+        "coverColor": "#A9C1F5",
+        "coverStyle": "spine",
+        "tags": ["Research"]
+      }
+    },
+    "startingTemplates": [{
+      "name": "Seminar notes",
+      "folder": ["Algebraic Geometry"],
+      "paper": "grid-medium",
+      "pageSize": "letter",
+      "tags": ["Research"]
+    }],
+    "draft": {
+      "folder": ["Algebraic Geometry"],
+      "title": "Derived categories",
+      "template": "grid-medium",
+      "tags": ["Research"],
+      "pageSize": "letter"
     }
   }
   ```
 
-  `tags` is the tag list in sidebar order. `notes` is keyed by a notebook
-  directory's path from the root, `/`-separated; a key whose notebook is no
-  longer at that path is ignored. The file is absent until the first tag,
-  favorite or description is set.
+  `tags` is the tag list in sidebar order. `notes` is keyed by a note
+  directory's path from the root, `/`-separated. `folders` is keyed by a
+  notebook folder's path from the root and sets its new-note paper, cover,
+  description and tags. `startingTemplates` holds named New Note settings.
+  Folder paths in these entries follow folder renames and moves. Keys whose
+  directory is no longer at that path are ignored. `draft` holds the New Note fields until the note is created. The
+  file is absent until the first notebook, tag, favorite, description or draft
+  is set.
 - `Notes/.clippings/`: a notebook directory; each page is one clipping,
   sized to its content.
 

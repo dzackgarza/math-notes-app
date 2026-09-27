@@ -1,16 +1,21 @@
 # Architecture
 
-One portable document and ink engine (C++20), with two platform hosts: a web
-app and an iPad app. This repository is the monorepo for all of it.
-[Stylus Labs Write](https://github.com/styluslabs/Write) is the reference
-implementation for the behaviors that no library supplies (reflow, insert
-space, ruled select and erase, free erase, bookmarks, clippings). The engine
-ports those algorithms from Write's source onto its own data model and
-libraries (google/ink, Skia, immer) and checks them against fixtures recorded
-from Write.
+Math Notes uses one portable C++20 ink document engine with web and iPad hosts.
+The existing engine owns notebook pages, SVG editing, selection, erasure, and
+history. [Google Ink](https://github.com/google/ink) supplies brush construction,
+stroke geometry, and hit testing; [Skia](https://skia.org) renders pages. The v1
+plan continues this engine and composes mature host components around it.
+The [Write assessment](ink-reflow-owners.md) is input to a post-v1 refactoring
+decision, after the product works on both hosts.
 
-Write is a source of algorithms, code patterns, features and extension
-points, and fixtures check behavior, never appearance. The look and the
+The [initial dependency proposal](source/initial-dependency-proposal.md)
+records the earlier component ideas. The [v1 ownership map](V1_OWNERSHIP_MAP.md)
+connects each active requirement to a selected pin, API, adapter, and
+product-specific rule. Later subsystem decisions and working integrations set
+the v1 owners. The hosts use native iPad UI and a browser UI; the document,
+ink, and rendering engine is shared across them.
+
+The look and the
 everyday interaction patterns (page layout, scrolling, adding pages, tool
 chrome, colors, paper) follow GoodNotes and Noteful and the tablet spec
 ([specs/tablet-ui.md](specs/tablet-ui.md)); nothing visual is taken from
@@ -22,9 +27,8 @@ records requirements and gaps. MVP work lands as integrated product slices
 on `main`, chosen by the next missing end-to-end behavior.
 
 ```text
-            ink engine (C++20, built to WASM and to iOS arm64)
-   document model, stroke building, geometry, selection, reflow,
-   undo/redo, rendering, page SVG read/write, PDF export
+       Existing C++20 document and editing engine
+        Google Ink strokes + Skia rendering/PDF
                          │  stable C ABI (core/include/ink.h)
                 ┌────────┴─────────┐
             Web host           iPadOS host
@@ -34,22 +38,25 @@ on `main`, chosen by the next missing end-to-end behavior.
 | Host | Role |
 | --- | --- |
 | Web (WASM, PWA) | Built first. The product on Linux, Windows, and macOS, in desktop Chrome. |
-| iPadOS (UIKit) | Built second. Native host, not a WKWebView. Needed for Pencil double tap, Pencil Pro squeeze and barrel roll, hover pose, haptics, and the shortest input-to-display path. |
+| iPadOS (UIKit) | Built second. Native notebook canvas and navigation. A bounded `WKWebView` hosts only the shared TikZ figure editor. UIKit owns Pencil double tap, Pencil Pro squeeze and barrel roll, hover pose, haptics, and the input-to-display path for note ink. |
 
-## Rules
+## Engine integration
+
+These boundaries describe the v1 engine and its host integration. The
+[component assessments](research_notes/Component%20ownership%20decisions/)
+record candidates for specific gaps. They do not change the engine owner.
 
 - `core/` calls no platform API and does no file I/O. The host reads files
   and passes their bytes to the engine. The engine returns the bytes of each
   file that changed, and the host writes them. Storage, clipboard, and PDF
   rasterization are host services.
-- Swift and TypeScript see only the C ABI: opaque handles plus plain structs
-  with fixed layouts. No C++ type crosses the boundary. The header has a
-  `static_assert(offsetof(...))` for every struct field, and the TypeScript
-  wrapper mirrors the same offsets.
-- One renderer: Skia inside the engine, Ganesh backend, WebGL2 in WASM and
-  Metal on iOS. The host supplies the surface (a canvas element, a
-  `CAMetalLayer`). Strokes are drawn as filled `SkPath`s built from the same
-  outline walk that writes the SVG `d`.
+- Swift imports the existing C ABI through Clang. The web host uses its
+  current WASM binding to call the same engine. The
+  [binding assessment](research_notes/Component%20ownership%20decisions/interfaces.md)
+  can guide a bounded binding improvement; it does not require an ink-model
+  change.
+- Skia renders the current document through WebGL2 in WASM and Metal on iOS.
+  The host supplies a canvas element or `CAMetalLayer`.
 - One input record. Every host fills what its platform measures and sets a
   capability bit for it. The bits come from the platform, never from the
   values: the web reports 0.5 pressure and 0 twist when the hardware has no
@@ -83,19 +90,136 @@ on `main`, chosen by the next missing end-to-end behavior.
   and insert space that push ink past the bottom of a page move it onto the
   next page and add a page when needed.
 - Storage and file format: [FORMAT.md](FORMAT.md).
-- Document state is an immutable value (immer). Undo and redo move an index
-  in a list of document values. A page is dirty when its value is not the
-  same object as in the last saved document.
+- The current document model keeps fixed-size pages as standalone SVG files.
+  Immer values and `DocumentHistory` own undo/redo and changed-page identity.
+- Google Ink constructs brush outlines and supplies geometry for selection and
+  erasure. The existing engine maps those results to editable notebook
+  elements and preserves the original sensor samples.
+- Notebook-wide layers map stable IDs, names, order, visibility, and lock
+  state from `notebook.json` to page SVG groups. The app owns this notebook
+  rule and uses its existing document history for grouped edits.
 - New features go in the engine or in a host service that both hosts
   supply, never in one host only. Layers belong to the document model.
-- Each port of reference code cites the source file, symbol, and pinned
-  commit in a comment. A work unit's specification approves the new code
-  that it describes. Other code that no library or reference covers needs
-  the user's approval first.
+- Every custom implementation links its ownership decision from the source.
+  A justified upstream adaptation also cites the source file, symbol, pinned
+  commit, and license.
+
+## Component ownership
+
+### Philosophy and invariants
+
+Math Notes composes mature application components around research notes.
+Its reasonable domain includes writing and editing ink, notebook pages and
+objects, mathematical relationships, durable authored source, and the
+connection between note ink and TikZ figures. An existing domain capability
+stays in its current owner during v1 unless a specific defect requires change.
+
+Navigation, scrolling, edge motion, zoom, tabs, text editing, layout,
+drag-and-drop, and other common app behavior belong to platform APIs or
+complete framework components. Use their interaction, accessibility, input,
+and lifecycle contracts together with their appearance. The product
+specification describes the user's task and any real departure from those
+contracts. Standard behavior is inherited from the owner. An observed
+missing detail, such as scroll velocity or bounce, is evidence that the
+selected owner or its integration is wrong; it is not a request to reproduce
+one observed effect with local gesture code.
+
+Within the reasonable app domain, prefer a dependency that owns the entire
+new problem when it fits the supported hosts, file format, and product rules.
+Use reference implementations for behavior and algorithms when a complete
+dependency does not fit. The app owns the residue: product rules and adapters
+that no suitable dependency can supply. New ungrounded code is valid only
+for necessary residue with no suitable dependency or reference implementation.
+Record that gap before building it. A reference alone does not require a
+runtime dependency or transfer ownership of working code.
+
+An adapter translates representations or commands at a named boundary. A
+replacement interaction controller, parser, layout engine, or solver is a
+subsystem, regardless of its size, filename, or description as glue. Writing
+and editing notebook ink are reasonable app responsibilities; replacing their
+existing owner is a separate refactoring decision, not a prerequisite for
+standard host interaction.
+
+Complete owner research before accepting an implementation plan. The plan
+names the selected owner, pin, interface, and exact product-specific adapter.
+An acceptance check proves that choice; it does not postpone the choice.
+Before writing a new subsystem or expanding an existing boundary, its owning
+issue must contain an **ownership decision** with the following evidence. One
+decision may cover functions within one stated boundary.
+
+| Required evidence | Content |
+| --- | --- |
+| Requirement | The exact product outcome, its source, and the data that must survive it. Separate user requirements from assumptions introduced by existing code or plans. |
+| Search record | Date, actual search queries, sources searched, and links to primary documentation, APIs, source, and working examples inspected. Search for complete applications, embeddable editors, SDKs, frameworks, and maintained forks as well as small packages. |
+| Candidate assessment | For each credible owner, record supported behavior, extension points, version, maintenance evidence, license, host support, offline operation, and source/data fidelity. Consider large dependencies and commercial SDKs. Size, unfamiliarity, or mismatch with the current architecture alone cannot reject a candidate. |
+| Gap evidence | Cite the documented restriction or a reproducible integration result for each rejection. Distinguish an untested fit from an unsupported capability. Explain why configuration, composition, a plugin, or an upstream extension cannot satisfy the requirement. |
+| Necessary local ownership | State why Math Notes must own the remaining behavior, rather than a library or fork. Name the smallest custom operation, its inputs and outputs, and the behavior still owned upstream. Distinguish a working existing domain capability from a proposed new subsystem. |
+| Core scope | Explain how the operation follows from the mathematical note model or source-preservation contract. Any additional responsibility needs an explicit architecture decision and user approval before implementation. |
+| Decision and proof | Name the selected owner and version pin, the adapter boundary, integration acceptance on supported hosts, and the approval for any custom subsystem. A justified port also needs upstream provenance and license. |
+
+A dependency that covers a new requirement owns the whole behavior it covers.
+Keep the decision with the issue and link it here. Revisit it when a proposed
+change expands the boundary. The same evidence applies to new subsystems,
+reference ports, and project-maintained forks. A broad transfer of existing
+ink ownership belongs to the post-v1 refactoring decision.
+
+### Integration targets
+
+These are the v1 owners and integration targets, not claims that every current
+call site already uses them. Source evidence and exact pins are in
+[ink](research_notes/Component%20ownership%20decisions/ink.md),
+[UI](research_notes/Component%20ownership%20decisions/ui.md), and
+[TikZ](research_notes/Component%20ownership%20decisions/tikz.md), and
+[host interfaces](research_notes/Component%20ownership%20decisions/interfaces.md).
+
+| Concern | Owner and Math Notes boundary |
+| --- | --- |
+| Web page scrolling and page-end insertion | [Framework7 9.1.2 `page-content` and bottom pull](https://framework7.io/docs/pull-to-refresh.html) own the editor viewport's browser scroll and pull motion. It is a nested editor root; Ionic keeps outer chrome and does not scroll that viewport. A held-ready release callback issues the notebook add-page command. The [UI assessment](research_notes/Component%20ownership%20decisions/ui.md) defines the pen/finger input adapter and device acceptance. |
+| Web pen/finger arbitration | Follow [Chromium PDF viewer's ink host](https://chromium.googlesource.com/chromium/src/+/be0366525a33fc4df00ab2b4164cb0f506dcc47b/chrome/browser/resources/pdf/elements/viewer-ink-host.ts): retain `touch-action: auto`, identify pen contact, and cancel only its drawing touch sequence through a non-passive touch listener. Finger touch remains in native browser scroll. The host sends pen samples to the existing engine; Framework7 and the browser retain motion. Device acceptance proves pen input, one-finger pan, pinch, and bottom pull together. |
+| iPad page navigation | [`UIScrollView`](https://developer.apple.com/documentation/uikit/uiscrollview) owns scrolling and zoom around the Metal drawing surface. UIKit arbitrates direct touches and Pencil input. |
+| iPad page-end insertion | [MJRefresh 3.7.9 `MJRefreshBackFooter`](https://github.com/CoderMJLee/MJRefresh/tree/3.7.9) owns bottom-pull behavior on the `UIScrollView`. A held-ready release issues the notebook add-page command. |
+| Web document zoom | [`@use-gesture/vanilla` 10.3.1 PinchGesture](https://use-gesture.netlify.app/docs/gestures/) recognizes touch/trackpad pinch and reports scale and focal point to the renderer. Framework7 remains scroll owner. |
+| Chrome, sheets, menus, and forms | Ionic components on the web; SwiftUI and UIKit on iPad. Use their full control behavior and accessibility. App code supplies content and document commands. |
+| Document tabs | [Kobalte Tabs 0.13.14](https://kobalte.dev/docs/core/components/tabs/) owns selection, linked panels, focus, and keyboard behavior. The app maps stable tab IDs to notes. |
+| Typed text | Ionic `ion-textarea` and UIKit `UITextView` own input, composition, caret, and selection. [Skia Paragraph](https://skia.org/docs/user/modules/quickstart/) owns shared shaping and line layout for rendered page text. The app stores authored text and SVG baselines. |
+| Drag-and-drop and selection manipulation | [interact.js 1.10.28](https://interactjs.io/docs/draggable/) owns web selected-object handle sessions. UIKit supplies native contact events and [drag-and-drop](https://developer.apple.com/documentation/uikit/drag-and-drop) for external transfers. The current engine owns selection membership and committed object transforms on both hosts. |
+| Split panes | [corvu Resizable 0.2.5](https://corvu.dev/docs/primitives/resizable/) owns the web splitter; UIKit/SwiftUI own native panes. The host stores proportions and connects document position callbacks. |
+| History | The existing `DocumentHistory` and Immer document values own undo/redo. The notebook model tracks saved-file identity. |
+| Ink editing | Google Ink owns brush and stroke geometry. The current engine owns document edits, selection, erasure, and notebook mapping. The [v1 ruled-editing decision](v1-ruled-editing-decision.md) selects a bounded port of pinned Write algorithms for #30 and #31 and names the fixed-page residue. |
+| Persistence and offline lifecycle | File System Access, IndexedDB/idb-keyval, Apple file coordination, and Vite PWA/Workbox own their respective platform mechanisms. #3, #5, and #7 define the minimum notebook-format and save-transaction adapters, including interruption and conflict behavior. |
+| Source syntax and graphics | pugixml 1.16 maps page SVG and InkML/namespaced metadata; nlohmann-json at vcpkg baseline `10541e31` owns notebook JSON syntax. Skia renders the current document. `@tikz-editor/core` owns TikZ syntax and source patches. The adapter maps documented fields and preserves authored source. |
+| Mathematical figures | The [FreeTikZ integration plan](specs/tikz-drawing-mode.md#component-ownership) uses TikZ Editor `app-v0.5.2`, Planegcs 1.2.0, BusyTeX 1.4.0 with the pinned TeX Live extra-plus-pictures profile, and MuPDF C SVG output 1.28.0. The app owns capture-to-figure identity and notebook file mapping. |
+
+### Ink reflow owner survey
+
+Issues #30 and #31 deliver ruled selection, erasure, insert space, and reflow
+within the current engine. The [v1 decision](v1-ruled-editing-decision.md)
+selects the source algorithms, engine boundary, and product-owned residue.
+The [whole-editor assessment](ink-reflow-owners.md) is post-v1 work.
 
 ## Dependencies
 
-### Engine
+### Selected v1 components
+
+The [research notes](research_notes/Component%20ownership%20decisions/)
+record alternatives and actual searches. These pins identify v1 integrations;
+they do not claim that every component is installed.
+
+| Capability | Owner and pin | Boundary |
+| --- | --- | --- |
+| Ink strokes and geometry | [Google Ink `1b220eee`](https://github.com/google/ink/tree/1b220eee5a05e9b67be9f20f49ae2d574c8667a7), Apache-2.0 | Existing brush, outline, and hit-test owner; the app maps results to its notebook model. |
+| Page rendering | [Skia](https://skia.org) within the pinned Skia build | Render the current document on SkCanvas. |
+| Rendered page text layout | [Skia Paragraph](https://skia.org/docs/user/modules/quickstart/) within the pinned Skia build | Shape and lay out stored authored text. |
+| Web editor scroll and bottom pull | [Framework7 9.1.2](https://framework7.io/docs/pull-to-refresh.html) | Nested editor viewport and completed pull callback. |
+| iPad editor scroll and bottom pull | [UIScrollView](https://developer.apple.com/documentation/uikit/uiscrollview), [MJRefresh 3.7.9](https://github.com/CoderMJLee/MJRefresh/tree/3.7.9) | Native motion and bottom action. |
+| Web pinch, object handles, tabs, split panes | [`@use-gesture/vanilla` 10.3.1](https://use-gesture.netlify.app/docs/gestures/), [interact.js 1.10.28](https://interactjs.io/), [Kobalte Tabs 0.13.14](https://kobalte.dev/docs/core/components/tabs/), [corvu Resizable 0.2.5](https://corvu.dev/docs/primitives/resizable/) | Host reports completed gestures and commands to the document. |
+| TikZ figure editor and source patching | [TikZ Editor `app-v0.5.2` / `b8b0d001`](https://github.com/DominikPeters/tikz-editor/tree/app-v0.5.2), MIT; [Math Notes FreeTikZ fork `9e5fb05c`](https://github.com/dzackgarza/freetikz/tree/9e5fb05c22dbc5637ff7cebf99f3dbee6f962b68) | Complete React editor, `@tikz-editor/core`, CodeMirror 6; FreeTikZ keeps pen-first capture. |
+| Figure geometric constraints | [Planegcs 1.2.0 / `ee9b156d`](https://github.com/Salusoft89/planegcs/tree/1.2.0), LGPL-2.1 | Solve accepted scene relations; map stable IDs and units. |
+| Offline final TeX preview | [TeXlyre-BusyTeX 1.4.0 / `f3c8780e`](https://github.com/TeXlyre/texlyre-busytex/blob/f3c8780e85939ced63133501d66b6386d89f69e4/package.json), AGPL-3.0-or-later; [upstream builder `f544a51a`](https://github.com/TeXlyre/texlyre-busytex-build/tree/f544a51a99e7d3978bb70608e927a9a23f96d4a7) `texlive-extra.profile` plus `collection-pictures 1`, `build/wasm/texlive-extra.fmt-rebuilt`; official dated `texlive2026-20260301.iso` SHA-512 `4a9071bb567c3bdd6443378dedc8e485aea4a2f1203ec8ed7c17f6787093b9c37636a037032c0be63352e3d0bf98cf5616dab19fdcd7cb83f766b3e085b620ff` | Verify ISO before extraction, package local `.js`/`.data`, and disable remote fetches. LuaLaTeX compiles exact source and preamble; retain PDF and diagnostics. |
+| Compiled figure to page-visible SVG | [MuPDF C SVG device 1.28.0 / `205b8cf4`](https://mupdf.readthedocs.io/en/1.28.0/_static/generated/c/html/output-svg_8h.html), AGPL-3.0-or-later | Convert compiled PDF to vector SVG with text as paths; embed it in the standalone page SVG. |
+| Figure editor host bridge | [TeXlyre embed mirror `b98714d3`](https://github.com/TeXlyre/tikz-editor-embed-mirror/tree/b98714d3584ee849178f19cf44c7768ff9063f6e) protocol, web iframe and bounded iPad `WKWebView` | Host reads/writes notebook files; embedded editor sends source/SVG results. |
+
+### Current engine
 
 | Concern | Library | Pin and acquisition | Introduced in |
 | --- | --- | --- | --- |
@@ -105,7 +229,7 @@ on `main`, chosen by the next missing end-to-end behavior.
 | Page XML read and write | pugixml 1.16 | vcpkg | [#3](https://github.com/dzackgarza/math-notes-app/issues/3) |
 | Number parsing | fast_float 8.3.0 | vcpkg | [#3](https://github.com/dzackgarza/math-notes-app/issues/3) |
 | Number formatting | `std::to_chars` (fixed precision) | libc++ (iOS 16.3+, Emscripten) | [#3](https://github.com/dzackgarza/math-notes-app/issues/3) |
-| Document values, undo history | immer 0.9.1 | vcpkg | [#3](https://github.com/dzackgarza/math-notes-app/issues/3) |
+| Immutable document values | immer 0.9.1 | vcpkg | [#3](https://github.com/dzackgarza/math-notes-app/issues/3) |
 | Free-erase interval union | boost-icl (Boost.Icl `interval_set`) 1.92 | vcpkg | [#23](https://github.com/dzackgarza/math-notes-app/issues/23) |
 | Lasso simplification (Ramer-Douglas-Peucker) | boost-geometry (Boost.Geometry `simplify`) 1.92 | vcpkg | [#24](https://github.com/dzackgarza/math-notes-app/issues/24) |
 | Engine tests | Catch2 3.16.0 | vcpkg; tests run in the WASM build under Node | [#2](https://github.com/dzackgarza/math-notes-app/issues/2) |
@@ -118,53 +242,52 @@ in manifest mode with a pinned `builtin-baseline` and overlay triplets for
 `wasm32-emscripten` and `arm64-ios`. WASM is single-threaded, so the web host
 needs no COOP/COEP headers.
 
-### Web host
+### Current web host
 
 | Concern | Library | Introduced in |
 | --- | --- | --- |
 | UI chrome (toolbars, library, panels) | SolidJS 1.9, [Ionic](https://ionicframework.com/docs/components) 8 web components in iOS mode, so the web chrome matches the iPad host's SwiftUI controls, through the Solid components of [@ionic-solidjs/core](https://github.com/ionic-solidjs/ionic-solidjs); tool icons from lucide-solid | [#57](https://github.com/dzackgarza/math-notes-app/issues/57) |
 | Build, dev server, PWA | Vite 8 (run with `bunx --bun vite`), vite-plugin-pwa 1.3 | [#5](https://github.com/dzackgarza/math-notes-app/issues/5) |
 | Folder handle persistence (Chromium) | idb-keyval 6.3 | [#5](https://github.com/dzackgarza/math-notes-app/issues/5) |
-| PDF page rasterizer | [mupdf](https://www.npmjs.com/package/mupdf) (Artifex's WASM build), in a Web Worker, loaded only at import | [#8](https://github.com/dzackgarza/math-notes-app/issues/8) |
+| PDF page rasterizer (planned) | [mupdf](https://www.npmjs.com/package/mupdf) (Artifex's WASM build), in a Web Worker, loaded only at import | [#8](https://github.com/dzackgarza/math-notes-app/issues/8) |
 | Tests | Vitest 5 Browser Mode with the Playwright 1.63 provider (Chromium) | [#5](https://github.com/dzackgarza/math-notes-app/issues/5) |
 
-Pointer events go straight to the engine; no pen sample passes through Solid
-state.
+Pen samples go straight to the engine; no pen sample passes through Solid
+state. Platform navigation stays with the host's interaction components.
 
-### iPad host
+### Current iPad host and selected platform APIs
 
 | Concern | API | Introduced in |
 | --- | --- | --- |
 | UI chrome, library | SwiftUI, Swift Observation | [#7](https://github.com/dzackgarza/math-notes-app/issues/7) |
-| Canvas | UIKit view with a `CAMetalLayer`; frame timing by `UIUpdateLink` (iOS 18) | [#7](https://github.com/dzackgarza/math-notes-app/issues/7) |
+| Canvas and navigation | `UIScrollView` containing a UIKit view with a `CAMetalLayer`; frame timing by `UIUpdateLink` (iOS 18) | [#7](https://github.com/dzackgarza/math-notes-app/issues/7) |
 | Notebook root | `UIDocumentPickerViewController` for folders, security-scoped bookmarks, `NSFileCoordinator`, one `NSFilePresenter` on the root, `NSFileVersion` for iCloud edit conflicts | [#7](https://github.com/dzackgarza/math-notes-app/issues/7), [#34](https://github.com/dzackgarza/math-notes-app/issues/34) |
 | PDF intake and rasterizer | `CFBundleDocumentTypes` for `com.adobe.pdf` (Files "Open in" and the share sheet), PDFKit | [#8](https://github.com/dzackgarza/math-notes-app/issues/8) |
 | Engine linkage | `InkEngine.xcframework` from the CMake build, linked by XcodeGen with `embed: false` and `libc++.tbd` | [#2](https://github.com/dzackgarza/math-notes-app/issues/2) |
 
-## Reference implementations
+## Source ownership and behavior references
 
-Read the reference before writing the code. Line ranges and algorithm notes
-are in each work-unit issue; this table is the index.
+The Write source rows are reference implementations for specific editing
+behavior. They do not select a runtime dependency or transfer ownership of
+the current engine. Other rows identify external contracts at named boundaries.
 
-| Engine or host concern | Port or follow | License |
+| Engine or host concern | API or behavior reference | License |
 | --- | --- | --- |
 | Reflow, ruled insert space | Write `syncscribble/selection.cpp` `Selection::reflowStrokes`, `Selection::insertSpace`; tool glue in `syncscribble/scribblearea.cpp` `doPressEvent`/`doMoveEvent`/`doReleaseEvent` (`MODE_INSSPACERULED`) | AGPL-3.0 |
 | Vertical and horizontal insert space | Write `scribblearea.cpp` (`MODE_INSSPACEVERT`, `MODE_INSSPACEHORZ`), `RectSelector` | AGPL-3.0 |
 | Ruled select, ruled erase, column detection | Write `selection.cpp` `RuledSelector::selectRuled`, `findStops`, `containedRuled`, `overlapRuled`, `RuledRange` | AGPL-3.0 |
 | Line assignment of strokes | Write `strokebuilder.cpp` `calcCom`, `scribblearea.cpp` `groupStrokes`, `page.cpp` `getLine` | AGPL-3.0 |
 | Free erase (split strokes) | Write `element.cpp` `Element::freeErase`, `erasePenPoints`, `getEraseSubPaths`; Xournal++ `src/core/model/eraser/ErasableStroke.cpp` (interval union over the centerline) | AGPL-3.0, GPL-2.0+ |
-| Stroke eraser | google/ink `Intersects(PartitionedMesh, Quad)`; Jetpack Ink geometry guide; Google's Cahier sample `DrawingCanvasViewModel.kt` | Apache-2.0 |
-| Lasso select | google/ink `geometry_internal::CreateClosedShape`, `CreateMeshFromPolyline`, `PartitionedMesh::CoverageIsGreaterThan`, as in `ink/strokes/internal/jni/mesh_creation_native.cc`; lasso point handling from Write `LassoSelector::addPoint` | Apache-2.0, AGPL-3.0 |
-| Move, resize, rotate a selection | Write `selection.cpp` `Selection::translate`/`scale`/`commitTransform`, `RectSelector::scaleHandleHit`/`rotHandleHit` | AGPL-3.0 |
-| Stroke outline to SVG `d` and `SkPath` | google/ink `ink/rendering/skia/native/internal/path_drawable.cc`; Chromium `pdf/pdfium/pdfium_ink_writer.cc` (outline walk, nonzero fill) | Apache-2.0, BSD-3 |
+| Stroke eraser | Write `PathSelector::selectPath` and `MODE_ERASESTROKE` | AGPL-3.0 |
+| Lasso select | Write `LassoSelector` and `Selection` | AGPL-3.0 |
+| Selection transform and iPad handles | Write `selection.cpp` `Selection::translate`/`scale`/`rotate`/`commitTransform`, `RectSelector::scaleHandleHit`/`rotHandleHit`/`drawBG`, and `scribblearea.cpp` `selectionHit` plus `MODEMOD_SCALESEL`/`MODEMOD_ROTATESEL` motion and release | AGPL-3.0 |
+| Stroke outline to SVG `d` | Google Ink stroke outlines in the current engine; Write `StrokeBuilder` and `SvgWriter` are comparison sources | Apache-2.0, AGPL-3.0 |
 | InkML trace text and `traceFormat` | W3C InkML Recommendation §3; microsoft/InkMLjs `InkMLjs/inkml.js` (`InkTrace`, `InkTraceFormat`); checked against Wacom universal-ink-library `uim/codec/parser/inkml.py` | Apache-2.0 |
-| google/ink without Bazel | Chromium `third_party/ink/BUILD.gn` (source list) | BSD-3 |
-| Undo history | lager `doc/modularity.rst` `history_model` (about 40 lines; lager itself is not a dependency) | MIT |
+| Grouped history | Write `syncundo.h`/`syncundo.cpp` `UndoHistory` and page/stroke action items | AGPL-3.0 |
 | Page ruling and templates | Write `page.cpp` `Page::generateRuleLayer`, `rulingdialog.cpp` presets | AGPL-3.0 |
 | Bookmarks and links | Write `scribblearea.cpp` (`MODE_BOOKMARK`, hyperref groups), `page.cpp` `Page::getHyperRef`, `bookmarkview.cpp` | AGPL-3.0 |
-| Clippings | Write `clippingview.cpp` | AGPL-3.0 |
-| Library list: sort orders, name checks, rename, move, delete | Write `syncscribble/documentlist.cpp` `DocumentList::setCurrDir` (sort), `NewDocDialog` (name checks), `renameItem`, `pasteItem`, `deleteItem` | AGPL-3.0 |
-| Shape recognition | Xournal `src/xo-shapes.c` (inertia fitting, `try_rectangle`, `try_arrow`, `try_closed_polygon`, recent-stroke queue); ellipse by Halíř–Flusser direct least squares (OpenCV `fitEllipseDirect`); hold trigger from mathnotes-app/mobile-ink `cpp/ShapeRecognition.cpp` | GPL-2.0+, Apache-2.0 |
+| Clipping data and insertion semantics | Write `clippingview.cpp`; host components own panel controls and drag-and-drop | AGPL-3.0 |
+| TikZ drawing editor | TikZ Editor `app-v0.5.2` owns canvas/source editing; the FreeTikZ fork owns pen-first capture; see [drawing mode](specs/tikz-drawing-mode.md) | MIT |
 | PDF export, link annotations | Skia `docs/examples/PDF.cpp`, `include/core/SkAnnotation.h` | BSD-3 |
 | WebGL surface | Skia `modules/canvaskit/canvaskit_bindings.cpp` (`MakeGrContext`, `MakeOnScreenGLSurface`) | BSD-3 |
 | Metal surface | Skia `tools/window/ios/MetalWindowContext_ios.mm`, `SkSurfaces::WrapCAMetalLayer` | BSD-3 |
@@ -174,16 +297,14 @@ are in each work-unit issue; this table is the index.
 | iPad folder access | Apple article "Providing access to directories" | — |
 | Sync conflict names | Nextcloud desktop `src/common/utility.cpp` `makeConflictFileName`; Syncthing `lib/model/folder_sendrecv.go` `conflictName`; Apple TN2336 | — |
 
-Pinned commits: Write `401b65d`, google/ink `1b220eee`, Xournal
-(GitHub mirror ricardoamaro/xournal-code) `982874f`, Xournal++ `b8b3a59`,
-mobile-ink `12af61a`. The repository license is AGPL-3.0-or-later, which
-admits every source above.
+Write reference revision: `401b65d5fe0294cc83171b76a0273b6df3afc979`.
+The Google Ink pin is `1b220eee`. The repository license is
+AGPL-3.0-or-later.
 
 ## Target layout
 
 ```text
-core/      include/ink.h  src/{document,format,strokes,geometry,layout,selection,
-           ruled,reflow,undo,render,export}/  tests/
+core/      include/ink.h  current document engine + Google Ink + Skia renderer
 hosts/     web/  ios/
 tests/     fixtures/write/   (traces and expected results recorded from Write)
 .github/workflows/  engine.yml  web.yml  ios.yml
