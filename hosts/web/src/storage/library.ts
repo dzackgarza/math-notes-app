@@ -178,13 +178,13 @@ export async function moveEntry(
 // Moves the notebook or folder at `path` into Notes/.trash/, where any file
 // manager can restore it, keeping its name; a name already in the trash gets
 // " 2", " 3", ... appended.
-export async function moveToTrash(root: FileSystemDirectoryHandle, path: readonly string[]): Promise<void> {
+export async function moveToTrash(root: FileSystemDirectoryHandle, path: readonly string[]): Promise<string[]> {
   await root.getDirectoryHandle(TRASH, { create: true });
   const taken = new Set(await entryNames(root, [TRASH]));
   const name = path[path.length - 1];
   let target = name;
   for (let i = 2; taken.has(target); i++) target = `${name} ${i}`;
-  await moveEntry(root, path, [TRASH], target);
+  return moveEntry(root, path, [TRASH], target);
 }
 
 export type Sort = "modified" | "name";

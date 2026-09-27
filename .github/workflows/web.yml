@@ -27,19 +27,25 @@ jobs:
           bun install --frozen-lockfile
           bunx playwright install --with-deps chromium
 
+      - uses: extractions/setup-just@v4
       - name: Type check and build
         run: |
           bunx tsc -b
           bunx --bun vite build
 
+      - name: Build Flutter host
+        working-directory: .
+        run: just _flutter-host
       - name: Vitest Browser Mode in Chromium
         run: bunx vitest run
 
       - name: Deploy to nginx
         run: |
-          sudo apt-get install -y nginx
+          sudo apt-get install -y nginx poppler-utils
           sudo mkdir -p /var/www/math-notes
           sudo cp -r dist/. /var/www/math-notes/
+          sudo mkdir -p /var/www/math-notes/flutter
+          sudo cp -r flutter/build/web/. /var/www/math-notes/flutter/
           printf 'server {\n  listen 80 default_server;\n  include %s;\n}\n' "$PWD/deploy/nginx-math-notes.conf" \
             | sudo tee /etc/nginx/sites-enabled/default
           sudo nginx -t

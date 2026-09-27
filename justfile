@@ -22,12 +22,18 @@ _flutter-sdk:
     '{{flutter}}/bin/flutter' precache --web
 
 # Builds the Cupertino host against the existing engine and storage services.
-web-flutter-build: engine-module _flutter-sdk
+web-flutter-build: engine-module
     mkdir -p hosts/web/src/engine/wasm
     cp {{build}}/web/engine.* hosts/web/src/engine/wasm/
+    just _flutter-host
+
+# CI supplies the engine module as an artifact.
+[private]
+_flutter-host: _flutter-sdk
     cd hosts/web && bunx tsc -b && bunx --bun vite build --config vite.flutter.config.ts
     cd hosts/web/flutter && '{{flutter}}/bin/flutter' pub get --enforce-lockfile && '{{flutter}}/bin/flutter' build web --base-href /math-notes/flutter/ --no-web-resources-cdn
     cp -a hosts/web/flutter/build/bridge/. hosts/web/flutter/build/web/
+    cd hosts/web && bun flutter-cache.mjs
 
 # Installs emsdk 4.0.7, vcpkg and the Playwright browsers where the recipes
 # below look for them (the engine workflow's setup steps).
@@ -54,7 +60,7 @@ engine-test: engine-wasm
 test-commit:
     uvx yamllint -s -d '{extends: relaxed, rules: {line-length: disable}}' project.yml .github/workflows/ios.yml .github/workflows/engine.yml .github/workflows/web.yml
 
-test-push: test-commit
+test-push: test-commit web-engine-test web-test
 
 # Rewrites core/tests/fixtures/ink (traces and host outline goldens) on the Linux host.
 ink-fixtures:
@@ -103,7 +109,9 @@ web-deploy: web-build
     rsync -a --delete hosts/web/dist/ /var/www/math-notes/
 
 # Vitest Browser Mode in Chromium, then Playwright against the deployment.
-web-test: web-deploy
+web-test: web-deploy web-flutter-build
+    mkdir -p /var/www/math-notes/flutter
+    rsync -a --delete hosts/web/flutter/build/web/ /var/www/math-notes/flutter/
     cd hosts/web && bunx vitest run
     cd hosts/web && bunx playwright test
 

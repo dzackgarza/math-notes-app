@@ -12,4 +12,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-flutter: {}
+flutter:
+  fonts:
+  - family: NoteText
+    fonts:
+    - asset: fonts/NotoSans-Regular.ttf
