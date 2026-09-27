@@ -8,6 +8,27 @@ build := "core/build/wasm"
 export EMSDK := emsdk
 export PATH := emsdk / "upstream/emscripten" + ":" + env("PATH")
 
+flutter := justfile_directory() / ".ci/flutter"
+flutter_rev := "4cf24164269a5ebf0c16a028a00727d0e77bbb05"
+
+[private]
+_flutter-sdk:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ ! -d "{{flutter}}" ]; then
+      git clone --depth 1 --branch 3.47.0 https://github.com/flutter/flutter.git "{{flutter}}"
+    fi
+    test "$(git -C '{{flutter}}' rev-parse HEAD)" = '{{flutter_rev}}'
+    '{{flutter}}/bin/flutter' precache --web
+
+# Builds the Cupertino host against the existing engine and storage services.
+web-flutter-build: engine-module _flutter-sdk
+    mkdir -p hosts/web/src/engine/wasm
+    cp {{build}}/web/engine.* hosts/web/src/engine/wasm/
+    cd hosts/web && bunx tsc -b && bunx --bun vite build --config vite.flutter.config.ts
+    cd hosts/web/flutter && '{{flutter}}/bin/flutter' pub get --enforce-lockfile && '{{flutter}}/bin/flutter' build web --base-href /math-notes/flutter/ --no-web-resources-cdn
+    cp -a hosts/web/flutter/build/bridge/. hosts/web/flutter/build/web/
+
 # Installs emsdk 4.0.7, vcpkg and the Playwright browsers where the recipes
 # below look for them (the engine workflow's setup steps).
 setup:

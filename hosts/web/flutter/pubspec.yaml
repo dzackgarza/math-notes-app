@@ -1,0 +1,15 @@
+name: math_notes
+description: Math Notes Cupertino web host.
+publish_to: none
+version: 1.0.0+1
+environment:
+  sdk: ^3.13.0
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: 1.0.8
+  web: 1.1.1
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+flutter: {}
