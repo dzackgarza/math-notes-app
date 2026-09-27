@@ -9,7 +9,11 @@ claims that the current bindings already use them.
 Select Emscripten 4.0.7 Embind and `--emit-tsd` for web command bindings.
 Embind binds value objects, vectors, functions, and typed memory views and
 generates their TypeScript declarations. Swift imports the engine's C ABI
-through Clang. Both bindings call the current engine commands.
+through Clang. Flutter calls the JavaScript engine interface through
+[Dart JavaScript interop](https://dart.dev/interop/js-interop). Embind owns C++
+representation; the Dart declarations map that exported API. Both hosts call
+the current engine commands. Browser folder APIs and raw pen sample fields
+use the same standard interop boundary.
 [Embind API](https://emscripten.org/docs/porting/connecting_cpp_and_javascript/embind.html),
 [pinned binding implementation](https://github.com/emscripten-core/emscripten/blob/4.0.7/system/include/emscripten/bind.h).
 

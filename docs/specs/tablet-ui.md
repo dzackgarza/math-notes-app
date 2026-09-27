@@ -71,15 +71,16 @@ are the reference for look and interaction.
 - Pages have a 6 pt desk-colored gap between them. In the default view a page
   fills the full width of the canvas.
 - One finger pans the pages. Two fingers pinch to zoom. Pen input draws.
-- On the web, Framework7 9.1.2 `page-content` owns the editor viewport's
-  browser scroll and bottom-pull motion. On iPad, `UIScrollView` and
-  MJRefresh 3.7.9 `MJRefreshBackFooter` own the same native behavior. A held
-  ready state followed by release issues one add-page command; the notebook
-  supplies the new page and its template. Framework7 and MJRefresh keep their
-  motion, resistance, release, and boundary behavior. The browser uses
-  `@use-gesture/vanilla` 10.3.1 for pinch recognition. The
-  [UI ownership decision](../research_notes/Component%20ownership%20decisions/ui.md)
-  gives the component contracts and same-surface pen/finger input boundary.
+- Flutter with Cupertino owns the complete web GUI and its input, focus,
+  navigation, controls, and accessibility. UIKit owns the independent iPad GUI.
+  The [adopted framework decision](../reports/Web%20interface%20framework%20selection.md)
+  defines the shared-core boundary.
+- The notebook surface preserves framework-owned fling, edge resistance,
+  rebound, and pinch navigation. On iPad, `UIScrollView` and MJRefresh 3.7.9
+  `MJRefreshBackFooter` provide navigation and bottom pull. On web, Flutter
+  owns the combined interaction. A held-ready release issues one add-page
+  command; the notebook supplies the new page and template. Ordinary scrolling
+  never adds a page. #56 verifies pen, finger, pinch, and release together.
 - Ink cannot land outside a page. On pen-up, the parts of the stroke outside
   its page are removed (Noteful's behavior); a stroke entirely outside is
   removed.
@@ -87,10 +88,10 @@ are the reference for look and interaction.
 ## Visual style
 
 Both hosts use complete iOS-style controls: SwiftUI and UIKit on the iPad,
-Ionic in iOS mode on the web. Their behavior and accessibility belong to the
+Flutter Cupertino on the web. Their behavior and accessibility belong to the
 components identified in [ARCHITECTURE.md](../ARCHITECTURE.md#component-ownership).
-The colors below are Ionic theme variables. App CSS supplies document layout
-and theme values.
+Apply the colors below through each framework's theme. Math Notes supplies
+product layout and theme values.
 
 Light theme, white and very light gray panels, one blue accent (#2F6FEB,
 approximately) for primary buttons, selection and links. Rounded cards and

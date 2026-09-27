@@ -1,6 +1,6 @@
-# Flutter should own the web interface
+# Flutter owns the web interface
 
-**Select Flutter with Cupertino widgets for web and UIKit for iPad.** Flutter owns controls, navigation, focus, keyboard behavior, input dispatch, gestures, scrolling, and accessibility semantics. Its Cupertino controls and scroll behavior run on the web. The hosts share the existing C++ document engine and file format. Google Ink and Skia own ink and page rendering. ([Flutter Cupertino widgets](https://docs.flutter.dev/ui/widgets/cupertino), [Flutter web](https://docs.flutter.dev/platform-integration/web), [repository architecture](../ARCHITECTURE.md#component-ownership))
+**Adopted: Flutter with Cupertino widgets for web and UIKit for iPad.** Flutter owns controls, navigation, focus, keyboard behavior, input dispatch, gestures, scrolling, and accessibility semantics. Its Cupertino controls and scroll behavior run on the web. The hosts share the existing C++ document engine and file format. Google Ink and Skia own ink and page rendering. ([Flutter Cupertino widgets](https://docs.flutter.dev/ui/widgets/cupertino), [Flutter web](https://docs.flutter.dev/platform-integration/web), [repository architecture](../ARCHITECTURE.md#component-ownership))
 
 ## Standard controls come with their interaction behavior
 
@@ -21,3 +21,7 @@ The relevant difference is what Math Notes would own on the **web**. Qt limits i
 The current Ionic, Framework7, and gesture packages split interface ownership. Editor SDKs such as tldraw and Nutrient own edits and undo in their shape or PDF models. Flutter owns the GUI while the C++ notebook remains authoritative. ([current web host](../ARCHITECTURE.md#current-web-host), [tldraw store](https://tldraw.dev/sdk-features/store), [Nutrient Web SDK](https://www.nutrient.io/api/web/index.html))
 
 **Acceptance:** a Chrome pen and touch run must show full pen samples, finger pan and edge rebound, pinch, held page-end release, control and TikZ focus, keyboard use, and screen-reader navigation. This tests the selected framework and its bounded bridges; it does not defer the framework choice. ([Flutter web accessibility](https://docs.flutter.dev/ui/accessibility/web-accessibility))
+
+## Execution owner
+
+[#56](https://github.com/dzackgarza/math-notes-app/issues/56) delivers the complete Flutter web host and deployed notebook acceptance under #14. The [architecture](../ARCHITECTURE.md#component-ownership) and [tablet spec](../specs/tablet-ui.md) define the active integration contract. The SDK and package versions are pinned during implementation. The existing Solid/Ionic host is the implementation being replaced.
