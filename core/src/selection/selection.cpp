@@ -1,4 +1,5 @@
 #include "selection/selection.h"
+#include "render/text_layout.h"
 
 #include <algorithm>
 #include <cmath>
@@ -22,7 +23,6 @@
 #include "ink/geometry/mesh.h"
 #include "ink/geometry/mesh_format.h"
 #include "strokes/outline.h"
-#include "render/text_font.h"
 
 namespace ink_engine {
 namespace {
@@ -41,14 +41,10 @@ ink::AffineTransform ToInk(const Transform &m) {
 }
 
 Rect TextBox(const Text &text) {
-  SkFont font(TextTypeface(), float(text.size));
-  double width = 0;
-  for (const std::string &line : text.lines) {
-    width = std::max(width, double(font.measureText(line.data(), line.size(),
-                                                  SkTextEncoding::kUTF8)));
-  }
-  double height = text.size * (1 + 1.2 * (text.lines.size() - 1));
-  return {text.x, text.y - text.size, text.x + width, text.y - text.size + height};
+  auto layout = LayoutText(text);
+  const double top = text.y - layout.paragraph->getAlphabeticBaseline();
+  const double width = text.width > 0 ? text.width : layout.paragraph->getLongestLine();
+  return {text.x, top, text.x + width, top + layout.paragraph->getHeight()};
 }
 
 // The element's hit-test meshes in its local coordinates.

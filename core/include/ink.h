@@ -321,6 +321,9 @@ InkStatus ink_canvas_select_text_at(InkCanvas *canvas, double x, double y, int32
 InkStatus ink_canvas_selected_text(InkCanvas *canvas, const uint8_t **utf8, size_t *size);
 /* Replaces the selected text box's content in one history step. */
 InkStatus ink_canvas_set_selected_text(InkCanvas *canvas, const uint8_t *utf8, size_t size);
+/* JSON {content, width, rtl}; text and layout changes form one history step. */
+InkStatus ink_canvas_text_properties(InkCanvas *canvas, const char **json);
+InkStatus ink_canvas_edit_text(InkCanvas *canvas, const char *json, double x, double y, int32_t existing);
 /* UTC ms since the Unix epoch minus the host's sample clock, for mn:time. */
 InkStatus ink_canvas_set_utc_offset(InkCanvas *canvas, double utc_minus_host_ms);
 InkStatus ink_canvas_free(InkCanvas *canvas);

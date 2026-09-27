@@ -626,7 +626,7 @@ void Editor::DuplicateSelection(Assets &assets, NotebookFiles &added) {
   PushSelection(std::move(next), index, std::move(items));
 }
 
-bool Editor::InsertText(std::string_view utf8, double x, double y) {
+bool Editor::InsertText(std::string_view utf8, double x, double y, TextBoxStyle style) {
   if (!ResolveActiveLayer()) return false;
   if (utf8.empty()) return false;
   Document next = document();
@@ -640,6 +640,7 @@ bool Editor::InsertText(std::string_view utf8, double x, double y) {
   Text text{.id = history_->ids().StrokeId(),
             .x = at.x - placement->x,
             .y = at.y - placement->y + 18,
+            .width = style.width, .rtl = style.rtl,
             .lines = TextLines(utf8)};
   std::vector<ElementRef> items = Append(page, page.layers[layer_].layer_id,
                                           Elements{immer::box<Element>(Element{text})});
@@ -692,7 +693,14 @@ std::optional<std::string> Editor::SelectedText() {
   return utf8;
 }
 
-bool Editor::SetSelectedText(std::string_view utf8) {
+const Text *Editor::SelectedTextValue() {
+  const auto *selection = CurrentSelection();
+  if (!selection || selection->items.size() != 1) return nullptr;
+  const auto &item = selection->items.front();
+  return std::get_if<Text>(&selection->value->layers[item.layer].elements[item.index]->value);
+}
+
+bool Editor::SetSelectedText(std::string_view utf8, std::optional<TextBoxStyle> style) {
   const Selection *selection = CurrentSelection();
   if (!selection || selection->items.size() != 1 || utf8.empty()) return false;
   const ElementRef item = selection->items.front();
@@ -701,6 +709,7 @@ bool Editor::SetSelectedText(std::string_view utf8) {
   if (!old) return false;
   Text changed = *old;
   changed.lines = TextLines(utf8);
+  if (style) { changed.width = style->width; changed.rtl = style->rtl; }
   page.layers[item.layer].elements = page.layers[item.layer].elements.set(
       item.index, immer::box<Element>(Element{std::move(changed)}));
   Document next = document();

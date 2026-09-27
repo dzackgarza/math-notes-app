@@ -33,6 +33,22 @@ file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/text_font.inc"
   CONTENT "constexpr unsigned char kTextFontData[] = {${TEXT_FONT_BYTES}};\n")
 unset(TEXT_FONT_HEX)
 unset(TEXT_FONT_BYTES)
+include(cmake/TextFonts.cmake)
+foreach(FAMILY IN LISTS NOTO_FAMILIES)
+  file(READ "${NOTO_CACHE}/${FAMILY}-Regular.ttf" TEXT_FONT_HEX HEX)
+  string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," TEXT_FONT_BYTES "${TEXT_FONT_HEX}")
+  file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/text_font.inc"
+    "constexpr unsigned char k${FAMILY}[] = {${TEXT_FONT_BYTES}};\n")
+endforeach()
+foreach(LICENSE_FILE LICENSE OFL.txt)
+  file(READ "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/${LICENSE_FILE}" TEXT_FONT_HEX HEX)
+  string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," TEXT_FONT_BYTES "${TEXT_FONT_HEX}")
+  string(MAKE_C_IDENTIFIER "${LICENSE_FILE}" LICENSE_ID)
+  file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/text_font.inc"
+    "constexpr unsigned char k${LICENSE_ID}[] = {${TEXT_FONT_BYTES}};\n")
+endforeach()
+unset(TEXT_FONT_HEX)
+unset(TEXT_FONT_BYTES)
 
 add_library(ink STATIC
   src/ink.cpp
@@ -56,6 +72,7 @@ add_library(ink STATIC
   src/layout/layout.cpp
   src/render/renderer.cpp
   src/render/text_font.cpp
+  src/render/text_layout.cpp
   src/selection/selection.cpp
   src/selection/ruled.cpp)
 target_include_directories(ink PUBLIC include src PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
@@ -104,6 +121,7 @@ if(EMSCRIPTEN)
     _ink_canvas_set_selector _ink_canvas_selection _ink_canvas_select_all _ink_canvas_clear_selection
     _ink_canvas_delete_selection _ink_canvas_copy_selection _ink_canvas_paste _ink_canvas_paste_at _ink_canvas_duplicate_selection
     _ink_canvas_insert_text _ink_canvas_select_text_at _ink_canvas_selected_text _ink_canvas_set_selected_text
+    _ink_canvas_text_properties _ink_canvas_edit_text
     _ink_input _ink_input_update _ink_render _ink_undo _ink_redo _ink_document_page_rect _ink_document_page_png _ink_struct_layout
     _malloc _free)
   list(JOIN INK_EXPORTS "," INK_EXPORTS_FLAG)

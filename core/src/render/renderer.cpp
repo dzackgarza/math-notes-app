@@ -18,7 +18,7 @@
 #include "include/gpu/ganesh/GrDirectContext.h"
 #include "include/gpu/ganesh/SkSurfaceGanesh.h"
 #include "selection/selection.h"
-#include "render/text_font.h"
+#include "render/text_layout.h"
 #include "strokes/outline.h"
 
 namespace ink_engine {
@@ -312,13 +312,8 @@ void Renderer::DrawElements(SkCanvas *canvas, const Page &page, const Elements &
           } else if constexpr (std::is_same_v<T, Text>) {
             canvas->save();
             canvas->concat(ToSkMatrix(e.transform));
-            SkFont font(TextTypeface(), float(e.size));
-            SkPaint paint = FillPaint(e.fill);
-            for (size_t i = 0; i < e.lines.size(); ++i) {
-              const std::string &line = e.lines[i];
-              canvas->drawSimpleText(line.data(), line.size(), SkTextEncoding::kUTF8,
-                                     float(e.x), float(e.y + i * e.size * 1.2), font, paint);
-            }
+            auto layout = LayoutText(e);
+            layout.paragraph->paint(canvas, e.x, e.y - layout.paragraph->getAlphabeticBaseline());
             canvas->restore();
             ++stats_.elements_drawn;
           } else if constexpr (std::is_same_v<T, Figure>) {

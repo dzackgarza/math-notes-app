@@ -30,6 +30,9 @@ web-flutter-build: engine-module
 # CI supplies the engine module as an artifact.
 [private]
 _flutter-host: _flutter-sdk
+    cmake -P core/cmake/TextFonts.cmake
+    mkdir -p hosts/web/flutter/generated_fonts
+    cp .ci/fonts/*.ttf hosts/web/flutter/generated_fonts/
     cd hosts/web && bunx tsc -b && bunx --bun vite build --config vite.flutter.config.ts
     cd hosts/web/flutter && '{{flutter}}/bin/flutter' pub get --enforce-lockfile && '{{flutter}}/bin/flutter' build web --base-href /math-notes/flutter/ --no-web-resources-cdn
     cp -a hosts/web/flutter/build/bridge/. hosts/web/flutter/build/web/

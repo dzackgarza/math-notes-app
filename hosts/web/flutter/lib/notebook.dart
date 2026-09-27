@@ -256,17 +256,11 @@ class _NotebookState extends State<Notebook>
       updatePull();
     }
     final target = canvas;
-    if (tool == 'navigate' || tool == 'bookmark') return;
+    if (tool == 'navigate' || tool == 'bookmark' || tool == 'text') return;
     if (target == null ||
         (event.kind != PointerDeviceKind.stylus &&
             event.kind != PointerDeviceKind.invertedStylus))
       return;
-    if (tool == 'text') {
-      if (event is PointerDownEvent) {
-        unawaited(textAt(event.localPosition));
-      }
-      return;
-    }
     if (native.host.acceptPen(
       target,
       element,
@@ -344,45 +338,99 @@ class _NotebookState extends State<Notebook>
     final target = canvas;
     if (target == null) return;
     final existing = target.selectTextAt(point.dx, point.dy);
-    final controller = TextEditingController(
-      text: existing ? target.selectedText() : '',
+    final properties = existing ? target.textProperties() : null;
+    var rtl = properties?.rtl ?? false;
+    final boxWidth = TextEditingController(
+      text: (properties?.width ?? 300).toString(),
     );
+    final controller = TextEditingController(text: properties?.content ?? '');
     final accepted = await showCupertinoDialog<bool>(
       context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: Text(existing ? 'Edit text' : 'Insert text'),
-        content: Padding(
-          padding: const EdgeInsets.only(top: 16),
-          child: CupertinoTextField(
-            controller: controller,
-            autofocus: true,
-            placeholder: 'Text',
-            style: const TextStyle(fontFamily: 'NoteText', fontSize: 18),
-            minLines: 3,
-            maxLines: 8,
+      builder: (context) => StatefulBuilder(
+        builder: (context, update) => CupertinoAlertDialog(
+          title: Text(existing ? 'Edit text' : 'Insert text'),
+          content: Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: Column(
+              children: [
+                CupertinoTextField(
+                  controller: controller,
+                  autofocus: true,
+                  placeholder: 'Text',
+                  textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
+                  style: const TextStyle(
+                    fontFamily: 'NoteText',
+                    fontFamilyFallback: [
+                      'Noto Sans Arabic',
+                      'Noto Sans Hebrew',
+                      'Noto Sans Devanagari',
+                      'Noto Sans Symbols2',
+                    ],
+                    fontSize: 18,
+                  ),
+                  minLines: 3,
+                  maxLines: 8,
+                ),
+                const SizedBox(height: 12),
+                CupertinoTextField(
+                  controller: boxWidth,
+                  prefix: const Padding(
+                    padding: EdgeInsets.all(8),
+                    child: Text('Width (pt)'),
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                ),
+                const Text('Use 0 for the full text width.'),
+                Row(
+                  children: [
+                    const Expanded(child: Text('Right to left')),
+                    CupertinoSwitch(
+                      value: rtl,
+                      onChanged: (value) => update(() => rtl = value),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Done'),
+            ),
+          ],
         ),
-        actions: [
-          CupertinoDialogAction(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          CupertinoDialogAction(
-            isDefaultAction: true,
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Done'),
-          ),
-        ],
       ),
     );
     if (accepted == true && controller.text.isNotEmpty) {
+      final width = double.tryParse(boxWidth.text);
+      if (width == null || !width.isFinite || width < 0) {
+        controller.dispose();
+        boxWidth.dispose();
+        throw StateError('Enter a nonnegative text width.');
+      }
       edit(
-        () => existing
-            ? target.setSelectedText(controller.text)
-            : target.insertText(controller.text, point.dx, point.dy),
+        () => target.editText(
+          native.TextBoxProperties(
+            content: controller.text,
+            width: width,
+            rtl: rtl,
+          ),
+          point.dx,
+          point.dy,
+          existing,
+        ),
       );
     }
     controller.dispose();
+    boxWidth.dispose();
   }
 
   Future<void> copy(bool cut) async {
@@ -1316,6 +1364,12 @@ class _NotebookState extends State<Notebook>
                                                   details.localPosition.dy,
                                                 ),
                                               )
+                                            : tool == 'text'
+                                            ? (details) => run(
+                                                () => textAt(
+                                                  details.localPosition,
+                                                ),
+                                              )
                                             : null,
                                         child: InteractiveViewer(
                                           transformationController: transform,
@@ -1334,6 +1388,7 @@ class _NotebookState extends State<Notebook>
                                             child: RawGestureDetector(
                                               gestures: {
                                                 if (tool != 'navigate' &&
+                                                    tool != 'text' &&
                                                     tool != 'bookmark')
                                                   EagerGestureRecognizer:
                                                       GestureRecognizerFactoryWithHandlers<

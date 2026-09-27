@@ -24,8 +24,8 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "iOS")
     set(SKIA_OUT device)
   endif()
   set(SKIA_ROOT "${SKIA_SOURCE_DIR}")
-  # An official build makes libskia.a a complete static library.
-  file(GLOB SKIA_ARCHIVES "${SKIA_ROOT}/out/${SKIA_OUT}/libskia.a")
+  # Paragraph, Unicode, and HarfBuzz are separate archives in the source build.
+  file(GLOB SKIA_ARCHIVES "${SKIA_ROOT}/out/${SKIA_OUT}/*.a")
 else()
   message(FATAL_ERROR "No Skia build for ${CMAKE_SYSTEM_NAME}; targets are wasm32 and iOS arm64")
 endif()

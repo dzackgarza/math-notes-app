@@ -15,6 +15,8 @@
 #include "document/layers.h"
 #include "document/navigation.h"
 #include "selection/ruled.h"
+#include "render/text_layout.h"
+#include "render/text_font.h"
 #include "format/notebook.h"
 #include "format/page_svg.h"
 #include "format/pens.h"
@@ -216,6 +218,20 @@ InkStatus ink_document_dirty_files(InkDocument *document, const InkFile **files,
     if (!document) return NullArgument("document");
     if (!files || !count) return NullArgument("files");
     const ink_engine::DocumentHistory &history = document->history;
+    if (std::any_of(history.current().pages.begin(), history.current().pages.end(),
+                    [](const auto &page) { return ink_engine::HasText(*page); })) {
+      for (const auto &[path, bytes] : ink_engine::TextFontFiles()) {
+        const auto found = document->assets.find(path);
+        if (found != document->assets.end() &&
+            std::string_view(static_cast<const char *>(found->second->data()), found->second->size()) != bytes)
+          return Fail(INK_ERROR_PARSE, "the bundled text font differs: " + path);
+        if (found == document->assets.end()) {
+          document->assets[path] = SkData::MakeWithCopy(bytes.data(), bytes.size());
+          document->new_assets[path] = bytes;
+          ++document->assets_version;
+        }
+      }
+    }
     ink_engine::NotebookFiles changed = ink_engine::ChangedFiles(history.current(), history.saved());
     const std::set<std::string> figure_assets = ink_engine::FigureAssetPaths(history.current());
     for (const auto &[path, bytes] : document->new_assets) {
@@ -1001,6 +1017,33 @@ InkStatus ink_canvas_set_selected_text(InkCanvas *canvas, const uint8_t *utf8, s
     if (!canvas->editor.SetSelectedText(Bytes(utf8, size))) {
       return Fail(INK_ERROR_ARGUMENT, "no text box is selected or text is empty");
     }
+    return INK_OK;
+  });
+}
+
+InkStatus ink_canvas_text_properties(InkCanvas *canvas, const char **json) {
+  return Call([&] {
+    if (!canvas || !json) return NullArgument("canvas or json");
+    const auto *text = canvas->editor.SelectedTextValue();
+    if (!text) return Fail(INK_ERROR_ARGUMENT, "select a text box");
+    canvas->selected_text = nlohmann::json({{"content", *canvas->editor.SelectedText()},
+                                           {"width", text->width}, {"rtl", text->rtl}}).dump();
+    *json = canvas->selected_text.c_str();
+    return INK_OK;
+  });
+}
+
+InkStatus ink_canvas_edit_text(InkCanvas *canvas, const char *json, double x, double y, int32_t existing) {
+  return Call([&] {
+    if (!canvas || !json) return NullArgument("canvas or json");
+    const auto value = nlohmann::json::parse(json);
+    const auto content = value.at("content").get<std::string>();
+    const ink_engine::TextBoxStyle style{value.at("width").get<double>(), value.at("rtl").get<bool>()};
+    if (!std::isfinite(style.width) || style.width < 0 || style.width > 100000)
+      return Fail(INK_ERROR_ARGUMENT, "invalid text box width");
+    const bool changed = existing ? canvas->editor.SetSelectedText(content, style)
+                                 : canvas->editor.InsertText(content, x, y, style);
+    if (!changed) return Fail(INK_ERROR_ARGUMENT, "select an editable text box or page");
     return INK_OK;
   });
 }

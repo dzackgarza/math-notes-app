@@ -126,10 +126,16 @@ conflict. Assets are separate files, not base64 inside SVG.
   Both forms display in a standard SVG renderer.
 - A typed text box is an SVG `text` element with `x`, `y`, `font-size`,
   `font-family`, and `fill`. Each line is a `tspan`; its baseline and the
-  later lines' `dy` values come from Skia Paragraph with
+  later lines' positions come from Skia Paragraph with
   the same bundled font bytes and layout properties used for rendering. Its `transform`
   stores a move or resize. The first `y` is the text baseline. Preserve the
   authored text and its explicit line breaks through layout and save.
+  `mn:width` is the wrapping width in points; zero uses the intrinsic width.
+  `direction` stores the paragraph direction. A child `metadata/mn:text`
+  keeps the authored text, including explicit newlines; positioned `tspan`
+  children contain the laid-out lines. Font faces use the pinned Noto files
+  in `assets/mn-font-*.ttf`, shared with the host text input. The font license
+  is distributed with the application in `core/assets/fonts/`.
 - The stroke's input samples are an [InkML](https://www.w3.org/TR/InkML/)
   `trace` in the path's `metadata`. The page's root `metadata` declares one
   `inkml:traceFormat` per channel set that its strokes use. Channels, in

@@ -19,3 +19,17 @@ flutter:
   - family: NoteText
     fonts:
     - asset: fonts/NotoSans-Regular.ttf
+  - family: Noto Sans Arabic
+    fonts:
+    - asset: generated_fonts/NotoSansArabic-Regular.ttf
+  - family: Noto Sans Hebrew
+    fonts:
+    - asset: generated_fonts/NotoSansHebrew-Regular.ttf
+  - family: Noto Sans Devanagari
+    fonts:
+    - asset: generated_fonts/NotoSansDevanagari-Regular.ttf
+  - family: Noto Sans Symbols2
+    fonts:
+    - asset: generated_fonts/NotoSansSymbols2-Regular.ttf
+  assets:
+  - fonts/OFL.txt

@@ -207,6 +207,13 @@ extension type Document(JSObject value) implements JSObject {
 }
 
 extension type Canvas(JSObject value) implements JSObject {
+  external TextBoxProperties textProperties();
+  external void editText(
+    TextBoxProperties properties,
+    double x,
+    double y,
+    bool existing,
+  );
   external void bookmarkSelection();
   external void ungroupSelection();
   external void linkSelection(String href);
@@ -252,6 +259,13 @@ extension type NavigationMark(JSObject value) implements JSObject {
   external double get y;
   external double get width;
   external double get height;
+}
+
+extension type TextBoxProperties._(JSObject value) implements JSObject {
+  external factory TextBoxProperties({String content, double width, bool rtl});
+  external String get content;
+  external double get width;
+  external bool get rtl;
 }
 
 extension type OpenNote(JSObject value) implements JSObject {

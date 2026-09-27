@@ -27,6 +27,9 @@ args=(
   skia_use_metal=true
   skia_use_gl=false
   skia_enable_pdf=true
+  skia_enable_skparagraph=true
+  skia_enable_skshaper=true
+  skia_enable_skunicode=true
   skia_pdf_subset_harfbuzz=true
   skia_use_system_expat=false
   skia_use_system_libjpeg_turbo=false
@@ -49,4 +52,4 @@ case $target in
 esac
 
 bin/gn gen "out/$target" --args="${args[*]}"
-third_party/ninja/ninja -C "out/$target" skia
+third_party/ninja/ninja -C "out/$target" skia skparagraph skshaper skunicode_core skunicode_icu

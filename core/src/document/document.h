@@ -106,6 +106,8 @@ struct Text {
   Rgb fill{26, 26, 26};
   double x = 0, y = 0;  // baseline of the first line, in pt
   double size = 18;    // font size in pt
+  double width = 0;    // zero uses the intrinsic paragraph width
+  bool rtl = false;
   std::vector<std::string> lines;
   bool operator==(const Text &) const = default;
 };

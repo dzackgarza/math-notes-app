@@ -5,6 +5,8 @@
 // walk, one closed subpath per outline: google/ink
 // ink/rendering/skia/native/internal/path_drawable.cc:42-91 (1b220eee).
 #include "format/page_svg.h"
+#include "render/text_layout.h"
+#include "render/text_font.h"
 
 #include <algorithm>
 #include <cctype>
@@ -247,6 +249,19 @@ Text ReadText(const pugi::xml_node &node) {
   text.x = Num(node, "x");
   text.y = Num(node, "y");
   if (node.attribute("font-size")) text.size = Num(node, "font-size");
+  if (node.attribute("mn:width")) text.width = Num(node, "mn:width");
+  text.rtl = std::string_view(node.attribute("direction").value()) == "rtl";
+  if (!std::isfinite(text.width) || text.width < 0) throw std::runtime_error("invalid text box width");
+  if (const auto source = node.child("metadata").child("mn:text")) {
+    std::string_view value = source.text().get();
+    while (true) {
+      const auto newline = value.find('\n');
+      text.lines.emplace_back(value.substr(0, newline));
+      if (newline == std::string_view::npos) break;
+      value.remove_prefix(newline + 1);
+    }
+    return text;
+  }
   for (pugi::xml_node line : node.children("tspan")) text.lines.emplace_back(line.text().get());
   if (text.lines.empty()) text.lines.emplace_back(node.text().get());
   return text;
@@ -410,13 +425,18 @@ void WriteText(pugi::xml_node &parent, const Text &text) {
   Set(node, "x", Coord(text.x));
   Set(node, "y", Coord(text.y));
   Set(node, "fill", WriteColor(text.fill));
-  Set(node, "font-family", "sans-serif");
+  Set(node, "font-family", "Noto Sans, Noto Sans Arabic, Noto Sans Hebrew, Noto Sans Devanagari, Noto Sans Symbols 2, sans-serif");
   Set(node, "font-size", Coord(text.size));
-  for (size_t i = 0; i < text.lines.size(); ++i) {
+  Set(node, "mn:width", Coord(text.width));
+  Set(node, "direction", text.rtl ? "rtl" : "ltr");
+  Set(node, "xml:space", "preserve");
+  auto layout = LayoutText(text);
+  node.append_child("metadata").append_child("mn:text").text() = layout.source.c_str();
+  for (const auto &metric : layout.lines) {
     pugi::xml_node line = node.append_child("tspan");
-    Set(line, "x", Coord(text.x));
-    if (i > 0) Set(line, "dy", Coord(text.size * 1.2));
-    line.text() = text.lines[i].c_str();
+    Set(line, "x", Coord(text.x + metric.fLeft + (text.rtl ? metric.fWidth : 0)));
+    Set(line, "y", Coord(text.y - layout.paragraph->getAlphabeticBaseline() + metric.fBaseline));
+    line.text() = layout.source.substr(metric.fStartIndex, metric.fEndIndex - metric.fStartIndex).c_str();
   }
 }
 
@@ -605,6 +625,7 @@ std::string WritePage(const Page &page) {
   Set(svg, "width", Coord(page.width * kMmPerPt) + "mm");
   Set(svg, "height", Coord(page.height * kMmPerPt) + "mm");
   Set(svg, "viewBox", "0 0 " + Coord(page.width) + " " + Coord(page.height));
+  if (HasText(page)) svg.append_child("style").text() = TextFontCss().c_str();
 
   std::vector<uint32_t> channel_sets;
   for (const LayerContent &layer : page.layers) CollectChannelSets(layer.elements, channel_sets);

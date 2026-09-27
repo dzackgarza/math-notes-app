@@ -31,6 +31,11 @@ struct Pen {
   float opacity = 1;  // the stroke's fill-opacity
 };
 
+struct TextBoxStyle {
+  double width = 0;
+  bool rtl = false;
+};
+
 // "pressure-pen", "marker", "highlighter": the family names in mn:brush.
 const char *BrushName(InkBrush brush);
 // The brush of a family name; an unknown name is the pressure pen.
@@ -143,10 +148,11 @@ class Editor {
   // A live gesture or capture error leaves the session active.
   std::optional<Figure> CompleteFigureCapture();
   // Text uses the same page elements, history and selection transforms as ink.
-  bool InsertText(std::string_view utf8, double x, double y);
+  bool InsertText(std::string_view utf8, double x, double y, TextBoxStyle style = {});
   bool SelectTextAt(double x, double y);
   std::optional<std::string> SelectedText();
-  bool SetSelectedText(std::string_view utf8);
+  const Text *SelectedTextValue();
+  bool SetSelectedText(std::string_view utf8, std::optional<TextBoxStyle> style = std::nullopt);
   // What the canvas draws over the pages for the selection tools; none when
   // there is no selection and no lasso or rectangle is being drawn.
   std::optional<SelectionOverlay> Overlay();

@@ -108,6 +108,12 @@ export interface NavigationMark {
   height: number;
 }
 
+export interface TextBoxProperties {
+  content: string;
+  width: number;
+  rtl: boolean;
+}
+
 function writeTool(view: DataView, at: number, tool: ToolSettings): void {
   view.setUint32(at + TOOL_SETTINGS.brush, tool.brush, true);
   view.setUint32(at + TOOL_SETTINGS.rgb, tool.rgb, true);
@@ -801,6 +807,19 @@ export class Canvas {
 
   bookmarkSelection(): void {
     this.engine.check(this.engine.module._ink_canvas_bookmark_selection(this.pointer));
+  }
+
+  textProperties(): TextBoxProperties {
+    const e = this.engine;
+    return e.withScratch(4, out => {
+      e.check(e.module._ink_canvas_text_properties(this.pointer, out));
+      return JSON.parse(e.readCString(e.view().getUint32(out, true))) as TextBoxProperties;
+    });
+  }
+
+  editText(properties: TextBoxProperties, x: number, y: number, existing: boolean): void {
+    const e = this.engine;
+    e.withCString(JSON.stringify(properties), json => e.check(e.module._ink_canvas_edit_text(this.pointer, json, x, y, existing ? 1 : 0)));
   }
 
   ungroupSelection(): void {
