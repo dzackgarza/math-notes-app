@@ -4,7 +4,7 @@ import { createStore, del, entries, set } from "idb-keyval";
 import type { Engine, FileChange, InkDocument, NotebookFile } from "../engine/engine.ts";
 import { EngineError, PageSize, Status } from "../engine/engine.ts";
 import { ensureTemplates, readNotebook, readTemplatePage, writeFiles } from "../storage/folder.ts";
-import { directoryAt } from "../storage/library.ts";
+import { directoryAt, entryNames, nameError } from "../storage/library.ts";
 import type { PageSizeSetting } from "../storage/metadata.ts";
 
 export const SAVE_DELAY_MS = 1000;
@@ -205,14 +205,17 @@ export async function createNotebook(
   template: string,
   pageSize: PageSizeSetting,
 ): Promise<OpenNotebook> {
+  const title = name.trim();
+  const error = nameError(title, await entryNames(root, parent));
+  if (error) throw new Error(error);
   await ensureTemplates(root, engine);
-  const dir = await (await directoryAt(root, parent)).getDirectoryHandle(name, { create: true });
+  const dir = await (await directoryAt(root, parent)).getDirectoryHandle(title, { create: true });
   const page1 = await readTemplatePage(root, template);
   if (!page1) throw new Error(`template ${template} has no pages/0001.svg`);
   const document = engine.createDocumentFromTemplate(randomSeed(), template, page1, PageSize[pageSize]);
   const saver = new Saver(document, dir, []);
   await saver.save();
-  return { engine, document, root, dir, template, path: [...parent, name], name, saver };
+  return { engine, document, root, dir, template, path: [...parent, title], name: title, saver };
 }
 
 export async function openNotebook(engine: Engine, root: FileSystemDirectoryHandle, path: readonly string[]): Promise<OpenNotebook> {
