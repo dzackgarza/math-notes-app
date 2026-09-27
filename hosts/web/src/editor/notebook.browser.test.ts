@@ -20,12 +20,16 @@ test("pending notebook edits can be saved after a filesystem writer releases its
     };
     const writer = await metadata.createWritable(options);
     document.insertPage(1);
+    saver.schedule();
+    expect(saver.state.status).toBe("pending");
     try {
       await expect(saver.save()).rejects.toMatchObject({ name: "NoModificationAllowedError" });
+      expect(saver.state.status).toBe("error");
     } finally {
       await writer.close();
     }
     await saver.save();
+    expect(saver.state.status).toBe("saved");
     const saved = await readNotebook(dir);
     const reopened = engine.createDocument(732n);
     try {
