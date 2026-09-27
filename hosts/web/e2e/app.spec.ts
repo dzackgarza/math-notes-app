@@ -179,7 +179,7 @@ test("pages have a narrow desk gap and one finger moves the view", async ({ page
   await expect(page.getByLabel("Page", { exact: true })).toContainText("2 / 2");
 });
 
-test("a held bottom pull adds one page and a normal scroll adds none", async ({ page }) => {
+test("a held bottom pull adds one page while a short pull and normal scroll add none", async ({ page }) => {
   await startEmpty(page);
   await newNote(page, "Pull Pages");
   await page.locator("#ink-canvas").hover();
@@ -192,13 +192,22 @@ test("a held bottom pull adds one page and a normal scroll adds none", async ({ 
   const y = box.y + box.height - 100;
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y, id: 1 }] });
-  for (let step = 1; step <= 8; step++) {
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y - 40 * step, id: 1 }] });
-    await page.waitForTimeout(20);
-  }
-  await expect(scroll).toHaveClass(/ptr-pull-up/);
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  const pull = async (holdMs: number) => {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y, id: 1 }] });
+    for (let step = 1; step <= 8; step++) {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y - 40 * step, id: 1 }] });
+    }
+    await expect(scroll).toHaveClass(/ptr-pull-up/);
+    if (holdMs) await page.waitForTimeout(holdMs);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  };
+
+  await pull(0);
+  await expect(page.getByLabel("Page", { exact: true })).toContainText("/ 1");
+  await expect.poll(async () => Buffer.from(await readOpfsFile(page, "Pull Pages/notebook.json"), "base64").toString()).not.toContain("pages/0002.svg");
+  await expect(scroll).not.toHaveClass(/ptr-transitioning/);
+
+  await pull(500);
   await expect(page.getByLabel("Page", { exact: true })).toContainText("/ 2");
   await expect.poll(async () => Buffer.from(await readOpfsFile(page, "Pull Pages/notebook.json"), "base64").toString()).toContain("pages/0002.svg");
 });

@@ -49,6 +49,7 @@ let framework: Framework7 | undefined;
 const PRINT_SCALE = 96 / 72;
 const MIN_SCALE = 0.25 * PRINT_SCALE;
 const MAX_SCALE = 8 * PRINT_SCALE;
+const PAGE_PULL_HOLD_MS = 350;
 
 interface View {
   scale: number;
@@ -754,6 +755,13 @@ export function Editor(props: {
   onMount(() => {
     framework ??= new Framework7({ el: "#root", theme: "ios" });
     const pull = framework.ptr.create(scrollArea);
+    let pullReadyAt: number | undefined;
+    pull.on("pullStart", () => {
+      pullReadyAt = undefined;
+    });
+    pull.on("pullMove", () => {
+      pullReadyAt = scrollArea.classList.contains("ptr-pull-up") ? pullReadyAt ?? performance.now() : undefined;
+    });
     let touchStartY = 0;
     const touchStart = (event: TouchEvent) => {
       // Chromium viewer-ink-host.ts:onTouchStart_ (be0366525) cancels the
@@ -778,7 +786,9 @@ export function Editor(props: {
     scrollArea.addEventListener("touchstart", touchStart, { passive: false });
     scrollArea.addEventListener("touchmove", touchMove, { capture: true, passive: false });
     pull.on("refresh", () => {
-      if (!drawing()) edit(() => doc.insertPage(doc.pageCount()));
+      if (!drawing() && pullReadyAt !== undefined && performance.now() - pullReadyAt >= PAGE_PULL_HOLD_MS)
+        edit(() => doc.insertPage(doc.pageCount()));
+      pullReadyAt = undefined;
       pull.done();
     });
     const pinch = new PinchGesture(element, ({ first, movement: [factor], origin: center, event }) => {
@@ -1048,7 +1058,7 @@ export function Editor(props: {
                 onContextMenu={(e) => e.preventDefault()}
               />
             </div>
-            <div class="ptr-preloader"><IonIcon icon={add} />Release to add a page</div>
+            <div class="ptr-preloader"><IonIcon icon={add} />Hold and release to add a page</div>
           </div>
           <Show when={figureBox()}>{(box) => <div class="figure-page-bounds" classList={{ "is-capturing": drawing() }} style={box()} aria-label={drawing() ? "Drawing bounds" : `Figure ${figureId()} bounds`} />}</Show>
           <div class="page-tags" aria-label="Tags">
