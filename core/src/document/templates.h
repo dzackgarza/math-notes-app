@@ -22,8 +22,8 @@ struct RulingSpec {
 };
 
 // The background of a `width` × `height` page: the paper and the ruling.
-// Lines start one spacing in from the top and left edges; a blank page has
-// Write's blankYRuling of 28.8 pt for the ruled tools.
+// Lines start one spacing in from the top and left edges. Blank-page working
+// grids belong to the active ruled gesture, not the saved background.
 Background MakeBackground(const RulingSpec &spec, double width, double height);
 
 struct BuiltinTemplate {

@@ -180,8 +180,9 @@ conflict. Assets are separate files, not base64 inside SVG.
   spacing), `mn:y-offset` (y of the first line), `mn:x-ruling` (grid
   spacing, 0 when none) and `mn:margin-left` are in points. Ruled select,
   ruled erase, reflow, and insert space read their line positions from
-  these attributes. A `blank` page uses a line spacing of 28.8 pt, anchored
-  at the pen-down point (Write's `blankYRuling`).
+  these attributes. A `blank` page uses a working line spacing of 19.2 pt,
+  anchored at the pen-down point (Write's 40-unit default at 0.48 pt per
+  unit). This working grid is not stored in the page background.
 - An imported PDF page is an `<image>` of its PNG in `assets/`, inside
   `g#background` after the paper `rect` and before the ruling.
 - A new page copies the background of the notebook's `template`.

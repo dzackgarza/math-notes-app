@@ -61,6 +61,7 @@ struct Selection {
   immer::box<Page> value;
   std::vector<ElementRef> items;  // layer, then document order
   Rect rect;                      // Write RectSelector::selRect, page coordinates
+  double line_spacing = 0;  // ruled moves snap to whole lines
 };
 
 class Editor {
@@ -74,6 +75,7 @@ class Editor {
   void SetView(const Transform &content_to_view) { view_ = content_to_view; }
   void SetPen(const Pen &pen) { pen_ = pen; }
   bool SetActiveLayer(size_t index);
+  void SetTemplate(const std::optional<Page> &page) { template_page_ = page; }
   int ActiveLayer() const;
   // Added to host sample times (ms) to get UTC ms since the Unix epoch.
   void SetUtcOffset(double utc_minus_host_ms) { utc_offset_ms_ = utc_minus_host_ms; }
@@ -218,6 +220,7 @@ class Editor {
     Point origin;       // content position of the page
     Point start, last;  // page coordinates
     LassoPath lasso;
+    std::vector<Point> ruled_path;
   };
   // A drag of the selection or of one of its handles (Write MODE_MOVESELFREE,
   // MODE_SCALESEL, MODE_ROTATESEL; scribblearea.cpp:1735-1832, 2045-2139).
@@ -266,6 +269,7 @@ class Editor {
   double utc_offset_ms_ = 0;
   size_t page_ = 0, layer_ = 0;
   std::string active_layer_id_;
+  std::optional<Page> template_page_;
   bool ResolveActiveLayer();
   InkEraser eraser_kind_ = INK_ERASER_STROKE;
   bool eraser_active_ = false;

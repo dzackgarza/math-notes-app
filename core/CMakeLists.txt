@@ -43,6 +43,7 @@ add_library(ink STATIC
   src/format/pens.cpp
   src/document/pages.cpp
   src/document/layers.cpp
+  src/document/reflow.cpp
   src/document/templates.cpp
   src/strokes/clip.cpp
   src/strokes/outline.cpp
@@ -54,7 +55,8 @@ add_library(ink STATIC
   src/layout/layout.cpp
   src/render/renderer.cpp
   src/render/text_font.cpp
-  src/selection/selection.cpp)
+  src/selection/selection.cpp
+  src/selection/ruled.cpp)
 target_include_directories(ink PUBLIC include src PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(ink PRIVATE INK_VERSION="${PROJECT_VERSION}")
 target_link_libraries(ink PUBLIC Skia::skia inkcore pugixml::pugixml FastFloat::fast_float immer

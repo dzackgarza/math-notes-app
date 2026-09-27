@@ -13,6 +13,8 @@
 #include "geometry/affine.h"
 #include "geometry/hit_shapes.h"
 #include "layout/layout.h"
+#include "selection/ruled.h"
+#include "document/reflow.h"
 
 namespace ink_engine {
 namespace {
@@ -173,6 +175,7 @@ Editor::Route Editor::Begin(const InkPenSample &s) {
                                 .page = placement->page, .origin = {placement->x, placement->y},
                                 .start = p, .last = p});
   select_->lasso.Add(p, kLassoSimplify / ViewScale());
+  select_->ruled_path.push_back(p);
   ++overlay_version_;
   return Route::kSelect;
 }
@@ -204,6 +207,7 @@ void Editor::SelectInput(const InkPenSample *samples, size_t count) {
     if (!lasso || moved >= kLassoMinPointDistance / ViewScale()) {
       if (lasso) select_->lasso.Add(p, kLassoSimplify / ViewScale());
       select_->last = p;
+      if (select_->kind == INK_SELECTOR_RULED_ERASE) select_->ruled_path.push_back(p);
       ++overlay_version_;
     }
     if (s.phase == INK_PHASE_END) return FinishSelect();
@@ -218,6 +222,49 @@ void Editor::FinishSelect() {
   ++overlay_version_;
   const Document &doc = document();
   const Page &page = *doc.pages[g.page];
+
+  if (g.kind >= INK_SELECTOR_SPACE_VERTICAL && g.kind <= INK_SELECTOR_SPACE_RULED) {
+    const auto mode = g.kind == INK_SELECTOR_SPACE_VERTICAL ? SpaceMode::kVertical
+        : g.kind == INK_SELECTOR_SPACE_HORIZONTAL ? SpaceMode::kHorizontal : SpaceMode::kRuled;
+    auto next = ink_engine::InsertSpace(doc, g.page, g.start, g.last, mode, history_->ids(), template_page_);
+    if (!(next == doc)) history_->Push(std::move(next));
+    return;
+  }
+
+  if (g.kind == INK_SELECTOR_RULED || g.kind == INK_SELECTOR_RULED_ERASE) {
+    Page ruled_page = page;
+    const auto grid = WorkingGrid(page, g.start.y);
+    ruled_page.background.ruling = Ruling::kLined;
+    ruled_page.background.y_ruling = grid.spacing;
+    ruled_page.background.y_offset = grid.offset;
+    for (auto &layer : ruled_page.layers) if (!Selectable(doc, layer)) layer.elements = {};
+    std::vector<RuledRange> ranges;
+    if (g.kind == INK_SELECTOR_RULED) ranges.push_back(MakeRuledRange(ruled_page, g.start, g.last));
+    else {
+      Point previous = g.start;
+      for (const Point point : g.ruled_path) {
+        const Point start = point.x < page.background.margin_left ? g.start
+            : grid.Line(previous.y) == grid.Line(point.y) ? previous : point;
+        ranges.push_back(MakeRuledRange(ruled_page, start, point, false));
+        previous = point;
+      }
+    }
+    std::vector<ElementRef> items;
+    for (size_t layer = 0; layer < page.layers.size(); ++layer) {
+      if (!Selectable(doc, page.layers[layer])) continue;
+      const auto &elements = page.layers[layer].elements;
+      for (size_t index = 0; index < elements.size(); ++index) {
+        if (std::any_of(ranges.begin(), ranges.end(), [&](const RuledRange &range) {
+          return InRuledRange(*elements[index], range, g.kind == INK_SELECTOR_RULED_ERASE);
+        })) items.push_back({layer, index});
+      }
+    }
+    if (items.empty()) return;
+    selection_ = Selection{.page = g.page, .value = doc.pages[g.page], .items = std::move(items), .line_spacing = grid.spacing};
+    selection_->rect = SelectionRect(Bounds(Selected(*selection_)), ViewScale());
+    if (g.kind == INK_SELECTOR_RULED_ERASE) DeleteSelection();
+    return;
+  }
 
   Rect area{std::min(g.start.x, g.last.x), std::min(g.start.y, g.last.y),
             std::max(g.start.x, g.last.x), std::max(g.start.y, g.last.y)};
@@ -295,8 +342,11 @@ void Editor::UpdateTransform(Point at) {
                                std::atan2(g.initial.y - o.y, g.initial.x - o.x),
                            o);
       break;
-    default:
-      g.live = Translation(at.x - g.initial.x, at.y - g.initial.y);
+    default: {
+      double dy = at.y - g.initial.y;
+      if (selection_ && selection_->line_spacing > 0) dy = std::round(dy / selection_->line_spacing) * selection_->line_spacing;
+      g.live = Translation(at.x - g.initial.x, dy);
+    }
   }
   ++overlay_version_;
 }
@@ -332,7 +382,9 @@ void Editor::CommitTransform(Point content) {
       elements = elements.set(item.index, moved[k]);
     }
     next.pages = next.pages.set(target, immer::box<Page>(std::move(page)));
-    return PushSelection(std::move(next), target, selection.items);
+    PushSelection(std::move(next), target, selection.items);
+    selection_->line_spacing = selection.line_spacing;
+    return;
   }
 
   // Write pastes the moved elements at the end of the target page's layer.
@@ -354,6 +406,7 @@ void Editor::CommitTransform(Point content) {
     return a.layer != b.layer ? a.layer < b.layer : a.index < b.index;
   });
   PushSelection(std::move(next), target, std::move(items));
+  selection_->line_spacing = selection.line_spacing;
 }
 
 void Editor::SelectAll(size_t page_index) {

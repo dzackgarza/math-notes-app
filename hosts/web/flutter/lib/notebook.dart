@@ -65,6 +65,7 @@ class _NotebookState extends State<Notebook>
   String get figureSource => figureText.text;
   set figureSource(String value) => figureText.text = value;
   int selector = 0;
+  int spaceMode = 6;
   String? failure;
   native.Selection? selection;
   double width = 1;
@@ -398,8 +399,19 @@ class _NotebookState extends State<Notebook>
 
   void chooseTool(String value) {
     setState(() => tool = value);
-    canvas?.setEraser(eraser, value == 'eraser');
-    canvas?.setSelector(selector, value == 'lasso');
+    final ruledErase = value == 'eraser' && eraser == 2;
+    canvas?.setEraser(
+      eraser == 2 ? 0 : eraser,
+      value == 'eraser' && !ruledErase,
+    );
+    canvas?.setSelector(
+      value == 'space'
+          ? spaceMode
+          : ruledErase
+          ? 3
+          : selector,
+      value == 'lasso' || value == 'space' || ruledErase,
+    );
     if (value == 'pen') canvas?.setTool(pens[pen].tool);
   }
 
@@ -898,6 +910,7 @@ class _NotebookState extends State<Notebook>
                                 children: const {
                                   0: Text('Stroke'),
                                   1: Text('Partial'),
+                                  2: Text('Ruled'),
                                 },
                                 onValueChanged: (value) {
                                   if (value == null) return;
@@ -919,6 +932,7 @@ class _NotebookState extends State<Notebook>
                               children: const {
                                 0: Text('Freeform'),
                                 1: Text('Rectangle'),
+                                2: Text('Ruled'),
                               },
                               onValueChanged: (value) {
                                 if (value != null) {
@@ -944,6 +958,26 @@ class _NotebookState extends State<Notebook>
                               unawaited(textAt(Offset(width / 2, height / 2)));
                             },
                           ),
+                          CupertinoListTile(
+                            title: const Text('Insert space'),
+                            leading: const Icon(CupertinoIcons.arrow_up_down),
+                            onTap: drawing ? null : () => chooseTool('space'),
+                          ),
+                          if (tool == 'space')
+                            CupertinoSlidingSegmentedControl<int>(
+                              groupValue: spaceMode,
+                              children: const {
+                                4: Text('Vertical'),
+                                5: Text('Horizontal'),
+                                6: Text('Reflow'),
+                              },
+                              onValueChanged: (value) {
+                                if (value != null) {
+                                  spaceMode = value;
+                                  chooseTool('space');
+                                }
+                              },
+                            ),
                           CupertinoListTile(
                             title: const Text('Image'),
                             leading: const Icon(CupertinoIcons.photo),

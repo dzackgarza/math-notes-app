@@ -249,7 +249,12 @@ InkStatus ink_canvas_set_eraser(InkCanvas *canvas, InkEraser kind, int32_t activ
 
 typedef enum InkSelector {
   INK_SELECTOR_LASSO = 0, /* selects what a drawn loop covers */
-  INK_SELECTOR_RECT = 1   /* selects what lies inside a dragged rectangle */
+  INK_SELECTOR_RECT = 1,  /* selects what lies inside a dragged rectangle */
+  INK_SELECTOR_RULED = 2,
+  INK_SELECTOR_RULED_ERASE = 3,
+  INK_SELECTOR_SPACE_VERTICAL = 4,
+  INK_SELECTOR_SPACE_HORIZONTAL = 5,
+  INK_SELECTOR_SPACE_RULED = 6
 } InkSelector;
 
 /* The selection tool. With `active` 1, pen and mouse input select, and
