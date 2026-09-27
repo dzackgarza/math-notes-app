@@ -46,7 +46,7 @@ export class Saver {
     clearTimeout(this.timer);
     for (const change of this.document.dirtyFiles()) this.pending.set(change.path, change);
     this.document.markSaved();
-    this.writing = this.writing.then(async () => {
+    const writePending = async () => {
       const changes = [...this.pending.values()];
       if (changes.length === 0) return;
       await writeFiles(this.dir, changes);
@@ -54,7 +54,10 @@ export class Saver {
         if (this.pending.get(change.path) === change) this.pending.delete(change.path);
         if (change.kind === "write") window.mathNotesWrites?.push({ path: change.path, bytes: change.bytes });
       }
-    });
+    };
+    // A new save is an explicit retry after failure. Both promise outcomes
+    // serialize it behind the previous attempt; its own failure still rejects.
+    this.writing = this.writing.then(writePending, writePending);
     return this.writing;
   }
 }
