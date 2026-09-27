@@ -214,6 +214,12 @@ extension type OpenNote(JSObject value) implements JSObject {
 }
 
 extension type Host(JSObject value) implements JSObject {
+  external JSPromise<JSUint8Array> paperPreview(
+    Engine engine,
+    Directory root,
+    String paper,
+    String size,
+  );
   external JSPromise<VoidResult> cacheApp();
   external void exportPdf(OpenNote note, int first, int count);
   external JSPromise<JSBoolean> insertImage(

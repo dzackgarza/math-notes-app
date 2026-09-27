@@ -4,12 +4,24 @@ import { createNotebook, openNotebook } from "./editor/notebook.ts";
 import type { OpenNotebook } from "./editor/notebook.ts";
 import { loadEngine } from "./engine/load.ts";
 import type { Canvas, Engine } from "./engine/engine.ts";
+import { PageSize } from "./engine/engine.ts";
 import { capabilities, penSamples } from "./input/pointer.ts";
-import { ensureTemplates, hasPermission, listTemplates, pickRoot, requestPermission, savedRoot } from "./storage/folder.ts";
+import { ensureTemplates, hasPermission, listTemplates, pickRoot, readTemplatePage, requestPermission, savedRoot } from "./storage/folder.ts";
 import { createFolder, moveEntry, moveToTrash, scanLibrary, scanTrash } from "./storage/library.ts";
 import { emptyFolder, emptyNote, moveNotes, readMetadata, writeMetadata } from "./storage/metadata.ts";
 import { readPens, writePens } from "./storage/pens.ts";
 import { Workbox } from "workbox-window";
+
+async function paperPreview(engine: Engine, root: FileSystemDirectoryHandle, paper: string, size: "a4" | "letter"): Promise<Uint8Array<ArrayBuffer>> {
+  const page = await readTemplatePage(root, paper);
+  if (!page) throw new Error(`Template ${paper} has no first page.`);
+  const document = engine.createDocumentFromTemplate(1n, paper, page, PageSize[size]);
+  try {
+    return document.pagePng(0, 480);
+  } finally {
+    document.free();
+  }
+}
 
 async function cacheApp(): Promise<void> {
   const worker = new Workbox(new URL("sw.js", document.baseURI).pathname);
@@ -119,7 +131,7 @@ async function insertImage(note: OpenNotebook, canvas: Canvas, page: number, x: 
 }
 
 const api = {
-  cacheApp, exportPdf, insertImage, loadEngine, startRoot, pickRoot, requestPermission, library,
+  cacheApp, paperPreview, exportPdf, insertImage, loadEngine, startRoot, pickRoot, requestPermission, library,
   createNotebook, openNotebook, createFolder, moveEntry, moveToTrash,
   emptyFolder, emptyNote, moveNotes, readMetadata, writeMetadata, readPens, writePens, acceptPen, mountCanvas,
 };

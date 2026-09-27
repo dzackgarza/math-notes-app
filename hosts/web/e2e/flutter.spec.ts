@@ -76,6 +76,7 @@ test("Flutter creation resumes a draft and applies saved note settings", async (
   await page.getByRole("button", { name: "Plain", exact: true }).click();
   await enterText(page.getByRole("textbox", { name: "Tags, separated by commas", exact: true }), "temporary");
   await page.getByRole("button", { name: "Proof paper", exact: true }).click();
+  await expect(page.getByRole("img", { name: "First page preview", exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath("settings-selected.png") });
   await page.getByRole("textbox", { name: "Tags, separated by commas", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Tags, separated by commas", exact: true })).toHaveValue("analysis");

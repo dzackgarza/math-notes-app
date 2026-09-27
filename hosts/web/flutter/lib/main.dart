@@ -6,6 +6,7 @@ import 'package:flutter/semantics.dart';
 
 import 'host.dart' as native;
 import 'notebook.dart';
+import 'creation_sheet.dart';
 
 void main() {
   runApp(const MathNotes());
@@ -360,8 +361,14 @@ class _WorkspaceState extends State<Workspace> {
     final accepted = await showCupertinoDialog<String>(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, update) => CupertinoAlertDialog(
+        builder: (context, update) => CreationSheet(
           title: Text(isFolder ? 'New Notebook' : 'New Note'),
+          preview: PaperPreview(
+            engine: engine!,
+            root: root!,
+            paper: paper,
+            size: size,
+          ),
           content: Column(
             children: [
               const SizedBox(height: 16),
@@ -503,17 +510,16 @@ class _WorkspaceState extends State<Workspace> {
             ],
           ),
           actions: [
-            CupertinoDialogAction(
+            CupertinoButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('Cancel'),
             ),
             if (!isFolder)
-              CupertinoDialogAction(
+              CupertinoButton(
                 onPressed: () => Navigator.pop(context, 'draft'),
                 child: const Text('Save as Draft'),
               ),
-            CupertinoDialogAction(
-              isDefaultAction: true,
+            CupertinoButton.filled(
               onPressed: title.text.trim().isEmpty
                   ? null
                   : () => Navigator.pop(context, 'create'),
