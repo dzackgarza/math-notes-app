@@ -38,6 +38,7 @@ class _WorkspaceState extends State<Workspace> {
   native.Directory? root;
   native.Library? library;
   final opened = <native.OpenNote>[];
+  final captures = <String>{};
   int tab = 0;
   bool inLibrary = true;
   native.OpenNote? get active =>
@@ -96,6 +97,20 @@ class _WorkspaceState extends State<Workspace> {
       await action();
     } catch (error) {
       if (mounted) setState(() => failure = error.toString());
+      if (mounted && !inLibrary)
+        await showCupertinoDialog<void>(
+          context: context,
+          builder: (context) => CupertinoAlertDialog(
+            title: const Text('Cannot complete this action'),
+            content: Text(error.toString()),
+            actions: [
+              CupertinoDialogAction(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -668,6 +683,8 @@ class _WorkspaceState extends State<Workspace> {
   }
 
   Future<void> open(JSArray<JSString> path) async {
+    if (captures.isNotEmpty)
+      throw StateError('Complete the drawing before switching notes.');
     if (active != null) await active!.saver.save().toDart;
     final index = opened.indexWhere(
       (item) => native.pathKey(item.path) == native.pathKey(path),
@@ -681,6 +698,20 @@ class _WorkspaceState extends State<Workspace> {
     }
     final note = await native.host.openNotebook(engine!, root!, path).toDart;
     setState(() => active = note);
+  }
+
+  Future<void> closeNote(int index) async {
+    final note = opened[index];
+    if (captures.contains(native.pathKey(note.path)))
+      throw StateError('Complete the drawing before closing this note.');
+    await note.saver.save().toDart;
+    setState(() {
+      opened.removeAt(index);
+      if (index < tab) tab--;
+      tab = opened.isEmpty ? 0 : tab.clamp(0, opened.length - 1);
+      if (opened.isEmpty) inLibrary = true;
+    });
+    await refresh();
   }
 
   Future<void> create(bool isFolder) async {
@@ -966,50 +997,52 @@ class _WorkspaceState extends State<Workspace> {
               child: Row(
                 children: [
                   Expanded(
-                    child: opened.length > 1
-                        ? CupertinoSlidingSegmentedControl<int>(
-                            groupValue: tab,
-                            children: {
-                              for (var i = 0; i < opened.length; i++)
-                                i: Text(opened[i].name),
-                            },
-                            onValueChanged: (index) {
-                              if (index != null)
-                                unawaited(run(() => open(opened[index].path)));
-                            },
-                          )
-                        : Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Text(
-                              opened.isEmpty ? '' : opened.first.name,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          for (var i = 0; i < opened.length; i++)
+                            DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: tab == i
+                                    ? const Color(0xFFE3EBFC)
+                                    : CupertinoColors.systemGrey6,
+                                border: const Border(
+                                  right: BorderSide(
+                                    color: CupertinoColors.separator,
+                                  ),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CupertinoButton(
+                                    onPressed: () =>
+                                        run(() => open(opened[i].path)),
+                                    child: Text(opened[i].name),
+                                  ),
+                                  CupertinoButton(
+                                    onPressed: () => run(() => closeNote(i)),
+                                    child: Semantics(
+                                      label: 'Close ${opened[i].name}',
+                                      child: const Icon(
+                                        CupertinoIcons.xmark,
+                                        size: 16,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
+                        ],
+                      ),
+                    ),
                   ),
                   CupertinoButton(
                     onPressed: () => run(pickNote),
                     child: Semantics(
                       label: 'Open note',
                       child: const Icon(CupertinoIcons.add),
-                    ),
-                  ),
-                  CupertinoButton(
-                    onPressed: opened.isEmpty
-                        ? null
-                        : () => run(() async {
-                            await opened[tab].saver.save().toDart;
-                            setState(() {
-                              opened.removeAt(tab);
-                              tab = tab.clamp(
-                                0,
-                                opened.length - 1 < 0 ? 0 : opened.length - 1,
-                              );
-                              if (opened.isEmpty) inLibrary = true;
-                            });
-                            await refresh();
-                          }),
-                    child: Semantics(
-                      label: 'Close note',
-                      child: const Icon(CupertinoIcons.xmark),
                     ),
                   ),
                 ],
@@ -1028,7 +1061,19 @@ class _WorkspaceState extends State<Workspace> {
                         child: Notebook(
                           note: opened[i],
                           engine: engine!,
+                          active: !inLibrary && i == tab,
+                          onCaptureChanged: (value) => setState(() {
+                            final key = native.pathKey(opened[i].path);
+                            if (value)
+                              captures.add(key);
+                            else
+                              captures.remove(key);
+                          }),
                           onLibrary: () => run(() async {
+                            if (captures.isNotEmpty)
+                              throw StateError(
+                                'Complete the drawing before returning to the library.',
+                              );
                             for (final note in opened) {
                               await note.saver.save().toDart;
                             }

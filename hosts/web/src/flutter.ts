@@ -1,6 +1,8 @@
 // The Dart host calls the existing engine and filesystem services through
 // dart:js_interop. Flutter owns controls, hit testing, and notebook motion.
-import { createNotebook, openNotebook } from "./editor/notebook.ts";
+import { applyTemplate, createNotebook, openNotebook } from "./editor/notebook.ts";
+import { deserializeScene } from "@dzackgarza/freetikz/scene";
+import { generateTikz } from "@dzackgarza/freetikz/tikz";
 import type { OpenNotebook } from "./editor/notebook.ts";
 import { loadEngine } from "./engine/load.ts";
 import type { Canvas, Engine } from "./engine/engine.ts";
@@ -27,6 +29,17 @@ async function paperPreview(engine: Engine, root: FileSystemDirectoryHandle, pap
 async function thumbnail(engine: Engine, root: FileSystemDirectoryHandle, note: Note): Promise<Uint8Array<ArrayBuffer> | null> {
   const blob = await noteThumbnail(engine, root, note);
   return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
+}
+
+function finishFigure(canvas: Canvas): string {
+  const scene = deserializeScene(canvas.figureScene());
+  return canvas.completeFigure(JSON.stringify(scene), generateTikz(scene).source);
+}
+
+function figureSource(note: OpenNotebook, canvas: Canvas, capturing: boolean): string {
+  if (capturing) return generateTikz(deserializeScene(canvas.figureScene())).source;
+  const id = canvas.selectedFigure();
+  return id ? new TextDecoder().decode(note.document.asset(`assets/${id}.tikz`)) : "";
 }
 
 async function cacheApp(): Promise<void> {
@@ -137,6 +150,7 @@ async function insertImage(note: OpenNotebook, canvas: Canvas, page: number, x: 
 }
 
 const api = {
+  applyTemplate, listTemplates, finishFigure, figureSource,
   thumbnail, tagColors: TAG_COLORS,
   cacheApp, paperPreview, exportPdf, insertImage, loadEngine, startRoot, pickRoot, requestPermission, library,
   createNotebook, openNotebook, createFolder, moveEntry, moveToTrash,

@@ -17,10 +17,14 @@ class Notebook extends StatefulWidget {
     required this.note,
     required this.engine,
     required this.onLibrary,
+    required this.active,
+    required this.onCaptureChanged,
   });
   final native.OpenNote note;
   final native.Engine engine;
   final Future<void> Function() onLibrary;
+  final bool active;
+  final ValueChanged<bool> onCaptureChanged;
   @override
   State<Notebook> createState() => _NotebookState();
 }
@@ -28,6 +32,7 @@ class Notebook extends StatefulWidget {
 class _NotebookState extends State<Notebook>
     with SingleTickerProviderStateMixin {
   final scroll = ScrollController();
+  final focus = FocusNode();
   final transform = TransformationController();
   final element = web.HTMLCanvasElement();
   late final Ticker ticker;
@@ -38,6 +43,11 @@ class _NotebookState extends State<Notebook>
   int pen = 0;
   int eraser = 0;
   String tool = 'pen';
+  bool drawing = false;
+  final figureText = TextEditingController();
+  String get figureSource => figureText.text;
+  set figureSource(String value) => figureText.text = value;
+  int selector = 0;
   String? failure;
   native.Selection? selection;
   double width = 1;
@@ -51,14 +61,16 @@ class _NotebookState extends State<Notebook>
   static int nextView = 0;
 
   double get fit => width / widget.note.document.contentSize().width;
-  String get saveLabel => switch (widget.note.saver.state.status) {
-    'saved' => 'Saved',
-    'pending' => 'Unsaved changes',
-    'recoverable' => 'Pending file save',
-    'saving' => 'Saving…',
-    'error' => 'Save failed',
-    final state => throw StateError('Invalid save state: $state'),
-  };
+  String get saveLabel => drawing
+      ? 'Drawing in progress'
+      : switch (widget.note.saver.state.status) {
+          'saved' => 'Saved',
+          'pending' => 'Unsaved changes',
+          'recoverable' => 'Pending file save',
+          'saving' => 'Saving…',
+          'error' => 'Save failed',
+          final state => throw StateError('Invalid save state: $state'),
+        };
 
   @override
   void initState() {
@@ -86,6 +98,15 @@ class _NotebookState extends State<Notebook>
           next?.width != selection?.width ||
           next?.height != selection?.height) {
         setState(() => selection = next);
+        if (!drawing && canvas!.selectedFigure().isNotEmpty) {
+          setState(
+            () => figureSource = native.host.figureSource(
+              widget.note,
+              canvas!,
+              false,
+            ),
+          );
+        }
       }
     })..start();
     unawaited(
@@ -98,6 +119,16 @@ class _NotebookState extends State<Notebook>
         updateView();
       }),
     );
+  }
+
+  @override
+  void didUpdateWidget(Notebook oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active && !oldWidget.active) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.active) focus.requestFocus();
+      });
+    }
   }
 
   Future<void> run(Future<void> Function() action) async {
@@ -145,6 +176,7 @@ class _NotebookState extends State<Notebook>
   }
 
   void input(PointerEvent event) {
+    if (event is PointerDownEvent) focus.requestFocus();
     if (event.kind == PointerDeviceKind.touch) {
       if (event is PointerDownEvent) touches.add(event.pointer);
       if (event is PointerUpEvent || event is PointerCancelEvent) {
@@ -170,8 +202,18 @@ class _NotebookState extends State<Notebook>
       target,
       element,
       event.timeStamp.inMicroseconds.toDouble(),
-    ))
-      widget.note.saver.schedule();
+    )) {
+      if (drawing)
+        setState(
+          () => figureSource = native.host.figureSource(
+            widget.note,
+            target,
+            true,
+          ),
+        );
+      else
+        widget.note.saver.schedule();
+    }
   }
 
   void cancelPull() {
@@ -186,6 +228,11 @@ class _NotebookState extends State<Notebook>
 
   void updatePull() {
     if (!scroll.hasClients) return;
+    if (drawing) {
+      cancelPull();
+      if (atEnd) setState(() => atEnd = false);
+      return;
+    }
     final beyond = scroll.offset - scroll.position.maxScrollExtent;
     final end = beyond >= -1;
     if (atEnd != end) setState(() => atEnd = end);
@@ -202,11 +249,15 @@ class _NotebookState extends State<Notebook>
     }
   }
 
-  void addPage() => edit(
-    () => widget.note.document.insertPage(widget.note.document.pageCount()),
-  );
+  void addPage() {
+    if (drawing) return;
+    edit(
+      () => widget.note.document.insertPage(widget.note.document.pageCount()),
+    );
+  }
 
   void history(bool redo) {
+    if (drawing) return;
     final step = redo
         ? widget.note.document.redo()
         : widget.note.document.undo();
@@ -291,8 +342,132 @@ class _NotebookState extends State<Notebook>
   void chooseTool(String value) {
     setState(() => tool = value);
     canvas?.setEraser(eraser, value == 'eraser');
-    canvas?.setSelector(0, value == 'lasso');
+    canvas?.setSelector(selector, value == 'lasso');
     if (value == 'pen') canvas?.setTool(pens[pen].tool);
+  }
+
+  void toggleDrawing() {
+    if (canvas == null) return;
+    if (drawing) {
+      native.host.finishFigure(canvas!);
+      drawing = false;
+      widget.onCaptureChanged(false);
+      edit(() {});
+    } else {
+      canvas!.beginFigure(page);
+      chooseTool('pen');
+      drawing = true;
+      widget.onCaptureChanged(true);
+      setState(
+        () =>
+            figureSource = native.host.figureSource(widget.note, canvas!, true),
+      );
+    }
+  }
+
+  Future<void> paperMenu() async {
+    final templates = await native.host.listTemplates(widget.note.root).toDart;
+    if (!mounted) return;
+    final chosen = await showCupertinoModalPopup<String>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: const Text('Paper'),
+        actions: [
+          for (final name in templates.toDart)
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(context, name.toDart),
+              child: Text(name.toDart),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+    if (chosen == null) return;
+    await native.host
+        .applyTemplate(widget.note.root, widget.note.document, chosen)
+        .toDart;
+    widget.note.template = chosen;
+    edit(() {});
+  }
+
+  Future<void> pageMenu() async {
+    final count = widget.note.document.pageCount();
+    final action = await showCupertinoModalPopup<String>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: Text('Page ${page + 1}'),
+        actions: [
+          for (final entry in {
+            'before': 'Insert page before',
+            'after': 'Insert page after',
+            if (count > 1) 'delete': 'Delete page',
+            if (page > 0) 'up': 'Move page up',
+            if (page < count - 1) 'down': 'Move page down',
+            'a4': 'Page size: A4',
+            'letter': 'Page size: Letter',
+          }.entries)
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(context, entry.key),
+              child: Text(entry.value),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+    if (action == null) return;
+    edit(() {
+      switch (action) {
+        case 'before':
+          widget.note.document.insertPage(page);
+        case 'after':
+          widget.note.document.insertPage(page + 1);
+        case 'delete':
+          widget.note.document.deletePage(page);
+          page = page.clamp(0, widget.note.document.pageCount() - 1);
+        case 'up':
+          widget.note.document.movePage(page, page - 1);
+          page--;
+        case 'down':
+          widget.note.document.movePage(page, page + 1);
+          page++;
+        case 'a4':
+          widget.note.document.setPageSize(0);
+        case 'letter':
+          widget.note.document.setPageSize(1);
+      }
+    });
+  }
+
+  Future<void> zoomMenu() async {
+    final scale = await showCupertinoModalPopup<double>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: const Text('Zoom'),
+        actions: [
+          for (final value in [1.0, 1.5, 2.0, 3.0, 5.0])
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(context, value),
+              child: Text(
+                value == 1 ? 'Fit width' : '${(value * 100).round()}%',
+              ),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+    if (scale != null)
+      setState(
+        () => transform.value = Matrix4.diagonal3Values(scale, scale, 1),
+      );
   }
 
   Future<void> configurePen() async {
@@ -460,6 +635,7 @@ class _NotebookState extends State<Notebook>
   }
 
   void jump(int index) {
+    if (drawing) return;
     final rect = widget.note.document.pageRect(index);
     scroll.animateTo(
       (rect.y * fit).clamp(0.0, scroll.position.maxScrollExtent),
@@ -471,6 +647,8 @@ class _NotebookState extends State<Notebook>
   @override
   void dispose() {
     pullTimer?.cancel();
+    focus.dispose();
+    figureText.dispose();
     ticker.dispose();
     widget.note.saver.removeEventListener('change', saveListener);
     scroll.dispose();
@@ -483,10 +661,18 @@ class _NotebookState extends State<Notebook>
   @override
   Widget build(BuildContext context) => CallbackShortcuts(
     bindings: {
-      const SingleActivator(LogicalKeyboardKey.keyS, control: true): () =>
-          run(() async {
-            await widget.note.saver.save().toDart;
-          }),
+      const SingleActivator(LogicalKeyboardKey.keyS, control: true): () => run(
+        () async {
+          if (drawing) throw StateError('Complete the drawing before saving.');
+          await widget.note.saver.save().toDart;
+        },
+      ),
+      const SingleActivator(LogicalKeyboardKey.delete): () {
+        if (selection != null) edit(() => canvas!.deleteSelection());
+      },
+      const SingleActivator(LogicalKeyboardKey.keyD, control: true): () {
+        if (selection != null) edit(() => canvas!.duplicateSelection());
+      },
       const SingleActivator(LogicalKeyboardKey.keyZ, control: true): () =>
           history(false),
       const SingleActivator(
@@ -509,6 +695,7 @@ class _NotebookState extends State<Notebook>
           canvas?.clearSelection(),
     },
     child: Focus(
+      focusNode: focus,
       autofocus: true,
       child: CupertinoPageScaffold(
         navigationBar: CupertinoNavigationBar(
@@ -523,7 +710,7 @@ class _NotebookState extends State<Notebook>
             children: [
               CupertinoButton(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                onPressed: () => run(exportPdf),
+                onPressed: drawing ? null : () => run(exportPdf),
                 child: const Text('Export PDF'),
               ),
               Semantics(
@@ -534,9 +721,11 @@ class _NotebookState extends State<Notebook>
               ),
               CupertinoButton(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                onPressed: () => run(() async {
-                  await widget.note.saver.save().toDart;
-                }),
+                onPressed: drawing
+                    ? null
+                    : () => run(() async {
+                        await widget.note.saver.save().toDart;
+                      }),
                 child: Text(
                   widget.note.saver.state.status == 'error'
                       ? 'Retry save'
@@ -621,6 +810,29 @@ class _NotebookState extends State<Notebook>
                               CupertinoIcons.selection_pin_in_out,
                             ),
                             onTap: () => chooseTool('lasso'),
+                          ),
+                          if (tool == 'lasso')
+                            CupertinoSlidingSegmentedControl<int>(
+                              groupValue: selector,
+                              children: const {
+                                0: Text('Freeform'),
+                                1: Text('Rectangle'),
+                              },
+                              onValueChanged: (value) {
+                                if (value != null) {
+                                  selector = value;
+                                  chooseTool('lasso');
+                                }
+                              },
+                            ),
+                          CupertinoListTile(
+                            title: Text(
+                              drawing ? 'Complete drawing' : 'Drawing mode',
+                            ),
+                            leading: const Icon(CupertinoIcons.pencil_outline),
+                            onTap: () => run(() async {
+                              toggleDrawing();
+                            }),
                           ),
                           CupertinoListTile(
                             title: const Text('Text'),
@@ -723,19 +935,36 @@ class _NotebookState extends State<Notebook>
                                                     PointerDeviceKind.trackpad,
                                                   },
                                                 ),
-                                        child: SingleChildScrollView(
-                                          controller: scroll,
-                                          physics: const BouncingScrollPhysics(
-                                            parent:
-                                                AlwaysScrollableScrollPhysics(),
-                                          ),
-                                          child: SizedBox(
-                                            width: width,
-                                            height:
-                                                widget.note.document
-                                                    .contentSize()
-                                                    .height *
-                                                fit,
+                                        child: RawGestureDetector(
+                                          gestures: {
+                                            EagerGestureRecognizer:
+                                                GestureRecognizerFactoryWithHandlers<
+                                                  EagerGestureRecognizer
+                                                >(
+                                                  () => EagerGestureRecognizer(
+                                                    supportedDevices: {
+                                                      PointerDeviceKind.stylus,
+                                                      PointerDeviceKind
+                                                          .invertedStylus,
+                                                    },
+                                                  ),
+                                                  (instance) {},
+                                                ),
+                                          },
+                                          child: SingleChildScrollView(
+                                            controller: scroll,
+                                            physics: const BouncingScrollPhysics(
+                                              parent:
+                                                  AlwaysScrollableScrollPhysics(),
+                                            ),
+                                            child: SizedBox(
+                                              width: width,
+                                              height:
+                                                  widget.note.document
+                                                      .contentSize()
+                                                      .height *
+                                                  fit,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -768,22 +997,67 @@ class _NotebookState extends State<Notebook>
                         },
                       ),
                     ),
+                    if (figureSource.isNotEmpty)
+                      SizedBox(
+                        width: 280,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const Text(
+                                'TikZ figure',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                              Expanded(
+                                child: CupertinoTextField(
+                                  controller: figureText,
+                                  readOnly: true,
+                                  maxLines: null,
+                                  expands: true,
+                                  textAlignVertical: TextAlignVertical.top,
+                                ),
+                              ),
+                              if (!drawing)
+                                CupertinoButton(
+                                  onPressed: () =>
+                                      setState(() => figureSource = ''),
+                                  child: const Text('Close figure preview'),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
               Row(
                 children: [
                   CupertinoButton(
-                    onPressed: addPage,
+                    onPressed: drawing ? null : addPage,
                     child: const Text('Add page'),
                   ),
                   CupertinoButton(
-                    onPressed: () => history(false),
+                    onPressed: drawing ? null : () => history(false),
                     child: const Text('Undo'),
                   ),
                   CupertinoButton(
-                    onPressed: () => history(true),
+                    onPressed: drawing ? null : () => history(true),
                     child: const Text('Redo'),
+                  ),
+                  CupertinoButton(
+                    onPressed: zoomMenu,
+                    child: Text(
+                      '${(transform.value.getMaxScaleOnAxis() * 100).round()}%',
+                    ),
+                  ),
+                  CupertinoButton(
+                    onPressed: drawing ? null : () => run(paperMenu),
+                    child: const Text('Paper'),
+                  ),
+                  CupertinoButton(
+                    onPressed: drawing ? null : () => run(pageMenu),
+                    child: const Text('Page'),
                   ),
                   const Spacer(),
                   CupertinoButton(

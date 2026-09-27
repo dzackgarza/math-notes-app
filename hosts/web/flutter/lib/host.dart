@@ -178,6 +178,7 @@ extension type Document(JSObject value) implements JSObject {
   external void insertPage(int index);
   external void deletePage(int index);
   external void movePage(int from, int to);
+  external void setPageSize(int size);
   external Size contentSize();
   external PageRect pageRect(int index);
   external HistoryStep? undo();
@@ -186,6 +187,8 @@ extension type Document(JSObject value) implements JSObject {
 }
 
 extension type Canvas(JSObject value) implements JSObject {
+  external void beginFigure(int page);
+  external String selectedFigure();
   external void setView(
     double a,
     double b,
@@ -215,6 +218,8 @@ extension type Canvas(JSObject value) implements JSObject {
 }
 
 extension type OpenNote(JSObject value) implements JSObject {
+  external String get template;
+  external set template(String value);
   external String get name;
   external JSArray<JSString> get path;
   external Directory get root;
@@ -223,6 +228,14 @@ extension type OpenNote(JSObject value) implements JSObject {
 }
 
 extension type Host(JSObject value) implements JSObject {
+  external JSPromise<VoidResult> applyTemplate(
+    Directory root,
+    Document document,
+    String name,
+  );
+  external JSPromise<JSArray<JSString>> listTemplates(Directory root);
+  external String finishFigure(Canvas canvas);
+  external String figureSource(OpenNote note, Canvas canvas, bool capturing);
   external JSPromise<JSUint8Array?> thumbnail(
     Engine engine,
     Directory root,
