@@ -24,7 +24,7 @@ _flutter-sdk:
 # Builds the Cupertino host against the existing engine and storage services.
 web-flutter-build: engine-module
     mkdir -p hosts/web/src/engine/wasm
-    cp {{build}}/web/engine.* hosts/web/src/engine/wasm/
+    cp {{build}}/web/engine.* {{build}}/web/engine_test.* hosts/web/src/engine/wasm/
     just _flutter-host
 
 # CI supplies the engine module as an artifact.

@@ -24,6 +24,7 @@
     "idb-keyval": "^6.3.0",
     "ionicons": "^8",
     "lucide-solid": "^1.48.0",
+    "mupdf": "1.28.0",
     "solid-js": "^1.9.15",
     "workbox-window": "7.4.1"
   }

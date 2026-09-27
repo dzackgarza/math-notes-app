@@ -88,6 +88,9 @@ InkStatus ink_document_page_count(InkDocument *document, size_t *count);
 /* A new page before page `index` (the count appends), in the notebook's page
    size, with the template's background. One history step each. */
 InkStatus ink_document_insert_page(InkDocument *document, size_t index);
+/* Insert a PDF raster as a page background, retaining its dimensions in pt. */
+InkStatus ink_import_page_image(InkDocument *document, size_t index, const uint8_t *png,
+                                size_t size, double width_pt, double height_pt);
 /* Removes a page; ink_document_dirty_files then lists its file for deletion. */
 InkStatus ink_document_delete_page(InkDocument *document, size_t index);
 /* Moves page `from` to position `to`. Page files keep their names. */

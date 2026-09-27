@@ -485,6 +485,16 @@ export class InkDocument {
     this.engine.check(this.engine.module._ink_document_delete_page(this.pointer, index));
   }
 
+  importPageImage(index: number, png: Uint8Array, width: number, height: number): void {
+    const e = this.engine;
+    const bytes = e.copyIn(png);
+    try {
+      e.check(e.module._ink_import_page_image(this.pointer, index, bytes, png.length, width, height));
+    } finally {
+      e.free(bytes);
+    }
+  }
+
   movePage(from: number, to: number): void {
     this.engine.check(this.engine.module._ink_document_move_page(this.pointer, from, to));
   }

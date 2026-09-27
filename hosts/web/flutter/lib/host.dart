@@ -302,6 +302,12 @@ extension type Host(JSObject value) implements JSObject {
     Directory root,
     JSArray<JSString> path,
   );
+  external JSPromise<OpenNote?> importPdf(
+    Engine engine,
+    Directory root,
+    JSArray<JSString> parent,
+    JSFunction progress,
+  );
   external JSPromise<JSArray<Pen>> readPens(Directory root, Engine engine);
   external JSPromise<VoidResult> writePens(
     Directory root,

@@ -3,6 +3,7 @@ import 'dart:js_interop';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/semantics.dart';
+import 'package:multi_split_view/multi_split_view.dart';
 
 import 'host.dart' as native;
 import 'notebook.dart';
@@ -39,6 +40,65 @@ class _WorkspaceState extends State<Workspace> {
   native.Library? library;
   final opened = <native.OpenNote>[];
   final captures = <String>{};
+  final panes = MultiSplitViewController(areas: [Area(id: 'main')]);
+  String? secondary;
+  bool rightFocused = false;
+  Axis splitAxis = Axis.horizontal;
+  bool linkedViews = false;
+  final viewport = ValueNotifier<NotebookViewport?>(null);
+
+  native.OpenNote? get secondaryNote {
+    for (final note in opened) {
+      if (native.pathKey(note.path) == secondary) return note;
+    }
+    return null;
+  }
+
+  void releaseNotes(List<native.OpenNote> notes) {
+    if (notes.any((note) => native.pathKey(note.path) == secondary))
+      closeSplit();
+    // Canvases are disposed in the next frame before their shared document.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final note in notes) note.document.free();
+    });
+  }
+
+  void closeSplit() {
+    secondary = null;
+    rightFocused = false;
+    if (panes.areasCount > 1) panes.removeAreaAt(1);
+  }
+
+  Future<void> splitNote() async {
+    if (captures.isNotEmpty)
+      throw StateError('Complete the drawing before splitting notes.');
+    setState(() {
+      if (secondary != null) {
+        closeSplit();
+      } else {
+        secondary = native.pathKey(opened[tab].path);
+        panes.addArea(Area(id: 'reference'));
+      }
+    });
+  }
+
+  Future<void> chooseReference() async {
+    final previous = tab;
+    await pickNote();
+    setState(() {
+      secondary = native.pathKey(opened[tab].path);
+      tab = previous;
+      rightFocused = true;
+    });
+  }
+
+  Future<void> showLibrary() => run(() async {
+    if (captures.isNotEmpty)
+      throw StateError('Complete the drawing before returning to the library.');
+    for (final note in opened) await note.saver.save().toDart;
+    await refresh();
+    setState(() => inLibrary = true);
+  });
   int tab = 0;
   bool inLibrary = true;
   native.OpenNote? get active =>
@@ -126,6 +186,7 @@ class _WorkspaceState extends State<Workspace> {
       await note.saver.save().toDart;
     }
     setState(() {
+      releaseNotes(opened.toList());
       opened.clear();
       tab = 0;
       root = chosen;
@@ -361,6 +422,7 @@ class _WorkspaceState extends State<Workspace> {
       await item.saver.save().toDart;
     }
     setState(() {
+      releaseNotes(affected);
       opened.removeWhere((item) => affected.contains(item));
       tab = opened.isEmpty ? 0 : tab.clamp(0, opened.length - 1);
     });
@@ -700,12 +762,35 @@ class _WorkspaceState extends State<Workspace> {
     setState(() => active = note);
   }
 
+  Future<void> importPdf() => run(() async {
+    try {
+      final note = await native.host
+          .importPdf(
+            engine!,
+            root!,
+            folder,
+            ((JSNumber completed, JSNumber total) {
+              if (mounted)
+                setState(
+                  () => confirmation =
+                      'Importing PDF: ${completed.toDartInt} / ${total.toDartInt} pages',
+                );
+            }).toJS,
+          )
+          .toDart;
+      if (note != null) setState(() => active = note);
+    } finally {
+      await refresh();
+    }
+  });
+
   Future<void> closeNote(int index) async {
     final note = opened[index];
     if (captures.contains(native.pathKey(note.path)))
       throw StateError('Complete the drawing before closing this note.');
     await note.saver.save().toDart;
     setState(() {
+      releaseNotes([note]);
       opened.removeAt(index);
       if (index < tab) tab--;
       tab = opened.isEmpty ? 0 : tab.clamp(0, opened.length - 1);
@@ -979,6 +1064,9 @@ class _WorkspaceState extends State<Workspace> {
 
   @override
   void dispose() {
+    releaseNotes(opened.toList());
+    panes.dispose();
+    viewport.dispose();
     search.dispose();
     detailSearch.dispose();
     super.dispose();
@@ -1039,6 +1127,25 @@ class _WorkspaceState extends State<Workspace> {
                     ),
                   ),
                   CupertinoButton(
+                    onPressed: () => run(splitNote),
+                    child: Text(secondary == null ? 'Split' : 'Close split'),
+                  ),
+                  if (secondary != null)
+                    CupertinoButton(
+                      onPressed: () =>
+                          setState(() => linkedViews = !linkedViews),
+                      child: Text(linkedViews ? 'Unlink views' : 'Link views'),
+                    ),
+                  if (secondary != null)
+                    CupertinoButton(
+                      onPressed: () => setState(
+                        () => splitAxis = splitAxis == Axis.horizontal
+                            ? Axis.vertical
+                            : Axis.horizontal,
+                      ),
+                      child: const Text('Rotate split'),
+                    ),
+                  CupertinoButton(
                     onPressed: () => run(pickNote),
                     child: Semantics(
                       label: 'Open note',
@@ -1049,41 +1156,87 @@ class _WorkspaceState extends State<Workspace> {
               ),
             ),
             Expanded(
-              child: IndexedStack(
-                index: opened.isEmpty ? null : tab,
-                children: [
-                  for (var i = 0; i < opened.length; i++)
-                    TickerMode(
-                      key: ValueKey(native.pathKey(opened[i].path)),
-                      enabled: !inLibrary && i == tab,
-                      child: ExcludeFocus(
-                        excluding: inLibrary || i != tab,
-                        child: Notebook(
-                          note: opened[i],
-                          engine: engine!,
-                          active: !inLibrary && i == tab,
-                          onCaptureChanged: (value) => setState(() {
-                            final key = native.pathKey(opened[i].path);
-                            if (value)
-                              captures.add(key);
-                            else
-                              captures.remove(key);
-                          }),
-                          onLibrary: () => run(() async {
-                            if (captures.isNotEmpty)
-                              throw StateError(
-                                'Complete the drawing before returning to the library.',
-                              );
-                            for (final note in opened) {
-                              await note.saver.save().toDart;
-                            }
-                            await refresh();
-                            setState(() => inLibrary = true);
-                          }),
+              child: MultiSplitView(
+                controller: panes,
+                axis: splitAxis,
+                builder: (context, area) => area.index == 0
+                    ? Listener(
+                        onPointerDown: (_) {
+                          if (rightFocused)
+                            setState(() => rightFocused = false);
+                        },
+                        child: IndexedStack(
+                          index: opened.isEmpty ? null : tab,
+                          children: [
+                            for (var i = 0; i < opened.length; i++)
+                              TickerMode(
+                                key: ValueKey(native.pathKey(opened[i].path)),
+                                enabled: !inLibrary && i == tab,
+                                child: ExcludeFocus(
+                                  excluding: inLibrary || i != tab,
+                                  child: Notebook(
+                                    note: opened[i],
+                                    viewport: viewport,
+                                    linked:
+                                        secondary != null &&
+                                        linkedViews &&
+                                        i == tab,
+                                    engine: engine!,
+                                    active:
+                                        !inLibrary && i == tab && !rightFocused,
+                                    onCaptureChanged: (value) => setState(() {
+                                      final key = native.pathKey(
+                                        opened[i].path,
+                                      );
+                                      if (value)
+                                        captures.add(key);
+                                      else
+                                        captures.remove(key);
+                                    }),
+                                    onLibrary: showLibrary,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      )
+                    : Listener(
+                        onPointerDown: (_) {
+                          if (!rightFocused)
+                            setState(() => rightFocused = true);
+                        },
+                        child: Column(
+                          children: [
+                            CupertinoButton(
+                              onPressed: () => run(chooseReference),
+                              child: Text('Reference: ${secondaryNote!.name}'),
+                            ),
+                            Expanded(
+                              child: TickerMode(
+                                enabled: !inLibrary,
+                                child: ExcludeFocus(
+                                  excluding: inLibrary,
+                                  child: Notebook(
+                                    key: ValueKey('reference-$secondary'),
+                                    note: secondaryNote!,
+                                    engine: engine!,
+                                    viewport: viewport,
+                                    linked: linkedViews,
+                                    active: !inLibrary && rightFocused,
+                                    onLibrary: showLibrary,
+                                    onCaptureChanged: (value) => setState(() {
+                                      if (value)
+                                        captures.add(secondary!);
+                                      else
+                                        captures.remove(secondary);
+                                    }),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                ],
               ),
             ),
           ],
@@ -1374,6 +1527,10 @@ class _WorkspaceState extends State<Workspace> {
                                           ? null
                                           : () => create(true),
                                       child: const Text('New Notebook'),
+                                    ),
+                                    CupertinoButton(
+                                      onPressed: busy ? null : importPdf,
+                                      child: const Text('Import PDF'),
                                     ),
                                     CupertinoButton.filled(
                                       onPressed: busy

@@ -11,6 +11,13 @@ import 'package:web/web.dart' as web;
 
 import 'host.dart' as native;
 
+typedef NotebookViewport = ({double scale, double x, double y, double scroll});
+
+class SelectionTransfer {
+  const SelectionTransfer(this.read);
+  final String Function() read;
+}
+
 class Notebook extends StatefulWidget {
   const Notebook({
     super.key,
@@ -19,12 +26,16 @@ class Notebook extends StatefulWidget {
     required this.onLibrary,
     required this.active,
     required this.onCaptureChanged,
+    required this.viewport,
+    required this.linked,
   });
   final native.OpenNote note;
   final native.Engine engine;
   final Future<void> Function() onLibrary;
   final bool active;
   final ValueChanged<bool> onCaptureChanged;
+  final ValueNotifier<NotebookViewport?> viewport;
+  final bool linked;
   @override
   State<Notebook> createState() => _NotebookState();
 }
@@ -33,6 +44,7 @@ class _NotebookState extends State<Notebook>
     with SingleTickerProviderStateMixin {
   final scroll = ScrollController();
   final focus = FocusNode();
+  bool applyingViewport = false;
   final transform = TransformationController();
   final element = web.HTMLCanvasElement();
   late final Ticker ticker;
@@ -89,6 +101,7 @@ class _NotebookState extends State<Notebook>
     widget.note.saver.addEventListener('change', saveListener);
     scroll.addListener(updateView);
     transform.addListener(updateView);
+    widget.viewport.addListener(receiveViewport);
     ticker = createTicker((_) {
       canvas?.render();
       final next = canvas?.selection();
@@ -173,6 +186,34 @@ class _NotebookState extends State<Notebook>
     final current = target.pageAt(width / 2, height / 2);
     if (current >= 0 && current != page && mounted)
       setState(() => page = current);
+    if (widget.linked && widget.active && !applyingViewport && fit > 0) {
+      widget.viewport.value = (
+        scale: scale,
+        x: matrix.storage[12] / fit,
+        y: matrix.storage[13] / fit,
+        scroll: offset / fit,
+      );
+    }
+  }
+
+  void receiveViewport() {
+    if (!widget.linked || widget.active) return;
+    final view = widget.viewport.value;
+    if (view == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !widget.linked || widget.active || !scroll.hasClients)
+        return;
+      applyingViewport = true;
+      transform.value = Matrix4.identity()
+        ..setEntry(0, 0, view.scale)
+        ..setEntry(1, 1, view.scale)
+        ..setEntry(0, 3, view.x * fit)
+        ..setEntry(1, 3, view.y * fit);
+      scroll.jumpTo(
+        (view.scroll * fit).clamp(0.0, scroll.position.maxScrollExtent),
+      );
+      applyingViewport = false;
+    });
   }
 
   void input(PointerEvent event) {
@@ -646,6 +687,7 @@ class _NotebookState extends State<Notebook>
 
   @override
   void dispose() {
+    widget.viewport.removeListener(receiveViewport);
     pullTimer?.cancel();
     focus.dispose();
     figureText.dispose();
@@ -654,7 +696,6 @@ class _NotebookState extends State<Notebook>
     scroll.dispose();
     transform.dispose();
     canvas?.free();
-    widget.note.document.free();
     super.dispose();
   }
 
@@ -873,6 +914,24 @@ class _NotebookState extends State<Notebook>
                             onTap: () => run(paste),
                           ),
                           if (selection != null) ...[
+                            LongPressDraggable<SelectionTransfer>(
+                              data: SelectionTransfer(
+                                () => canvas!.copySelection(false),
+                              ),
+                              feedback: const DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: CupertinoColors.systemGrey5,
+                                ),
+                                child: Padding(
+                                  padding: EdgeInsets.all(16),
+                                  child: Text('Copy selection'),
+                                ),
+                              ),
+                              child: const CupertinoListTile(
+                                title: Text('Drag a copy'),
+                                leading: Icon(CupertinoIcons.hand_draw),
+                              ),
+                            ),
                             CupertinoListTile(
                               title: const Text('Copy'),
                               onTap: () => run(() => copy(false)),
@@ -907,91 +966,118 @@ class _NotebookState extends State<Notebook>
                           WidgetsBinding.instance.addPostFrameCallback((_) {
                             if (mounted) updateView();
                           });
-                          return ClipRect(
-                            child: Stack(
-                              children: [
-                                Positioned.fill(
-                                  child: IgnorePointer(
-                                    child: HtmlElementView(viewType: viewType),
+                          return DragTarget<SelectionTransfer>(
+                            onWillAcceptWithDetails: (_) =>
+                                !drawing && canvas != null,
+                            onAcceptWithDetails: (details) {
+                              final box =
+                                  context.findRenderObject()! as RenderBox;
+                              final point = box.globalToLocal(details.offset);
+                              unawaited(
+                                run(() async {
+                                  final svg = details.data.read();
+                                  if (svg.isNotEmpty)
+                                    edit(
+                                      () => canvas!.paste(
+                                        svg,
+                                        point.dx,
+                                        point.dy,
+                                      ),
+                                    );
+                                }),
+                              );
+                            },
+                            builder: (context, candidates, rejected) => ClipRect(
+                              child: Stack(
+                                children: [
+                                  Positioned.fill(
+                                    child: IgnorePointer(
+                                      child: HtmlElementView(
+                                        viewType: viewType,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                                Positioned.fill(
-                                  child: Listener(
-                                    behavior: HitTestBehavior.opaque,
-                                    onPointerDown: input,
-                                    onPointerMove: input,
-                                    onPointerUp: input,
-                                    onPointerCancel: input,
-                                    child: InteractiveViewer(
-                                      transformationController: transform,
-                                      minScale: 1,
-                                      maxScale: 5,
-                                      child: ScrollConfiguration(
-                                        behavior:
-                                            const CupertinoScrollBehavior()
-                                                .copyWith(
-                                                  dragDevices: {
-                                                    PointerDeviceKind.touch,
-                                                    PointerDeviceKind.trackpad,
-                                                  },
-                                                ),
-                                        child: RawGestureDetector(
-                                          gestures: {
-                                            EagerGestureRecognizer:
-                                                GestureRecognizerFactoryWithHandlers<
-                                                  EagerGestureRecognizer
-                                                >(
-                                                  () => EagerGestureRecognizer(
-                                                    supportedDevices: {
-                                                      PointerDeviceKind.stylus,
+                                  Positioned.fill(
+                                    child: Listener(
+                                      behavior: HitTestBehavior.opaque,
+                                      onPointerDown: input,
+                                      onPointerMove: input,
+                                      onPointerUp: input,
+                                      onPointerCancel: input,
+                                      child: InteractiveViewer(
+                                        transformationController: transform,
+                                        minScale: 1,
+                                        maxScale: 5,
+                                        child: ScrollConfiguration(
+                                          behavior:
+                                              const CupertinoScrollBehavior()
+                                                  .copyWith(
+                                                    dragDevices: {
+                                                      PointerDeviceKind.touch,
                                                       PointerDeviceKind
-                                                          .invertedStylus,
+                                                          .trackpad,
                                                     },
                                                   ),
-                                                  (instance) {},
-                                                ),
-                                          },
-                                          child: SingleChildScrollView(
-                                            controller: scroll,
-                                            physics: const BouncingScrollPhysics(
-                                              parent:
-                                                  AlwaysScrollableScrollPhysics(),
-                                            ),
-                                            child: SizedBox(
-                                              width: width,
-                                              height:
-                                                  widget.note.document
-                                                      .contentSize()
-                                                      .height *
-                                                  fit,
+                                          child: RawGestureDetector(
+                                            gestures: {
+                                              EagerGestureRecognizer:
+                                                  GestureRecognizerFactoryWithHandlers<
+                                                    EagerGestureRecognizer
+                                                  >(
+                                                    () =>
+                                                        EagerGestureRecognizer(
+                                                          supportedDevices: {
+                                                            PointerDeviceKind
+                                                                .stylus,
+                                                            PointerDeviceKind
+                                                                .invertedStylus,
+                                                          },
+                                                        ),
+                                                    (instance) {},
+                                                  ),
+                                            },
+                                            child: SingleChildScrollView(
+                                              controller: scroll,
+                                              physics: const BouncingScrollPhysics(
+                                                parent:
+                                                    AlwaysScrollableScrollPhysics(),
+                                              ),
+                                              child: SizedBox(
+                                                width: width,
+                                                height:
+                                                    widget.note.document
+                                                        .contentSize()
+                                                        .height *
+                                                    fit,
+                                              ),
                                             ),
                                           ),
                                         ),
                                       ),
                                     ),
                                   ),
-                                ),
-                                if (atEnd)
-                                  Positioned(
-                                    bottom: 12,
-                                    left: 0,
-                                    right: 0,
-                                    child: IgnorePointer(
-                                      child: Center(
-                                        child: Semantics(
-                                          container: true,
-                                          child: Text(
-                                            pullReady
-                                                ? 'Release to add a page'
-                                                : pullTimer != null
-                                                ? 'Hold to add a page'
-                                                : 'Pull and hold to add a page',
+                                  if (atEnd)
+                                    Positioned(
+                                      bottom: 12,
+                                      left: 0,
+                                      right: 0,
+                                      child: IgnorePointer(
+                                        child: Center(
+                                          child: Semantics(
+                                            container: true,
+                                            child: Text(
+                                              pullReady
+                                                  ? 'Release to add a page'
+                                                  : pullTimer != null
+                                                  ? 'Hold to add a page'
+                                                  : 'Pull and hold to add a page',
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                              ],
+                                ],
+                              ),
                             ),
                           );
                         },

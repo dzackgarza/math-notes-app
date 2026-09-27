@@ -18,6 +18,7 @@
 #include "geometry/affine.h"
 #include "layout/layout.h"
 #include "include/core/SkData.h"
+#include "include/core/SkImage.h"
 #include "include/core/SkColorSpace.h"
 #include "include/core/SkStream.h"
 #include "include/core/SkSurface.h"
@@ -272,6 +273,38 @@ InkStatus ink_document_insert_page(InkDocument *document, size_t index) {
     if (index > ink_engine::ListedPageCount(history.current())) return BadPageIndex();
     history.Push(ink_engine::InsertPage(history.current(), index, history.ids(),
                                         document->template_page));
+    return INK_OK;
+  });
+}
+
+InkStatus ink_import_page_image(InkDocument *document, size_t index, const uint8_t *png,
+                                size_t size, double width_pt, double height_pt) {
+  return Call([&] {
+    if (!document || !png) return NullArgument("document or png");
+    if (!std::isfinite(width_pt) || !std::isfinite(height_pt) || width_pt <= 0 || height_pt <= 0)
+      return Fail(INK_ERROR_ARGUMENT, "page dimensions must be positive and finite");
+    auto bytes = SkData::MakeWithCopy(png, size);
+    if (!SkImages::DeferredFromEncodedData(bytes))
+      return Fail(INK_ERROR_PARSE, "page image could not be decoded");
+    auto &history = document->history;
+    if (index > ink_engine::ListedPageCount(history.current())) return BadPageIndex();
+    auto next = ink_engine::InsertPage(history.current(), index, history.ids(), std::nullopt);
+    auto page = *next.pages[index];
+    page.width = width_pt;
+    page.height = height_pt;
+    size_t number = 1;
+    std::string path;
+    do {
+      auto digits = std::to_string(number++);
+      path = "assets/p" + std::string(digits.size() < 4 ? 4 - digits.size() : 0, '0') + digits + ".png";
+    } while (document->assets.contains(path));
+    page.background.image = ink_engine::Image{
+      .id = history.ids().StrokeId(), .href = "../" + path, .width = width_pt, .height = height_pt};
+    next.pages = next.pages.set(index, immer::box<ink_engine::Page>(std::move(page)));
+    document->assets[path] = std::move(bytes);
+    document->new_assets[path] = std::string(Bytes(png, size));
+    ++document->assets_version;
+    history.Push(std::move(next));
     return INK_OK;
   });
 }

@@ -14,6 +14,7 @@ import { emptyFolder, emptyNote, moveNotes, readMetadata, writeMetadata, TAG_COL
 import { noteThumbnail } from "./storage/thumbnails.ts";
 import { readPens, writePens } from "./storage/pens.ts";
 import { Workbox } from "workbox-window";
+import { importPdf } from "./editor/pdf.ts";
 
 async function paperPreview(engine: Engine, root: FileSystemDirectoryHandle, paper: string, size: "a4" | "letter"): Promise<Uint8Array<ArrayBuffer>> {
   const page = await readTemplatePage(root, paper);
@@ -92,9 +93,10 @@ function acceptPen(canvas: Canvas, element: HTMLCanvasElement, stamp: number): b
   return event.type === "pointerup" || event.type === "pointercancel";
 }
 
+let nextCanvas = 0;
 async function mountCanvas(note: OpenNotebook, element: HTMLCanvasElement): Promise<Canvas> {
   element.style.pointerEvents = "none";
-  element.id = `ink-canvas-${note.document.pointer}`;
+  element.id = `ink-canvas-${nextCanvas++}`;
   // HtmlElementView's creation callback precedes DOM attachment. ResizeObserver
   // is the attachment hook documented by Flutter's HtmlElementView API.
   await new Promise<void>((resolve) => {
@@ -150,6 +152,7 @@ async function insertImage(note: OpenNotebook, canvas: Canvas, page: number, x: 
 }
 
 const api = {
+  importPdf,
   applyTemplate, listTemplates, finishFigure, figureSource,
   thumbnail, tagColors: TAG_COLORS,
   cacheApp, paperPreview, exportPdf, insertImage, loadEngine, startRoot, pickRoot, requestPermission, library,
