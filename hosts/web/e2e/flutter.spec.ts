@@ -11,6 +11,53 @@ async function enterText(field: Locator, value: string): Promise<void> {
   await field.pressSequentially(value);
 }
 
+test("Flutter notebook cards retain their notes and metadata after rename", async ({ page }, info) => {
+  test.setTimeout(90_000);
+  await page.goto("flutter/?root=opfs");
+  await page.getByRole("button", { name: "New Notebook", exact: true }).click();
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Algebra");
+  await enterText(page.getByRole("textbox", { name: "Description", exact: true }), "Lecture notes");
+  await enterText(page.getByRole("textbox", { name: "Tags, separated by commas", exact: true }), "groups");
+  await page.getByRole("button", { name: "Ruled", exact: true }).click();
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Algebra", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "New Note", exact: true }).click();
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Rings");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Info", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Info", exact: true }).click();
+  await expect(page.getByText("Lecture notes", { exact: true })).toBeVisible();
+  await page.screenshot({ path: info.outputPath("notebook-info.png") });
+  await page.getByRole("button", { name: "Algebra notebook actions", exact: true }).click();
+  await page.getByRole("button", { name: "Rename", exact: true }).click();
+  await enterText(page.getByRole("textbox", { name: "Name", exact: true }), "Field theory");
+  await page.getByRole("button", { name: "Rename", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Field theory notebook actions", exact: true })).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: "Select Field theory", exact: true }).click();
+  await page.getByRole("button", { name: "Rings", exact: true }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).waitFor();
+  const stored = await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    const folder = await root.getDirectoryHandle("Field theory");
+    const note = await folder.getDirectoryHandle("Rings");
+    return {
+      manifest: await (await (await note.getFileHandle("notebook.json")).getFile()).text(),
+      metadata: await (await (await root.getFileHandle(".library.json")).getFile()).text(),
+      folders: await Array.fromAsync(root.keys()),
+    };
+  });
+  expect(stored.folders).not.toContain("Algebra");
+  expect(JSON.parse(stored.manifest).template).toBe("lined-medium");
+  const metadata = JSON.parse(stored.metadata);
+  expect(metadata.folders["Field theory"].description).toBe("Lecture notes");
+  expect(metadata.notes["Field theory/Rings"].tags).toEqual(["groups"]);
+  expect(metadata.folders.Algebra).toBeUndefined();
+  expect(metadata.notes["Algebra/Rings"]).toBeUndefined();
+});
+
 test("Flutter finds an image note through persistent tags and its page thumbnail", async ({ page }, info) => {
   test.setTimeout(90_000);
   await page.goto("flutter/?root=opfs");
