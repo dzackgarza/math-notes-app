@@ -1,6 +1,49 @@
 import { expect, test } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 
+test("Flutter adds a page only after a held edge pull and preserves keyboard history", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto("flutter/?root=opfs");
+  await page.getByRole("button", { name: "New Note", exact: true }).click();
+  await page.getByRole("textbox", { name: "Title", exact: true }).fill("Navigation");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  const canvas = page.locator('canvas[id^="ink-canvas-"]');
+  await canvas.waitFor();
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Notebook canvas has no bounds");
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, 4000);
+  await expect(page.getByText("Pull and hold to add a page", { exact: true })).toBeVisible();
+  const cdp = await page.context().newCDPSession(page);
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height - 40;
+  for (const held of [false, true]) {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ id: 1, x, y }] });
+    for (let distance = 60; distance <= 360; distance += 60) {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ id: 1, x, y: y - distance }] });
+    }
+    await expect(page.getByText(held ? "Release to add a page" : "Hold to add a page", { exact: true })).toBeVisible();
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    if (!held) {
+      await expect(page.getByText("1 / 1", { exact: true })).toBeVisible();
+      await expect(page.getByText("Pull and hold to add a page", { exact: true })).toBeVisible();
+    }
+  }
+  await expect(page.getByText(/^[12] \/ 2$/)).toBeVisible();
+  await page.keyboard.press("Control+z");
+  await expect(page.getByText("1 / 1", { exact: true })).toBeVisible();
+  await page.keyboard.press("Control+Shift+z");
+  await expect(page.getByText(/^[12] \/ 2$/)).toBeVisible();
+  await page.keyboard.press("Control+s");
+  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  const manifest = await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    const dir = await root.getDirectoryHandle("Navigation");
+    return (await (await dir.getFileHandle("notebook.json")).getFile()).text();
+  });
+  expect(JSON.parse(manifest).pages).toHaveLength(2);
+});
+
 test("Flutter creation resumes a draft and applies saved note settings", async ({ page }, info) => {
   test.setTimeout(60_000);
   page.on("pageerror", error => console.error(error.stack));
