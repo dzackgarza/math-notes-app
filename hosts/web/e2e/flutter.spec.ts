@@ -28,7 +28,7 @@ test("Flutter creation resumes a draft and applies saved note settings", async (
   await page.getByRole("textbox", { name: "Tags, separated by commas", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Tags, separated by commas", exact: true })).toHaveValue("analysis");
   await page.getByRole("button", { name: "Create", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Save", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Save", exact: true }).waitFor();
   const stored = await page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
     const note = await root.getDirectoryHandle("Seminar");

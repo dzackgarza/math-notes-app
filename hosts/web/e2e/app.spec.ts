@@ -403,7 +403,8 @@ test("New Note restores its saved draft after reload and removes the draft when 
   await page.locator("ion-alert").getByRole("button", { name: "Add Tag" }).click();
   await expect(page.locator("ion-chip.tag-chip")).toContainText("Research");
   await page.getByRole("button", { name: "Save as Draft" }).click();
-  await expect.poll(async () => JSON.parse(Buffer.from(await readOpfsFile(page, ".library.json"), "base64").toString()).draft).toEqual({
+  await page.getByRole("button", { name: "Save as Draft" }).waitFor({ state: "hidden" });
+  expect(JSON.parse(Buffer.from(await readOpfsFile(page, ".library.json"), "base64").toString()).draft).toEqual({
     folder: ["Topology"], title: "Knots", template: "grid-medium", tags: ["Research"], pageSize: "a4",
   });
   await page.reload();
