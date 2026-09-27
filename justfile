@@ -21,6 +21,10 @@ _flutter-sdk:
     test "$(git -C '{{flutter}}' rev-parse HEAD)" = '{{flutter_rev}}'
     '{{flutter}}/bin/flutter' precache --web
 
+# Builds the pinned TeX compiler in MATH_NOTES_TEX_BUILD.
+web-figure-compiler:
+    bun hosts/web/build-figure-compiler.mjs
+
 # Builds the Cupertino host against the existing engine and storage services.
 web-flutter-build: engine-module
     mkdir -p hosts/web/src/engine/wasm

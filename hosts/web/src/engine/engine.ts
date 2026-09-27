@@ -538,6 +538,13 @@ export class InkDocument {
     finally { e.free(bytes); }
   }
 
+  acceptFigure(id: string, recipe: { source: string; preamble: string; svg: string; width: number; height: number }, pdf: Uint8Array): void {
+    const e = this.engine;
+    const bytes = e.copyIn(pdf);
+    try { e.withCString(id, name => e.withCString(JSON.stringify(recipe), json => e.check(e.module._ink_document_figure_accept(this.pointer, name, json, bytes, pdf.length)))); }
+    finally { e.free(bytes); }
+  }
+
   bookmarkPng(id: string, width: number): Uint8Array<ArrayBuffer> {
     const e = this.engine;
     return e.withCString(id, name => e.withScratch(8, out => {

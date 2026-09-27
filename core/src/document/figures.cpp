@@ -23,20 +23,20 @@ const Figure *Find(const Elements &elements, const std::string &id) {
   return nullptr;
 }
 
-Elements SetDraft(Elements elements, const std::string &id, const std::string &href) {
+Elements Replace(Elements elements, const Figure &figure) {
   for (size_t i = 0; i < elements.size(); ++i) {
     Element changed = *elements[i];
     std::visit(
         [&](auto &value) {
           using T = std::decay_t<decltype(value)>;
           if constexpr (std::is_same_v<T, Figure>)
-            if (value.id == id) {
-              value.draft_href = href;
+            if (value.id == figure.id) {
+              value = figure;
               return;
             }
           if constexpr (std::is_same_v<T, Figure> || std::is_same_v<T, Bookmark> ||
                         std::is_same_v<T, Link>)
-            value.children = SetDraft(value.children, id, href);
+            value.children = Replace(value.children, figure);
         },
         changed.value);
     if (changed != *elements[i])
@@ -55,14 +55,20 @@ FigureLocation FindFigure(const Document &document, const std::string &id) {
 }
 
 Document SetFigureDraft(Document document, const std::string &id, const std::string &href) {
-  const auto location = FindFigure(document, id);
+  Figure figure = *FindFigure(document, id).figure;
+  figure.draft_href = href;
+  return ReplaceFigure(std::move(document), figure);
+}
+
+Document ReplaceFigure(Document document, const Figure &figure) {
+  const auto location = FindFigure(document, figure.id);
   Page page = *document.pages[location.page];
   const auto &layer_id = page.layers[location.layer].layer_id;
   const auto layer = std::find_if(document.notebook.layers.begin(), document.notebook.layers.end(),
                                   [&](const Layer &l) { return l.id == layer_id; });
   if (page.error || (layer != document.notebook.layers.end() && (layer->hidden || layer->locked)))
     throw std::invalid_argument("choose a figure on an editable layer");
-  page.layers[location.layer].elements = SetDraft(page.layers[location.layer].elements, id, href);
+  page.layers[location.layer].elements = Replace(page.layers[location.layer].elements, figure);
   document.pages = document.pages.set(location.page, immer::box<Page>(std::move(page)));
   return document;
 }

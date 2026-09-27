@@ -245,6 +245,24 @@ referenced bytes when undo returns to a previously saved revision. The
 accepted `mn:tikz` source and page view change together after compilation.
 Draft source travels with a copied figure and remains available on reopen.
 
+A compiled figure also has an `mn:pdf` asset path. Its original ink remains in
+a hidden `g.mn-figure-ink` group. An `image.mn-figure-view` element contains the
+compiled SVG as a base64 data URI, with explicit position and dimensions in
+page points. The SVG is self-contained and uses glyph paths. Its separate SVG
+document keeps internal identifiers distinct when a figure is copied. The
+engine draws this view through Skia's SVG renderer, including PDF export.
+
+Compilation accepts the exact source and project preamble used for that run.
+A changed source or preamble requires another compile. Acceptance records
+the source, PDF, vector view, and scene editor data in one document edit;
+the source, scene, and PDF receive new asset paths. Undo restores their prior
+references. The scene's `editor` record stores the source, preamble, and
+`tikz-editor` backend alongside the original capture geometry.
+
+`Notes/.figure-preamble.tex` contains project-wide TeX packages, TikZ libraries,
+and macros. The preamble editor checks for an external change before writing.
+Each compiled figure keeps the preamble used for its accepted view in its scene.
+
 Plain `.svg` only; `.svgz` is not written. ZIP is only a transport form of
 a notebook directory (send, archive, download).
 

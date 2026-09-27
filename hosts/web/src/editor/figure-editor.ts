@@ -1,5 +1,6 @@
 // TeXlyre embed b98714d3 README.md: load/save and source change messages.
 import type { OpenNotebook } from './notebook.ts';
+import { compileFigure } from './figure-compile.ts';
 
 interface EditorMessage {
   event: 'init' | 'loaded' | 'change' | 'autosave' | 'save' | 'export';
@@ -13,6 +14,8 @@ export class FigureEditor extends EventTarget {
   private readonly frame: HTMLIFrameElement;
   ready = false;
   error = '';
+  compiling = false;
+  progress = '';
   private pendingSave: { resolve: () => void; reject: (reason: Error) => void } | null = null;
   private readonly receive = (event: MessageEvent<string>) => {
     if (event.source !== this.frame.contentWindow || event.origin !== location.origin || typeof event.data !== 'string') return;
@@ -62,6 +65,23 @@ export class FigureEditor extends EventTarget {
       this.pendingSave = { resolve, reject };
       this.frame.contentWindow!.postMessage(JSON.stringify({ action: 'save' }), location.origin);
     });
+  }
+
+  async compile(): Promise<void> {
+    if (this.compiling) return;
+    this.compiling = true;
+    this.error = '';
+    this.dispatchEvent(new Event('change'));
+    try {
+      await this.save();
+      await compileFigure(this.note, this.id, message => {
+        this.progress = message;
+        this.dispatchEvent(new Event('change'));
+      });
+    } finally {
+      this.compiling = false;
+      this.dispatchEvent(new Event('change'));
+    }
   }
 
   dispose(): void {

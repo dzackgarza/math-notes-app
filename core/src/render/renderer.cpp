@@ -121,9 +121,15 @@ const Renderer::CachedElement &Renderer::Cached(const immer::box<Element> &box) 
           entry.bounds = SkRect::MakeLTRB(float(bounds.left), float(bounds.top),
                                          float(bounds.right), float(bounds.bottom));
         } else if constexpr (std::is_same_v<T, Figure>) {
-          SkRect children = SkRect::MakeEmpty();
-          for (const auto &child : e.children) children.join(Cached(child).bounds);
-          entry.bounds = ToSkMatrix(e.transform).mapRect(children);
+          if (e.view) {
+            entry.figure_view = ParseFigureView(e.view->svg);
+            entry.figure_view->setContainerSize(SkSize::Make(e.view->width, e.view->height));
+            entry.bounds = ToSkMatrix(e.transform).mapRect(SkRect::MakeXYWH(e.view->x, e.view->y, e.view->width, e.view->height));
+          } else {
+            SkRect children = SkRect::MakeEmpty();
+            for (const auto &child : e.children) children.join(Cached(child).bounds);
+            entry.bounds = ToSkMatrix(e.transform).mapRect(children);
+          }
         } else {
           for (const auto &child : e.children) entry.bounds.join(Cached(child).bounds);
         }
@@ -319,7 +325,10 @@ void Renderer::DrawElements(SkCanvas *canvas, const Page &page, const Elements &
           } else if constexpr (std::is_same_v<T, Figure>) {
             canvas->save();
             canvas->concat(ToSkMatrix(e.transform));
-            DrawElements(canvas, page, e.children, SkRect::MakeLTRB(-1e9f, -1e9f, 1e9f, 1e9f));
+            if (e.view) {
+              canvas->translate(e.view->x, e.view->y);
+              cached.figure_view->render(canvas);
+            } else DrawElements(canvas, page, e.children, SkRect::MakeLTRB(-1e9f, -1e9f, 1e9f, 1e9f));
             canvas->restore();
           } else {
             DrawElements(canvas, page, e.children, cull);

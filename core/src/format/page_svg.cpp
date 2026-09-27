@@ -7,6 +7,8 @@
 #include "format/page_svg.h"
 #include "render/text_layout.h"
 #include "render/text_font.h"
+#include "render/figure_view.h"
+#include "absl/strings/escaping.h"
 
 #include <algorithm>
 #include <cctype>
@@ -283,11 +285,28 @@ Elements ReadElements(const pugi::xml_node &parent, const ReadContext &context) 
       element.value = ReadText(node);
     } else if (tag == "g") {
       if (std::string_view(node.attribute("class").value()) == "mn-figure") {
-        element.value = Figure{node.attribute("id").value(),
+        Figure figure{node.attribute("id").value(),
                                ReadTransform(node.attribute("transform").value()),
                                node.attribute("mn:scene").value(),
                                node.attribute("mn:tikz").value(), ReadElements(node, context),
                                node.attribute("mn:draft").value()};
+        figure.pdf_href = node.attribute("mn:pdf").value();
+        if (const auto image = node.find_child_by_attribute("image", "class", "mn-figure-view")) {
+          const std::string_view href = image.attribute("href").value();
+          constexpr std::string_view prefix = "data:image/svg+xml;base64,";
+          FigureView view;
+          if (!href.starts_with(prefix) || !absl::Base64Unescape(href.substr(prefix.size()), &view.svg))
+            throw std::runtime_error("invalid compiled figure view");
+          view.x = Num(image, "x"); view.y = Num(image, "y");
+          view.width = Num(image, "width"); view.height = Num(image, "height");
+          if (!(view.width > 0 && view.height > 0)) throw std::runtime_error("invalid figure dimensions");
+          ParseFigureView(view.svg);
+          const auto ink = node.find_child_by_attribute("g", "class", "mn-figure-ink");
+          if (!ink) throw std::runtime_error("compiled figure is missing its original ink group");
+          figure.children = ReadElements(ink, context);
+          figure.view = std::move(view);
+        }
+        element.value = std::move(figure);
       } else {
         element.value = Bookmark{node.attribute("id").value(), ReadElements(node, context)};
       }
@@ -467,7 +486,18 @@ void WriteElements(pugi::xml_node &parent, const Elements &elements) {
             Set(g, "mn:scene", e.scene_href);
             Set(g, "mn:tikz", e.tikz_href);
             if (!e.draft_href.empty()) Set(g, "mn:draft", e.draft_href);
-            WriteElements(g, e.children);
+            if (!e.pdf_href.empty()) Set(g, "mn:pdf", e.pdf_href);
+            if (e.view) {
+              auto ink = g.append_child("g");
+              Set(ink, "class", "mn-figure-ink");
+              Set(ink, "display", "none");
+              WriteElements(ink, e.children);
+              auto image = g.append_child("image");
+              Set(image, "class", "mn-figure-view");
+              Set(image, "x", Coord(e.view->x)); Set(image, "y", Coord(e.view->y));
+              Set(image, "width", Coord(e.view->width)); Set(image, "height", Coord(e.view->height));
+              Set(image, "href", "data:image/svg+xml;base64," + absl::Base64Escape(e.view->svg));
+            } else WriteElements(g, e.children);
           } else {
             pugi::xml_node a = parent.append_child("a");
             Set(a, "href", e.href);

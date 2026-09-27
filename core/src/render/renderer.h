@@ -9,6 +9,7 @@
 // (syncscribble/scribblearea.cpp:2580-2640 ScribbleArea::drawImage and
 // drawScreen, styluslabs/Write 401b65d).
 #pragma once
+#include "render/figure_view.h"
 
 #include <cstdint>
 #include <map>
@@ -112,6 +113,7 @@ class Renderer {
     immer::box<Element> element;  // holds the key's object alive
     SkPath path;                  // local coordinates; strokes and shapes
     SkRect bounds;                // page coordinates, with the element's transform
+    sk_sp<SkSVGDOM> figure_view;
   };
 
   const CachedElement &Cached(const immer::box<Element> &box);

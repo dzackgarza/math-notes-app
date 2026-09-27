@@ -39,6 +39,15 @@ The host transition is owned by [#56](https://github.com/dzackgarza/math-notes-a
 Workbox caches its application, engine, renderer, and font assets for offline
 restart. An updated worker waits until open app pages close before activation.
 
+Figure compilation uses the pinned BusyTeX source build with TeX Live 2026,
+LuaLaTeX, and the pictures collection. Set `MATH_NOTES_TEX_BUILD` to an absolute
+build directory, then run `just web-figure-compiler`. The volume must hold the
+6.8 GB ISO, its extracted contents, and native and WebAssembly build outputs.
+The recipe verifies the ISO digest and places the browser assets in
+`.ci/figure-compiler`. Run `just web-flutter-build` to bundle them for deployment
+and offline use. The figure editor's **Preamble** control edits the shared
+`.figure-preamble.tex` file in the notes root.
+
 ## Releasing
 
 Push to `main` with a change under `Sources/`, `project.yml`, `sidestore-source.jq`, or the workflow. The run sets version `0.1.<run number>`, build `<run number>`. Other pushes do not build. Run manually with `gh workflow run ios.yml`.

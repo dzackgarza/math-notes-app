@@ -74,6 +74,7 @@ add_library(ink STATIC
   src/render/renderer.cpp
   src/render/text_font.cpp
   src/render/text_layout.cpp
+  src/render/figure_view.cpp
   src/selection/selection.cpp
   src/selection/ruled.cpp)
 target_include_directories(ink PUBLIC include src PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
@@ -110,6 +111,7 @@ if(EMSCRIPTEN)
     _ink_document_layers _ink_document_add_layer _ink_document_set_layer _ink_document_move_layer _ink_document_remove_layer
     _ink_document_navigation _ink_document_bookmark_png
     _ink_document_figure_source _ink_document_figure_draft
+    _ink_document_figure_accept
     _ink_canvas_bookmark_selection _ink_canvas_link_selection _ink_canvas_add_bookmark
     _ink_canvas_ungroup_selection
     _ink_canvas_set_layer _ink_canvas_active_layer

@@ -121,6 +121,12 @@ struct Bookmark {
   bool operator==(const Bookmark &) const = default;
 };
 
+struct FigureView {
+  std::string svg;
+  double x = 0, y = 0, width = 0, height = 0;
+  bool operator==(const FigureView &) const = default;
+};
+
 struct Figure {
   std::string id;
   Transform transform;
@@ -128,6 +134,8 @@ struct Figure {
   std::string tikz_href;   // relative to the page SVG
   Elements children;       // standalone SVG view, including original ink and InkML
   std::string draft_href;  // source edits awaiting a compiled page view
+  std::optional<FigureView> view;
+  std::string pdf_href;
   bool operator==(const Figure &) const = default;
 };
 
