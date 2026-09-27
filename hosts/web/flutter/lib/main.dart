@@ -14,6 +14,7 @@ import 'creation_sheet.dart';
 import 'note_thumbnail.dart';
 import 'conflict_sheet.dart';
 import 'bookmarks_sheet.dart';
+import 'tag_editor.dart';
 
 void main() {
   runApp(const MathNotes());
@@ -307,8 +308,8 @@ class _WorkspaceState extends State<Workspace> {
   Future<void> details(native.Note note) async {
     final metadata = noteMetadata(note);
     final description = TextEditingController(text: metadata.description);
-    final tags = TextEditingController(
-      text: metadata.tags.toDart.map((s) => s.toDart).join(', '),
+    final tags = TagEditingController(
+      metadata.tags.toDart.map((s) => s.toDart).toList(),
     );
     final accepted = await showCupertinoDialog<bool>(
       context: context,
@@ -325,18 +326,7 @@ class _WorkspaceState extends State<Workspace> {
               maxLength: 500,
             ),
             const SizedBox(height: 12),
-            Semantics(
-              label: 'Tags, separated by commas',
-              child: CupertinoTextField(
-                controller: tags,
-                prefix: const ExcludeSemantics(
-                  child: Padding(
-                    padding: EdgeInsets.all(6),
-                    child: Text('Tags'),
-                  ),
-                ),
-              ),
-            ),
+            TagEditor(controller: tags),
           ],
         ),
         actions: [
@@ -354,14 +344,7 @@ class _WorkspaceState extends State<Workspace> {
     );
     if (accepted == true) {
       metadata.description = description.text;
-      metadata.tags = tags.text
-          .split(',')
-          .map((tag) => tag.trim())
-          .where((tag) => tag.isNotEmpty)
-          .toSet()
-          .map((tag) => tag.toJS)
-          .toList()
-          .toJS;
+      metadata.tags = tags.tags.map((tag) => tag.toJS).toList().toJS;
       await saveNoteMetadata(note, metadata);
     }
     description.dispose();
@@ -520,8 +503,8 @@ class _WorkspaceState extends State<Workspace> {
     final key = native.pathKey(item.path);
     final values = library!.metadata.folders[key] ?? native.host.emptyFolder();
     final description = TextEditingController(text: values.description);
-    final tags = TextEditingController(
-      text: values.tags.toDart.map((tag) => tag.toDart).join(', '),
+    final tags = TagEditingController(
+      values.tags.toDart.map((tag) => tag.toDart).toList(),
     );
     var paper = values.paper;
     final accepted = await showCupertinoDialog<bool>(
@@ -540,10 +523,7 @@ class _WorkspaceState extends State<Workspace> {
                 maxLength: 500,
               ),
               const SizedBox(height: 12),
-              CupertinoTextField(
-                controller: tags,
-                placeholder: 'Tags, separated by commas',
-              ),
+              TagEditor(controller: tags),
               const SizedBox(height: 12),
               CupertinoSlidingSegmentedControl<String>(
                 groupValue: paper,
@@ -575,14 +555,7 @@ class _WorkspaceState extends State<Workspace> {
     if (accepted == true) {
       values.description = description.text;
       values.paper = paper;
-      values.tags = tags.text
-          .split(',')
-          .map((tag) => tag.trim())
-          .where((tag) => tag.isNotEmpty)
-          .toSet()
-          .map((tag) => tag.toJS)
-          .toList()
-          .toJS;
+      values.tags = tags.tags.map((tag) => tag.toJS).toList().toJS;
       final metadata = await native.host.readMetadata(root!).toDart;
       metadata.folders[key] = values;
       registerTags(metadata, values.tags);
@@ -946,10 +919,8 @@ class _WorkspaceState extends State<Workspace> {
     final draft = isFolder ? null : metadata.draft;
     final title = TextEditingController(text: draft?.title ?? '');
     final description = TextEditingController();
-    final tags = TextEditingController(
-      text: (draft?.tags ?? defaults.tags).toDart
-          .map((tag) => tag.toDart)
-          .join(', '),
+    final tags = TagEditingController(
+      (draft?.tags ?? defaults.tags).toDart.map((tag) => tag.toDart).toList(),
     );
     final templateName = TextEditingController();
     var target = draft?.folder ?? folder;
@@ -1035,16 +1006,36 @@ class _WorkspaceState extends State<Workspace> {
                 ),
               ],
               const SizedBox(height: 12),
-              Semantics(
-                label: 'Tags, separated by commas',
-                child: CupertinoTextField(
-                  controller: tags,
-                  prefix: const ExcludeSemantics(
-                    child: Padding(
-                      padding: EdgeInsets.all(6),
-                      child: Text('Tags'),
+              TagEditor(controller: tags),
+              CupertinoButton(
+                onPressed: () async {
+                  final selected = await showCupertinoModalPopup<native.Folder>(
+                    context: context,
+                    builder: (context) => CupertinoActionSheet(
+                      title: Text(
+                        isFolder ? 'Choose location' : 'Choose notebook',
+                      ),
+                      actions: [
+                        for (final item in library!.folders.toDart)
+                          CupertinoActionSheetAction(
+                            onPressed: () => Navigator.pop(context, item),
+                            child: Text(
+                              native.pathKey(item.path).isEmpty
+                                  ? 'My Notes'
+                                  : native.pathKey(item.path),
+                            ),
+                          ),
+                      ],
+                      cancelButton: CupertinoActionSheetAction(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancel'),
+                      ),
                     ),
-                  ),
+                  );
+                  if (selected != null) update(() => target = selected.path);
+                },
+                child: Text(
+                  '${isFolder ? 'Location' : 'Notebook'}: ${native.pathKey(target).isEmpty ? 'My Notes' : native.pathKey(target)}',
                 ),
               ),
               if (!isFolder) ...[
@@ -1056,41 +1047,15 @@ class _WorkspaceState extends State<Workspace> {
                     if (value != null) update(() => size = value);
                   },
                 ),
-                CupertinoButton(
-                  onPressed: () async {
-                    final selected =
-                        await showCupertinoModalPopup<native.Folder>(
-                          context: context,
-                          builder: (context) => CupertinoActionSheet(
-                            title: const Text('Choose notebook'),
-                            actions: [
-                              for (final item in library!.folders.toDart)
-                                CupertinoActionSheetAction(
-                                  onPressed: () => Navigator.pop(context, item),
-                                  child: Text(item.name),
-                                ),
-                            ],
-                            cancelButton: CupertinoActionSheetAction(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text('Cancel'),
-                            ),
-                          ),
-                        );
-                    if (selected != null) update(() => target = selected.path);
-                  },
-                  child: Text(
-                    'Notebook: ${native.pathKey(target).isEmpty ? 'My Notes' : native.pathKey(target)}',
-                  ),
-                ),
                 for (final settings in metadata.startingTemplates.toDart)
                   CupertinoButton(
                     onPressed: () => update(() {
                       target = settings.folder;
                       paper = settings.paper;
                       size = settings.pageSize;
-                      tags.text = settings.tags.toDart
-                          .map((tag) => tag.toDart)
-                          .join(', ');
+                      tags.replace(
+                        settings.tags.toDart.map((tag) => tag.toDart).toList(),
+                      );
                     }),
                     child: Text(settings.name),
                   ),
@@ -1129,14 +1094,7 @@ class _WorkspaceState extends State<Workspace> {
       ),
     );
     final name = title.text.trim();
-    final chosenTags = tags.text
-        .split(',')
-        .map((tag) => tag.trim())
-        .where((tag) => tag.isNotEmpty)
-        .toSet()
-        .map((tag) => tag.toJS)
-        .toList()
-        .toJS;
+    final chosenTags = tags.tags.map((tag) => tag.toJS).toList().toJS;
     final descriptionText = description.text;
     final settingsName = templateName.text.trim();
     title.dispose();
@@ -1179,7 +1137,7 @@ class _WorkspaceState extends State<Workspace> {
         return;
       }
       if (isFolder) {
-        folder = await native.host.createFolder(root!, folder, name).toDart;
+        folder = await native.host.createFolder(root!, target, name).toDart;
         final values = native.host.emptyFolder();
         values.description = descriptionText;
         values.paper = paper;

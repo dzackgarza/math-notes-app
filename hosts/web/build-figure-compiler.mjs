@@ -1,5 +1,5 @@
 // Selected BusyTeX builder and TeX Live input: docs/specs/tikz-drawing-mode.md.
-import { access, appendFile, cp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, appendFile, cp, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
@@ -33,11 +33,13 @@ const head = await execute('git', ['rev-parse', 'HEAD'], { cwd: build });
 if (head.stdout.trim() !== revision) throw new Error('BusyTeX builder revision differs from the selected source.');
 await mkdir(path.join(build, 'source'), { recursive: true });
 const iso = path.join(build, 'source/texlive2026.iso');
-try { await access(iso); }
+let downloaded = 0;
+try { downloaded = (await stat(iso)).size; }
 catch (error) {
   if (error.code !== 'ENOENT') throw error;
-  await run('curl', ['--fail', '--location', '--output', iso, isoUrl]);
 }
+if (downloaded < 6784798720)
+  await run('curl', ['--fail', '--location', '--continue-at', '-', '--output', iso, isoUrl]);
 const hash = createHash('sha512');
 for await (const bytes of createReadStream(iso)) hash.update(bytes);
 if (hash.digest('hex') !== digest) throw new Error('The TeX Live ISO does not match its pinned SHA-512 digest.');
