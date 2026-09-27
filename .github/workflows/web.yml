@@ -53,3 +53,9 @@ jobs:
 
       - name: Playwright against the deployment
         run: bunx playwright test
+      - name: Browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-test-results
+          path: hosts/web/test-results
