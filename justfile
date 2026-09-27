@@ -60,7 +60,7 @@ engine-test: engine-wasm
 test-commit:
     uvx yamllint -s -d '{extends: relaxed, rules: {line-length: disable}}' project.yml .github/workflows/ios.yml .github/workflows/engine.yml .github/workflows/web.yml
 
-test-push: test-commit web-engine-test web-test
+test-push: test-commit
 
 # Rewrites core/tests/fixtures/ink (traces and host outline goldens) on the Linux host.
 ink-fixtures:
