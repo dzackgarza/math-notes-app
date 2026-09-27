@@ -29,9 +29,12 @@ import {
 import { For, type JSX, Show, createEffect, createResource, createSignal, onCleanup, onMount } from "solid-js";
 import { deserializeScene, sceneBounds, type Geometry, type Scene } from "@dzackgarza/freetikz/scene";
 import { generateTikz } from "@dzackgarza/freetikz/tikz";
+import { PinchGesture } from "@use-gesture/vanilla";
+import Framework7 from "framework7";
+import PullToRefresh from "framework7/components/pull-to-refresh";
+import "framework7/components/pull-to-refresh/css";
 
 import { Brush, Eraser, PageSize, Selector, type Canvas, type Pen, type SelectionInfo, type ToolSettings } from "../engine/engine.ts";
-import { ViewController, type View } from "../input/gestures.ts";
 import { capabilities, penSamples } from "../input/pointer.ts";
 import { listTemplates } from "../storage/folder.ts";
 import type { Tag } from "../storage/metadata.ts";
@@ -41,9 +44,17 @@ import { AppMark, MenuItem, noteCount } from "../ui/Library.tsx";
 import { paperLabel } from "../ui/paper.tsx";
 import { applyTemplate, type OpenNotebook } from "./notebook.ts";
 
-// How far past the last page, in CSS px, a pull must go to add a page.
-const PULL_THRESHOLD = 96;
-const WHEEL_RELEASE_MS = 250;
+Framework7.use([PullToRefresh]);
+let framework: Framework7 | undefined;
+const PRINT_SCALE = 96 / 72;
+const MIN_SCALE = 0.25 * PRINT_SCALE;
+const MAX_SCALE = 8 * PRINT_SCALE;
+
+interface View {
+  scale: number;
+  x: number;
+  y: number;
+}
 const utf8 = new TextDecoder();
 
 // The pen editor's brush list: the stock brushes of a pen set, as in Google
@@ -358,10 +369,13 @@ export function Editor(props: {
   onCloseTab: (path: string[]) => void;
 }) {
   let area!: HTMLDivElement;
+  let scrollArea!: HTMLDivElement;
   let element!: HTMLCanvasElement;
   let imageInput!: HTMLInputElement;
   let canvas: Canvas | undefined;
   let frame = 0;
+  let pinchStartScale = 1;
+  let penTouchStartTime: number | null = null;
   const ids = { next: 0 };
   const { document: doc, saver, root } = props.notebook;
   const [templates] = createResource(() => listTemplates(root));
@@ -422,8 +436,8 @@ export function Editor(props: {
   };
   const [view, setView] = createSignal<View>({ scale: 1, x: 0, y: 0 });
   const [pages, setPages] = createSignal(doc.pageCount());
-  // How far, in CSS px, the view is pulled past the end of the last page.
-  const [pull, setPull] = createSignal(0);
+  const [scrollHeight, setScrollHeight] = createSignal(0);
+  const [viewportHeight, setViewportHeight] = createSignal(0);
 
   // The view stops at the ends of the pages (docs/specs/tablet-ui.md, "Pages
   // in the editor"); content narrower or shorter than the canvas is centered.
@@ -438,57 +452,42 @@ export function Editor(props: {
       y: clampAxis(view.y, height, element.clientHeight),
     };
   };
-  const controller = new ViewController(
-    { scale: 1, x: 0, y: 0 },
-    (view) => {
-      const clamped = clampView(view);
-      // Movement past the end of the last page goes into the pull; moving
-      // back takes it out before the view scrolls.
-      const end = clampView({ ...view, y: -Infinity }).y;
-      if (pull() > 0 || view.y < end) {
-        const next = Math.max(0, pull() + end - view.y);
-        setPull(next);
-        if (next > 0) clamped.y = end;
-      }
-      controller.view = clamped;
-      canvas?.setView(clamped.scale, 0, 0, clamped.scale, clamped.x, clamped.y);
-      setView(clamped);
-      setPages(doc.pageCount());
-      refreshSelection();
-    },
-    () => releasePull(),
-  );
+  let currentView: View = { scale: 1, x: 0, y: 0 };
+  const updateView = (requested: View) => {
+    const clamped = clampView(requested);
+    setScrollHeight(Math.max(element.clientHeight, doc.contentSize().height * clamped.scale));
+    const targetScroll = Math.max(0, -clamped.y);
+    if (Math.abs(scrollArea.scrollTop - targetScroll) > 1) scrollArea.scrollTop = targetScroll;
+    currentView = clamped;
+    canvas?.setView(clamped.scale, 0, 0, clamped.scale, clamped.x, clamped.y);
+    setView(clamped);
+    setPages(doc.pageCount());
+    refreshSelection();
+  };
 
-  // Releasing past the threshold adds a page after the last one; the pull
-  // springs back either way.
-  const releasePull = () => {
-    if (drawing()) {
-      setPull(0);
-      return;
-    }
-    const add = pull() >= PULL_THRESHOLD;
-    setPull(0);
-    if (add) edit(() => doc.insertPage(doc.pageCount()));
+  const onScroll = () => {
+    updateView({ ...currentView, y: -scrollArea.scrollTop });
   };
 
   const fitScale = () => element.clientWidth / doc.contentSize().width;
 
-  const fitWidth = () => controller.set({ scale: fitScale(), x: 0, y: 0 });
+  const fitWidth = () => updateView({ scale: fitScale(), x: 0, y: 0 });
 
   // Zooms about the top left of the view, keeping the page at the top in place.
   const zoom = (factor: number) => {
-    const { scale, y } = controller.view;
+    const { scale, y } = currentView;
     const next = fitScale() * factor;
-    controller.set({ scale: next, x: 0, y: (y * next) / scale });
+    updateView({ scale: next, x: 0, y: (y * next) / scale });
   };
 
   const resize = () => {
     if (!canvas) return;
     const ratio = window.devicePixelRatio;
+    setViewportHeight(area.clientHeight);
     element.width = Math.round(element.clientWidth * ratio);
     element.height = Math.round(element.clientHeight * ratio);
     canvas.setSurfaceSize(element.width, element.height, ratio);
-    controller.set(controller.view);
+    updateView(currentView);
   };
 
   const loop = () => {
@@ -504,10 +503,9 @@ export function Editor(props: {
   const onPointer = (e: PointerEvent) => {
     if (!canvas) return;
     const at = origin();
-    if (controller.pointer(e, at)) {
-      if (e.type === "pointerdown") element.setPointerCapture(e.pointerId);
-      return;
-    }
+    if (e.pointerType === "touch") return;
+    if (e.pointerType === "pen" && e.type === "pointerdown") penTouchStartTime = e.timeStamp;
+    if (e.pointerType === "pen" && (e.type === "pointerup" || e.type === "pointercancel")) penTouchStartTime = null;
     if (tool() === TEXT) {
       if (e.type === "pointerdown") {
         e.preventDefault();
@@ -619,16 +617,6 @@ export function Editor(props: {
     };
   };
 
-  // A wheel or trackpad scroll has no release event: the pull is released
-  // when no wheel event has come for WHEEL_RELEASE_MS.
-  let wheelRelease = 0;
-  const onWheel = (e: WheelEvent) => {
-    e.preventDefault();
-    controller.wheel(e, origin());
-    clearTimeout(wheelRelease);
-    wheelRelease = window.setTimeout(releasePull, WHEEL_RELEASE_MS);
-  };
-
   // The page at the middle of the view; the last page below the pages.
   const currentPage = () => {
     view();
@@ -641,7 +629,7 @@ export function Editor(props: {
 
   const edit = (change: () => void) => {
     change();
-    controller.set(controller.view);
+    updateView(currentView);
     saver.schedule();
   };
 
@@ -706,10 +694,10 @@ export function Editor(props: {
   const showPage = (index: number) => {
     if (index < 0) return;
     const rect = doc.pageRect(index);
-    const { scale, x, y } = controller.view;
+    const { scale, x, y } = currentView;
     const top = y + rect.y * scale, bottom = top + rect.height * scale;
     if (bottom > 0 && top < element.clientHeight) return;
-    controller.set({ scale, x, y: -rect.y * scale });
+    updateView({ scale, x, y: -rect.y * scale });
   };
 
   // Puts the top of page `index` at the top of the view.
@@ -719,8 +707,8 @@ export function Editor(props: {
       return;
     }
     if (index < 0 || index >= doc.pageCount()) return;
-    const { scale, x } = controller.view;
-    controller.set({ scale, x, y: -doc.pageRect(index).y * scale });
+    const { scale, x } = currentView;
+    updateView({ scale, x, y: -doc.pageRect(index).y * scale });
   };
 
   const history = (step: "undo" | "redo") => {
@@ -764,6 +752,49 @@ export function Editor(props: {
   };
 
   onMount(() => {
+    framework ??= new Framework7({ el: "#root", theme: "ios" });
+    const pull = framework.ptr.create(scrollArea);
+    let touchStartY = 0;
+    const touchStart = (event: TouchEvent) => {
+      // Chromium viewer-ink-host.ts:onTouchStart_ (be0366525) cancels the
+      // touchstart paired with a pen pointerdown, leaving finger scroll alone.
+      if (event.timeStamp === penTouchStartTime) {
+        event.preventDefault();
+        penTouchStartTime = null;
+        return;
+      }
+      if (event.touches.length === 1) touchStartY = event.touches[0].clientY;
+    };
+    // Framework7's bottom PTR starts on touchmove. Cancel browser overscroll
+    // before it cancels that sequence (pull-to-refresh-class.js:handleTouchMove).
+    const touchMove = (event: TouchEvent) => {
+      if (event.touches.length === 2 && event.cancelable) {
+        event.preventDefault();
+        return;
+      }
+      const atEnd = scrollArea.scrollTop >= scrollArea.scrollHeight - scrollArea.clientHeight - 1;
+      if (event.touches.length === 1 && atEnd && event.touches[0].clientY < touchStartY && event.cancelable) event.preventDefault();
+    };
+    scrollArea.addEventListener("touchstart", touchStart, { passive: false });
+    scrollArea.addEventListener("touchmove", touchMove, { capture: true, passive: false });
+    pull.on("refresh", () => {
+      if (!drawing()) edit(() => doc.insertPage(doc.pageCount()));
+      pull.done();
+    });
+    const pinch = new PinchGesture(element, ({ first, movement: [factor], origin: center, event }) => {
+      if (event instanceof TouchEvent) event.preventDefault();
+      if (first) pinchStartScale = currentView.scale;
+      const { x, y, scale } = currentView;
+      const at = { x: center[0] - origin().x, y: center[1] - origin().y };
+      const next = Math.min(Math.max(pinchStartScale * factor, MIN_SCALE), MAX_SCALE);
+      updateView({ scale: next, x: at.x - ((at.x - x) / scale) * next, y: at.y - ((at.y - y) / scale) * next });
+    }, { eventOptions: { passive: false }, pointer: { touch: true } });
+    onCleanup(() => {
+      pinch.destroy();
+      pull.destroy();
+      scrollArea.removeEventListener("touchstart", touchStart);
+      scrollArea.removeEventListener("touchmove", touchMove, true);
+    });
     window.addEventListener("keydown", onKey);
     window.addEventListener("paste", onPaste);
     onCleanup(() => {
@@ -1003,17 +1034,22 @@ export function Editor(props: {
             </IonButton>
           </Swatches>
         </aside>
-        <div class="canvas-area" ref={area}>
-          <canvas
-            id="ink-canvas"
-            ref={element}
-            onPointerDown={onPointer}
-            onPointerMove={onPointer}
-            onPointerUp={onPointer}
-            onPointerCancel={onPointer}
-            onWheel={onWheel}
-            onContextMenu={(e) => e.preventDefault()}
-          />
+        <div class="canvas-area page" ref={area}>
+          <div class="page-content ptr-content ptr-bottom editor-scroll" ref={scrollArea} data-ptr-distance="96" onScroll={onScroll}>
+            <div class="editor-scroll-content" style={{ height: `${scrollHeight()}px` }}>
+              <canvas
+                id="ink-canvas"
+                ref={element}
+                style={{ height: `${viewportHeight()}px` }}
+                onPointerDown={onPointer}
+                onPointerMove={onPointer}
+                onPointerUp={onPointer}
+                onPointerCancel={onPointer}
+                onContextMenu={(e) => e.preventDefault()}
+              />
+            </div>
+            <div class="ptr-preloader"><IonIcon icon={add} />Release to add a page</div>
+          </div>
           <Show when={figureBox()}>{(box) => <div class="figure-page-bounds" classList={{ "is-capturing": drawing() }} style={box()} aria-label={drawing() ? "Drawing bounds" : `Figure ${figureId()} bounds`} />}</Show>
           <div class="page-tags" aria-label="Tags">
             <For each={props.tags}>
@@ -1063,15 +1099,6 @@ export function Editor(props: {
               </div>
             )}
           </Show>
-          <div
-            class="pull-indicator"
-            data-active={pull() > 0 ? "" : undefined}
-            data-ready={pull() >= PULL_THRESHOLD ? "" : undefined}
-            style={{ height: `${Math.min(pull(), 1.5 * PULL_THRESHOLD)}px` }}
-          >
-            <IonIcon icon={add} />
-            {pull() >= PULL_THRESHOLD ? "Release to add a page" : "Pull to add a page"}
-          </div>
           <div class="bottom-bar">
             <div class="bar-group">
               <IonButton fill="clear" size="small" color="dark" aria-label="Undo" title="Undo (Ctrl+Z)" onClick={() => history("undo")}>

@@ -5,9 +5,9 @@ engine with web and iPad hosts. Its authoritative editor is a fork of
 [Stylus Labs Write at `401b65d5fe0294cc83171b76a0273b6df3afc979`](https://github.com/styluslabs/Write/tree/401b65d5fe0294cc83171b76a0273b6df3afc979).
 The fork owns the SVG document tree, stroke construction, selection, erasure,
 reflow, and history. [Skia SVG DOM](https://skia.googlesource.com/skia/+/7a2127711a40/modules/svg/include/SkSVGDOM.h)
-renders a derived page view to each host's canvas. This replacement requires
-the architecture approval named below; the deployed engine still uses its
-current document and brush code. This repository contains both hosts.
+renders a derived page view to each host's canvas. The replacement has
+architecture approval. The deployed engine still uses its current document
+and brush code. This repository contains both hosts.
 
 The look and the
 everyday interaction patterns (page layout, scrolling, adding pages, tool
@@ -100,7 +100,7 @@ give the alternatives, source evidence, and exact fork extensions.
   resulting elements. [The source assessment](research_notes/Component%20ownership%20decisions/ink.md)
   explains why mixing Google Ink outlines with Write's path decoder would
   require a second erasure implementation. This changes the current brush
-  requirement in [FEATURES.md](FEATURES.md) and awaits approval.
+  requirement in [FEATURES.md](FEATURES.md); the replacement architecture is approved.
 - Write's SVG group and undo machinery owns page element changes. It does not
   supply notebook-wide named layers in the inspected `Page` and `Document`
   sources. The selected fork extension maps stable layer IDs, names, order,
@@ -202,7 +202,7 @@ current call site already uses them. Source evidence and exact pins are in
 Issues #30 and #31 integrate the pinned Write fork. The
 [ink assessment](ink-reflow-owners.md) gives the candidate decision and the
 bounded fixed-page and source-preservation extensions. The recommendation
-awaits explicit architecture approval before replacing the deployed engine.
+is approved for implementation. The deployed engine has not yet been replaced.
 
 ## Dependencies
 
@@ -210,8 +210,8 @@ awaits explicit architecture approval before replacing the deployed engine.
 
 The [research notes](research_notes/Component%20ownership%20decisions/)
 record alternatives and actual searches. These pins are the selected plan;
-they do not claim the replacement is installed. The ink replacement awaits
-explicit architecture approval.
+they do not claim the replacement is installed. The ink replacement is approved
+for implementation.
 
 | Capability | Owner and pin | Boundary |
 | --- | --- | --- |

@@ -910,13 +910,41 @@ ion-popover.pen-editor-popover {
   background: var(--desk);
 }
 
-.canvas-area canvas {
+.canvas-area .editor-scroll {
   position: absolute;
   inset: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.editor-scroll-content {
+  position: relative;
+}
+
+.canvas-area canvas {
+  position: sticky;
+  top: 0;
+  display: block;
   width: 100%;
   height: 100%;
-  touch-action: none;
+  touch-action: auto;
   user-select: none;
+}
+
+.canvas-area .ptr-preloader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  color: var(--ion-color-primary);
+  background: var(--desk);
+  visibility: hidden;
+}
+
+.canvas-area .ptr-pull-up .ptr-preloader,
+.canvas-area .ptr-refreshing .ptr-preloader {
+  visibility: visible;
 }
 
 .figure-page-bounds {
@@ -1093,31 +1121,4 @@ ion-button.bar-group {
   min-width: 3.5rem;
   font-size: 14px;
   text-align: center;
-}
-
-/* The space pulled past the last page (docs/specs/tablet-ui.md, "Pages in
-   the editor"). It springs back when released. */
-.pull-indicator {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  overflow: hidden;
-  background: var(--desk);
-  color: var(--ion-color-medium);
-  pointer-events: none;
-  transition: height 0.2s ease-out;
-}
-
-.pull-indicator[data-active] {
-  transition: none;
-}
-
-.pull-indicator[data-ready] {
-  color: var(--ion-color-primary);
-  font-weight: 600;
 }
