@@ -2,7 +2,11 @@
 
 Read README.md (pipeline, layout) and TRAPS.md (known failures) first.
 
-Work plan: the GitHub issue tree rooted at #11, one milestone per sub-issue. `uvx --from git+https://github.com/dzackgarza/itree itree next dzackgarza/math-notes-app` names the next work unit in tree order.
+Before the first usable v1, work directly on `main` and commit integrated
+product slices there. The GitHub issue tree rooted at #11 records requirements
+and gaps. Choose work by what the end-to-end app needs next. Keep the web and
+iPad hosts, shared engine, and notebook files working together as each slice
+lands. The repository's CI and local deployment verify those slices.
 
 Implementation ownership: read [docs/ARCHITECTURE.md#component-ownership](docs/ARCHITECTURE.md#component-ownership) before changing a plan or implementation. Standard application behavior belongs to a mature framework or platform API, including scroll physics and edge motion; a missing standard detail is evidence to check the owner, not a custom feature request. Writing and editing notebook ink are reasonable app responsibilities. For a new domain capability, first seek a dependency that owns the whole problem, then a reference implementation. Only necessary residue with neither may use new ungrounded code. A new subsystem or expanded core boundary needs a linked decision with actual dependency searches, candidate evidence, the exact integration gap, and explicit user approval. Evaluate complete frameworks, SDKs, and forks, including large dependencies. An existing working domain capability does not require replacement merely because a broader dependency exists.
 

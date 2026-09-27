@@ -222,11 +222,10 @@ remains a prerequisite to treating the web app as usable.
 | [#49](https://github.com/dzackgarza/math-notes-app/issues/49), [#58](https://github.com/dzackgarza/math-notes-app/issues/58), [#62](https://github.com/dzackgarza/math-notes-app/issues/62), [#63](https://github.com/dzackgarza/math-notes-app/issues/63) | Keep their notebook, note, tab, and draft behavior. |
 | [#8](https://github.com/dzackgarza/math-notes-app/issues/8) PDF annotation | Keep. Its page backgrounds and imported page sizes are independent of figures. |
 
-Issue #10 groups independently trackable scene/capture, source round-trip,
-label/preamble, constraints/generation, precision editing, and backend work.
-Issue nodes are tracking units, not prescribed PR boundaries. The first
-coherent implementation milestone should cover the complete mode-to-embedded-
-figure workflow before a PR is opened.
+Issue #10 records the scene/capture, source round-trip, label/preamble,
+constraints/generation, precision editing, and backend requirements. MVP
+implementation on `main` covers the complete mode-to-embedded-figure workflow
+as one integrated product capability.
 
 ## Integration acceptance
 
