@@ -187,6 +187,8 @@ extension type Layer(JSObject value) implements JSObject {
 }
 
 extension type Document(JSObject value) implements JSObject {
+  external JSArray<NavigationMark> navigation();
+  external JSUint8Array bookmarkPng(String id, int width);
   external JSArray<Layer> layers();
   external void addLayer(String name);
   external void setLayer(int index, String name, bool hidden, bool locked);
@@ -205,6 +207,10 @@ extension type Document(JSObject value) implements JSObject {
 }
 
 extension type Canvas(JSObject value) implements JSObject {
+  external void bookmarkSelection();
+  external void ungroupSelection();
+  external void linkSelection(String href);
+  external void addBookmark(double x, double y);
   external int activeLayer();
   external void setLayer(int index);
   external void beginFigure(int page);
@@ -235,6 +241,17 @@ extension type Canvas(JSObject value) implements JSObject {
   external void setSelectedText(String value);
   external bool render();
   external void free();
+}
+
+extension type NavigationMark(JSObject value) implements JSObject {
+  external String get id;
+  external String get href;
+  external String get file;
+  external int get page;
+  external double get x;
+  external double get y;
+  external double get width;
+  external double get height;
 }
 
 extension type OpenNote(JSObject value) implements JSObject {

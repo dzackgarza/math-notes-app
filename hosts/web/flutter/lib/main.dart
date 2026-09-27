@@ -1,15 +1,19 @@
 import 'dart:async';
 import 'dart:js_interop';
 
+import 'package:web/web.dart' as web;
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/semantics.dart';
 import 'package:multi_split_view/multi_split_view.dart';
+import 'package:path/path.dart' as paths;
 
 import 'host.dart' as native;
 import 'notebook.dart';
 import 'creation_sheet.dart';
 import 'note_thumbnail.dart';
 import 'conflict_sheet.dart';
+import 'bookmarks_sheet.dart';
 
 void main() {
   runApp(const MathNotes());
@@ -47,6 +51,7 @@ class _WorkspaceState extends State<Workspace> {
   Axis splitAxis = Axis.horizontal;
   bool linkedViews = false;
   final viewport = ValueNotifier<NotebookViewport?>(null);
+  final destination = ValueNotifier<NoteDestination?>(null);
 
   native.OpenNote? get secondaryNote {
     for (final note in opened) {
@@ -774,6 +779,84 @@ class _WorkspaceState extends State<Workspace> {
     setState(() => active = note);
   }
 
+  Future<void> followLink(native.OpenNote source, String href, int page) async {
+    final uri = Uri.parse(href);
+    if (uri.hasScheme) {
+      if (!{'https', 'http', 'mailto'}.contains(uri.scheme))
+        throw StateError('This link protocol is not supported.');
+      web.window.open(uri.toString(), '_blank', 'noopener,noreferrer');
+      return;
+    }
+    final pages = source.document.navigation().toDart;
+    final file = pages
+        .firstWhere((m) => m.page == page && m.id.isEmpty && m.href.isEmpty)
+        .file;
+    final base = Uri(
+      scheme: 'https',
+      host: 'notes.invalid',
+      pathSegments: [
+        ...source.path.toDart.map((s) => s.toDart),
+        ...file.split('/'),
+      ],
+    );
+    final target = base.resolveUri(uri);
+    if (target.host != base.host ||
+        target.scheme != base.scheme ||
+        target.hasQuery)
+      throw StateError('Choose a page in the notes folder.');
+    final parts = target.pathSegments;
+    if (parts.length < 3 ||
+        parts[parts.length - 2] != 'pages' ||
+        !parts.last.endsWith('.svg'))
+      throw StateError('The link must name a notebook page.');
+    final path = parts.take(parts.length - 2).map((s) => s.toJS).toList().toJS;
+    await open(path);
+    setState(() => rightFocused = false);
+    destination.value = null;
+    destination.value = (
+      noteKey: native.pathKey(path),
+      file: 'pages/${parts.last}',
+      id: target.fragment,
+    );
+  }
+
+  Future<String?> chooseNotebookLink(native.OpenNote source, int page) async {
+    final note = await chooseNote();
+    if (note == null || !mounted) return null;
+    final existing = opened
+        .where((n) => native.pathKey(n.path) == native.pathKey(note.path))
+        .firstOrNull;
+    final target =
+        existing ??
+        await native.host.openNotebook(engine!, root!, note.path).toDart;
+    try {
+      if (!mounted) return null;
+      final mark = await chooseDestination(context, target.document);
+      if (mark == null) return null;
+      final sourceFile = source.document
+          .navigation()
+          .toDart
+          .firstWhere((m) => m.page == page && m.href.isEmpty && m.id.isEmpty)
+          .file;
+      final from = paths.posix.dirname(
+        paths.posix.joinAll([
+          ...source.path.toDart.map((p) => p.toDart),
+          sourceFile,
+        ]),
+      );
+      final to = paths.posix.joinAll([
+        ...note.path.toDart.map((p) => p.toDart),
+        mark.file,
+      ]);
+      return Uri(
+        pathSegments: paths.posix.relative(to, from: from).split('/'),
+        fragment: mark.id.isEmpty ? null : mark.id,
+      ).toString();
+    } finally {
+      if (existing == null) target.document.free();
+    }
+  }
+
   Future<void> reviewConflicts(native.OpenNote note) async {
     if (captures.isNotEmpty)
       throw StateError('Complete the drawing before comparing versions.');
@@ -1123,6 +1206,7 @@ class _WorkspaceState extends State<Workspace> {
     releaseNotes(opened.toList());
     panes.dispose();
     viewport.dispose();
+    destination.dispose();
     search.dispose();
     detailSearch.dispose();
     super.dispose();
@@ -1232,6 +1316,11 @@ class _WorkspaceState extends State<Workspace> {
                                   excluding: inLibrary || i != tab,
                                   child: Notebook(
                                     note: opened[i],
+                                    destination: destination,
+                                    onFollowLink: (href, page) =>
+                                        followLink(opened[i], href, page),
+                                    onChooseNotebookLink: (page) =>
+                                        chooseNotebookLink(opened[i], page),
                                     viewport: viewport,
                                     linked:
                                         secondary != null &&
@@ -1277,6 +1366,14 @@ class _WorkspaceState extends State<Workspace> {
                                   child: Notebook(
                                     key: ValueKey('reference-$secondary'),
                                     note: secondaryNote!,
+                                    destination: destination,
+                                    onFollowLink: (href, page) =>
+                                        followLink(secondaryNote!, href, page),
+                                    onChooseNotebookLink: (page) =>
+                                        chooseNotebookLink(
+                                          secondaryNote!,
+                                          page,
+                                        ),
                                     engine: engine!,
                                     viewport: viewport,
                                     linked: linkedViews,
@@ -1307,8 +1404,13 @@ class _WorkspaceState extends State<Workspace> {
   }
 
   Future<void> pickNote() async {
+    final note = await chooseNote();
+    if (note != null) await open(note.path);
+  }
+
+  Future<native.Note?> chooseNote() async {
     await refresh();
-    if (!mounted) return;
+    if (!mounted) return null;
     final filter = TextEditingController();
     final picked = await showCupertinoModalPopup<native.Note>(
       context: context,
@@ -1372,7 +1474,7 @@ class _WorkspaceState extends State<Workspace> {
       ),
     );
     filter.dispose();
-    if (picked != null) await open(picked.path);
+    return picked;
   }
 
   Widget buildLibrary(BuildContext context) {

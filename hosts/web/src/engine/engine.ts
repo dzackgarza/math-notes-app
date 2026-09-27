@@ -97,6 +97,17 @@ export interface Pen {
   tool: ToolSettings;
 }
 
+export interface NavigationMark {
+  id: string;
+  href: string;
+  file: string;
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 function writeTool(view: DataView, at: number, tool: ToolSettings): void {
   view.setUint32(at + TOOL_SETTINGS.brush, tool.brush, true);
   view.setUint32(at + TOOL_SETTINGS.rgb, tool.rgb, true);
@@ -472,7 +483,7 @@ export class InkDocument {
       const view = e.view();
       view.setUint32(scratch + PDF_EXPORT_SPEC.firstPage, firstPage, true);
       view.setUint32(scratch + PDF_EXPORT_SPEC.pageCount, pageCount, true);
-      view.setUint32(scratch + PDF_EXPORT_SPEC.includeLinks, 0, true);
+      view.setUint32(scratch + PDF_EXPORT_SPEC.includeLinks, 1, true);
       view.setUint32(scratch + PDF_EXPORT_SPEC.includeHiddenLayers, 0, true);
       const out = scratch + PDF_EXPORT_SPEC.byteLength;
       if (layers) e.withCString(JSON.stringify(layers), (ids) => {
@@ -493,6 +504,24 @@ export class InkDocument {
       e.check(e.module._ink_document_layers(this.pointer, out));
       return JSON.parse(e.readCString(e.view().getUint32(out, true))) as Layer[];
     });
+  }
+
+  navigation(): NavigationMark[] {
+    const e = this.engine;
+    return e.withScratch(4, out => {
+      e.check(e.module._ink_document_navigation(this.pointer, out));
+      return JSON.parse(e.readCString(e.view().getUint32(out, true))) as NavigationMark[];
+    });
+  }
+
+  bookmarkPng(id: string, width: number): Uint8Array<ArrayBuffer> {
+    const e = this.engine;
+    return e.withCString(id, name => e.withScratch(8, out => {
+      e.check(e.module._ink_document_bookmark_png(this.pointer, name, width, out, out + 4));
+      const view = e.view();
+      const at = view.getUint32(out, true);
+      return e.heap().slice(at, at + view.getUint32(out + 4, true));
+    }));
   }
 
   addClipping(svg: string): void {
@@ -768,6 +797,23 @@ export class Canvas {
 
   clearSelection(): void {
     this.engine.check(this.engine.module._ink_canvas_clear_selection(this.pointer));
+  }
+
+  bookmarkSelection(): void {
+    this.engine.check(this.engine.module._ink_canvas_bookmark_selection(this.pointer));
+  }
+
+  ungroupSelection(): void {
+    this.engine.check(this.engine.module._ink_canvas_ungroup_selection(this.pointer));
+  }
+
+  linkSelection(href: string): void {
+    const e = this.engine;
+    e.withCString(href, text => e.check(e.module._ink_canvas_link_selection(this.pointer, text)));
+  }
+
+  addBookmark(x: number, y: number): void {
+    this.engine.check(this.engine.module._ink_canvas_add_bookmark(this.pointer, x, y));
   }
 
   deleteSelection(): void {

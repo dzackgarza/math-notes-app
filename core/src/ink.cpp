@@ -13,12 +13,15 @@
 #include "export/pdf.h"
 #include "document/templates.h"
 #include "document/layers.h"
+#include "document/navigation.h"
+#include "selection/ruled.h"
 #include "format/notebook.h"
 #include "format/page_svg.h"
 #include "format/pens.h"
 #include "geometry/affine.h"
 #include "layout/layout.h"
 #include "include/core/SkData.h"
+#include "include/core/SkCanvas.h"
 #include "include/core/SkImage.h"
 #include "include/core/SkColorSpace.h"
 #include "include/core/SkStream.h"
@@ -826,6 +829,86 @@ InkStatus ink_canvas_delete_selection(InkCanvas *canvas) {
   });
 }
 
+InkStatus ink_canvas_bookmark_selection(InkCanvas *canvas) {
+  return Call([&] {
+    if (!canvas) return NullArgument("canvas");
+    canvas->editor.BookmarkSelection();
+    return INK_OK;
+  });
+}
+InkStatus ink_canvas_link_selection(InkCanvas *canvas, const char *href) {
+  return Call([&] {
+    if (!canvas || !href) return NullArgument("canvas or href");
+    canvas->editor.LinkSelection(href);
+    return INK_OK;
+  });
+}
+InkStatus ink_canvas_ungroup_selection(InkCanvas *canvas) {
+  return Call([&] {
+    if (!canvas) return NullArgument("canvas");
+    canvas->editor.UngroupSelection();
+    return INK_OK;
+  });
+}
+InkStatus ink_canvas_add_bookmark(InkCanvas *canvas, double x, double y) {
+  return Call([&] {
+    if (!canvas) return NullArgument("canvas");
+    canvas->editor.AddBookmark(x, y);
+    return INK_OK;
+  });
+}
+InkStatus ink_document_navigation(InkDocument *document, const char **json) {
+  return Call([&] {
+    if (!document || !json) return NullArgument("document or json");
+    const auto &current = document->history.current();
+    auto value = nlohmann::json::array();
+    for (size_t p = 0; p < ink_engine::ListedPageCount(current); ++p)
+      value.push_back({{"id", ""}, {"href", ""}, {"page", p}, {"file", current.pages[p]->file},
+                       {"x", 0}, {"y", 0}, {"width", current.pages[p]->width}, {"height", 0}});
+    for (const auto &mark : ink_engine::NavigationMarks(current))
+      value.push_back({{"id", mark.id}, {"href", mark.href}, {"page", mark.page},
+                       {"file", current.pages[mark.page]->file},
+                       {"x", mark.bounds.left}, {"y", mark.bounds.top},
+                       {"width", mark.bounds.right - mark.bounds.left},
+                       {"height", mark.bounds.bottom - mark.bounds.top}});
+    document->navigation_json = value.dump();
+    *json = document->navigation_json.c_str();
+    return INK_OK;
+  });
+}
+
+InkStatus ink_document_bookmark_png(InkDocument *document, const char *id, int32_t width,
+                                    const uint8_t **png, size_t *size) {
+  return Call([&] {
+    if (!document || !id || !png || !size) return NullArgument("bookmark PNG argument");
+    if (width <= 0 || width > 4096) return Fail(INK_ERROR_ARGUMENT, "invalid preview width");
+    const auto &current = document->history.current();
+    const auto marks = ink_engine::NavigationMarks(current);
+    const auto mark = std::find_if(marks.begin(), marks.end(), [&](const auto &m) { return m.id == id; });
+    if (mark == marks.end()) return Fail(INK_ERROR_ARGUMENT, "bookmark no longer exists");
+    const auto page = ink_engine::BookmarkLine(*current.pages[mark->page], mark->bounds);
+    const auto grid = ink_engine::WorkingGrid(page, (mark->bounds.top + mark->bounds.bottom) / 2);
+    const double top = std::max(0.0, grid.Top(grid.Line((mark->bounds.top + mark->bounds.bottom) / 2)) - grid.spacing / 4);
+    const double scale = width / page.width;
+    const int height = std::max(1, int(std::ceil(grid.spacing * 1.5 * scale)));
+    auto surface = SkSurfaces::Raster(SkImageInfo::MakeN32Premul(width, height));
+    if (!surface) return Fail(INK_ERROR_INTERNAL, "cannot allocate bookmark preview");
+    surface->getCanvas()->scale(scale, scale);
+    surface->getCanvas()->translate(0, -top);
+    ink_engine::Renderer renderer(nullptr, document->assets);
+    renderer.DrawPageForExport(surface->getCanvas(), current, page, false);
+    SkPixmap pixels;
+    if (!surface->peekPixels(&pixels)) return Fail(INK_ERROR_INTERNAL, "no preview pixels");
+    SkDynamicMemoryWStream out;
+    if (!SkPngEncoder::Encode(&out, pixels, {})) return Fail(INK_ERROR_INTERNAL, "PNG encoding failed");
+    document->png.resize(out.bytesWritten());
+    out.copyTo(document->png.data());
+    *png = reinterpret_cast<const uint8_t *>(document->png.data());
+    *size = document->png.size();
+    return INK_OK;
+  });
+}
+
 InkStatus ink_canvas_copy_selection(InkCanvas *canvas, int32_t cut, const uint8_t **svg,
                                     size_t *size) {
   return Call([&] {
@@ -1077,7 +1160,6 @@ static InkStatus ExportPdfSelection(InkDocument *document, const char *title,
     if (!title) return NullArgument("title");
     if (!spec || !pdf || !size) return NullArgument("spec, pdf or size");
     if (!*title) return Fail(INK_ERROR_ARGUMENT, "empty PDF title");
-    if (spec->include_links) return Fail(INK_ERROR_ARGUMENT, "PDF link annotations are not supported");
     auto current = document->history.current();
     if (layers) {
       const auto ids = nlohmann::json::parse(layers).get<std::set<std::string>>();
@@ -1096,7 +1178,7 @@ static InkStatus ExportPdfSelection(InkDocument *document, const char *title,
     }
     if (!ink_engine::ExportPdf(current, document->assets, title, spec->first_page,
                                spec->page_count, !layers && spec->include_hidden_layers != 0,
-                               &document->pdf)) {
+                               &document->pdf, spec->include_links != 0)) {
       return Fail(INK_ERROR_INTERNAL, "PDF export failed");
     }
     *pdf = reinterpret_cast<const uint8_t *>(document->pdf.data());

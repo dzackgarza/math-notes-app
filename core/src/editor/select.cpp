@@ -121,6 +121,106 @@ void Editor::ClearSelection() {
   ++overlay_version_;
 }
 
+// Write scribblearea.cpp:1128-1170 groups authored content without flattening it.
+void Editor::BookmarkSelection() {
+  const Selection *selection = CurrentSelection();
+  if (!selection) throw std::invalid_argument("select content to bookmark");
+  const size_t layer = selection->items.front().layer;
+  for (const auto &item : selection->items)
+    if (item.layer != layer) throw std::invalid_argument("select content on one layer to group it");
+  const size_t index = selection->page;
+  Bookmark bookmark{history_->ids().BookmarkId(), Selected(*selection)};
+  Page page = Without(*selection->value, selection->items);
+  auto items = Append(page, page.layers[layer].layer_id,
+                      Elements{immer::box<Element>(Element{std::move(bookmark)})});
+  Document next = document();
+  next.pages = next.pages.set(index, immer::box<Page>(std::move(page)));
+  PushSelection(std::move(next), index, std::move(items));
+}
+
+void Editor::LinkSelection(const std::string &href) {
+  if (href.empty()) throw std::invalid_argument("choose a link destination");
+  const Selection *selection = CurrentSelection();
+  if (!selection) throw std::invalid_argument("select content for the link");
+  const size_t layer = selection->items.front().layer;
+  for (const auto &item : selection->items)
+    if (item.layer != layer) throw std::invalid_argument("select content on one layer to group it");
+  const size_t index = selection->page;
+  Elements children;
+  for (const auto &element : Selected(*selection)) {
+    if (const auto *link = std::get_if<Link>(&element->value)) {
+      for (const auto &child : link->children) children = children.push_back(child);
+    } else children = children.push_back(element);
+  }
+  Page page = Without(*selection->value, selection->items);
+  auto items = Append(page, page.layers[layer].layer_id,
+                      Elements{immer::box<Element>(Element{Link{href, children}})});
+  Document next = document();
+  next.pages = next.pages.set(index, immer::box<Page>(std::move(page)));
+  PushSelection(std::move(next), index, std::move(items));
+}
+
+void Editor::AddBookmark(double x, double y) {
+  if (!ResolveActiveLayer()) throw std::invalid_argument("choose an editable layer");
+  Document next = document();
+  const auto layout = LayoutPages(next);
+  const Point point = ToContent(view_, x, y);
+  const auto *placement = PageContaining(layout, point);
+  if (!placement) throw std::invalid_argument("choose a point on a page");
+  Page page = *next.pages[placement->page];
+  if (layer_ >= page.layers.size() || !Selectable(next, page.layers[layer_]))
+    throw std::invalid_argument("choose an editable layer");
+  // Write scribblearea.cpp:1504-1532 margin flag; Write units converted to pt.
+  constexpr double w = 7.68, h = 14.4;
+  const auto grid = WorkingGrid(page, point.y - placement->y);
+  const double top = grid.Top(grid.Line(point.y - placement->y)) + (grid.spacing - h) / 2;
+  Shape flag{.id = history_->ids().StrokeId(), .kind = ShapeKind::kPolygon,
+             .transform = Translation(std::max(0.0, page.background.margin_left - 1.5 * w), top),
+             .stroke = pen_.color, .stroke_width = 1,
+             .points = {{0, 0}, {w, 0}, {w, h}, {w / 2, 5 * h / 6}, {0, h}}};
+  Bookmark bookmark{history_->ids().BookmarkId(), Elements{immer::box<Element>(Element{flag})}};
+  auto items = Append(page, page.layers[layer_].layer_id,
+                      Elements{immer::box<Element>(Element{std::move(bookmark)})});
+  next.pages = next.pages.set(placement->page, immer::box<Page>(std::move(page)));
+  PushSelection(std::move(next), placement->page, std::move(items));
+}
+
+void Editor::UngroupSelection() {
+  const auto *selection = CurrentSelection();
+  if (!selection) return;
+  const size_t index = selection->page;
+  Page page = *selection->value;
+  std::vector<ElementRef> items;
+  bool changed = false;
+  for (size_t l = 0; l < page.layers.size(); ++l) {
+    Elements result;
+    for (size_t i = 0; i < page.layers[l].elements.size(); ++i) {
+      const auto &element = page.layers[l].elements[i];
+      const bool selected = std::find(selection->items.begin(), selection->items.end(), ElementRef{l, i}) != selection->items.end();
+      const Elements *children = nullptr;
+      if (selected) {
+        if (const auto *b = std::get_if<Bookmark>(&element->value)) children = &b->children;
+        if (const auto *link = std::get_if<Link>(&element->value)) children = &link->children;
+      }
+      if (children) {
+        for (const auto &child : *children) {
+          items.push_back({l, result.size()});
+          result = result.push_back(child);
+        }
+        changed = true;
+      } else {
+        if (selected) items.push_back({l, result.size()});
+        result = result.push_back(element);
+      }
+    }
+    page.layers[l].elements = std::move(result);
+  }
+  if (!changed) return;
+  Document next = document();
+  next.pages = next.pages.set(index, immer::box<Page>(std::move(page)));
+  PushSelection(std::move(next), index, std::move(items));
+}
+
 Elements Editor::Selected(const Selection &selection) const {
   Elements elements;
   for (const ElementRef &item : selection.items) {

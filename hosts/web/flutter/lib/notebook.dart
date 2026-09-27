@@ -11,8 +11,10 @@ import 'package:web/web.dart' as web;
 
 import 'host.dart' as native;
 import 'layers_sheet.dart';
+import 'bookmarks_sheet.dart';
 
 typedef NotebookViewport = ({double scale, double x, double y, double scroll});
+typedef NoteDestination = ({String noteKey, String file, String id});
 
 class SelectionTransfer {
   const SelectionTransfer(this.read);
@@ -30,6 +32,9 @@ class Notebook extends StatefulWidget {
     required this.onCaptureChanged,
     required this.viewport,
     required this.linked,
+    required this.destination,
+    required this.onFollowLink,
+    required this.onChooseNotebookLink,
   });
   final native.OpenNote note;
   final native.Engine engine;
@@ -39,6 +44,9 @@ class Notebook extends StatefulWidget {
   final ValueChanged<bool> onCaptureChanged;
   final ValueNotifier<NotebookViewport?> viewport;
   final bool linked;
+  final ValueNotifier<NoteDestination?> destination;
+  final Future<void> Function(String href, int page) onFollowLink;
+  final Future<String?> Function(int page) onChooseNotebookLink;
   @override
   State<Notebook> createState() => _NotebookState();
 }
@@ -119,6 +127,7 @@ class _NotebookState extends State<Notebook>
     scroll.addListener(updateView);
     transform.addListener(updateView);
     widget.viewport.addListener(receiveViewport);
+    widget.destination.addListener(receiveDestination);
     ticker = createTicker((_) {
       canvas?.render();
       final next = canvas?.selection();
@@ -147,6 +156,7 @@ class _NotebookState extends State<Notebook>
         canvas = await native.host.mountCanvas(widget.note, element).toDart;
         canvas!.setTool(pens[pen].tool);
         updateView();
+        receiveDestination();
       }),
     );
   }
@@ -246,6 +256,7 @@ class _NotebookState extends State<Notebook>
       updatePull();
     }
     final target = canvas;
+    if (tool == 'navigate' || tool == 'bookmark') return;
     if (target == null ||
         (event.kind != PointerDeviceKind.stylus &&
             event.kind != PointerDeviceKind.invertedStylus))
@@ -758,8 +769,135 @@ class _NotebookState extends State<Notebook>
     );
   }
 
+  void jumpToMark(native.NavigationMark mark) {
+    final rect = widget.note.document.pageRect(mark.page);
+    transform.value = Matrix4.identity();
+    scroll.animateTo(
+      ((rect.y + mark.y) * fit - 48).clamp(
+        0.0,
+        scroll.position.maxScrollExtent,
+      ),
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
+
+  void receiveDestination() {
+    final destination = widget.destination.value;
+    if (destination == null ||
+        destination.noteKey != native.pathKey(widget.note.path))
+      return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !scroll.hasClients) return;
+      final marks = widget.note.document.navigation().toDart;
+      for (final mark in marks) {
+        if (mark.file == destination.file &&
+            mark.id == destination.id &&
+            mark.href.isEmpty) {
+          jumpToMark(mark);
+          return;
+        }
+      }
+      setState(() => failure = 'The link destination is not in this notebook.');
+    });
+  }
+
+  Future<void> bookmarks() async {
+    final mark = await chooseDestination(context, widget.note.document);
+    if (mark != null && mounted) jumpToMark(mark);
+  }
+
+  Future<void> linkSelection() async {
+    final action = await showCupertinoModalPopup<String>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: const Text('Link selected content'),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () => Navigator.pop(context, 'page'),
+            child: const Text('Page or bookmark'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () => Navigator.pop(context, 'note'),
+            child: const Text('Another notebook'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () => Navigator.pop(context, 'url'),
+            child: const Text('URL or relative notebook path'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+    String? href;
+    if (action == 'page') {
+      final mark = await chooseDestination(context, widget.note.document);
+      if (mark != null)
+        href =
+            '${Uri(pathSegments: mark.file.split('/').skip(1)).toString()}${mark.id.isEmpty ? '' : '#${mark.id}'}';
+    } else if (action == 'note') {
+      href = await widget.onChooseNotebookLink(selection!.page);
+    } else {
+      final text = TextEditingController();
+      href = await showCupertinoDialog<String>(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: const Text('Link destination'),
+          content: CupertinoTextField(
+            controller: text,
+            autofocus: true,
+            placeholder: 'https://… or ../../Note/pages/0001.svg',
+          ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            CupertinoDialogAction(
+              onPressed: () => Navigator.pop(context, text.text.trim()),
+              child: const Text('Link'),
+            ),
+          ],
+        ),
+      );
+      text.dispose();
+    }
+    if (href != null && href.isNotEmpty)
+      edit(() => canvas!.linkSelection(href!));
+  }
+
+  Future<void> followAt(Offset position) async {
+    if (tool != 'navigate' || drawing || canvas == null) return;
+    final p = canvas!.pageAt(position.dx, position.dy);
+    if (p < 0) return;
+    final rect = widget.note.document.pageRect(p);
+    final matrix = transform.value;
+    final scale = matrix.getMaxScaleOnAxis();
+    final x = (position.dx - matrix.storage[12]) / (fit * scale) - rect.x;
+    final y =
+        (position.dy - matrix.storage[13] + scroll.offset * scale) /
+            (fit * scale) -
+        rect.y;
+    for (final mark in widget.note.document.navigation().toDart.reversed) {
+      if (mark.page == p &&
+          mark.href.isNotEmpty &&
+          x >= mark.x &&
+          x <= mark.x + mark.width &&
+          y >= mark.y &&
+          y <= mark.y + mark.height) {
+        await widget.onFollowLink(mark.href, p);
+        return;
+      }
+    }
+  }
+
   @override
   void dispose() {
+    widget.destination.removeListener(receiveDestination);
     widget.viewport.removeListener(receiveViewport);
     pullTimer?.cancel();
     focus.dispose();
@@ -1033,6 +1171,30 @@ class _NotebookState extends State<Notebook>
                             }),
                           ),
                           CupertinoListTile(
+                            title: const Text('Bookmarks'),
+                            leading: const Icon(CupertinoIcons.bookmark),
+                            onTap: () => run(bookmarks),
+                          ),
+                          CupertinoListTile(
+                            title: const Text('Add bookmark'),
+                            subtitle: tool == 'bookmark'
+                                ? const Text('Tap the line to mark.')
+                                : null,
+                            onTap: drawing
+                                ? null
+                                : () {
+                                    if (selection != null)
+                                      edit(() => canvas!.bookmarkSelection());
+                                    else
+                                      chooseTool('bookmark');
+                                  },
+                          ),
+                          CupertinoListTile(
+                            title: const Text('Follow links'),
+                            leading: const Icon(CupertinoIcons.link),
+                            onTap: () => chooseTool('navigate'),
+                          ),
+                          CupertinoListTile(
                             title: const Text('Paste'),
                             leading: const Icon(
                               CupertinoIcons.doc_on_clipboard,
@@ -1040,6 +1202,15 @@ class _NotebookState extends State<Notebook>
                             onTap: () => run(paste),
                           ),
                           if (selection != null) ...[
+                            CupertinoListTile(
+                              title: const Text('Remove bookmark or link'),
+                              onTap: () =>
+                                  edit(() => canvas!.ungroupSelection()),
+                            ),
+                            CupertinoListTile(
+                              title: const Text('Link selected content'),
+                              onTap: () => run(linkSelection),
+                            ),
                             LongPressDraggable<SelectionTransfer>(
                               data: SelectionTransfer(
                                 () => canvas!.copySelection(false),
@@ -1131,28 +1302,44 @@ class _NotebookState extends State<Notebook>
                                       onPointerMove: input,
                                       onPointerUp: input,
                                       onPointerCancel: input,
-                                      child: InteractiveViewer(
-                                        transformationController: transform,
-                                        minScale: 1,
-                                        maxScale: 5,
-                                        child: ScrollConfiguration(
-                                          behavior:
-                                              const CupertinoScrollBehavior()
-                                                  .copyWith(
-                                                    dragDevices: {
-                                                      PointerDeviceKind.touch,
-                                                      PointerDeviceKind
-                                                          .trackpad,
-                                                    },
-                                                  ),
-                                          child: RawGestureDetector(
-                                            gestures: {
-                                              EagerGestureRecognizer:
-                                                  GestureRecognizerFactoryWithHandlers<
-                                                    EagerGestureRecognizer
-                                                  >(
-                                                    () =>
-                                                        EagerGestureRecognizer(
+                                      child: GestureDetector(
+                                        onTapUp: tool == 'navigate'
+                                            ? (details) => run(
+                                                () => followAt(
+                                                  details.localPosition,
+                                                ),
+                                              )
+                                            : tool == 'bookmark'
+                                            ? (details) => edit(
+                                                () => canvas!.addBookmark(
+                                                  details.localPosition.dx,
+                                                  details.localPosition.dy,
+                                                ),
+                                              )
+                                            : null,
+                                        child: InteractiveViewer(
+                                          transformationController: transform,
+                                          minScale: 1,
+                                          maxScale: 5,
+                                          child: ScrollConfiguration(
+                                            behavior:
+                                                const CupertinoScrollBehavior()
+                                                    .copyWith(
+                                                      dragDevices: {
+                                                        PointerDeviceKind.touch,
+                                                        PointerDeviceKind
+                                                            .trackpad,
+                                                      },
+                                                    ),
+                                            child: RawGestureDetector(
+                                              gestures: {
+                                                if (tool != 'navigate' &&
+                                                    tool != 'bookmark')
+                                                  EagerGestureRecognizer:
+                                                      GestureRecognizerFactoryWithHandlers<
+                                                        EagerGestureRecognizer
+                                                      >(
+                                                        () => EagerGestureRecognizer(
                                                           supportedDevices: {
                                                             PointerDeviceKind
                                                                 .stylus,
@@ -1160,22 +1347,24 @@ class _NotebookState extends State<Notebook>
                                                                 .invertedStylus,
                                                           },
                                                         ),
-                                                    (instance) {},
-                                                  ),
-                                            },
-                                            child: SingleChildScrollView(
-                                              controller: scroll,
-                                              physics: const BouncingScrollPhysics(
-                                                parent:
-                                                    AlwaysScrollableScrollPhysics(),
-                                              ),
-                                              child: SizedBox(
-                                                width: width,
-                                                height:
-                                                    widget.note.document
-                                                        .contentSize()
-                                                        .height *
-                                                    fit,
+                                                        (instance) {},
+                                                      ),
+                                              },
+                                              child: SingleChildScrollView(
+                                                controller: scroll,
+                                                physics:
+                                                    const BouncingScrollPhysics(
+                                                      parent:
+                                                          AlwaysScrollableScrollPhysics(),
+                                                    ),
+                                                child: SizedBox(
+                                                  width: width,
+                                                  height:
+                                                      widget.note.document
+                                                          .contentSize()
+                                                          .height *
+                                                      fit,
+                                                ),
                                               ),
                                             ),
                                           ),

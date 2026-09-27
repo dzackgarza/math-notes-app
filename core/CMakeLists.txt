@@ -43,6 +43,7 @@ add_library(ink STATIC
   src/format/pens.cpp
   src/document/pages.cpp
   src/document/layers.cpp
+  src/document/navigation.cpp
   src/document/reflow.cpp
   src/document/templates.cpp
   src/strokes/clip.cpp
@@ -89,6 +90,9 @@ if(EMSCRIPTEN)
     _ink_document_page_count _ink_document_insert_page _ink_document_delete_page _ink_import_page_image _ink_import_page_svg
     _ink_document_move_page _ink_document_set_page_size _ink_document_set_template
     _ink_document_layers _ink_document_add_layer _ink_document_set_layer _ink_document_move_layer _ink_document_remove_layer
+    _ink_document_navigation _ink_document_bookmark_png
+    _ink_canvas_bookmark_selection _ink_canvas_link_selection _ink_canvas_add_bookmark
+    _ink_canvas_ungroup_selection
     _ink_canvas_set_layer _ink_canvas_active_layer
     _ink_clipping_add _ink_clipping_svg
     _ink_builtin_template_count _ink_builtin_template_name _ink_builtin_template_create

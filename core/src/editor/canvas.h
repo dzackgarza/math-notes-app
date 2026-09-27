@@ -29,6 +29,7 @@ struct InkDocument {
   // The last ink_export_pdf result.
   std::string pdf;
   std::string layers_json;
+  std::string navigation_json;
   std::string clipping_svg;
 };
 

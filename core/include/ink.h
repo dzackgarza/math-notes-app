@@ -277,6 +277,14 @@ InkStatus ink_canvas_selection(InkCanvas *canvas, InkSelectionInfo *out);
 /* Selects every element of page `index`'s visible, unlocked layers. */
 InkStatus ink_canvas_select_all(InkCanvas *canvas, size_t index);
 InkStatus ink_canvas_clear_selection(InkCanvas *canvas);
+InkStatus ink_canvas_bookmark_selection(InkCanvas *canvas);
+InkStatus ink_canvas_link_selection(InkCanvas *canvas, const char *href);
+InkStatus ink_canvas_ungroup_selection(InkCanvas *canvas);
+InkStatus ink_canvas_add_bookmark(InkCanvas *canvas, double x, double y);
+/* Visible bookmarks and links with page-local bounds, in page and line order. */
+InkStatus ink_document_navigation(InkDocument *document, const char **json);
+InkStatus ink_document_bookmark_png(InkDocument *document, const char *id, int32_t width,
+                                    const uint8_t **png, size_t *size);
 /* Deletes the selected elements: one history step. */
 InkStatus ink_canvas_delete_selection(InkCanvas *canvas);
 /* The selection as a standalone SVG document (UTF-8), for the host's
@@ -344,8 +352,8 @@ InkStatus ink_document_page_rect(InkDocument *document, size_t index, double *x,
 InkStatus ink_document_page_png(InkDocument *document, size_t index, int32_t width,
                                 const uint8_t **png, size_t *size);
 
-/* A zero-based consecutive page range. `include_links` is reserved for link
-   annotations (#32) and must be zero. Hidden layers are omitted unless
+/* A zero-based consecutive page range. `include_links` exports bookmark
+   destinations and link annotations. Hidden layers are omitted unless
    `include_hidden_layers` is nonzero. */
 typedef struct InkPdfExportSpec {
   size_t first_page;

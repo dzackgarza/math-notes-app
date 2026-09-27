@@ -107,6 +107,10 @@ class Editor {
   // The selection; null when there is none or the document changed under it.
   const Selection *CurrentSelection();
   void ClearSelection();
+  void BookmarkSelection();
+  void LinkSelection(const std::string &href);
+  void UngroupSelection();
+  void AddBookmark(double x, double y);
   // Selects every element of the page's visible, unlocked layers.
   void SelectAll(size_t page);
   // Deletes the selection: one history step. False when nothing is selected.
