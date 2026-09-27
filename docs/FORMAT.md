@@ -1,5 +1,9 @@
 # Storage and file format
 
+The [initial file-format proposal](source/initial-file-format-proposal.md)
+is the source record. This document is the adopted format contract; the
+[v1 ownership map](V1_OWNERSHIP_MAP.md) names its parser and host file APIs.
+
 The authoritative state is an ordinary directory tree of documented,
 standard files at a location the user chooses. The app has no private library
 and no sync of its own. Saving writes the file in place; whatever owns the

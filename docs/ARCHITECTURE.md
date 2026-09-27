@@ -8,12 +8,12 @@ plan continues this engine and composes mature host components around it.
 The [Write assessment](ink-reflow-owners.md) is input to a post-v1 refactoring
 decision, after the product works on both hosts.
 
-Earlier architecture sketches listed candidate libraries for ink, text, SVG,
-PDF, indexing, sync, and recognition. They were options to test, not required
-dependencies. Later subsystem decisions and working integrations set the v1
-owners. Optional services enter when their feature is built. The hosts use
-native iPad UI and a browser UI; the document, ink, and rendering engine is
-shared across them.
+The [initial dependency proposal](source/initial-dependency-proposal.md)
+records the earlier component ideas. The [v1 ownership map](V1_OWNERSHIP_MAP.md)
+connects each active requirement to a selected pin, API, adapter, and
+product-specific rule. Later subsystem decisions and working integrations set
+the v1 owners. The hosts use native iPad UI and a browser UI; the document,
+ink, and rendering engine is shared across them.
 
 The look and the
 everyday interaction patterns (page layout, scrolling, adding pages, tool
