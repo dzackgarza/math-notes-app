@@ -101,7 +101,7 @@ chips, thin gray borders, system sans-serif type. Paper is warm off-white.
 | Mockup | Current model ([FORMAT.md](../FORMAT.md), [FEATURES.md](../FEATURES.md)) |
 | --- | --- |
 | Paper Style, Starting Template (backgrounds) | Built-in templates: blank, lined-*, grid-*, dotted (#21) |
-| Pen, Highlighter, color palette | Pen presets (#25); Write `StrokeBuilder` in the selected replacement architecture ([ink decision](../ink-reflow-owners.md)) |
+| Pen, Highlighter, color palette | Pen presets (#25) and Google Ink brush geometry in the current engine |
 | Eraser, Lasso, Drawing mode | #23, #24, [TikZ drawing mode](tikz-drawing-mode.md) |
 | Undo and redo, zoom, page indicator | #22, #21 |
 | Tabs of open notes | A tab per open note, as in GoodNotes and Noteful |

@@ -32,8 +32,8 @@ These define the app. New features must not break them.
 - Split view of two documents.
 - SVG page backgrounds (paper color, lined, grid, dotted) and templates.
 - Configurable pressure-sensitive pens and highlighter, with original samples
-  retained in the note. The selected replacement uses Write `StrokeBuilder`
-  and its matching free-erase path; see the [ink ownership decision](ink-reflow-owners.md).
+  retained in the note. The v1 engine uses Google Ink for brush geometry and
+  keeps the editable stroke in the Math Notes document model.
 - Unlimited undo and redo.
 - PDF export.
 - Folders on the filesystem are the library. Sync is the filesystem's job (iCloud Drive,

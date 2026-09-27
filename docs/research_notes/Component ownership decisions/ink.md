@@ -1,10 +1,15 @@
 # Ink editor, reflow, and history ownership
 
+Status: candidate research for a post-v1 refactoring decision. The v1 engine
+continues to use Google Ink and the Math Notes document, editing, and history
+code. The implementation proposals below describe the cost of a possible
+Write-based engine; they are not selected v1 work.
+
 ## Which complete editor owns offline ink editing on both hosts?
 
 ### Takeaway
 
-Select a project fork of Stylus Labs Write, pinned to `401b65d5fe0294cc83171b76a0273b6df3afc979`, as the authoritative ink document and editor. This is a replacement of the current parallel ink document/history implementation, not an embeddable SDK or a port of isolated algorithms.
+Stylus Labs Write at `401b65d5fe0294cc83171b76a0273b6df3afc979` is one candidate for a later whole-editor comparison. Its document and edit operations are coupled. Adopting them would replace working Math Notes document, stroke, and history code; a small isolated library import would not perform that transfer.
 
 ### Cited Findings
 
@@ -18,21 +23,21 @@ Select a project fork of Stylus Labs Write, pinned to `401b65d5fe0294cc83171b76a
 
 ### Inferences
 
-- The chosen fork owns `Document`, `Page`, `Element`, `Selection`, `RuledSelector`, `UndoHistory`, SVG DOM/parser/writer, and the ink-edit commands currently embedded in `ScribbleArea`. Extract a host-neutral command entry point within that fork. Ionic and UIKit supply controls and scrolling; hosts translate pen samples and invoke fork commands. The fork's SDL input loop and NanoVG/OpenGLES painter remain behind its upstream desktop UI rather than becoming the hosts' interaction or render owner. — [Write input code](https://github.com/styluslabs/Write/blob/401b65d5fe0294cc83171b76a0273b6df3afc979/syncscribble/scribblearea.cpp); [Write painter dependency](https://github.com/styluslabs/Write/blob/401b65d5fe0294cc83171b76a0273b6df3afc979/ulib/painter.h).
-- Replace the present `immer` document and copied history example with that one fork model. Select Write's `StrokeBuilder`, input filters, and `Element::freeErase` as the ink brush and edit pipeline. They use a shared SVG path encoding: `Element::toPenPoints` decodes the path shapes and classes emitted by Write's stroked, flat, round, and chisel builders. Keeping the current Google Ink outline builder would require a new compatibility implementation for free erase and stroke rebuild. The present feature specification explicitly names Google Ink brushes, so changing this owner needs approval in the architecture decision. — [Write stroke builder](https://github.com/styluslabs/Write/blob/401b65d5fe0294cc83171b76a0273b6df3afc979/syncscribble/strokebuilder.cpp); [Write eraser decoder](https://github.com/styluslabs/Write/blob/401b65d5fe0294cc83171b76a0273b6df3afc979/syncscribble/element.cpp#L266-L357); [current brush requirement](https://github.com/dzackgarza/math-notes-app/blob/c35122671bfef9e7941f1dd2ef3f9b89ba226ef0/docs/FEATURES.md#L34).
-- Select Skia's `SkSVGDOM` module as the render backend: serialize the authoritative Write page to a derived SVG render cache, then render it to each host's SkCanvas. `SkSVGDOM::Builder` provides a font manager, resource provider for images, and text shaping factory; `render` takes a SkCanvas. This replaces the current custom element renderer, which reads the `immer` model. — [SkSVGDOM API](https://skia.googlesource.com/skia/+/7a2127711a40/modules/svg/include/SkSVGDOM.h); [Skia SVG build module](https://skia.googlesource.com/skia/+/main/BUILD.gn); [current renderer](https://github.com/dzackgarza/math-notes-app/blob/c35122671bfef9e7941f1dd2ef3f9b89ba226ef0/core/src/render/renderer.cpp).
+- A Write engine would need `Document`, `Page`, `Element`, `Selection`, `RuledSelector`, `UndoHistory`, its SVG parser/writer, and commands currently embedded in `ScribbleArea`. It would also need a host-neutral command entry point. This is a whole-engine integration cost, not a reason to change the current engine during v1. — [Write input code](https://github.com/styluslabs/Write/blob/401b65d5fe0294cc83171b76a0273b6df3afc979/syncscribble/scribblearea.cpp); [Write painter dependency](https://github.com/styluslabs/Write/blob/401b65d5fe0294cc83171b76a0273b6df3afc979/ulib/painter.h).
+- Write's `StrokeBuilder`, input filters, and `Element::freeErase` share an SVG path encoding. `Element::toPenPoints` decodes shapes emitted by Write's builders. Retaining Google Ink outlines inside that model would require a compatibility erasure and rebuild path. — [Write stroke builder](https://github.com/styluslabs/Write/blob/401b65d5fe0294cc83171b76a0273b6df3afc979/syncscribble/strokebuilder.cpp); [Write eraser decoder](https://github.com/styluslabs/Write/blob/401b65d5fe0294cc83171b76a0273b6df3afc979/syncscribble/element.cpp#L266-L357).
+- Skia `SkSVGDOM` could render a serialized Write page as a derived cache. That would replace the current element renderer and requires separate fidelity proof. — [SkSVGDOM API](https://skia.googlesource.com/skia/+/7a2127711a40/modules/svg/include/SkSVGDOM.h); [current renderer](https://github.com/dzackgarza/math-notes-app/blob/c35122671bfef9e7941f1dd2ef3f9b89ba226ef0/core/src/render/renderer.cpp).
 
 ### Gaps
 
-- This source assessment does not prove that the extracted Write editor builds under Emscripten and iOS without the SDL UI or that SkSVGDOM renders every required page fixture. These are integration acceptance checks for the selected architecture, not a later owner selection.
-- Write's SVG parser/writer and page load/save path must be checked for exact `mn:` and InkML namespace preservation, authored TikZ figure groups, original sample metadata, page identifiers, and byte stability. `Page::loadSVG` contains a branch that copies only standard attributes for non-Write documents, while `Page::saveSVG` serializes the fork's SVG tree. This is a specific format extension of the selected fork, not a reason to create another document model. — [load/save source](https://github.com/styluslabs/Write/blob/401b65d5fe0294cc83171b76a0273b6df3afc979/syncscribble/page.cpp).
-- Write's builder receives pressure, tilt, and timestamp samples, but the inspected builder writes a rendered SVG path and does not persist the complete input sequence. The selected fork must attach the original sensor trace to the same `Element` when the stroke is committed. Move and resize change the element transform while the raw trace remains in stroke-local coordinates. Free erase must retain source trace segments and endpoint mapping in the resulting elements, with the change recorded in Write history. This is a bounded source-fidelity extension required by the notebook format. — [sample input and builder](https://github.com/styluslabs/Write/blob/401b65d5fe0294cc83171b76a0273b6df3afc979/syncscribble/strokebuilder.h); [builder output](https://github.com/styluslabs/Write/blob/401b65d5fe0294cc83171b76a0273b6df3afc979/syncscribble/strokebuilder.cpp); [eraser implementation](https://github.com/styluslabs/Write/blob/401b65d5fe0294cc83171b76a0273b6df3afc979/syncscribble/element.cpp#L266-L357).
+- This source assessment does not prove that an extracted Write editor works on both hosts or preserves the notebook format. The post-v1 decision must compare those costs against the working engine.
+- A Write candidate needs proof of exact `mn:` and InkML namespace preservation, authored TikZ figure groups, original sample metadata, page identifiers, and byte stability. `Page::loadSVG` contains a branch that copies only standard attributes for non-Write documents. — [load/save source](https://github.com/styluslabs/Write/blob/401b65d5fe0294cc83171b76a0273b6df3afc979/syncscribble/page.cpp).
+- Write's builder receives pressure, tilt, and timestamp samples, but the inspected builder writes a rendered SVG path and does not persist the complete input sequence. A fork would need to attach the original trace to the same `Element` and preserve source segments through transforms and free erase. — [sample input and builder](https://github.com/styluslabs/Write/blob/401b65d5fe0294cc83171b76a0273b6df3afc979/syncscribble/strokebuilder.h); [builder output](https://github.com/styluslabs/Write/blob/401b65d5fe0294cc83171b76a0273b6df3afc979/syncscribble/strokebuilder.cpp); [eraser implementation](https://github.com/styluslabs/Write/blob/401b65d5fe0294cc83171b76a0273b6df3afc979/syncscribble/element.cpp#L266-L357).
 
 ## Who owns fixed-page reflow and a single undo action?
 
 ### Takeaway
 
-Write owns the handwriting structure and reflow operation. Its current ruled-space command grows the page; the required fixed-page overflow is an exact extension of Write's page and history machinery, subject to an explicit architecture decision and approval.
+Write provides a reference implementation of handwriting structure and reflow. Its ruled-space command grows the page; Math Notes requires fixed-page overflow. A post-v1 owner review may compare a Write fork with the v1 implementation.
 
 ### Cited Findings
 
@@ -43,19 +48,19 @@ Write owns the handwriting structure and reflow operation. Its current ruled-spa
 
 ### Inferences
 
-- The required extension is a transaction in the Write fork: after upstream reflow identifies original elements beyond the page boundary, move those same elements to the corresponding line of the next fixed page; shift affected following elements; repeat across pages; create a template page when needed; commit all affected pages through one upstream multi-page undo group. The project decides page identity and template choice. Write remains authoritative for element transforms, reflow, page mutation, and undo.
+- A Write fork would need a transaction that moves overflowing original elements to later fixed pages, creates a template page when needed, and groups the changes in one undo action. This is candidate integration work, not the v1 implementation path.
 - This operation extends the notebook's fixed-page document rule rather than handwriting recognition. It is the only identified new ink-layout behavior. Its exact inputs are the reflow result, fixed page geometry, ruling, and following pages; outputs are page membership, positions, and one upstream history action.
 
 ### Gaps
 
 - The inspected sources do not establish an existing Write operation that spills ruled content into the next fixed page. Rnote moves strokes across visual page regions in a continuous canvas but cannot directly supply the independent page identity and SVG-file semantics of this notebook. — [Write ruled command](https://github.com/styluslabs/Write/blob/401b65d5fe0294cc83171b76a0273b6df3afc979/syncscribble/scribblearea.cpp#L1850-L1873); [Rnote page model](https://github.com/flxzt/rnote/discussions/1316).
-- Approval of this exact fork extension and replacement boundary is required before implementation by the project's component-ownership policy. The research establishes a recommended choice; it is not an implementation proof.
+- A post-v1 ownership decision must compare the complete candidate with the then-working engine before any fork extension or replacement is planned.
 
 ## Who owns named layers across independent SVG pages?
 
 ### Takeaway
 
-Extend the selected Write fork's SVG group and history commands to operate on stable notebook layer IDs. The notebook adapter owns the one list of names, order and lock state in `notebook.json`; each page uses a matching SVG group. The extension is within the same authoritative Write document and undo model.
+The existing Math Notes document owns named layers across its independent SVG pages. A later Write candidate would need to map stable notebook layer IDs into its SVG group and history commands.
 
 ### Cited Findings
 
@@ -65,12 +70,11 @@ Extend the selected Write fork's SVG group and history commands to operate on st
 
 ### Inferences
 
-- The necessary local operation is to map `{layer ID, name, order, lock/visibility}` from the notebook record to corresponding SVG groups in affected Write pages, then call the fork's group/element and undo machinery for add, delete, reorder and moves. This mapping exists because the notebook format spans separate SVG files; it does not justify another generic layer editor or parallel document model.
-- The host layer panel uses its selected framework controls; the Write fork remains the owner of page element mutation. Xournal++ supplies a comparison of complete layer operations, not a second runtime owner.
+- A Write candidate would need to map `{layer ID, name, order, lock/visibility}` from the notebook record to corresponding SVG groups and integrate grouped history. The v1 engine already has its own page element mutation path. Xournal++ supplies a comparison of complete layer operations.
 
 ### Gaps
 
-- Write does not document a notebook-wide layer ID API in the inspected source; the group-to-notebook mapping and grouped history behavior need implementation proof under the selected fork extension. The source-based decision fixes the owner before that proof.
+- Write does not document a notebook-wide layer ID API in the inspected source; this remains a candidate integration gap.
 
 ## What search supports this choice?
 
@@ -84,8 +88,8 @@ The search included complete editors and SDKs, including commercial and heavy ch
 
 ### Inferences
 
-- The plan can now name Write as the owner, replace the parallel document/history architecture, and state the exact approved-or-pending extension. It should not ask future implementers to select a reflow library.
+- This search identifies a candidate and reference algorithms. It does not compare a complete integrated Write fork with the working Math Notes engine after v1, so it cannot select a replacement.
 
 ### Gaps
 
-- No representative notebook integration was compiled or run during this research assignment. The selected fork's adapter and format fidelity remain implementation acceptance work.
+- No representative notebook integration was compiled or run during this research assignment. Adapter cost and format fidelity remain open for a post-v1 review.
