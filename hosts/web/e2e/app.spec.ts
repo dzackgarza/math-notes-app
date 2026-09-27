@@ -6,6 +6,23 @@ import { readFile } from "node:fs/promises";
 
 const APP = "?root=opfs";
 
+test("reloading before the delayed file save recovers the committed ink", async ({ page }) => {
+  await startEmpty(page);
+  await newNote(page, "Reload recovery");
+  const box = await page.locator("#ink-canvas").boundingBox();
+  if (!box) throw new Error("Notebook canvas has no bounds");
+  await drawWithPen(page, [{ x: box.x + 140, y: box.y + 130 }, { x: box.x + 220, y: box.y + 170 }]);
+  await expect(page.getByRole("status", { name: "Notebook save" })).toHaveText("Pending file save");
+  const before = await readOpfsFile(page, "Reload recovery/pages/0001.svg");
+  expect(Buffer.from(before, "base64").toString()).not.toContain('<path id="s-');
+  await page.reload();
+  await openNote(page, "Reload recovery");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("status", { name: "Notebook save" })).toHaveText("Saved");
+  const recovered = await readOpfsFile(page, "Reload recovery/pages/0001.svg");
+  expect(Buffer.from(recovered, "base64").toString()).toContain('<path id="s-');
+});
+
 test("a failed save keeps the note open and retry persists its ink", async ({ page }, testInfo) => {
   await startEmpty(page);
   await newNote(page, "Save recovery");
