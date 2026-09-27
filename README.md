@@ -1,6 +1,6 @@
 # math-notes-app
 
-Handwritten math notes: a C++ ink engine with a web app and an iPad app, all in this repo. Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). The issue tree under [#11](https://github.com/dzackgarza/math-notes-app/issues/11) records requirements and gaps. Until the first usable v1, integrated MVP work lands directly on `main`. The iPad app is developed on Linux, built by GitHub Actions, and installed with SideStore: no Mac, no App Store, free Apple Account.
+Handwritten math notes: a C++ ink engine with a web app and an iPad app, all in this repo. Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). The issue tree under [#11](https://github.com/dzackgarza/math-notes-app/issues/11) records requirements and gaps. MVP work lands directly on `main`: complete the web app first, then port it to iPad. The iPad app is developed on Linux, built by GitHub Actions, and installed with SideStore: no Mac, no App Store, free Apple Account.
 
 ```
 push to main ──► GitHub Actions (macos-26) ──► release vN: MathNotes.ipa + source.json

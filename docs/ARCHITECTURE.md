@@ -23,8 +23,10 @@ Write.
 
 The GitHub issue tree rooted at
 [#11](https://github.com/dzackgarza/math-notes-app/issues/11)
-records requirements and gaps. MVP work lands as integrated product slices
-on `main`, chosen by the next missing end-to-end behavior.
+records requirements and gaps. MVP work lands on `main`. The web host
+establishes the complete working product before the iPad port. Build the web
+UI and its feature paths first, then encode user stories as end-to-end tests.
+Add narrower tests after most of the architecture exists.
 
 ```text
        Existing C++20 document and editing engine
@@ -98,8 +100,9 @@ record candidates for specific gaps. They do not change the engine owner.
 - Notebook-wide layers map stable IDs, names, order, visibility, and lock
   state from `notebook.json` to page SVG groups. The app owns this notebook
   rule and uses its existing document history for grouped edits.
-- New features go in the engine or in a host service that both hosts
-  supply, never in one host only. Layers belong to the document model.
+- New domain features go in the shared engine when they change document
+  semantics. Implement host services in the web app first, then supply their
+  iPad counterparts during the port. Layers belong to the document model.
 - Every custom implementation links its ownership decision from the source.
   A justified upstream adaptation also cites the source file, symbol, pinned
   commit, and license.

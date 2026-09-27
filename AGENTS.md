@@ -2,11 +2,12 @@
 
 Read README.md (pipeline, layout) and TRAPS.md (known failures) first.
 
-Before the first usable v1, work directly on `main` and commit integrated
-product slices there. The GitHub issue tree rooted at #11 records requirements
-and gaps. Choose work by what the end-to-end app needs next. Keep the web and
-iPad hosts, shared engine, and notebook files working together as each slice
-lands. The repository's CI and local deployment verify those slices.
+Before the first usable v1, work directly on `main`. Complete the web app
+first: build its full UI, connect the specified features, and resolve their
+product-level failures in the deployed browser. Then write end-to-end tests
+for user stories. Add narrower tests when the architecture they would test
+is substantially present. Port the working web product to iPad after that.
+The GitHub issue tree rooted at #11 records requirements and gaps.
 
 Implementation ownership: read [docs/ARCHITECTURE.md#component-ownership](docs/ARCHITECTURE.md#component-ownership) before changing a plan or implementation. Standard application behavior belongs to a mature framework or platform API, including scroll physics and edge motion; a missing standard detail is evidence to check the owner, not a custom feature request. Writing and editing notebook ink are reasonable app responsibilities. For a new domain capability, first seek a dependency that owns the whole problem, then a reference implementation. Only necessary residue with neither may use new ungrounded code. A new subsystem or expanded core boundary needs a linked decision with actual dependency searches, candidate evidence, the exact integration gap, and explicit user approval. Evaluate complete frameworks, SDKs, and forks, including large dependencies. An existing working domain capability does not require replacement merely because a broader dependency exists.
 
