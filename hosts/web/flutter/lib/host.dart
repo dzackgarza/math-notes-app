@@ -179,7 +179,19 @@ extension type Selection(JSObject value) implements JSObject {
   external double get height;
 }
 
+extension type Layer(JSObject value) implements JSObject {
+  external String get id;
+  external String get name;
+  external bool get hidden;
+  external bool get locked;
+}
+
 extension type Document(JSObject value) implements JSObject {
+  external JSArray<Layer> layers();
+  external void addLayer(String name);
+  external void setLayer(int index, String name, bool hidden, bool locked);
+  external void moveLayer(int from, int to);
+  external void removeLayer(int index, bool mergeDown);
   external int pageCount();
   external void insertPage(int index);
   external void deletePage(int index);
@@ -193,6 +205,8 @@ extension type Document(JSObject value) implements JSObject {
 }
 
 extension type Canvas(JSObject value) implements JSObject {
+  external int activeLayer();
+  external void setLayer(int index);
   external void beginFigure(int page);
   external String selectedFigure();
   external void setView(
@@ -280,7 +294,12 @@ extension type Host(JSObject value) implements JSObject {
     String size,
   );
   external JSPromise<VoidResult> cacheApp();
-  external void exportPdf(OpenNote note, int first, int count);
+  external void exportPdf(
+    OpenNote note,
+    int first,
+    int count,
+    JSArray<JSString> layers,
+  );
   external JSPromise<JSBoolean> insertImage(
     OpenNote note,
     Canvas canvas,

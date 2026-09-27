@@ -12,6 +12,7 @@
 #include "editor/canvas.h"
 #include "export/pdf.h"
 #include "document/templates.h"
+#include "document/layers.h"
 #include "format/notebook.h"
 #include "format/page_svg.h"
 #include "format/pens.h"
@@ -262,6 +263,70 @@ InkStatus ink_document_page_count(InkDocument *document, size_t *count) {
     if (!document) return NullArgument("document");
     if (!count) return NullArgument("count");
     *count = ink_engine::ListedPageCount(document->history.current());
+    return INK_OK;
+  });
+}
+
+InkStatus ink_document_layers(InkDocument *document, const char **json) {
+  return Call([&] {
+    if (!document || !json) return NullArgument("document or json");
+    auto values = nlohmann::ordered_json::array();
+    for (const auto &layer : document->history.current().notebook.layers)
+      values.push_back({{"id", layer.id}, {"name", layer.name}, {"hidden", layer.hidden}, {"locked", layer.locked}});
+    document->layers_json = values.dump();
+    *json = document->layers_json.c_str();
+    return INK_OK;
+  });
+}
+
+InkStatus ink_document_add_layer(InkDocument *document, const char *name) {
+  return Call([&] {
+    if (!document || !name) return NullArgument("document or name");
+    auto &history = document->history;
+    history.Push(ink_engine::AddLayer(history.current(), history.ids(), name));
+    return INK_OK;
+  });
+}
+
+InkStatus ink_document_set_layer(InkDocument *document, size_t index, const char *name, int hidden, int locked) {
+  return Call([&] {
+    if (!document || !name) return NullArgument("document or name");
+    auto &history = document->history;
+    history.Push(ink_engine::SetLayer(history.current(), index, name, hidden != 0, locked != 0));
+    return INK_OK;
+  });
+}
+
+InkStatus ink_document_move_layer(InkDocument *document, size_t from, size_t to) {
+  return Call([&] {
+    if (!document) return NullArgument("document");
+    auto &history = document->history;
+    history.Push(ink_engine::MoveLayer(history.current(), from, to));
+    return INK_OK;
+  });
+}
+
+InkStatus ink_document_remove_layer(InkDocument *document, size_t index, int merge_down) {
+  return Call([&] {
+    if (!document) return NullArgument("document");
+    auto &history = document->history;
+    history.Push(ink_engine::RemoveLayer(history.current(), index, merge_down != 0));
+    return INK_OK;
+  });
+}
+
+InkStatus ink_canvas_set_layer(InkCanvas *canvas, size_t index) {
+  return Call([&] {
+    if (!canvas) return NullArgument("canvas");
+    if (!canvas->editor.SetActiveLayer(index)) return Fail(INK_ERROR_ARGUMENT, "cannot activate this layer during a stroke or drawing capture");
+    return INK_OK;
+  });
+}
+
+InkStatus ink_canvas_active_layer(InkCanvas *canvas, int32_t *index) {
+  return Call([&] {
+    if (!canvas || !index) return NullArgument("canvas or index");
+    *index = canvas->editor.ActiveLayer();
     return INK_OK;
   });
 }
@@ -943,15 +1008,19 @@ InkStatus ink_document_page_png(InkDocument *document, size_t index, int32_t wid
   });
 }
 
-InkStatus ink_export_pdf(InkDocument *document, const char *title,
-                         const InkPdfExportSpec *spec, const uint8_t **pdf, size_t *size) {
+static InkStatus ExportPdfSelection(InkDocument *document, const char *title,
+                         const InkPdfExportSpec *spec, const char *layers, const uint8_t **pdf, size_t *size) {
   return Call([&] {
     if (!document) return NullArgument("document");
     if (!title) return NullArgument("title");
     if (!spec || !pdf || !size) return NullArgument("spec, pdf or size");
     if (!*title) return Fail(INK_ERROR_ARGUMENT, "empty PDF title");
     if (spec->include_links) return Fail(INK_ERROR_ARGUMENT, "PDF link annotations are not supported");
-    const ink_engine::Document &current = document->history.current();
+    auto current = document->history.current();
+    if (layers) {
+      const auto ids = nlohmann::json::parse(layers).get<std::set<std::string>>();
+      for (auto &layer : current.notebook.layers) layer.hidden = !ids.contains(layer.id);
+    }
     if (!spec->page_count || spec->first_page >= current.pages.size() ||
         spec->page_count > current.pages.size() - spec->first_page) {
       return Fail(INK_ERROR_ARGUMENT, "PDF page range out of bounds");
@@ -964,7 +1033,7 @@ InkStatus ink_export_pdf(InkDocument *document, const char *title,
       }
     }
     if (!ink_engine::ExportPdf(current, document->assets, title, spec->first_page,
-                               spec->page_count, spec->include_hidden_layers != 0,
+                               spec->page_count, !layers && spec->include_hidden_layers != 0,
                                &document->pdf)) {
       return Fail(INK_ERROR_INTERNAL, "PDF export failed");
     }
@@ -972,6 +1041,17 @@ InkStatus ink_export_pdf(InkDocument *document, const char *title,
     *size = document->pdf.size();
     return INK_OK;
   });
+}
+
+InkStatus ink_export_pdf(InkDocument *document, const char *title,
+                         const InkPdfExportSpec *spec, const uint8_t **pdf, size_t *size) {
+  return ExportPdfSelection(document, title, spec, nullptr, pdf, size);
+}
+
+InkStatus ink_export_pdf_layers(InkDocument *document, const char *title,
+                         const InkPdfExportSpec *spec, const char *layers, const uint8_t **pdf, size_t *size) {
+  if (!layers) return NullArgument("layers");
+  return ExportPdfSelection(document, title, spec, layers, pdf, size);
 }
 
 // ---- Layout check --------------------------------------------------------

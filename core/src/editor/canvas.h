@@ -28,6 +28,7 @@ struct InkDocument {
   std::string png;
   // The last ink_export_pdf result.
   std::string pdf;
+  std::string layers_json;
 };
 
 struct InkCanvas {

@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:web/web.dart' as web;
 
 import 'host.dart' as native;
+import 'layers_sheet.dart';
 
 typedef NotebookViewport = ({double scale, double x, double y, double scroll});
 
@@ -75,6 +76,17 @@ class _NotebookState extends State<Notebook>
   static int nextView = 0;
 
   double get fit => width / widget.note.document.contentSize().width;
+  String get layerLabel {
+    final index = canvas?.activeLayer() ?? -1;
+    if (index < 0) return 'Choose a layer';
+    final layer = widget.note.document.layers().toDart[index];
+    return '${layer.name}${layer.hidden
+        ? " (hidden)"
+        : layer.locked
+        ? " (locked)"
+        : ""}';
+  }
+
   String get saveLabel => drawing
       ? 'Drawing in progress'
       : switch (widget.note.saver.state.status) {
@@ -618,6 +630,11 @@ class _NotebookState extends State<Notebook>
   }
 
   Future<void> exportPdf() async {
+    final layers = widget.note.document.layers().toDart;
+    final included = {
+      for (final layer in layers)
+        if (!layer.hidden) layer.id,
+    };
     final first = TextEditingController(text: '1');
     final last = TextEditingController(
       text: '${widget.note.document.pageCount()}',
@@ -652,6 +669,28 @@ class _NotebookState extends State<Notebook>
                   keyboardType: TextInputType.number,
                   onChanged: (_) => update(() {}),
                 ),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 240),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        for (final layer in layers)
+                          CupertinoListTile(
+                            title: Text(layer.name),
+                            trailing: CupertinoSwitch(
+                              value: included.contains(layer.id),
+                              onChanged: (value) => update(() {
+                                if (value)
+                                  included.add(layer.id);
+                                else
+                                  included.remove(layer.id);
+                              }),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
             actions: [
@@ -671,7 +710,12 @@ class _NotebookState extends State<Notebook>
     if (accepted == true) {
       await widget.note.saver.save().toDart;
       final from = int.parse(first.text) - 1;
-      native.host.exportPdf(widget.note, from, int.parse(last.text) - from);
+      native.host.exportPdf(
+        widget.note,
+        from,
+        int.parse(last.text) - from,
+        included.map((id) => id.toJS).toList().toJS,
+      );
     }
     first.dispose();
     last.dispose();
@@ -914,6 +958,20 @@ class _NotebookState extends State<Notebook>
                             onTap: drawing
                                 ? null
                                 : () => run(widget.onConflicts),
+                          ),
+                          CupertinoListTile(
+                            title: Text('Layers: $layerLabel'),
+                            leading: const Icon(CupertinoIcons.layers),
+                            onTap: drawing || canvas == null
+                                ? null
+                                : () => run(
+                                    () => manageLayers(
+                                      context,
+                                      widget.note.document,
+                                      canvas!,
+                                      edit,
+                                    ),
+                                  ),
                           ),
                           CupertinoListTile(
                             title: const Text('Paste'),

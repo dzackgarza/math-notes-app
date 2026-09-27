@@ -113,8 +113,8 @@ async function mountCanvas(note: OpenNotebook, element: HTMLCanvasElement): Prom
   return canvas;
 }
 
-function exportPdf(note: OpenNotebook, first: number, count: number): void {
-  const bytes = note.document.exportPdf(note.name, first, count);
+function exportPdf(note: OpenNotebook, first: number, count: number, layers: string[]): void {
+  const bytes = note.document.exportPdf(note.name, first, count, layers);
   const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
   const link = document.createElement("a");
   link.href = url;

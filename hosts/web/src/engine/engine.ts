@@ -75,6 +75,13 @@ export interface HistoryStep {
   page: number;
 }
 
+export interface Layer {
+  id: string;
+  name: string;
+  hidden: boolean;
+  locked: boolean;
+}
+
 export interface ToolSettings {
   brush: number;
   rgb: number;
@@ -459,7 +466,7 @@ export class InkDocument {
     });
   }
 
-  exportPdf(title: string, firstPage: number, pageCount: number): Uint8Array<ArrayBuffer> {
+  exportPdf(title: string, firstPage: number, pageCount: number, layers?: readonly string[]): Uint8Array<ArrayBuffer> {
     const e = this.engine;
     return e.withCString(title, (name) => e.withScratch(PDF_EXPORT_SPEC.byteLength + 8, (scratch) => {
       const view = e.view();
@@ -468,7 +475,10 @@ export class InkDocument {
       view.setUint32(scratch + PDF_EXPORT_SPEC.includeLinks, 0, true);
       view.setUint32(scratch + PDF_EXPORT_SPEC.includeHiddenLayers, 0, true);
       const out = scratch + PDF_EXPORT_SPEC.byteLength;
-      e.check(e.module._ink_export_pdf(this.pointer, name, scratch, out, out + 4));
+      if (layers) e.withCString(JSON.stringify(layers), (ids) => {
+        e.check(e.module._ink_export_pdf_layers(this.pointer, name, scratch, ids, out, out + 4));
+      });
+      else e.check(e.module._ink_export_pdf(this.pointer, name, scratch, out, out + 4));
       const result = e.view();
       const bytes = result.getUint32(out, true);
       const size = result.getUint32(out + 4, true);
@@ -477,6 +487,32 @@ export class InkDocument {
   }
 
   // Before page `index`; the page count appends.
+  layers(): Layer[] {
+    const e = this.engine;
+    return e.withScratch(4, (out) => {
+      e.check(e.module._ink_document_layers(this.pointer, out));
+      return JSON.parse(e.readCString(e.view().getUint32(out, true))) as Layer[];
+    });
+  }
+
+  addLayer(name: string): void {
+    const e = this.engine;
+    e.withCString(name, (text) => e.check(e.module._ink_document_add_layer(this.pointer, text)));
+  }
+
+  setLayer(index: number, name: string, hidden: boolean, locked: boolean): void {
+    const e = this.engine;
+    e.withCString(name, (text) => e.check(e.module._ink_document_set_layer(this.pointer, index, text, +hidden, +locked)));
+  }
+
+  moveLayer(from: number, to: number): void {
+    this.engine.check(this.engine.module._ink_document_move_layer(this.pointer, from, to));
+  }
+
+  removeLayer(index: number, mergeDown: boolean): void {
+    this.engine.check(this.engine.module._ink_document_remove_layer(this.pointer, index, +mergeDown));
+  }
+
   insertPage(index: number): void {
     this.engine.check(this.engine.module._ink_document_insert_page(this.pointer, index));
   }
@@ -635,7 +671,19 @@ export class Canvas {
     this.engine.check(this.engine.module._ink_canvas_set_selector(this.pointer, kind, active ? 1 : 0));
   }
 
-  beginFigure(page: number, layer = 0): void {
+  activeLayer(): number {
+    const e = this.engine;
+    return e.withScratch(4, (out) => {
+      e.check(e.module._ink_canvas_active_layer(this.pointer, out));
+      return e.view().getInt32(out, true);
+    });
+  }
+
+  setLayer(index: number): void {
+    this.engine.check(this.engine.module._ink_canvas_set_layer(this.pointer, index));
+  }
+
+  beginFigure(page: number, layer = this.activeLayer()): void {
     this.engine.check(this.engine.module._ink_canvas_figure_begin(this.pointer, page, layer));
   }
 

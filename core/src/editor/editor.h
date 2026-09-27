@@ -65,12 +65,16 @@ struct Selection {
 
 class Editor {
  public:
-  explicit Editor(DocumentHistory &history) : history_(&history) {}
+  explicit Editor(DocumentHistory &history) : history_(&history) {
+    if (!history.current().notebook.layers.empty()) active_layer_id_ = history.current().notebook.layers.front().id;
+  }
 
   // content -> view affine transform, SVG matrix order. Content coordinates
   // are those of the page layout (layout/layout.h).
   void SetView(const Transform &content_to_view) { view_ = content_to_view; }
   void SetPen(const Pen &pen) { pen_ = pen; }
+  bool SetActiveLayer(size_t index);
+  int ActiveLayer() const;
   // Added to host sample times (ms) to get UTC ms since the Unix epoch.
   void SetUtcOffset(double utc_minus_host_ms) { utc_offset_ms_ = utc_minus_host_ms; }
   // The eraser of the pen's eraser end and of the eraser tool; `active`: pen
@@ -261,6 +265,8 @@ class Editor {
   Pen pen_;
   double utc_offset_ms_ = 0;
   size_t page_ = 0, layer_ = 0;
+  std::string active_layer_id_;
+  bool ResolveActiveLayer();
   InkEraser eraser_kind_ = INK_ERASER_STROKE;
   bool eraser_active_ = false;
   InkSelector selector_kind_ = INK_SELECTOR_LASSO;

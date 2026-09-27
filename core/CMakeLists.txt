@@ -42,6 +42,7 @@ add_library(ink STATIC
   src/format/notebook.cpp
   src/format/pens.cpp
   src/document/pages.cpp
+  src/document/layers.cpp
   src/document/templates.cpp
   src/strokes/clip.cpp
   src/strokes/outline.cpp
@@ -85,8 +86,10 @@ if(EMSCRIPTEN)
     _ink_document_free _ink_document_content_size
     _ink_document_page_count _ink_document_insert_page _ink_document_delete_page _ink_import_page_image _ink_import_page_svg
     _ink_document_move_page _ink_document_set_page_size _ink_document_set_template
+    _ink_document_layers _ink_document_add_layer _ink_document_set_layer _ink_document_move_layer _ink_document_remove_layer
+    _ink_canvas_set_layer _ink_canvas_active_layer
     _ink_builtin_template_count _ink_builtin_template_name _ink_builtin_template_create
-    _ink_document_create_from_template _ink_export_pdf
+    _ink_document_create_from_template _ink_export_pdf _ink_export_pdf_layers
     _ink_canvas_create_webgl _ink_canvas_set_view _ink_canvas_set_surface_size
     _ink_pens_default _ink_pens_read _ink_pens_write
     _ink_canvas_set_tool _ink_canvas_figure_begin _ink_canvas_figure_scene _ink_canvas_figure_complete _ink_canvas_selected_figure

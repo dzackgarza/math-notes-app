@@ -85,6 +85,12 @@ InkStatus ink_document_free(InkDocument *document);
 
 /* Listed pages, in notebook.json order. Page indices below count these. */
 InkStatus ink_document_page_count(InkDocument *document, size_t *count);
+/* Notebook-wide layers, in drawing order. Metadata is returned as UTF-8 JSON. */
+InkStatus ink_document_layers(InkDocument *document, const char **json);
+InkStatus ink_document_add_layer(InkDocument *document, const char *name);
+InkStatus ink_document_set_layer(InkDocument *document, size_t index, const char *name, int hidden, int locked);
+InkStatus ink_document_move_layer(InkDocument *document, size_t from, size_t to);
+InkStatus ink_document_remove_layer(InkDocument *document, size_t index, int merge_down);
 /* A new page before page `index` (the count appends), in the notebook's page
    size, with the template's background. One history step each. */
 InkStatus ink_document_insert_page(InkDocument *document, size_t index);
@@ -212,6 +218,9 @@ InkStatus ink_canvas_set_view(InkCanvas *canvas, double a, double b, double c, d
 InkStatus ink_canvas_set_surface_size(InkCanvas *canvas, int32_t width, int32_t height,
                                       float pixel_ratio);
 InkStatus ink_canvas_set_tool(InkCanvas *canvas, const InkToolSettings *tool);
+InkStatus ink_canvas_set_layer(InkCanvas *canvas, size_t index);
+/* -1 means the active layer was removed and a new layer must be selected. */
+InkStatus ink_canvas_active_layer(InkCanvas *canvas, int32_t *index);
 /* Captures pen strokes on one page and layer as one editable TikZ figure.
    The scene is FreeTikZ scene JSON with the original ink samples. The host
    generates TikZ from that scene before completion. Returned bytes remain
@@ -339,6 +348,9 @@ typedef struct InkPdfExportSpec {
    export on this document or ink_document_free. */
 InkStatus ink_export_pdf(InkDocument *document, const char *title,
                          const InkPdfExportSpec *spec, const uint8_t **pdf, size_t *size);
+/* Export only the layer ids in the JSON array, independent of screen visibility. */
+InkStatus ink_export_pdf_layers(InkDocument *document, const char *title,
+                         const InkPdfExportSpec *spec, const char *layers, const uint8_t **pdf, size_t *size);
 
 /* ---- Layout check ----------------------------------------------------- */
 

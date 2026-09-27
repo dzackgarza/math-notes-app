@@ -102,7 +102,10 @@ double Editor::ViewScale() const { return std::sqrt(std::abs(view_.a * view_.d -
 const Selection *Editor::CurrentSelection() {
   if (!selection_) return nullptr;
   const Document &doc = document();
-  if (selection_->page < doc.pages.size() && &*doc.pages[selection_->page] == &*selection_->value) {
+  if (selection_->page < doc.pages.size() && &*doc.pages[selection_->page] == &*selection_->value &&
+      std::all_of(selection_->items.begin(), selection_->items.end(), [&](const ElementRef &item) {
+        return Selectable(doc, selection_->value->layers[item.layer]);
+      })) {
     return &*selection_;
   }
   selection_.reset();
@@ -397,6 +400,7 @@ std::string Editor::CopySelection(bool cut, const Assets &assets) {
 
 bool Editor::Paste(std::string_view svg, double x, double y, double view_width, double view_height,
                    Assets &assets, NotebookFiles &added) {
+  if (!ResolveActiveLayer()) return false;
   std::optional<Elements> pasted = ReadClipboard(svg);
   if (!pasted) return false;
   if (pasted->empty()) return true;
@@ -470,6 +474,7 @@ void Editor::DuplicateSelection(Assets &assets, NotebookFiles &added) {
 }
 
 bool Editor::InsertText(std::string_view utf8, double x, double y) {
+  if (!ResolveActiveLayer()) return false;
   if (utf8.empty()) return false;
   Document next = document();
   const std::vector<PagePlacement> layout = LayoutPages(next);
