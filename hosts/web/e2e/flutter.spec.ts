@@ -1,11 +1,20 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 import { execFileSync } from "node:child_process";
+
+// Flutter activates its text input channel after semantic focus is delivered.
+// Use actual keyboard input after clicking, rather than fill's synchronous DOM
+// value assignment. See Flutter web_ui semantics/text_field.dart, activate.
+async function enterText(field: Locator, value: string): Promise<void> {
+  await field.click();
+  await field.press("ControlOrMeta+a");
+  await field.pressSequentially(value);
+}
 
 test("Flutter adds a page only after a held edge pull and preserves keyboard history", async ({ page }) => {
   test.setTimeout(60_000);
   await page.goto("flutter/?root=opfs");
   await page.getByRole("button", { name: "New Note", exact: true }).click();
-  await page.getByRole("textbox", { name: "Title", exact: true }).fill("Navigation");
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Navigation");
   await page.getByRole("button", { name: "Create", exact: true }).click();
   const canvas = page.locator('canvas[id^="ink-canvas-"]');
   await canvas.waitFor();
@@ -50,22 +59,22 @@ test("Flutter creation resumes a draft and applies saved note settings", async (
   page.on("console", message => { if (message.type() === "error") console.error(message.text()); });
   await page.goto("flutter/?root=opfs");
   await page.getByRole("button", { name: "New Note", exact: true }).click();
-  await page.getByRole("textbox", { name: "Title", exact: true }).fill("Seminar");
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Seminar");
   await page.getByRole("button", { name: "Ruled", exact: true }).click();
-  await page.getByRole("textbox", { name: "Tags, separated by commas", exact: true }).fill("analysis");
+  await enterText(page.getByRole("textbox", { name: "Tags, separated by commas", exact: true }), "analysis");
   await page.getByRole("button", { name: "Letter", exact: true }).click();
   await page.getByRole("button", { name: "Save as Draft", exact: true }).click();
   await expect(page.getByRole("status", { name: "Draft saved", exact: true })).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: "New Note", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Title", exact: true })).toHaveValue("Seminar");
-  await page.getByRole("textbox", { name: "Settings name", exact: true }).fill("Proof paper");
+  await enterText(page.getByRole("textbox", { name: "Settings name", exact: true }), "Proof paper");
   await page.getByRole("button", { name: "Save as template", exact: true }).click();
   await expect(page.getByRole("status", { name: "Template saved", exact: true })).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: "New Note", exact: true }).click();
   await page.getByRole("button", { name: "Plain", exact: true }).click();
-  await page.getByRole("textbox", { name: "Tags, separated by commas", exact: true }).fill("temporary");
+  await enterText(page.getByRole("textbox", { name: "Tags, separated by commas", exact: true }), "temporary");
   await page.getByRole("button", { name: "Proof paper", exact: true }).click();
   await page.screenshot({ path: info.outputPath("settings-selected.png") });
   await page.getByRole("textbox", { name: "Tags, separated by commas", exact: true }).click();
@@ -86,7 +95,7 @@ test("Flutter creation resumes a draft and applies saved note settings", async (
 });
 
 test("Flutter notebook retains pen input and pages after save and reopen", async ({ page }, info) => {
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
   await page.goto("favicon.svg");
   await page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
@@ -94,7 +103,7 @@ test("Flutter notebook retains pen input and pages after save and reopen", async
   });
   await page.goto("flutter/?root=opfs");
   await page.getByRole("button", { name: "New Note", exact: true }).click();
-  await page.getByRole("textbox", { name: "Title" }).fill("Lecture");
+  await enterText(page.getByRole("textbox", { name: "Title" }), "Lecture");
   await page.getByRole("button", { name: "Create", exact: true }).click();
   const canvas = page.locator('canvas[id^="ink-canvas-"]');
   await expect(canvas).toBeVisible();
@@ -117,7 +126,7 @@ test("Flutter notebook retains pen input and pages after save and reopen", async
   expect(saved).toContain('<path id="s-');
   expect(saved).toContain("inkml:trace");
   await page.getByRole("button", { name: "Text", exact: true }).click();
-  await page.getByRole("textbox", { name: "Text", exact: true }).fill("Lemma\nEvery basis spans the space.");
+  await enterText(page.getByRole("textbox", { name: "Text", exact: true }), "Lemma\nEvery basis spans the space.");
   await page.getByRole("button", { name: "Done", exact: true }).click();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect.poll(() => page.evaluate(async () => {
@@ -145,7 +154,7 @@ test("Flutter notebook retains pen input and pages after save and reopen", async
   await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.getByRole("button", { name: "New Note", exact: true }).click();
-  await page.getByRole("textbox", { name: "Title" }).fill("Exercises");
+  await enterText(page.getByRole("textbox", { name: "Title" }), "Exercises");
   await page.getByRole("button", { name: "Create", exact: true }).click();
   await page.getByRole("button", { name: "Lecture", exact: true }).click();
   await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
