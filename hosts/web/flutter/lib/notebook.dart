@@ -24,6 +24,7 @@ class Notebook extends StatefulWidget {
     required this.note,
     required this.engine,
     required this.onLibrary,
+    required this.onConflicts,
     required this.active,
     required this.onCaptureChanged,
     required this.viewport,
@@ -32,6 +33,7 @@ class Notebook extends StatefulWidget {
   final native.OpenNote note;
   final native.Engine engine;
   final Future<void> Function() onLibrary;
+  final Future<void> Function() onConflicts;
   final bool active;
   final ValueChanged<bool> onCaptureChanged;
   final ValueNotifier<NotebookViewport?> viewport;
@@ -905,6 +907,13 @@ class _NotebookState extends State<Notebook>
                               CupertinoIcons.selection_pin_in_out,
                             ),
                             onTap: () => canvas?.selectAll(page),
+                          ),
+                          CupertinoListTile(
+                            title: const Text('Compare versions'),
+                            leading: const Icon(CupertinoIcons.doc_on_doc),
+                            onTap: drawing
+                                ? null
+                                : () => run(widget.onConflicts),
                           ),
                           CupertinoListTile(
                             title: const Text('Paste'),

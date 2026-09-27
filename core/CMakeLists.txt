@@ -83,7 +83,7 @@ if(EMSCRIPTEN)
     _ink_document_create _ink_document_load_notebook _ink_document_load_page
     _ink_document_load_asset _ink_document_asset _ink_document_dirty_files _ink_document_mark_saved
     _ink_document_free _ink_document_content_size
-    _ink_document_page_count _ink_document_insert_page _ink_document_delete_page _ink_import_page_image
+    _ink_document_page_count _ink_document_insert_page _ink_document_delete_page _ink_import_page_image _ink_import_page_svg
     _ink_document_move_page _ink_document_set_page_size _ink_document_set_template
     _ink_builtin_template_count _ink_builtin_template_name _ink_builtin_template_create
     _ink_document_create_from_template _ink_export_pdf

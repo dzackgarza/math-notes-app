@@ -79,6 +79,7 @@ export class Saver extends EventTarget {
   private readonly recoveryId: string;
   private readonly recoveryLocation: Promise<FileSystemDirectoryHandle | string[]>;
   private revision = 0;
+  private readonly conflictCopies = new Map<string, FileChange>();
   state: SaveState = { status: "saved" };
 
   constructor(document: InkDocument, dir: FileSystemDirectoryHandle, base: NotebookFile[], recovery?: Recovery) {
@@ -139,6 +140,17 @@ export class Saver extends EventTarget {
     return this.checkpointing;
   }
 
+  // Retire only the pending bytes included in an explicit comparison.
+  async resolved(path: string, original: Uint8Array, copy: Uint8Array): Promise<void> {
+    clearTimeout(this.timer);
+    await this.writing.catch(() => {});
+    const change = this.pending.get(path);
+    if (change?.kind === "write" && (sameBytes(change.bytes, original) || sameBytes(change.bytes, copy))) {
+      this.pending.delete(path);
+    }
+    await this.checkpoint();
+  }
+
   // Takes the dirty files and marks them saved in the same task, so no edit
   // falls between; a failed write keeps them pending for the next save.
   save(): Promise<void> {
@@ -153,12 +165,32 @@ export class Saver extends EventTarget {
         // Check bytes before replacement, including a retry after a partial
         // write. Chrome cannot make this check atomic with an external writer;
         // docs/FORMAT.md records that platform limit.
+        const conflicts: FileChange[] = [];
         for (const change of changes) {
           const current = await currentFile(this.dir, change.path);
           const target = change.kind === "write" ? change.bytes : undefined;
           if (!sameBytes(current, this.base.get(change.path)) && !sameBytes(current, target)) {
-            throw new Error(`External changes in ${change.path}. Pending edits are retained in browser storage. Resolve the conflict before saving.`);
+            conflicts.push(change);
           }
+        }
+        if (conflicts.length) {
+          const safe = changes.filter((change) => !conflicts.includes(change));
+          await writeFiles(this.dir, safe);
+          for (const change of safe) {
+            if (change.kind === "write") this.base.set(change.path, change.bytes);
+            else this.base.delete(change.path);
+            if (this.pending.get(change.path) === change) this.pending.delete(change.path);
+          }
+          for (const change of conflicts) {
+            if (change.kind !== "write" || this.conflictCopies.get(change.path) === change) continue;
+            const extension = change.path.lastIndexOf(".");
+            const stamp = new Date().toISOString().replaceAll(":", "");
+            const path = `${change.path.slice(0, extension)} (math-notes conflict ${stamp} ${crypto.randomUUID()})${change.path.slice(extension)}`;
+            await writeFiles(this.dir, [{ ...change, path }]);
+            this.conflictCopies.set(change.path, change);
+          }
+          await this.checkpoint();
+          throw new Error(`External changes in ${conflicts.map((change) => change.path).join(", ")}. Compare the conflict copies before saving.`);
         }
         await writeFiles(this.dir, changes);
       } catch (error) {
@@ -181,7 +213,8 @@ export class Saver extends EventTarget {
     };
     // A new save is an explicit retry after failure. Both promise outcomes
     // serialize it behind the previous attempt; its own failure still rejects.
-    this.writing = this.writing.then(writePending, writePending);
+    const coordinated = async () => { await navigator.locks.request("math-notes-files", writePending); };
+    this.writing = this.writing.then(coordinated, coordinated);
     return this.writing;
   }
 }

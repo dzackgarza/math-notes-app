@@ -91,6 +91,8 @@ InkStatus ink_document_insert_page(InkDocument *document, size_t index);
 /* Insert a PDF raster as a page background, retaining its dimensions in pt. */
 InkStatus ink_import_page_image(InkDocument *document, size_t index, const uint8_t *png,
                                 size_t size, double width_pt, double height_pt);
+/* Insert a copy of a page SVG using this notebook's assets and new element ids. */
+InkStatus ink_import_page_svg(InkDocument *document, size_t index, const uint8_t *svg, size_t size);
 /* Removes a page; ink_document_dirty_files then lists its file for deletion. */
 InkStatus ink_document_delete_page(InkDocument *document, size_t index);
 /* Moves page `from` to position `to`. Page files keep their names. */

@@ -23,6 +23,7 @@ extension type Note(JSObject value) implements JSObject {
   external String get name;
   external JSArray<JSString> get path;
   external double get modified;
+  external int get conflicts;
 }
 
 extension type Folder(JSObject value) implements JSObject {
@@ -156,6 +157,11 @@ extension type Saver(JSObject value) implements JSObject {
   external SaveState get state;
   external void schedule();
   external JSPromise<VoidResult> save();
+  external JSPromise<VoidResult> resolved(
+    String path,
+    JSUint8Array original,
+    JSUint8Array copy,
+  );
   external void addEventListener(String type, JSFunction listener);
   external void removeEventListener(String type, JSFunction listener);
 }
@@ -218,6 +224,7 @@ extension type Canvas(JSObject value) implements JSObject {
 }
 
 extension type OpenNote(JSObject value) implements JSObject {
+  external Directory get dir;
   external String get template;
   external set template(String value);
   external String get name;
@@ -227,7 +234,31 @@ extension type OpenNote(JSObject value) implements JSObject {
   external Saver get saver;
 }
 
+extension type NoteConflict(JSObject value) implements JSObject {
+  external JSUint8Array get originalBytes;
+  external JSUint8Array get copyBytes;
+  external String get original;
+  external String get copy;
+  external String get provider;
+  external bool get notebook;
+  external bool get page;
+  external JSUint8Array? get left;
+  external JSUint8Array? get right;
+  external String get leftSummary;
+  external String get rightSummary;
+}
+
 extension type Host(JSObject value) implements JSObject {
+  external JSPromise<JSArray<NoteConflict>> noteConflicts(
+    Engine engine,
+    Directory dir,
+  );
+  external JSPromise<VoidResult> resolveConflict(
+    Engine engine,
+    Directory dir,
+    NoteConflict conflict,
+    String choice,
+  );
   external JSPromise<VoidResult> applyTemplate(
     Directory root,
     Document document,

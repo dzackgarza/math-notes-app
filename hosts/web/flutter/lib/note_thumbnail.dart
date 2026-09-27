@@ -57,10 +57,23 @@ class _NoteThumbnailState extends State<NoteThumbnail> {
         return const Center(child: CupertinoActivityIndicator());
       final bytes = snapshot.data;
       if (bytes == null) return const Icon(CupertinoIcons.doc);
-      return Image.memory(
-        bytes,
-        fit: BoxFit.contain,
-        semanticLabel: '${widget.note.name} first page',
+      return Stack(
+        alignment: Alignment.topRight,
+        children: [
+          Image.memory(
+            bytes,
+            fit: BoxFit.contain,
+            semanticLabel: '${widget.note.name} first page',
+          ),
+          if (widget.note.conflicts > 0)
+            Semantics(
+              label: 'Conflicting versions',
+              child: const Icon(
+                CupertinoIcons.exclamationmark_triangle_fill,
+                color: CupertinoColors.systemOrange,
+              ),
+            ),
+        ],
       );
     },
   );

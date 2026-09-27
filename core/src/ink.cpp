@@ -277,6 +277,34 @@ InkStatus ink_document_insert_page(InkDocument *document, size_t index) {
   });
 }
 
+InkStatus ink_import_page_svg(InkDocument *document, size_t index, const uint8_t *svg, size_t size) {
+  return Call([&] {
+    if (!document || !svg) return NullArgument("document or svg");
+    auto &history = document->history;
+    auto next = history.current();
+    if (index > ink_engine::ListedPageCount(next)) return BadPageIndex();
+    std::vector<std::string> layers;
+    for (const auto &layer : next.notebook.layers) layers.push_back(layer.id);
+    auto page = ink_engine::ReadPage(Bytes(svg, size), ink_engine::NextPageFile(next), layers);
+    if (page.error) return Fail(INK_ERROR_PARSE, *page.error);
+    page.id = history.ids().PageId();
+    for (auto &layer : page.layers) {
+      ink_engine::Elements copied;
+      for (const auto &element : layer.elements) {
+        auto copy = ink_engine::InlineImages(*element, page.file, document->assets);
+        copy = ink_engine::WithNewIds(copy, history.ids());
+        copy = ink_engine::StoreImages(copy, page.file, document->assets, document->new_assets);
+        copied = copied.push_back(immer::box<ink_engine::Element>(std::move(copy)));
+      }
+      layer.elements = std::move(copied);
+    }
+    next.pages = next.pages.insert(index, immer::box<ink_engine::Page>(std::move(page)));
+    ++document->assets_version;
+    history.Push(std::move(next));
+    return INK_OK;
+  });
+}
+
 InkStatus ink_import_page_image(InkDocument *document, size_t index, const uint8_t *png,
                                 size_t size, double width_pt, double height_pt) {
   return Call([&] {

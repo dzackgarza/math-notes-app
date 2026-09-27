@@ -9,6 +9,7 @@ import 'host.dart' as native;
 import 'notebook.dart';
 import 'creation_sheet.dart';
 import 'note_thumbnail.dart';
+import 'conflict_sheet.dart';
 
 void main() {
   runApp(const MathNotes());
@@ -201,6 +202,9 @@ class _WorkspaceState extends State<Workspace> {
   native.NoteMetadata noteMetadata(native.Note note) =>
       library!.metadata.notes[native.pathKey(note.path)] ??
       native.host.emptyNote();
+
+  String noteTitle(native.Note note) =>
+      note.conflicts > 0 ? '⚠ ${note.name}' : note.name;
 
   void registerTags(native.LibraryMetadata metadata, JSArray<JSString> names) {
     final tags = metadata.tags.toDart.toList();
@@ -454,6 +458,11 @@ class _WorkspaceState extends State<Workspace> {
               child: const Text('Restore'),
             )
           else ...[
+            if (note.conflicts > 0)
+              CupertinoActionSheetAction(
+                onPressed: () => Navigator.pop(context, 'conflicts'),
+                child: const Text('Compare conflicting versions'),
+              ),
             CupertinoActionSheetAction(
               onPressed: () => Navigator.pop(context, 'favorite'),
               child: Text(
@@ -494,6 +503,9 @@ class _WorkspaceState extends State<Workspace> {
       await saveNoteMetadata(note, metadata);
     } else if (action == 'details') {
       await details(note);
+    } else if (action == 'conflicts') {
+      await open(note.path);
+      await reviewConflicts(active!);
     } else {
       await relocate(note.path, action);
     }
@@ -760,6 +772,50 @@ class _WorkspaceState extends State<Workspace> {
     }
     final note = await native.host.openNotebook(engine!, root!, path).toDart;
     setState(() => active = note);
+  }
+
+  Future<void> reviewConflicts(native.OpenNote note) async {
+    if (captures.isNotEmpty)
+      throw StateError('Complete the drawing before comparing versions.');
+    var conflicts =
+        (await native.host.noteConflicts(engine!, note.dir).toDart).toDart;
+    try {
+      await note.saver.save().toDart;
+    } catch (_) {
+      conflicts =
+          (await native.host.noteConflicts(engine!, note.dir).toDart).toDart;
+      if (conflicts.isEmpty) rethrow;
+    }
+    if (conflicts.isEmpty) return;
+    var changed = false;
+    while (conflicts.isNotEmpty && mounted) {
+      final conflict = conflicts.first;
+      final choice = await compareVersions(context, conflict);
+      if (choice == null) break;
+      await native.host
+          .resolveConflict(engine!, note.dir, conflict, choice)
+          .toDart;
+      await note.saver
+          .resolved(
+            conflict.original,
+            conflict.originalBytes,
+            conflict.copyBytes,
+          )
+          .toDart;
+      changed = true;
+      conflicts =
+          (await native.host.noteConflicts(engine!, note.dir).toDart).toDart;
+    }
+    if (!changed) return;
+    final path = note.path;
+    setState(() {
+      releaseNotes([note]);
+      opened.remove(note);
+      tab = opened.isEmpty ? 0 : tab.clamp(0, opened.length - 1);
+    });
+    await WidgetsBinding.instance.endOfFrame;
+    await open(path);
+    await refresh();
   }
 
   Future<void> importPdf() => run(() async {
@@ -1194,6 +1250,8 @@ class _WorkspaceState extends State<Workspace> {
                                         captures.remove(key);
                                     }),
                                     onLibrary: showLibrary,
+                                    onConflicts: () =>
+                                        run(() => reviewConflicts(opened[i])),
                                   ),
                                 ),
                               ),
@@ -1224,6 +1282,9 @@ class _WorkspaceState extends State<Workspace> {
                                     linked: linkedViews,
                                     active: !inLibrary && rightFocused,
                                     onLibrary: showLibrary,
+                                    onConflicts: () => run(
+                                      () => reviewConflicts(secondaryNote!),
+                                    ),
                                     onCaptureChanged: (value) => setState(() {
                                       if (value)
                                         captures.add(secondary!);
@@ -1290,7 +1351,7 @@ class _WorkspaceState extends State<Workspace> {
                             ),
                           ))
                             CupertinoListTile(
-                              title: Text(note.name),
+                              title: Text(noteTitle(note)),
                               leadingSize: 48,
                               leading: NoteThumbnail(
                                 engine: engine!,
@@ -1809,7 +1870,7 @@ class _WorkspaceState extends State<Workspace> {
                                                       : () => run(
                                                           () => open(item.path),
                                                         ),
-                                                  child: Text(item.name),
+                                                  child: Text(noteTitle(item)),
                                                 ),
                                                 subtitle: Text(
                                                   noteMetadata(item).tags.toDart

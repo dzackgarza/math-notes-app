@@ -495,6 +495,16 @@ export class InkDocument {
     }
   }
 
+  importPageSvg(index: number, svg: Uint8Array): void {
+    const e = this.engine;
+    const bytes = e.copyIn(svg);
+    try {
+      e.check(e.module._ink_import_page_svg(this.pointer, index, bytes, svg.length));
+    } finally {
+      e.free(bytes);
+    }
+  }
+
   movePage(from: number, to: number): void {
     this.engine.check(this.engine.module._ink_document_move_page(this.pointer, from, to));
   }

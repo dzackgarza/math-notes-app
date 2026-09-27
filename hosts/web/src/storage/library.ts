@@ -3,6 +3,8 @@
 // is a notebook directory (docs/FORMAT.md). Notes at the top level form the
 // "My Notes" group. Dot directories (.templates, .trash, ...) are not folders.
 
+import { conflictNames } from "./conflicts.ts";
+
 export interface Note {
   // Path segments from the root, the note's own directory last.
   path: string[];
@@ -10,6 +12,7 @@ export interface Note {
   template: string;
   // Latest lastModified of notebook.json and the page files, ms since epoch.
   modified: number;
+  conflicts: number;
 }
 
 export interface Folder {
@@ -41,7 +44,7 @@ async function fileIfPresent(dir: FileSystemDirectoryHandle, name: string): Prom
 }
 
 async function readNote(dir: FileSystemDirectoryHandle, path: string[], json: File): Promise<Note> {
-  const { template } = JSON.parse(await json.text()) as { template?: string };
+  const { template, pages } = JSON.parse(await json.text()) as { template?: string; pages: { file: string }[] };
   let modified = json.lastModified;
   try {
     for await (const [, handle] of (await dir.getDirectoryHandle("pages")).entries()) {
@@ -50,7 +53,8 @@ async function readNote(dir: FileSystemDirectoryHandle, path: string[], json: Fi
   } catch (e) {
     if (!(e instanceof DOMException && e.name === "NotFoundError")) throw e;
   }
-  return { path, name: path[path.length - 1], template: template ?? "blank", modified };
+  const conflicts = (await conflictNames(dir, pages)).length;
+  return { path, name: path[path.length - 1], template: template ?? "blank", modified, conflicts };
 }
 
 function folder(path: string[], notes: Note[]): Folder {
