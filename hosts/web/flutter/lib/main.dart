@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:js_interop';
-import 'dart:ui' show SemanticsRole;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/semantics.dart';
@@ -607,7 +606,7 @@ class _WorkspaceState extends State<Workspace> {
     return IndexedStack(
       index: active == null ? 0 : 1,
       children: [
-        buildLibrary(context),
+        ExcludeFocus(excluding: !inLibrary, child: buildLibrary(context)),
         Column(
           children: [
             SafeArea(
@@ -672,16 +671,19 @@ class _WorkspaceState extends State<Workspace> {
                     TickerMode(
                       key: ValueKey(native.pathKey(opened[i].path)),
                       enabled: !inLibrary && i == tab,
-                      child: Notebook(
-                        note: opened[i],
-                        engine: engine!,
-                        onLibrary: () => run(() async {
-                          for (final note in opened) {
-                            await note.saver.save().toDart;
-                          }
-                          await refresh();
-                          setState(() => inLibrary = true);
-                        }),
+                      child: ExcludeFocus(
+                        excluding: inLibrary || i != tab,
+                        child: Notebook(
+                          note: opened[i],
+                          engine: engine!,
+                          onLibrary: () => run(() async {
+                            for (final note in opened) {
+                              await note.saver.save().toDart;
+                            }
+                            await refresh();
+                            setState(() => inLibrary = true);
+                          }),
+                        ),
                       ),
                     ),
                 ],

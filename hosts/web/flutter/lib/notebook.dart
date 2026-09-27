@@ -44,6 +44,10 @@ class _NotebookState extends State<Notebook>
   double height = 1;
   double pixelRatio = 0;
   int page = 0;
+  final touches = <int>{};
+  Timer? pullTimer;
+  bool pullReady = false;
+  bool atEnd = false;
   static int nextView = 0;
 
   double get fit => width / widget.note.document.contentSize().width;
@@ -111,6 +115,7 @@ class _NotebookState extends State<Notebook>
     final matrix = transform.value;
     final scale = matrix.getMaxScaleOnAxis();
     final offset = scroll.hasClients ? scroll.offset : 0.0;
+    updatePull();
     final ratio = web.window.devicePixelRatio;
     final pixelsWide = (width * ratio).round();
     final pixelsHigh = (height * ratio).round();
@@ -140,6 +145,16 @@ class _NotebookState extends State<Notebook>
   }
 
   void input(PointerEvent event) {
+    if (event.kind == PointerDeviceKind.touch) {
+      if (event is PointerDownEvent) touches.add(event.pointer);
+      if (event is PointerUpEvent || event is PointerCancelEvent) {
+        final add = event is PointerUpEvent && touches.length == 1 && pullReady;
+        touches.remove(event.pointer);
+        cancelPull();
+        if (add) addPage();
+      }
+      updatePull();
+    }
     final target = canvas;
     if (target == null ||
         (event.kind != PointerDeviceKind.stylus &&
@@ -157,6 +172,52 @@ class _NotebookState extends State<Notebook>
       event.timeStamp.inMicroseconds.toDouble(),
     ))
       widget.note.saver.schedule();
+  }
+
+  void cancelPull() {
+    pullTimer?.cancel();
+    if (pullTimer != null || pullReady) {
+      setState(() {
+        pullTimer = null;
+        pullReady = false;
+      });
+    }
+  }
+
+  void updatePull() {
+    if (!scroll.hasClients) return;
+    final beyond = scroll.offset - scroll.position.maxScrollExtent;
+    final end = beyond >= -1;
+    if (atEnd != end) setState(() => atEnd = end);
+    if (touches.length != 1 || beyond < 96) {
+      cancelPull();
+      return;
+    }
+    if (pullTimer == null) {
+      setState(() {
+        pullTimer = Timer(const Duration(milliseconds: 350), () {
+          if (mounted) setState(() => pullReady = true);
+        });
+      });
+    }
+  }
+
+  void addPage() => edit(
+    () => widget.note.document.insertPage(widget.note.document.pageCount()),
+  );
+
+  void history(bool redo) {
+    final step = redo
+        ? widget.note.document.redo()
+        : widget.note.document.undo();
+    if (step == null) return;
+    widget.note.saver.schedule();
+    setState(
+      () => page = step.page.clamp(0, widget.note.document.pageCount() - 1),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) jump(page);
+    });
   }
 
   Future<void> textAt(Offset point) async {
@@ -409,6 +470,7 @@ class _NotebookState extends State<Notebook>
 
   @override
   void dispose() {
+    pullTimer?.cancel();
     ticker.dispose();
     widget.note.saver.removeEventListener('change', saveListener);
     scroll.dispose();
@@ -419,272 +481,332 @@ class _NotebookState extends State<Notebook>
   }
 
   @override
-  Widget build(BuildContext context) => CupertinoPageScaffold(
-    navigationBar: CupertinoNavigationBar(
-      leading: CupertinoButton(
-        padding: EdgeInsets.zero,
-        onPressed: () => run(widget.onLibrary),
-        child: const Text('Library'),
-      ),
-      middle: Text(widget.note.name),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CupertinoButton(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            onPressed: () => run(exportPdf),
-            child: const Text('Export PDF'),
+  Widget build(BuildContext context) => CallbackShortcuts(
+    bindings: {
+      const SingleActivator(LogicalKeyboardKey.keyS, control: true): () =>
+          run(() async {
+            await widget.note.saver.save().toDart;
+          }),
+      const SingleActivator(LogicalKeyboardKey.keyZ, control: true): () =>
+          history(false),
+      const SingleActivator(
+        LogicalKeyboardKey.keyZ,
+        control: true,
+        shift: true,
+      ): () =>
+          history(true),
+      const SingleActivator(LogicalKeyboardKey.keyY, control: true): () =>
+          history(true),
+      const SingleActivator(LogicalKeyboardKey.keyA, control: true): () =>
+          canvas?.selectAll(page),
+      const SingleActivator(LogicalKeyboardKey.keyC, control: true): () =>
+          run(() => copy(false)),
+      const SingleActivator(LogicalKeyboardKey.keyX, control: true): () =>
+          run(() => copy(true)),
+      const SingleActivator(LogicalKeyboardKey.keyV, control: true): () =>
+          run(paste),
+      const SingleActivator(LogicalKeyboardKey.escape): () =>
+          canvas?.clearSelection(),
+    },
+    child: Focus(
+      autofocus: true,
+      child: CupertinoPageScaffold(
+        navigationBar: CupertinoNavigationBar(
+          leading: CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed: () => run(widget.onLibrary),
+            child: const Text('Library'),
           ),
-          Semantics(
-            role: SemanticsRole.status,
-            liveRegion: true,
-            label: 'Notebook save',
-            child: Text(saveLabel),
-          ),
-          CupertinoButton(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            onPressed: () => run(() async {
-              await widget.note.saver.save().toDart;
-            }),
-            child: Text(
-              widget.note.saver.state.status == 'error' ? 'Retry save' : 'Save',
-            ),
-          ),
-        ],
-      ),
-    ),
-    child: SafeArea(
-      child: Column(
-        children: [
-          if (failure != null || widget.note.saver.state.message != null)
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Semantics(
+          middle: Text(widget.note.name),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CupertinoButton(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                onPressed: () => run(exportPdf),
+                child: const Text('Export PDF'),
+              ),
+              Semantics(
+                role: SemanticsRole.status,
                 liveRegion: true,
+                label: 'Notebook save',
+                child: Text(saveLabel),
+              ),
+              CupertinoButton(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                onPressed: () => run(() async {
+                  await widget.note.saver.save().toDart;
+                }),
                 child: Text(
-                  failure ?? widget.note.saver.state.message!,
-                  style: const TextStyle(color: CupertinoColors.destructiveRed),
+                  widget.note.saver.state.status == 'error'
+                      ? 'Retry save'
+                      : 'Save',
                 ),
               ),
-            ),
-          Expanded(
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 170,
-                  child: ListView(
-                    children: [
-                      for (var i = 0; i < pens.length; i++)
-                        CupertinoListTile(
-                          title: Text(pens[i].name),
-                          subtitle: Text(
-                            '${pens[i].tool.size.toStringAsFixed(1)} pt',
-                          ),
-                          leading: Icon(
-                            CupertinoIcons.pencil,
-                            color: Color(0xFF000000 | pens[i].tool.rgb),
-                          ),
-                          backgroundColor: tool == 'pen' && pen == i
-                              ? const Color(0xFFE3EBFC)
-                              : null,
-                          onTap: () {
-                            pen = i;
-                            chooseTool('pen');
-                          },
-                        ),
-                      CupertinoListTile(
-                        title: const Text('Pen settings'),
-                        leading: const Icon(CupertinoIcons.slider_horizontal_3),
-                        onTap: () => run(configurePen),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              if (failure != null || widget.note.saver.state.message != null)
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      failure ?? widget.note.saver.state.message!,
+                      style: const TextStyle(
+                        color: CupertinoColors.destructiveRed,
                       ),
-                      CupertinoListTile(
-                        title: const Text('Eraser'),
-                        leading: const Icon(CupertinoIcons.clear),
-                        onTap: () => chooseTool('eraser'),
-                      ),
-                      if (tool == 'eraser')
-                        Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: CupertinoSlidingSegmentedControl<int>(
-                            groupValue: eraser,
-                            children: const {
-                              0: Text('Stroke'),
-                              1: Text('Partial'),
-                            },
-                            onValueChanged: (value) {
-                              if (value == null) return;
-                              eraser = value;
-                              chooseTool('eraser');
-                            },
-                          ),
-                        ),
-                      CupertinoListTile(
-                        title: const Text('Lasso'),
-                        leading: const Icon(
-                          CupertinoIcons.selection_pin_in_out,
-                        ),
-                        onTap: () => chooseTool('lasso'),
-                      ),
-                      CupertinoListTile(
-                        title: const Text('Text'),
-                        leading: const Icon(CupertinoIcons.textformat),
-                        onTap: () {
-                          chooseTool('text');
-                          unawaited(textAt(Offset(width / 2, height / 2)));
-                        },
-                      ),
-                      CupertinoListTile(
-                        title: const Text('Image'),
-                        leading: const Icon(CupertinoIcons.photo),
-                        onTap: () => run(() async {
-                          final inserted = await native.host
-                              .insertImage(
-                                widget.note,
-                                canvas!,
-                                page,
-                                width / 2,
-                                height / 2,
-                              )
-                              .toDart;
-                          if (inserted.toDart) widget.note.saver.schedule();
-                        }),
-                      ),
-                      CupertinoListTile(
-                        title: const Text('Select page'),
-                        leading: const Icon(
-                          CupertinoIcons.selection_pin_in_out,
-                        ),
-                        onTap: () => canvas?.selectAll(page),
-                      ),
-                      CupertinoListTile(
-                        title: const Text('Paste'),
-                        leading: const Icon(CupertinoIcons.doc_on_clipboard),
-                        onTap: () => run(paste),
-                      ),
-                      if (selection != null) ...[
-                        CupertinoListTile(
-                          title: const Text('Copy'),
-                          onTap: () => run(() => copy(false)),
-                        ),
-                        CupertinoListTile(
-                          title: const Text('Cut'),
-                          onTap: () => run(() => copy(true)),
-                        ),
-                        CupertinoListTile(
-                          title: const Text('Duplicate'),
-                          onTap: () => edit(() => canvas!.duplicateSelection()),
-                        ),
-                        CupertinoListTile(
-                          title: const Text('Delete selection'),
-                          onTap: () => edit(() => canvas!.deleteSelection()),
-                        ),
-                        CupertinoListTile(
-                          title: const Text('Clear selection'),
-                          onTap: () => canvas!.clearSelection(),
-                        ),
-                      ],
-                    ],
+                    ),
                   ),
                 ),
-                Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      width = constraints.maxWidth;
-                      height = constraints.maxHeight;
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (mounted) updateView();
-                      });
-                      return ClipRect(
-                        child: Stack(
-                          children: [
-                            Positioned.fill(
-                              child: IgnorePointer(
-                                child: HtmlElementView(viewType: viewType),
+              Expanded(
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 170,
+                      child: ListView(
+                        children: [
+                          for (var i = 0; i < pens.length; i++)
+                            CupertinoListTile(
+                              title: Text(pens[i].name),
+                              subtitle: Text(
+                                '${pens[i].tool.size.toStringAsFixed(1)} pt',
+                              ),
+                              leading: Icon(
+                                CupertinoIcons.pencil,
+                                color: Color(0xFF000000 | pens[i].tool.rgb),
+                              ),
+                              backgroundColor: tool == 'pen' && pen == i
+                                  ? const Color(0xFFE3EBFC)
+                                  : null,
+                              onTap: () {
+                                pen = i;
+                                chooseTool('pen');
+                              },
+                            ),
+                          CupertinoListTile(
+                            title: const Text('Pen settings'),
+                            leading: const Icon(
+                              CupertinoIcons.slider_horizontal_3,
+                            ),
+                            onTap: () => run(configurePen),
+                          ),
+                          CupertinoListTile(
+                            title: const Text('Eraser'),
+                            leading: const Icon(CupertinoIcons.clear),
+                            onTap: () => chooseTool('eraser'),
+                          ),
+                          if (tool == 'eraser')
+                            Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: CupertinoSlidingSegmentedControl<int>(
+                                groupValue: eraser,
+                                children: const {
+                                  0: Text('Stroke'),
+                                  1: Text('Partial'),
+                                },
+                                onValueChanged: (value) {
+                                  if (value == null) return;
+                                  eraser = value;
+                                  chooseTool('eraser');
+                                },
                               ),
                             ),
-                            Positioned.fill(
-                              child: Listener(
-                                behavior: HitTestBehavior.opaque,
-                                onPointerDown: input,
-                                onPointerMove: input,
-                                onPointerUp: input,
-                                onPointerCancel: input,
-                                child: InteractiveViewer(
-                                  transformationController: transform,
-                                  minScale: 1,
-                                  maxScale: 5,
-                                  child: ScrollConfiguration(
-                                    behavior: const CupertinoScrollBehavior()
-                                        .copyWith(
-                                          dragDevices: {
-                                            PointerDeviceKind.touch,
-                                            PointerDeviceKind.trackpad,
-                                          },
+                          CupertinoListTile(
+                            title: const Text('Lasso'),
+                            leading: const Icon(
+                              CupertinoIcons.selection_pin_in_out,
+                            ),
+                            onTap: () => chooseTool('lasso'),
+                          ),
+                          CupertinoListTile(
+                            title: const Text('Text'),
+                            leading: const Icon(CupertinoIcons.textformat),
+                            onTap: () {
+                              chooseTool('text');
+                              unawaited(textAt(Offset(width / 2, height / 2)));
+                            },
+                          ),
+                          CupertinoListTile(
+                            title: const Text('Image'),
+                            leading: const Icon(CupertinoIcons.photo),
+                            onTap: () => run(() async {
+                              final inserted = await native.host
+                                  .insertImage(
+                                    widget.note,
+                                    canvas!,
+                                    page,
+                                    width / 2,
+                                    height / 2,
+                                  )
+                                  .toDart;
+                              if (inserted.toDart) widget.note.saver.schedule();
+                            }),
+                          ),
+                          CupertinoListTile(
+                            title: const Text('Select page'),
+                            leading: const Icon(
+                              CupertinoIcons.selection_pin_in_out,
+                            ),
+                            onTap: () => canvas?.selectAll(page),
+                          ),
+                          CupertinoListTile(
+                            title: const Text('Paste'),
+                            leading: const Icon(
+                              CupertinoIcons.doc_on_clipboard,
+                            ),
+                            onTap: () => run(paste),
+                          ),
+                          if (selection != null) ...[
+                            CupertinoListTile(
+                              title: const Text('Copy'),
+                              onTap: () => run(() => copy(false)),
+                            ),
+                            CupertinoListTile(
+                              title: const Text('Cut'),
+                              onTap: () => run(() => copy(true)),
+                            ),
+                            CupertinoListTile(
+                              title: const Text('Duplicate'),
+                              onTap: () =>
+                                  edit(() => canvas!.duplicateSelection()),
+                            ),
+                            CupertinoListTile(
+                              title: const Text('Delete selection'),
+                              onTap: () =>
+                                  edit(() => canvas!.deleteSelection()),
+                            ),
+                            CupertinoListTile(
+                              title: const Text('Clear selection'),
+                              onTap: () => canvas!.clearSelection(),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          width = constraints.maxWidth;
+                          height = constraints.maxHeight;
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted) updateView();
+                          });
+                          return ClipRect(
+                            child: Stack(
+                              children: [
+                                Positioned.fill(
+                                  child: IgnorePointer(
+                                    child: HtmlElementView(viewType: viewType),
+                                  ),
+                                ),
+                                Positioned.fill(
+                                  child: Listener(
+                                    behavior: HitTestBehavior.opaque,
+                                    onPointerDown: input,
+                                    onPointerMove: input,
+                                    onPointerUp: input,
+                                    onPointerCancel: input,
+                                    child: InteractiveViewer(
+                                      transformationController: transform,
+                                      minScale: 1,
+                                      maxScale: 5,
+                                      child: ScrollConfiguration(
+                                        behavior:
+                                            const CupertinoScrollBehavior()
+                                                .copyWith(
+                                                  dragDevices: {
+                                                    PointerDeviceKind.touch,
+                                                    PointerDeviceKind.trackpad,
+                                                  },
+                                                ),
+                                        child: SingleChildScrollView(
+                                          controller: scroll,
+                                          physics: const BouncingScrollPhysics(
+                                            parent:
+                                                AlwaysScrollableScrollPhysics(),
+                                          ),
+                                          child: SizedBox(
+                                            width: width,
+                                            height:
+                                                widget.note.document
+                                                    .contentSize()
+                                                    .height *
+                                                fit,
+                                          ),
                                         ),
-                                    child: SingleChildScrollView(
-                                      controller: scroll,
-                                      physics: const BouncingScrollPhysics(
-                                        parent: AlwaysScrollableScrollPhysics(),
-                                      ),
-                                      child: SizedBox(
-                                        width: width,
-                                        height:
-                                            widget.note.document
-                                                .contentSize()
-                                                .height *
-                                            fit,
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
+                                if (atEnd)
+                                  Positioned(
+                                    bottom: 12,
+                                    left: 0,
+                                    right: 0,
+                                    child: IgnorePointer(
+                                      child: Center(
+                                        child: Semantics(
+                                          container: true,
+                                          child: Text(
+                                            pullReady
+                                                ? 'Release to add a page'
+                                                : pullTimer != null
+                                                ? 'Hold to add a page'
+                                                : 'Pull and hold to add a page',
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-          Row(
-            children: [
-              CupertinoButton(
-                onPressed: () => edit(
-                  () => widget.note.document.insertPage(
-                    widget.note.document.pageCount(),
+              ),
+              Row(
+                children: [
+                  CupertinoButton(
+                    onPressed: addPage,
+                    child: const Text('Add page'),
                   ),
-                ),
-                child: const Text('Add page'),
-              ),
-              CupertinoButton(
-                onPressed: () => edit(() {
-                  widget.note.document.undo();
-                }),
-                child: const Text('Undo'),
-              ),
-              CupertinoButton(
-                onPressed: () => edit(() {
-                  widget.note.document.redo();
-                }),
-                child: const Text('Redo'),
-              ),
-              const Spacer(),
-              CupertinoButton(
-                onPressed: page > 0 ? () => jump(page - 1) : null,
-                child: const Text('Previous'),
-              ),
-              Text('${page + 1} / ${widget.note.document.pageCount()}'),
-              CupertinoButton(
-                onPressed: page + 1 < widget.note.document.pageCount()
-                    ? () => jump(page + 1)
-                    : null,
-                child: const Text('Next'),
+                  CupertinoButton(
+                    onPressed: () => history(false),
+                    child: const Text('Undo'),
+                  ),
+                  CupertinoButton(
+                    onPressed: () => history(true),
+                    child: const Text('Redo'),
+                  ),
+                  const Spacer(),
+                  CupertinoButton(
+                    onPressed: page > 0 ? () => jump(page - 1) : null,
+                    child: const Text('Previous'),
+                  ),
+                  Semantics(
+                    container: true,
+                    child: Text(
+                      '${page + 1} / ${widget.note.document.pageCount()}',
+                    ),
+                  ),
+                  CupertinoButton(
+                    onPressed: page + 1 < widget.note.document.pageCount()
+                        ? () => jump(page + 1)
+                        : null,
+                    child: const Text('Next'),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
+        ),
       ),
     ),
   );
