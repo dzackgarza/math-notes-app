@@ -60,15 +60,17 @@ class _WorkspaceState extends State<Workspace> {
   }
 
   final search = TextEditingController();
+  final detailSearch = TextEditingController();
+  String detailTab = 'notes';
   JSArray<JSString> folder = <JSString>[].toJS;
   bool reconnect = false;
   bool busy = true;
   String? failure;
   String? confirmation;
-  String section = 'folder';
+  String section = 'library';
   String sort = 'name';
   String? selectedTag;
-  bool grid = false;
+  bool grid = true;
 
   @override
   void initState() {
@@ -281,15 +283,15 @@ class _WorkspaceState extends State<Workspace> {
     tags.dispose();
   }
 
-  Future<void> relocate(native.Note note, String action) async {
-    var name = note.name;
-    var parent = note.path.toDart.sublist(0, note.path.length - 1).toJS;
+  Future<void> relocate(JSArray<JSString> path, String action) async {
+    var name = path.toDart.last.toDart;
+    var parent = path.toDart.sublist(0, path.length - 1).toJS;
     if (action == 'rename') {
       final controller = TextEditingController(text: name);
       final accepted = await showCupertinoDialog<bool>(
         context: context,
         builder: (context) => CupertinoAlertDialog(
-          title: const Text('Rename note'),
+          title: const Text('Rename'),
           content: CupertinoTextField(
             controller: controller,
             placeholder: 'Name',
@@ -332,23 +334,34 @@ class _WorkspaceState extends State<Workspace> {
       if (target == null) return;
       parent = target.path;
     }
-    final index = opened.indexWhere(
-      (item) => native.pathKey(item.path) == native.pathKey(note.path),
-    );
-    if (index >= 0) {
-      await opened[index].saver.save().toDart;
-      setState(() {
-        opened.removeAt(index);
-        tab = opened.isEmpty ? 0 : tab.clamp(0, opened.length - 1);
-      });
+    final prefix = native.pathKey(path);
+    final affected = opened
+        .where(
+          (item) =>
+              native.pathKey(item.path) == prefix ||
+              native.pathKey(item.path).startsWith('$prefix/'),
+        )
+        .toList();
+    for (final item in affected) {
+      await item.saver.save().toDart;
     }
+    setState(() {
+      opened.removeWhere((item) => affected.contains(item));
+      tab = opened.isEmpty ? 0 : tab.clamp(0, opened.length - 1);
+    });
     final to = action == 'trash'
-        ? await native.host.moveToTrash(root!, note.path).toDart
-        : await native.host.moveEntry(root!, note.path, parent, name).toDart;
+        ? await native.host.moveToTrash(root!, path).toDart
+        : await native.host.moveEntry(root!, path, parent, name).toDart;
     final metadata = await native.host.readMetadata(root!).toDart;
     await native.host
-        .writeMetadata(root!, native.host.moveNotes(metadata, note.path, to))
+        .writeMetadata(root!, native.host.moveNotes(metadata, path, to))
         .toDart;
+    if (native.pathKey(folder) == prefix ||
+        native.pathKey(folder).startsWith('$prefix/')) {
+      folder = action == 'trash'
+          ? <JSString>[].toJS
+          : [...to.toDart, ...folder.toDart.skip(path.length)].toJS;
+    }
     await refresh();
   }
 
@@ -405,8 +418,253 @@ class _WorkspaceState extends State<Workspace> {
     } else if (action == 'details') {
       await details(note);
     } else {
-      await relocate(note, action);
+      await relocate(note.path, action);
     }
+  }
+
+  Future<void> folderDetails(native.Folder item) async {
+    final key = native.pathKey(item.path);
+    final values = library!.metadata.folders[key] ?? native.host.emptyFolder();
+    final description = TextEditingController(text: values.description);
+    final tags = TextEditingController(
+      text: values.tags.toDart.map((tag) => tag.toDart).join(', '),
+    );
+    var paper = values.paper;
+    final accepted = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, update) => CupertinoAlertDialog(
+          title: Text('${item.name} details'),
+          content: Column(
+            children: [
+              const SizedBox(height: 16),
+              CupertinoTextField(
+                controller: description,
+                placeholder: 'Description',
+                minLines: 2,
+                maxLines: 5,
+                maxLength: 500,
+              ),
+              const SizedBox(height: 12),
+              CupertinoTextField(
+                controller: tags,
+                placeholder: 'Tags, separated by commas',
+              ),
+              const SizedBox(height: 12),
+              CupertinoSlidingSegmentedControl<String>(
+                groupValue: paper,
+                children: const {
+                  'blank': Text('Plain'),
+                  'dotted': Text('Dot'),
+                  'grid-medium': Text('Grid'),
+                  'lined-medium': Text('Ruled'),
+                },
+                onValueChanged: (value) {
+                  if (value != null) update(() => paper = value);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            CupertinoDialogAction(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Save details'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (accepted == true) {
+      values.description = description.text;
+      values.paper = paper;
+      values.tags = tags.text
+          .split(',')
+          .map((tag) => tag.trim())
+          .where((tag) => tag.isNotEmpty)
+          .toSet()
+          .map((tag) => tag.toJS)
+          .toList()
+          .toJS;
+      final metadata = await native.host.readMetadata(root!).toDart;
+      metadata.folders[key] = values;
+      registerTags(metadata, values.tags);
+      await native.host.writeMetadata(root!, metadata).toDart;
+      await refresh();
+    }
+    description.dispose();
+    tags.dispose();
+  }
+
+  Future<void> folderActions(native.Folder item) async {
+    final action = await showCupertinoModalPopup<String>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: Text(item.name),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () => Navigator.pop(context, 'details'),
+            child: const Text('Details and tags'),
+          ),
+          if (item.path.length > 0) ...[
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(context, 'rename'),
+              child: const Text('Rename'),
+            ),
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(context, 'move'),
+              child: const Text('Move'),
+            ),
+            CupertinoActionSheetAction(
+              isDestructiveAction: true,
+              onPressed: () => Navigator.pop(context, 'trash'),
+              child: const Text('Move to trash'),
+            ),
+          ],
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+    if (action == null) return;
+    if (action == 'details')
+      await folderDetails(item);
+    else
+      await relocate(item.path, action);
+  }
+
+  Widget folderCover(native.Folder item) {
+    final first = item.notes.toDart.firstOrNull;
+    if (first != null)
+      return NoteThumbnail(engine: engine!, root: root!, note: first);
+    final metadata =
+        library!.metadata.folders[native.pathKey(item.path)] ??
+        native.host.emptyFolder();
+    return PaperPreview(
+      engine: engine!,
+      root: root!,
+      paper: metadata.paper,
+      size: 'a4',
+    );
+  }
+
+  String modifiedLabel(double milliseconds) => milliseconds == 0
+      ? 'Empty notebook'
+      : 'Modified ${DateTime.fromMillisecondsSinceEpoch(milliseconds.toInt()).toLocal().toString().split('.').first}';
+
+  Widget folderPane(native.Folder item) {
+    final metadata =
+        library!.metadata.folders[native.pathKey(item.path)] ??
+        native.host.emptyFolder();
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(height: 140, child: folderCover(item)),
+          const SizedBox(height: 12),
+          Text(
+            item.name,
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+          ),
+          Text('${item.notes.length} notes'),
+          Text(
+            modifiedLabel(item.modified),
+            style: const TextStyle(
+              fontSize: 12,
+              color: CupertinoColors.secondaryLabel,
+            ),
+          ),
+          CupertinoButton(
+            onPressed: () => run(() => folderDetails(item)),
+            child: Text(
+              metadata.tags.toDart.isEmpty
+                  ? 'Add tags'
+                  : metadata.tags.toDart.map((tag) => tag.toDart).join(' · '),
+            ),
+          ),
+          CupertinoSlidingSegmentedControl<String>(
+            groupValue: detailTab,
+            children: const {'notes': Text('Notes'), 'info': Text('Info')},
+            onValueChanged: (value) {
+              if (value != null) setState(() => detailTab = value);
+            },
+          ),
+          const SizedBox(height: 12),
+          if (detailTab == 'info')
+            Expanded(
+              child: ListView(
+                children: [
+                  Text(
+                    metadata.description.isEmpty
+                        ? 'Add a notebook description.'
+                        : metadata.description,
+                  ),
+                  const SizedBox(height: 12),
+                  Text('Paper: ${metadata.paper}'),
+                  Text(
+                    'Location: ${native.pathKey(item.path).isEmpty ? 'My Notes' : native.pathKey(item.path)}',
+                  ),
+                  CupertinoButton(
+                    onPressed: () => run(() => folderDetails(item)),
+                    child: const Text('Edit notebook details'),
+                  ),
+                ],
+              ),
+            )
+          else ...[
+            CupertinoSearchTextField(
+              controller: detailSearch,
+              placeholder: 'Search this notebook',
+              onChanged: (_) => setState(() {}),
+            ),
+            Expanded(
+              child: ListView(
+                children: [
+                  for (final note in item.notes.toDart.where(
+                    (note) => note.name.toLowerCase().contains(
+                      detailSearch.text.toLowerCase(),
+                    ),
+                  ))
+                    CupertinoListTile(
+                      title: CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        alignment: Alignment.centerLeft,
+                        onPressed: () => run(() => open(note.path)),
+                        child: Text(note.name),
+                      ),
+                      subtitle: Text(noteMetadata(note).description),
+                      leadingSize: 48,
+                      leading: NoteThumbnail(
+                        engine: engine!,
+                        root: root!,
+                        note: note,
+                      ),
+                      trailing: CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        onPressed: () => run(() => noteActions(note)),
+                        child: Semantics(
+                          label: '${note.name} actions',
+                          child: const Icon(CupertinoIcons.ellipsis),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+          CupertinoButton.filled(
+            onPressed: () => create(false),
+            child: Text('New Note in ${item.name}'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> open(JSArray<JSString> path) async {
@@ -448,7 +706,7 @@ class _WorkspaceState extends State<Workspace> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, update) => CreationSheet(
-          title: Text(isFolder ? 'New Notebook' : 'New Note'),
+          title: isFolder ? 'New Notebook' : 'New Note',
           preview: PaperPreview(
             engine: engine!,
             root: root!,
@@ -691,6 +949,7 @@ class _WorkspaceState extends State<Workspace> {
   @override
   void dispose() {
     search.dispose();
+    detailSearch.dispose();
     super.dispose();
   }
 
@@ -1120,7 +1379,133 @@ class _WorkspaceState extends State<Workspace> {
                                 ),
                                 const SizedBox(height: 16),
                                 Expanded(
-                                  child: grid
+                                  child: section == 'library'
+                                      ? GridView.extent(
+                                          maxCrossAxisExtent: grid ? 260 : 1000,
+                                          mainAxisSpacing: 16,
+                                          crossAxisSpacing: 16,
+                                          childAspectRatio: grid ? 0.65 : 3,
+                                          children: [
+                                            for (final item
+                                                in library!.folders.toDart
+                                                    .where(
+                                                      (item) => item.name
+                                                          .toLowerCase()
+                                                          .contains(
+                                                            search.text
+                                                                .toLowerCase(),
+                                                          ),
+                                                    )
+                                                    .toList()
+                                                  ..sort(
+                                                    (a, b) => sort == 'modified'
+                                                        ? b.modified.compareTo(
+                                                            a.modified,
+                                                          )
+                                                        : a.name.compareTo(
+                                                            b.name,
+                                                          ),
+                                                  ))
+                                              DecoratedBox(
+                                                decoration: BoxDecoration(
+                                                  color: CupertinoColors.white,
+                                                  border: Border.all(
+                                                    color:
+                                                        native.pathKey(
+                                                              item.path,
+                                                            ) ==
+                                                            native.pathKey(
+                                                              folder,
+                                                            )
+                                                        ? CupertinoTheme.of(
+                                                            context,
+                                                          ).primaryColor
+                                                        : CupertinoColors
+                                                              .separator,
+                                                    width: 2,
+                                                  ),
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                                child: Column(
+                                                  children: [
+                                                    Expanded(
+                                                      child: CupertinoButton(
+                                                        onPressed: () => setState(() {
+                                                          folder = item.path;
+                                                          detailSearch.clear();
+                                                          if (MediaQuery.sizeOf(
+                                                                context,
+                                                              ).width <
+                                                              1000)
+                                                            section = 'folder';
+                                                        }),
+                                                        child: Semantics(
+                                                          label:
+                                                              'Select ${item.name}',
+                                                          excludeSemantics:
+                                                              true,
+                                                          child: folderCover(
+                                                            item,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    Row(
+                                                      children: [
+                                                        Expanded(
+                                                          child: Padding(
+                                                            padding:
+                                                                const EdgeInsets.only(
+                                                                  left: 12,
+                                                                ),
+                                                            child: Text(
+                                                              item.name,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        CupertinoButton(
+                                                          onPressed: () => run(
+                                                            () => folderActions(
+                                                              item,
+                                                            ),
+                                                          ),
+                                                          child: Semantics(
+                                                            label:
+                                                                '${item.name} notebook actions',
+                                                            child: const Icon(
+                                                              CupertinoIcons
+                                                                  .ellipsis,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    Text(
+                                                      '${item.notes.length} notes',
+                                                    ),
+                                                    Padding(
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                            8,
+                                                          ),
+                                                      child: Text(
+                                                        modifiedLabel(
+                                                          item.modified,
+                                                        ),
+                                                        style: const TextStyle(
+                                                          fontSize: 12,
+                                                          color: CupertinoColors
+                                                              .secondaryLabel,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                          ],
+                                        )
+                                      : grid
                                       ? GridView.extent(
                                           maxCrossAxisExtent: 260,
                                           mainAxisSpacing: 16,
@@ -1255,6 +1640,10 @@ class _WorkspaceState extends State<Workspace> {
                             ),
                           ),
                         ),
+                        if (section == 'library' &&
+                            selected != null &&
+                            MediaQuery.sizeOf(context).width >= 1000)
+                          SizedBox(width: 300, child: folderPane(selected)),
                       ],
                     )
                   : Center(

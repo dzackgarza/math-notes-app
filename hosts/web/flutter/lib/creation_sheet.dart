@@ -1,5 +1,6 @@
 import 'dart:js_interop';
 import 'dart:typed_data';
+import 'dart:ui' show SemanticsRole;
 
 import 'package:flutter/cupertino.dart';
 
@@ -14,7 +15,7 @@ class CreationSheet extends StatelessWidget {
     required this.actions,
   });
 
-  final Widget title;
+  final String title;
   final Widget content;
   final Widget preview;
   final List<Widget> actions;
@@ -26,7 +27,13 @@ class CreationSheet extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 900, maxHeight: 800),
-          child: CupertinoPopupSurface(
+          child: Semantics(
+            role: SemanticsRole.dialog,
+            scopesRoute: true,
+            namesRoute: true,
+            explicitChildNodes: true,
+            label: title,
+            child: CupertinoPopupSurface(
             child: Column(
               children: [
                 Padding(
@@ -37,7 +44,7 @@ class CreationSheet extends StatelessWidget {
                       style: CupertinoTheme.of(context)
                           .textTheme
                           .navTitleTextStyle,
-                      child: title,
+                      child: Text(title),
                     ),
                   ),
                 ),
@@ -82,7 +89,7 @@ class CreationSheet extends StatelessWidget {
                 ),
               ],
             ),
-          ),
+          )),
         ),
       ),
     ),
