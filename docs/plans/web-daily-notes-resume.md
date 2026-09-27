@@ -38,10 +38,18 @@ The compiler service is stopped. Generated inputs remain under
 
 ## Resume the corrected figure workflow
 
-Implement the interpreted-drawing-to-source path and a clear Copy TikZ
+The governing [product boundary](../../AGENTS.md#product-boundary-handwritten-drafts)
+is permanent. Notes are handwritten drafts. Extract diagram geometry as a
+TikZ skeleton for external refinement. Handwritten text, formulas, and labels
+remain ink. LaTeX notebook export/rendering, handwriting recognition, LaTeX
+labels, and in-app paper typesetting are outside scope at every milestone.
+
+Implement diagram-skeleton extraction and a clear Copy TikZ
 action. Preserve notebook ink and saved source. Remove the compiler,
 preamble, and compiled-page-view integration added for the superseded
-typesetting workflow, including its build and cache dependencies. Existing
+typesetting workflow, including its build and cache dependencies. Align the
+embedded controls with the same boundary; LaTeX label tools must not become
+notebook features merely because the dependency provides them. Existing
 figure capture, source editing, and durable storage remain useful.
 
 The primary deployment transition still remains. `just web-deploy` can
@@ -81,9 +89,9 @@ still the capture geometry; it is not a complete semantic mapping of edits.
 
 ### Figures: issue #10
 
-- Connect captured drawing interpretation to editable TikZ source.
+- Connect captured diagram geometry to a reusable TikZ skeleton.
 - Provide selection and Copy TikZ, preserving source through save and reopen.
-- Demonstrate copied source in a separate typeset document.
+- Demonstrate copying the skeleton into an external figure-editing workflow.
 - Complete the compiler integration removal described above.
 
 ### Durability, conflicts, and transfers

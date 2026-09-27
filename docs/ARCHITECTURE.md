@@ -191,7 +191,7 @@ call site already uses them. Source evidence and exact pins are in
 | Ink editing | Google Ink owns brush and stroke geometry. The current engine owns document edits, selection, erasure, and notebook mapping. #30 and #31 add ruled tools and reflow at this boundary, using the [Write assessment](ink-reflow-owners.md) as reference evidence. |
 | Persistence and offline lifecycle | File System Access, IndexedDB/idb-keyval, and Apple file coordination own storage mechanisms. #56 integrates offline asset caching and updates with the Flutter web build. The notebook-format and save-transaction adapters retain interruption and conflict behavior. |
 | Source syntax and graphics | pugixml 1.16 maps page SVG and InkML/namespaced metadata; nlohmann-json at vcpkg baseline `10541e31` owns notebook JSON syntax. Skia renders the current document. `@tikz-editor/core` owns TikZ syntax and source patches. The adapter maps documented fields and preserves authored source. |
-| Mathematical figures | The [TikZ mode contract](specs/tikz-drawing-mode.md) connects captured ink to an interpreted diagram and editable TikZ source. FreeTikZ owns capture, TikZ Editor owns supported source editing, and the app owns persistence and Copy TikZ. |
+| Mathematical figures | The [TikZ mode contract](specs/tikz-drawing-mode.md) extracts a geometric TikZ skeleton for external figure refinement. The [permanent product boundary](../AGENTS.md#product-boundary-handwritten-drafts) keeps handwriting as ink and typesetting in external tools. FreeTikZ owns capture, TikZ Editor supplies supported geometry/source operations, and the app owns persistence and Copy TikZ. |
 
 ### Ink reflow owner survey
 

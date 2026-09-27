@@ -2,6 +2,27 @@
 
 Read README.md (pipeline, layout) and TRAPS.md (known failures) first.
 
+## Product boundary: handwritten drafts
+
+Math Notes preserves rough handwritten work. Paper preparation and final
+figure typesetting take place in external authoring tools.
+
+- Never infer a requirement to export a notebook as LaTeX or to render its
+  pages through LaTeX. Notebook export reproduces the visible ink and content.
+- Never infer handwriting recognition, OCR, formula recognition, or conversion
+  of written labels into text or TeX. Handwritten words and symbols remain ink.
+- Never add LaTeX label entry, paper preambles, or publication typesetting to
+  the notebook workflow.
+- TikZ mode has one bounded purpose: extract reusable diagram structure from
+  an explicitly captured doodle as a TikZ skeleton. The user selects it and
+  copies the code into an external paper workflow or figure editor for refinement.
+- Diagram geometry interpretation does not authorize interpretation of
+  handwriting. Ink reflow concerns spatial layout, not textual meaning.
+
+These are permanent product boundaries, not features deferred beyond v1.
+Dependency capabilities and agent-written surveys cannot expand them. Read
+the [TikZ contract](docs/specs/tikz-drawing-mode.md) before figure work.
+
 Work plan: the GitHub issue tree rooted at #11, one milestone per sub-issue. `uvx --from git+https://github.com/dzackgarza/itree itree next dzackgarza/math-notes-app` names the next work unit in tree order.
 
 Implementation ownership: read [docs/ARCHITECTURE.md#component-ownership](docs/ARCHITECTURE.md#component-ownership) before changing a plan or implementation. Standard application behavior belongs to a mature framework or platform API, including scroll physics and edge motion; a missing standard detail is evidence to check the owner, not a custom feature request. Writing and editing notebook ink are reasonable app responsibilities. For a new domain capability, first seek a dependency that owns the whole problem, then a reference implementation. Only necessary residue with neither may use new ungrounded code. A new subsystem or expanded core boundary needs a linked decision with actual dependency searches, candidate evidence, the exact integration gap, and explicit user approval. Evaluate complete frameworks, SDKs, and forks, including large dependencies. An existing working domain capability does not require replacement merely because a broader dependency exists.

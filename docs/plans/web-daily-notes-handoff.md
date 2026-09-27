@@ -17,6 +17,11 @@ readable PDF. Complete every specified web workflow in FEATURES.md and the
 tablet interface. A rendered control or a successful engine call alone does
 not satisfy this milestone.
 
+The [handwritten-draft boundary](../../AGENTS.md#product-boundary-handwritten-drafts)
+governs every phase. TikZ mode extracts a geometric skeleton for external
+refinement. LaTeX notebook rendering/export, handwriting recognition, and
+LaTeX labels are excluded permanently, not postponed to another milestone.
+
 This is web v1 across the web obligations in #14, #15, and #17. #56 is the
 first integration checkpoint, not the whole daily-use milestone. Native
 acceptance remains with the iPad work; a web result cannot close a parent
@@ -149,7 +154,7 @@ follow AGENTS.md for targeted runs and full-suite execution.
 | Organize and resume | Rename and move notes, use tags/search/recent/favorites, restore from trash, use a saved template and draft, and switch between notes through tabs. Content and metadata remain attached to the intended note. |
 | Revise a proof | Insert a missing argument into existing ruled ink; reflow across pages; undo and redo. Use split view, copy a selection, save/reuse a clipping, and follow bookmarks and links after reopening. |
 | Annotate a paper | Import the mixed-page-size PDF fixture, annotate it, insert a blank page, add an image and typed text, close and reopen, then export a selected range. The notebook remains usable without the original PDF. |
-| Edit a mathematical figure | Capture and interpret a figure, inspect or correct its TikZ, save/reload/reopen, select it, and copy its source into a separate typeset document. Original source and editable data survive. Embedded-editor focus and overlays behave correctly. |
+| Extract a diagram | Capture doodled geometry, extract a TikZ skeleton, save/reload/reopen, select it, and copy the code for an external figure editor. Original ink and handwritten labels survive. Embedded-editor focus and overlays behave correctly. |
 | Recover a save and conflict | Exercise a write failure, restore access, and save pending edits. Reload immediately after editing. Introduce an external page change and resolve it side by side, preserving both versions until the user chooses. |
 | Work offline and share | Restart offline after caching, edit and save, then reopen. Export the mixed-content notebook; inspect it in an independent PDF viewer. Open page SVG files outside Math Notes. Content and page dimensions agree. |
 
