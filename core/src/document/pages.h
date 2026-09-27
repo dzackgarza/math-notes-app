@@ -18,8 +18,9 @@ inline constexpr std::array<double, 2> kLetter = {612, 792};
 // Width and height in pt of "A4", "Letter" or [width, height].
 std::array<double, 2> PageDimensions(const PageSize &size);
 
-// A new notebook: one layer and one blank A4 page.
-Document NewNotebook(IdGenerator &ids);
+// A new notebook: one layer and one page at the selected size and background.
+Document NewNotebook(IdGenerator &ids, PageSize size = std::string("A4"),
+                     const std::optional<Page> &template_page = std::nullopt);
 
 size_t ListedPageCount(const Document &document);
 

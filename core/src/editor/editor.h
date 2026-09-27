@@ -120,8 +120,23 @@ class Editor {
   bool Paste(std::string_view svg, double x, double y, double view_width, double view_height,
              Assets &assets, NotebookFiles &added);
   // Copies the selection kDuplicateOffset right and down, new ids, as the
-  // new selection: one history step.
-  void DuplicateSelection();
+  // new selection: one history step. Figure sidecars become new assets.
+  void DuplicateSelection(Assets &assets, NotebookFiles &added);
+  enum class FigureCaptureError { kNone, kCrossPageInput, kPageChanged, kCrossLayerMove };
+  // A capture owns pen strokes on one page and layer until completion.
+  bool StartFigureCapture(size_t page, size_t layer);
+  bool FigureCapturing() const { return figure_capture_.has_value(); }
+  FigureCaptureError FigureCaptureStatus() const;
+  void AcknowledgeFigureCaptureError();
+  std::optional<std::vector<Stroke>> CapturedStrokes() const;
+  // Groups the captured ink into one page element. Empty captures add nothing.
+  // A live gesture or capture error leaves the session active.
+  std::optional<Figure> CompleteFigureCapture();
+  // Text uses the same page elements, history and selection transforms as ink.
+  bool InsertText(std::string_view utf8, double x, double y);
+  bool SelectTextAt(double x, double y);
+  std::optional<std::string> SelectedText();
+  bool SetSelectedText(std::string_view utf8);
   // What the canvas draws over the pages for the selection tools; none when
   // there is no selection and no lasso or rectangle is being drawn.
   std::optional<SelectionOverlay> Overlay();
@@ -155,6 +170,12 @@ class Editor {
     Pen pen;
     Point origin;
     std::vector<InkPenSample> real;
+  };
+  struct FigureCapture {
+    size_t page = 0, layer = 0, previous_layer = 0;
+    std::string page_id, layer_id;
+    std::set<std::string> stroke_ids;
+    bool cross_page_input = false;
   };
 
   // A stroke or shape the free eraser touched: the strokes it is cut from (a
@@ -254,6 +275,7 @@ class Editor {
   std::optional<Selection> selection_;
   uint64_t overlay_version_ = 0, overlay_taken_ = 0;
   std::vector<CommittedStroke> committed_;
+  std::optional<FigureCapture> figure_capture_;
 };
 
 }  // namespace ink_engine

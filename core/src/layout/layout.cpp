@@ -15,14 +15,16 @@ std::vector<PagePlacement> LayoutPages(const Document &document) {
     const Page &page = *document.pages[i];
     if (page.unlisted) continue;
     layout.push_back({i, (content_width - page.width) / 2, y, page.width, page.height});
-    y += page.height;
+    y += page.height + kPageGap;
   }
   return layout;
 }
 
 const PagePlacement *PageAt(const std::vector<PagePlacement> &layout, double y) {
   if (layout.empty()) return nullptr;
+  if (y < layout.front().y) return &layout.front();
   for (const PagePlacement &p : layout) {
+    if (y < p.y) return nullptr;
     if (y < p.y + p.height) return &p;
   }
   return &layout.back();

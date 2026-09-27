@@ -4,11 +4,13 @@
 #include <cmath>
 #include <exception>
 #include <optional>
+#include <set>
 #include <string>
 
 #include <nlohmann/json.hpp>
 
 #include "editor/canvas.h"
+#include "export/pdf.h"
 #include "document/templates.h"
 #include "format/notebook.h"
 #include "format/page_svg.h"
@@ -53,6 +55,18 @@ std::string_view Bytes(const uint8_t *bytes, size_t size) {
 }
 
 InkStatus BadPageIndex() { return Fail(INK_ERROR_ARGUMENT, "page index out of range"); }
+
+InkStatus ParsePageSize(InkPageSize size, double width, double height, ink_engine::PageSize *page_size) {
+  switch (size) {
+    case INK_PAGE_A4: *page_size = std::string("A4"); return INK_OK;
+    case INK_PAGE_LETTER: *page_size = std::string("Letter"); return INK_OK;
+    case INK_PAGE_CUSTOM:
+      if (!(width > 0 && height > 0)) return Fail(INK_ERROR_ARGUMENT, "non-positive page size");
+      *page_size = std::array<double, 2>{width, height};
+      return INK_OK;
+    default: return Fail(INK_ERROR_ARGUMENT, "unknown page size");
+  }
+}
 
 // One undo or redo step: `*page` is the page the step changed, or -1.
 InkStatus Step(InkDocument *document, bool (ink_engine::DocumentHistory::*move)(), int32_t *moved,
@@ -123,19 +137,20 @@ InkStatus ink_document_create(uint64_t seed, InkDocument **out) {
 }
 
 InkStatus ink_document_create_from_template(uint64_t seed, const char *name, const uint8_t *svg,
-                                            size_t size, InkDocument **out) {
+                                            size_t size, InkPageSize page_size, double width,
+                                            double height, InkDocument **out) {
   return Call([&] {
     if (!name) return NullArgument("name");
     if (!svg && size) return NullArgument("svg");
     if (!out) return NullArgument("out");
+    ink_engine::PageSize parsed_size;
+    InkStatus size_status = ParsePageSize(page_size, width, height, &parsed_size);
+    if (size_status != INK_OK) return size_status;
     ink_engine::Page template_page = ink_engine::ReadPage(Bytes(svg, size), "pages/0001.svg", {});
     if (template_page.error) return Fail(INK_ERROR_PARSE, std::string(name) + ": " + *template_page.error);
     ink_engine::IdGenerator ids(seed);
-    ink_engine::Document document = ink_engine::NewNotebook(ids);
+    ink_engine::Document document = ink_engine::NewNotebook(ids, std::move(parsed_size), template_page);
     document.notebook.template_name = name;
-    ink_engine::Page page = *document.pages[0];
-    page.background = ink_engine::NewPage(document, template_page).background;
-    document.pages = document.pages.set(0, immer::box<ink_engine::Page>(std::move(page)));
     *out = new InkDocument{ink_engine::DocumentHistory(std::move(document), seed + 1)};
     (*out)->template_page = std::move(template_page);
     return INK_OK;
@@ -178,13 +193,29 @@ InkStatus ink_document_load_asset(InkDocument *document, const char *path, const
   });
 }
 
+InkStatus ink_document_asset(InkDocument *document, const char *path,
+                             const uint8_t **bytes, size_t *size) {
+  return Call([&] {
+    if (!document) return NullArgument("document");
+    if (!path || !bytes || !size) return NullArgument("path, bytes or size");
+    const auto found = document->assets.find(path);
+    if (found == document->assets.end()) return Fail(INK_ERROR_ARGUMENT, std::string("asset is missing: ") + path);
+    *bytes = static_cast<const uint8_t *>(found->second->data());
+    *size = found->second->size();
+    return INK_OK;
+  });
+}
+
 InkStatus ink_document_dirty_files(InkDocument *document, const InkFile **files, size_t *count) {
   return Call([&] {
     if (!document) return NullArgument("document");
     if (!files || !count) return NullArgument("files");
     const ink_engine::DocumentHistory &history = document->history;
     ink_engine::NotebookFiles changed = ink_engine::ChangedFiles(history.current(), history.saved());
-    changed.insert(document->new_assets.begin(), document->new_assets.end());
+    const std::set<std::string> figure_assets = ink_engine::FigureAssetPaths(history.current());
+    for (const auto &[path, bytes] : document->new_assets) {
+      if (!path.starts_with("assets/f-") || figure_assets.contains(path)) changed[path] = bytes;
+    }
     document->dirty.assign(changed.begin(), changed.end());
     document->dirty_removed = ink_engine::RemovedFiles(history.current(), history.saved());
     document->dirty_view.clear();
@@ -271,15 +302,8 @@ InkStatus ink_document_set_page_size(InkDocument *document, InkPageSize size, do
   return Call([&] {
     if (!document) return NullArgument("document");
     ink_engine::PageSize page_size;
-    switch (size) {
-      case INK_PAGE_A4: page_size = std::string("A4"); break;
-      case INK_PAGE_LETTER: page_size = std::string("Letter"); break;
-      case INK_PAGE_CUSTOM:
-        if (!(width > 0 && height > 0)) return Fail(INK_ERROR_ARGUMENT, "non-positive page size");
-        page_size = std::array<double, 2>{width, height};
-        break;
-      default: return Fail(INK_ERROR_ARGUMENT, "unknown page size");
-    }
+    InkStatus size_status = ParsePageSize(size, width, height, &page_size);
+    if (size_status != INK_OK) return size_status;
     ink_engine::DocumentHistory &history = document->history;
     if (history.current().notebook.page_size == page_size) return INK_OK;
     history.Push(ink_engine::SetPageSize(history.current(), std::move(page_size)));
@@ -398,6 +422,105 @@ InkStatus ink_canvas_set_tool(InkCanvas *canvas, const InkToolSettings *tool) {
     if (!tool) return NullArgument("tool");
     if (auto error = CheckTool(*tool)) return Fail(INK_ERROR_ARGUMENT, *error);
     canvas->editor.SetPen(ToPen(*tool));
+    return INK_OK;
+  });
+}
+
+InkStatus ink_canvas_figure_begin(InkCanvas *canvas, size_t page, size_t layer) {
+  return Call([&] {
+    if (!canvas) return NullArgument("canvas");
+    if (!canvas->editor.StartFigureCapture(page, layer)) {
+      return Fail(INK_ERROR_ARGUMENT, "drawing mode needs an editable page and no active gesture");
+    }
+    return INK_OK;
+  });
+}
+
+InkStatus ink_canvas_figure_scene(InkCanvas *canvas, const uint8_t **json, size_t *size) {
+  return Call([&] {
+    if (!canvas) return NullArgument("canvas");
+    if (!json || !size) return NullArgument("json or size");
+    const auto strokes = canvas->editor.CapturedStrokes();
+    if (!strokes) return Fail(INK_ERROR_ARGUMENT, "drawing mode capture is not ready");
+    nlohmann::ordered_json scene = {
+        {"version", 1}, {"nextId", strokes->size() + 1},
+        {"objects", nlohmann::ordered_json::array()}, {"selectedId", nullptr}};
+    size_t index = 1;
+    for (const ink_engine::Stroke &stroke : *strokes) {
+      nlohmann::ordered_json ink = nlohmann::ordered_json::array();
+      nlohmann::ordered_json points = nlohmann::ordered_json::array();
+      for (const ink_engine::Sample &sample : stroke.samples) {
+        ink_engine::Point point = ink_engine::Apply(stroke.transform, {sample.x, sample.y});
+        ink.push_back({{"x", point.x}, {"y", point.y}, {"t", sample.t},
+                       {"force", sample.force}, {"altitude", sample.altitude},
+                       {"azimuth", sample.azimuth}, {"roll", sample.roll}});
+        points.push_back({{"x", point.x}, {"y", point.y}});
+      }
+      if (points.empty()) return Fail(INK_ERROR_INTERNAL, "captured stroke has no ink samples");
+      scene["objects"].push_back({{"id", "o" + std::to_string(index++)}, {"ink", ink},
+                                   {"geometry", {{"kind", "rawStroke"}, {"points", points}}}});
+    }
+    canvas->figure_scene = scene.dump(2) + "\n";
+    *json = reinterpret_cast<const uint8_t *>(canvas->figure_scene.data());
+    *size = canvas->figure_scene.size();
+    return INK_OK;
+  });
+}
+
+InkStatus ink_canvas_figure_complete(InkCanvas *canvas, const uint8_t *scene, size_t scene_size,
+                                     const uint8_t *tikz, size_t tikz_size,
+                                     const uint8_t **figure_id, size_t *id_size) {
+  return Call([&] {
+    if (!canvas) return NullArgument("canvas");
+    if ((!scene && scene_size) || (!tikz && tikz_size)) return NullArgument("scene or tikz");
+    if (!figure_id || !id_size) return NullArgument("figure_id or id_size");
+    const auto strokes = canvas->editor.CapturedStrokes();
+    if (!strokes) return Fail(INK_ERROR_ARGUMENT, "drawing mode capture is not ready");
+    if (!strokes->empty()) {
+      if (!scene || !tikz || !tikz_size) {
+        return Fail(INK_ERROR_ARGUMENT, "nonempty figure needs scene and TikZ source");
+      }
+      const nlohmann::json parsed = nlohmann::json::parse(Bytes(scene, scene_size));
+      if (!parsed.is_object() || parsed.value("version", 0) != 1 ||
+          !parsed.contains("objects") || !parsed["objects"].is_array() ||
+          parsed["objects"].size() != strokes->size()) {
+        return Fail(INK_ERROR_ARGUMENT, "scene does not match captured ink");
+      }
+    }
+    const auto figure = canvas->editor.CompleteFigureCapture();
+    canvas->figure_id = figure ? figure->id : "";
+    if (figure) {
+      InkDocument &document = *canvas->document;
+      const std::string scene_path = "assets/" + figure->id + ".scene.json";
+      const std::string tikz_path = "assets/" + figure->id + ".tikz";
+      document.new_assets[scene_path] = std::string(Bytes(scene, scene_size));
+      document.new_assets[tikz_path] = std::string(Bytes(tikz, tikz_size));
+      document.assets[scene_path] = SkData::MakeWithCopy(scene, scene_size);
+      document.assets[tikz_path] = SkData::MakeWithCopy(tikz, tikz_size);
+      ++document.assets_version;
+    }
+    *figure_id = reinterpret_cast<const uint8_t *>(canvas->figure_id.data());
+    *id_size = canvas->figure_id.size();
+    return INK_OK;
+  });
+}
+
+InkStatus ink_canvas_selected_figure(InkCanvas *canvas, const uint8_t **id, size_t *size) {
+  return Call([&] {
+    if (!canvas) return NullArgument("canvas");
+    if (!id || !size) return NullArgument("id or size");
+    canvas->figure_id.clear();
+    const ink_engine::Selection *selection = canvas->editor.CurrentSelection();
+    if (selection && selection->items.size() == 1) {
+      const ink_engine::ElementRef &item = selection->items[0];
+      const ink_engine::Element &element =
+          *selection->value->layers[item.layer].elements[item.index];
+      if (const auto *figure = std::get_if<ink_engine::Figure>(&element.value)) {
+        canvas->figure_id = figure->id;
+      }
+    }
+    *id = reinterpret_cast<const uint8_t *>(canvas->figure_id.data());
+    *size = canvas->figure_id.size();
     return INK_OK;
   });
 }
@@ -559,7 +682,56 @@ InkStatus ink_canvas_paste(InkCanvas *canvas, const uint8_t *svg, size_t size, d
 InkStatus ink_canvas_duplicate_selection(InkCanvas *canvas) {
   return Call([&] {
     if (!canvas) return NullArgument("canvas");
-    canvas->editor.DuplicateSelection();
+    InkDocument &document = *canvas->document;
+    ink_engine::NotebookFiles added;
+    canvas->editor.DuplicateSelection(document.assets, added);
+    if (!added.empty()) {
+      document.new_assets.insert(added.begin(), added.end());
+      ++document.assets_version;
+    }
+    return INK_OK;
+  });
+}
+
+InkStatus ink_canvas_insert_text(InkCanvas *canvas, const uint8_t *utf8, size_t size,
+                                 double x, double y) {
+  return Call([&] {
+    if (!canvas) return NullArgument("canvas");
+    if (!utf8 && size) return NullArgument("utf8");
+    if (!canvas->editor.InsertText(Bytes(utf8, size), x, y)) {
+      return Fail(INK_ERROR_ARGUMENT, "text is empty or the point is outside an editable page");
+    }
+    return INK_OK;
+  });
+}
+
+InkStatus ink_canvas_select_text_at(InkCanvas *canvas, double x, double y, int32_t *found) {
+  return Call([&] {
+    if (!canvas) return NullArgument("canvas");
+    if (!found) return NullArgument("found");
+    *found = canvas->editor.SelectTextAt(x, y);
+    return INK_OK;
+  });
+}
+
+InkStatus ink_canvas_selected_text(InkCanvas *canvas, const uint8_t **utf8, size_t *size) {
+  return Call([&] {
+    if (!canvas) return NullArgument("canvas");
+    if (!utf8 || !size) return NullArgument("utf8 or size");
+    canvas->selected_text = canvas->editor.SelectedText().value_or("");
+    *utf8 = reinterpret_cast<const uint8_t *>(canvas->selected_text.data());
+    *size = canvas->selected_text.size();
+    return INK_OK;
+  });
+}
+
+InkStatus ink_canvas_set_selected_text(InkCanvas *canvas, const uint8_t *utf8, size_t size) {
+  return Call([&] {
+    if (!canvas) return NullArgument("canvas");
+    if (!utf8 && size) return NullArgument("utf8");
+    if (!canvas->editor.SetSelectedText(Bytes(utf8, size))) {
+      return Fail(INK_ERROR_ARGUMENT, "no text box is selected or text is empty");
+    }
     return INK_OK;
   });
 }
@@ -602,6 +774,11 @@ InkStatus ink_input(InkCanvas *canvas, const InkPenSample *samples, size_t count
     if (!canvas) return NullArgument("canvas");
     if (!samples && count) return NullArgument("samples");
     canvas->editor.Input(samples, count);
+    if (canvas->editor.FigureCaptureStatus() ==
+        ink_engine::Editor::FigureCaptureError::kCrossPageInput) {
+      canvas->editor.AcknowledgeFigureCaptureError();
+      return Fail(INK_ERROR_ARGUMENT, "drawing mode ink must stay on one page");
+    }
     return INK_OK;
   });
 }
@@ -705,6 +882,37 @@ InkStatus ink_document_page_png(InkDocument *document, size_t index, int32_t wid
   });
 }
 
+InkStatus ink_export_pdf(InkDocument *document, const char *title,
+                         const InkPdfExportSpec *spec, const uint8_t **pdf, size_t *size) {
+  return Call([&] {
+    if (!document) return NullArgument("document");
+    if (!title) return NullArgument("title");
+    if (!spec || !pdf || !size) return NullArgument("spec, pdf or size");
+    if (!*title) return Fail(INK_ERROR_ARGUMENT, "empty PDF title");
+    if (spec->include_links) return Fail(INK_ERROR_ARGUMENT, "PDF link annotations are not supported");
+    const ink_engine::Document &current = document->history.current();
+    if (!spec->page_count || spec->first_page >= current.pages.size() ||
+        spec->page_count > current.pages.size() - spec->first_page) {
+      return Fail(INK_ERROR_ARGUMENT, "PDF page range out of bounds");
+    }
+    for (size_t index = spec->first_page; index < spec->first_page + spec->page_count; ++index) {
+      const ink_engine::Page &page = *current.pages[index];
+      if (page.error) return Fail(INK_ERROR_PARSE, page.file + ": " + *page.error);
+      if (!(page.width > 0 && page.height > 0)) {
+        return Fail(INK_ERROR_ARGUMENT, page.file + ": non-positive page size");
+      }
+    }
+    if (!ink_engine::ExportPdf(current, document->assets, title, spec->first_page,
+                               spec->page_count, spec->include_hidden_layers != 0,
+                               &document->pdf)) {
+      return Fail(INK_ERROR_INTERNAL, "PDF export failed");
+    }
+    *pdf = reinterpret_cast<const uint8_t *>(document->pdf.data());
+    *size = document->pdf.size();
+    return INK_OK;
+  });
+}
+
 // ---- Layout check --------------------------------------------------------
 
 InkStatus ink_struct_layout(InkStruct which, uint32_t *out, size_t capacity, size_t *count) {
@@ -748,6 +956,11 @@ InkStatus ink_struct_layout(InkStruct which, uint32_t *out, size_t capacity, siz
       case INK_STRUCT_PEN:
         layout = {sizeof(InkPen), offsetof(InkPen, id), offsetof(InkPen, name),
                   offsetof(InkPen, tool)};
+        break;
+      case INK_STRUCT_PDF_EXPORT_SPEC:
+        layout = {sizeof(InkPdfExportSpec), offsetof(InkPdfExportSpec, first_page),
+                  offsetof(InkPdfExportSpec, page_count), offsetof(InkPdfExportSpec, include_links),
+                  offsetof(InkPdfExportSpec, include_hidden_layers)};
         break;
       default:
         return Fail(INK_ERROR_ARGUMENT, "unknown struct");

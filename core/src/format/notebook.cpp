@@ -24,6 +24,34 @@ bool IsPageFile(const std::string &path) {
          path.find('/', 6) == std::string::npos;
 }
 
+void FigureAssets(const Elements &elements, std::set<std::string> &paths) {
+  for (const auto &box : elements) {
+    if (const auto *figure = std::get_if<Figure>(&box->value)) {
+      const std::string prefix = "../assets/" + figure->id;
+      if (figure->scene_href == prefix + ".scene.json") {
+        paths.insert("assets/" + figure->id + ".scene.json");
+      }
+      if (figure->tikz_href == prefix + ".tikz") {
+        paths.insert("assets/" + figure->id + ".tikz");
+      }
+      FigureAssets(figure->children, paths);
+    } else if (const auto *group = std::get_if<Bookmark>(&box->value)) {
+      FigureAssets(group->children, paths);
+    } else if (const auto *link = std::get_if<Link>(&box->value)) {
+      FigureAssets(link->children, paths);
+    }
+  }
+}
+
+std::set<std::string> CollectFigureAssets(const Document &document) {
+  std::set<std::string> paths;
+  for (const auto &page : document.pages) {
+    if (page->error) continue;
+    for (const LayerContent &layer : page->layers) FigureAssets(layer.elements, paths);
+  }
+  return paths;
+}
+
 Json PageSizeJson(const PageSize &size) {
   if (auto *name = std::get_if<std::string>(&size)) return *name;
   auto [w, h] = std::get<std::array<double, 2>>(size);
@@ -38,6 +66,10 @@ PageSize ReadPageSize(const Json &json) {
 }
 
 }  // namespace
+
+std::set<std::string> FigureAssetPaths(const Document &document) {
+  return CollectFigureAssets(document);
+}
 
 Document ReadNotebookJson(std::string_view bytes) {
   Document document;
@@ -130,6 +162,10 @@ std::vector<std::string> RemovedFiles(const Document &current, const Document *s
   for (const auto &page : current.pages) kept.insert(page->file);
   for (const auto &page : saved->pages) {
     if (!page->error && !kept.contains(page->file)) removed.push_back(page->file);
+  }
+  const std::set<std::string> current_assets = FigureAssetPaths(current);
+  for (const std::string &path : FigureAssetPaths(*saved)) {
+    if (!current_assets.contains(path)) removed.push_back(path);
   }
   return removed;
 }

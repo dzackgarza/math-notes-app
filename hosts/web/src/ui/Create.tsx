@@ -18,8 +18,8 @@ import {
 import { createMemo, createSignal, For, type JSX, Show } from "solid-js";
 
 import { type Folder, MY_NOTES, pathKey } from "../storage/library.ts";
-import type { LibraryMetadata } from "../storage/metadata.ts";
-import { notImplemented, presentPopover } from "./ionic.ts";
+import { emptyFolder, type FolderMetadata, type LibraryMetadata, type NoteDraft, type PageSizeSetting, type StartingTemplate } from "../storage/metadata.ts";
+import { presentPopover, promptText } from "./ionic.ts";
 import { addTagPrompt, MenuItem, noteCount } from "./Library.tsx";
 import { PaperTile, paperLabel } from "./paper.tsx";
 
@@ -78,20 +78,38 @@ export function NewNotebook(props: {
   root: FileSystemDirectoryHandle;
   folders: Folder[];
   templates: string[];
+  metadata: LibraryMetadata;
+  onMetadata: (change: (metadata: LibraryMetadata) => LibraryMetadata) => void;
   parent: string[];
   dismiss: () => Promise<void>;
-  onCreate: (parent: string[], title: string) => void;
+  onCreate: (parent: string[], title: string, fields: FolderMetadata) => void;
 }) {
   const [title, setTitle] = createSignal("");
+  const [description, setDescription] = createSignal("");
+  const [paper, setPaper] = createSignal(props.templates.includes("dotted") ? "dotted" : props.templates[0]);
+  const [coverColor, setCoverColor] = createSignal(COVER_COLORS[0]);
+  const [coverStyle, setCoverStyle] = createSignal<FolderMetadata["coverStyle"]>("classic");
+  const [tags, setTags] = createSignal<string[]>([]);
   const [parent, setParent] = createSignal<string[]>(props.parent);
   const locations = createMemo((): Folder[] => props.folders.map((f) => (f.path.length === 0 ? { ...f, name: `${MY_NOTES} (top level)` } : f)));
   const location = () => locations().find((f) => pathKey(f.path) === pathKey(parent()))?.name ?? MY_NOTES;
   const template = (kind: string) => props.templates.find((t) => t === kind || t.startsWith(`${kind}-`)) ?? props.templates[0];
+  const color = (name: string) => props.metadata.tags.find((tag) => tag.name === name)?.color ?? "#8A8F98";
+  const addTag = (e: Event) =>
+    void presentPopover(e, (dismiss) => (
+      <IonList lines="full">
+        <For each={props.metadata.tags.filter((tag) => !tags().includes(tag.name))}>
+          {(tag) => <MenuItem label={tag.name} dismiss={dismiss} onSelect={() => setTags([...tags(), tag.name])} />}
+        </For>
+        <MenuItem label="New Tag…" icon={add} dismiss={dismiss} onSelect={() => addTagPrompt(props.metadata, props.onMetadata, (name) => setTags([...tags(), name]))} />
+      </IonList>
+    ));
   const create = () => {
     if (!title().trim()) return;
     const name = title().trim();
+    const fields: FolderMetadata = { description: description().trim(), paper: paper(), coverColor: coverColor(), coverStyle: coverStyle(), tags: tags() };
     // The screen behind changes once the sheet is gone.
-    void props.dismiss().then(() => props.onCreate(parent(), name));
+    void props.dismiss().then(() => props.onCreate(parent(), name, fields));
   };
   return (
     <>
@@ -143,14 +161,14 @@ export function NewNotebook(props: {
               rows={3}
               counter={true}
               maxlength={500}
-              readonly
-              onClick={() => notImplemented(58)}
+              value={description()}
+              on:ionInput={(e) => setDescription(String(e.detail.value ?? ""))}
             />
             <h3 class="field-heading">Paper Style</h3>
             <div class="tiles four">
               <For each={NOTEBOOK_PAPERS}>
-                {(p, i) => (
-                  <Tile label={p.label} selected={i() === 0} onSelect={() => notImplemented(58)}>
+                {(p) => (
+                  <Tile label={p.label} selected={paper() === template(p.template)} onSelect={() => setPaper(template(p.template))}>
                     <PaperTile root={props.root} template={template(p.template)} class="tile-paper" />
                   </Tile>
                 )}
@@ -159,30 +177,38 @@ export function NewNotebook(props: {
             <h3 class="field-heading">Cover Color</h3>
             <div class="swatches" role="group" aria-label="Cover Color">
               <For each={COVER_COLORS}>
-                {(color, i) => (
+                {(color) => (
                   <IonButton
                     class="swatch"
-                    classList={{ selected: i() === 0 }}
+                    classList={{ selected: coverColor() === color }}
                     shape="round"
                     aria-label={`Cover ${color}`}
                     style={{ "--background": color, "--background-hover": color }}
-                    onClick={() => notImplemented(58)}
+                    onClick={() => setCoverColor(color)}
                   />
                 )}
               </For>
             </div>
             <h3 class="field-heading">Cover Style</h3>
             <div class="tiles two">
-              <Tile label="Classic" class="cover-style" selected onSelect={() => notImplemented(58)}>
+              <Tile label="Classic" class="cover-style" selected={coverStyle() === "classic"} onSelect={() => setCoverStyle("classic")}>
                 <div class="cover-sample classic" />
               </Tile>
-              <Tile label="Spine" class="cover-style" selected={false} onSelect={() => notImplemented(58)}>
+              <Tile label="Spine" class="cover-style" selected={coverStyle() === "spine"} onSelect={() => setCoverStyle("spine")}>
                 <div class="cover-sample spine" />
               </Tile>
             </div>
             <h3 class="field-heading">Tags</h3>
             <div class="chips">
-              <IonChip outline role="button" aria-label="Add a tag" onClick={() => notImplemented(58)}>
+              <For each={tags()}>
+                {(tag) => (
+                  <IonChip class="tag-chip" style={{ "--chip": color(tag) }}>
+                    <IonLabel>{tag}</IonLabel>
+                    <IonIcon icon={close} aria-label={`Remove ${tag}`} onClick={() => setTags(tags().filter((name) => name !== tag))} />
+                  </IonChip>
+                )}
+              </For>
+              <IonChip outline role="button" aria-label="Add a tag" onClick={addTag}>
                 <IonIcon icon={add} />
                 <IonLabel>Add a tag…</IonLabel>
               </IonChip>
@@ -197,7 +223,7 @@ export function NewNotebook(props: {
           </form>
           <aside class="preview-pane">
             <h3 class="field-heading">Preview</h3>
-            <div class="cover" style={{ "--cover": COVER_COLORS[0] }}>
+            <div class="cover" classList={{ spine: coverStyle() === "spine" }} style={{ "--cover": coverColor() }}>
               <span class="cover-title">{title().trim() || "Untitled"}</span>
               <span class="cover-mark">MATH NOTES</span>
             </div>
@@ -205,15 +231,15 @@ export function NewNotebook(props: {
             <IonList lines="none" class="details">
               <IonItem>
                 <IonIcon slot="start" icon={documentOutline} />
-                <IonLabel>Dot Paper</IonLabel>
+                <IonLabel>{paperLabel(paper())}</IonLabel>
               </IonItem>
               <IonItem>
                 <IonIcon slot="start" icon={colorPaletteOutline} />
-                <IonLabel>Blue</IonLabel>
+                <IonLabel>{coverColor()}</IonLabel>
               </IonItem>
               <IonItem>
                 <IonIcon slot="start" icon={bookOutline} />
-                <IonLabel>Classic Cover</IonLabel>
+                <IonLabel>{coverStyle() === "classic" ? "Classic Cover" : "Spine Cover"}</IonLabel>
               </IonItem>
               <IonItem>
                 <IonIcon slot="start" icon={folderOutline} />
@@ -221,7 +247,7 @@ export function NewNotebook(props: {
               </IonItem>
               <IonItem>
                 <IonIcon slot="start" icon={pricetagOutline} />
-                <IonLabel>0 tags</IonLabel>
+                <IonLabel>{tags().length} tags</IonLabel>
               </IonItem>
             </IonList>
             <IonCard class="tip">
@@ -240,14 +266,6 @@ export function NewNotebook(props: {
   );
 }
 
-// Starting templates as the mockup names them: saved settings (#49).
-const STARTING_TEMPLATES = [
-  { label: "Blank Note", description: "An empty page with the chosen paper." },
-  { label: "Theorem / Proof", description: "A structured template with sections for theorem statements, proof, and remarks." },
-  { label: "Grid Sketch", description: "A grid page for diagrams and sketches." },
-  { label: "Lecture Notes", description: "A dated page with a title and an outline." },
-];
-
 export function NewNote(props: {
   root: FileSystemDirectoryHandle;
   folders: Folder[];
@@ -257,18 +275,49 @@ export function NewNote(props: {
   onMetadata: (change: (metadata: LibraryMetadata) => LibraryMetadata) => void;
   dismiss: () => Promise<void>;
   onSettings: () => void;
-  onCreate: (folder: string[], title: string, template: string, tags: string[]) => void;
+  onCreate: (folder: string[], title: string, template: string, tags: string[], pageSize: PageSizeSetting) => void;
+  onSaveDraft: (draft: NoteDraft) => void;
+  onSaveTemplate: (settings: StartingTemplate) => void;
 }) {
-  const [title, setTitle] = createSignal("");
-  const [folder, setFolder] = createSignal(props.folder);
-  const [template, setTemplate] = createSignal(props.templates.includes("dotted") ? "dotted" : props.templates[0]);
-  const [tags, setTags] = createSignal<string[]>([]);
+  const [title, setTitle] = createSignal(props.metadata.draft?.title ?? "");
+  const [folder, setFolder] = createSignal(props.metadata.draft?.folder ?? props.folder);
+  const defaultPaper = (path: string[]) => props.metadata.folders[pathKey(path)]?.paper ?? emptyFolder().paper;
+  const [template, setTemplate] = createSignal(props.metadata.draft?.template ?? defaultPaper(folder()));
+  const [tags, setTags] = createSignal<string[]>(props.metadata.draft?.tags ?? []);
+  const [pageSize, setPageSize] = createSignal<PageSizeSetting>(props.metadata.draft?.pageSize ?? "a4");
+  const chooseFolder = (path: string[]) => {
+    setFolder(path);
+    setTemplate(defaultPaper(path));
+  };
   const target = () => props.folders.find((f) => pathKey(f.path) === pathKey(folder())) ?? props.folders[0];
+  const fields = (): NoteDraft => ({ folder: target().path, title: title().trim(), template: template(), tags: tags(), pageSize: pageSize() });
+  const matchesTemplate = (settings: StartingTemplate) =>
+    pathKey(settings.folder) === pathKey(target().path) && settings.paper === template() && settings.pageSize === pageSize() &&
+    settings.tags.length === tags().length && settings.tags.every((tag) => tags().includes(tag));
+  const useTemplate = (settings: StartingTemplate) => {
+    setFolder(settings.folder);
+    setTemplate(settings.paper);
+    setPageSize(settings.pageSize);
+    setTags([...settings.tags]);
+  };
+  const saveTemplate = () =>
+    void promptText({
+      header: "Save as template",
+      label: "Template name",
+      action: "Save",
+      accept: (value) => {
+        const name = value.trim();
+        if (!name) return "Enter a template name.";
+        if (props.metadata.startingTemplates.some((saved) => saved.name.toLocaleLowerCase() === name.toLocaleLowerCase())) return "A template with this name already exists.";
+        props.onSaveTemplate({ name, folder: [...target().path], paper: template(), pageSize: pageSize(), tags: [...tags()] });
+        return null;
+      },
+    });
   const create = () => {
     if (!title().trim()) return;
-    const note = { folder: target().path, title: title().trim(), template: template(), tags: tags() };
+    const note = fields();
     // The editor opens once the sheet is gone.
-    void props.dismiss().then(() => props.onCreate(note.folder, note.title, note.template, note.tags));
+    void props.dismiss().then(() => props.onCreate(note.folder, note.title, note.template, note.tags, pageSize()));
   };
   const color = (name: string) => props.metadata.tags.find((t) => t.name === name)?.color ?? "#8A8F98";
   const addTag = (e: Event) =>
@@ -297,7 +346,7 @@ export function NewNote(props: {
             <div>
               <div class="target-name">{target().name}</div>
               <IonNote>{noteCount(target().notes.length)}</IonNote>
-              <FolderButton label="Change Notebook" folders={props.folders} value={target().path} onChange={setFolder}>
+              <FolderButton label="Change Notebook" folders={props.folders} value={target().path} onChange={chooseFolder}>
                 Change Notebook
                 <IonIcon slot="end" icon={chevronForward} />
               </FolderButton>
@@ -337,6 +386,20 @@ export function NewNote(props: {
                 )}
               </For>
             </div>
+            <h3 class="field-heading">Page Size</h3>
+            <IonButton
+              fill="outline"
+              aria-label="Page Size"
+              onClick={(e) => void presentPopover(e, (dismiss) => (
+                <IonList lines="full">
+                  <MenuItem label="A4" checked={pageSize() === "a4"} dismiss={dismiss} onSelect={() => setPageSize("a4")} />
+                  <MenuItem label="Letter" checked={pageSize() === "letter"} dismiss={dismiss} onSelect={() => setPageSize("letter")} />
+                </IonList>
+              ))}
+            >
+              {pageSize() === "a4" ? "A4" : "Letter"}
+              <IonIcon slot="end" icon={chevronDown} />
+            </IonButton>
             <h3 class="field-heading">Tags</h3>
             <div class="chips">
               <For each={tags()}>
@@ -354,20 +417,15 @@ export function NewNote(props: {
             </div>
             <h3 class="field-heading">Starting Template</h3>
             <div class="tiles four">
-              <For each={STARTING_TEMPLATES}>
-                {(t, i) => (
-                  <Tile label={t.label} selected={i() === 0} onSelect={() => notImplemented(49)}>
+              <For each={props.metadata.startingTemplates}>
+                {(settings) => (
+                  <Tile label={settings.name} selected={matchesTemplate(settings)} onSelect={() => useTemplate(settings)}>
                     <div class="template-sample" />
                   </Tile>
                 )}
               </For>
             </div>
-            <IonCard class="tip">
-              <IonCardContent>
-                <IonIcon icon={bulbOutline} color="primary" />
-                <p>{STARTING_TEMPLATES[0].description}</p>
-              </IonCardContent>
-            </IonCard>
+            <IonButton fill="outline" aria-label="Save as template" onClick={saveTemplate}>Save as template</IonButton>
           </form>
           <div class="page-preview" aria-label="Page preview">
             <PaperTile root={props.root} template={template()} class="preview-tile" />
@@ -390,7 +448,7 @@ export function NewNote(props: {
             </IonButton>
           </IonButtons>
           <IonButtons slot="end">
-            <IonButton class="tinted" fill="solid" onClick={() => notImplemented(63)}>
+            <IonButton class="tinted" fill="solid" onClick={() => props.onSaveDraft(fields())}>
               Save as Draft
             </IonButton>
             <IonButton fill="solid" color="primary" disabled={!title().trim()} onClick={create}>

@@ -57,7 +57,8 @@ class LassoPath {
 
 // An element's bounds in page coordinates, as Write computes them: a
 // stroke's centerline widened by half its size, a shape's geometry widened by
-// half its stroke width, an image's box, a group's children. Empty
+// half its stroke width, an image's box, or a group's children. A figure
+// transforms its children's box as one element. Empty
 // (left > right) for an empty group.
 Rect ElementBounds(const Element &element);
 
@@ -70,7 +71,7 @@ bool InsideRect(const Element &element, const Rect &rect);
 
 // Whether the lasso mesh (page coordinates) covers more than kLassoCoverage of
 // every hit-test mesh of the element: a stroke's shape, a shape's strokes
-// along its geometry, an image's box, each child of a group.
+// along its geometry, an image's or figure's box, each child of other groups.
 bool LassoSelects(const ink::PartitionedMesh &lasso, const Element &element);
 
 // Write RectSelector::shrink: the selection rectangle around the selected
@@ -94,29 +95,28 @@ HandleHit HitSelection(const Rect &rect, Point p, double scale, bool touch);
 // The rotate handle's center.
 Point RotateHandle(const Rect &rect, double scale);
 
-// The element with `m` applied after its transform; a group's children each.
+// The element with `m` applied after its transform; ordinary groups transform
+// their children, while a figure keeps one group transform.
 Element Transformed(const Element &element, const Transform &m);
 
 // Gives the element, and every element inside a group, a new id from `ids`.
 Element WithNewIds(const Element &element, IdGenerator &ids);
 
-// Gives each element whose id is in `taken` a new id (FORMAT.md, Page SVG:
-// a pasted element whose id already exists on the page gets a new id).
+// Gives each element whose id is in `taken` a new id. A pasted figure always
+// gets a new id so its sidecars have independent file names.
 Element WithFreeIds(const Element &element, const std::vector<std::string> &taken,
                     IdGenerator &ids);
 
 // The ids of the elements, groups' children included.
 void CollectIds(const Elements &elements, std::vector<std::string> &ids);
 
-// Each image whose file is in `assets` (href relative to `page_file`) with
-// the file inline as a base64 data: URL (RFC 2397), so that a clipboard
-// document carries its images to another notebook.
+// Inline image files and both figure sidecars as base64 data: URLs (RFC 2397)
+// so a clipboard document carries its assets to another notebook.
 Element InlineImages(const Element &element, const std::string &page_file, const Assets &assets);
 
-// Each image with a data: URL gets a file of the notebook: the asset with the
-// same bytes when there is one, otherwise a new "assets/<hash>.<ext>", added
-// to `assets` and to `added` for the host to write. Hrefs become relative to
-// `page_file`.
+// Each image with a data: URL gets a file of the notebook. Figure sidecars
+// always get independent files based on the figure id. New files are added to
+// `assets` and `added`; hrefs become relative to `page_file`.
 Element StoreImages(const Element &element, const std::string &page_file, Assets &assets,
                     NotebookFiles &added);
 

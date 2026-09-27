@@ -64,6 +64,12 @@ bool ReplaceStroke(Elements &elements, const std::string &id, const Stroke &repl
       elements = elements.set(i, immer::box<Element>(Element{replacement}));
       return true;
     }
+    if (auto *figure = std::get_if<Figure>(&element.value)) {
+      Figure revised = *figure;
+      if (!ReplaceStroke(revised.children, id, replacement)) continue;
+      elements = elements.set(i, immer::box<Element>(Element{std::move(revised)}));
+      return true;
+    }
   }
   return false;
 }
@@ -147,6 +153,101 @@ Point ToContent(const Transform &view, double x, double y) {
   return {inverse.a * x + inverse.c * y + inverse.e, inverse.b * x + inverse.d * y + inverse.f};
 }
 
+bool Editor::StartFigureCapture(size_t page, size_t layer) {
+  if (figure_capture_ || live_ || erase_ || select_ || transform_ || ignored_) return false;
+  const Document &doc = document();
+  if (page >= doc.pages.size() || layer >= doc.pages[page]->layers.size()) return false;
+  const LayerContent &content = doc.pages[page]->layers[layer];
+  for (const Layer &meta : doc.notebook.layers) {
+    if (meta.id == content.layer_id && (meta.hidden || meta.locked)) return false;
+  }
+  figure_capture_ = FigureCapture{.page = page, .layer = layer, .previous_layer = layer_,
+                                  .page_id = doc.pages[page]->id,
+                                  .layer_id = content.layer_id};
+  layer_ = layer;
+  eraser_active_ = false;
+  selector_active_ = false;
+  ClearSelection();
+  return true;
+}
+
+Editor::FigureCaptureError Editor::FigureCaptureStatus() const {
+  if (!figure_capture_) return FigureCaptureError::kNone;
+  const FigureCapture &capture = *figure_capture_;
+  if (capture.cross_page_input) return FigureCaptureError::kCrossPageInput;
+  const Document &doc = document();
+  if (capture.page >= doc.pages.size() || doc.pages[capture.page]->id != capture.page_id ||
+      capture.layer >= doc.pages[capture.page]->layers.size() ||
+      doc.pages[capture.page]->layers[capture.layer].layer_id != capture.layer_id) {
+    return FigureCaptureError::kPageChanged;
+  }
+  for (size_t p = 0; p < doc.pages.size(); ++p) {
+    for (size_t l = 0; l < doc.pages[p]->layers.size(); ++l) {
+      for (const auto &box : doc.pages[p]->layers[l].elements) {
+        const Stroke *stroke = std::get_if<Stroke>(&box->value);
+        if (!stroke || !capture.stroke_ids.contains(stroke->id)) continue;
+        if (p != capture.page || l != capture.layer) return FigureCaptureError::kCrossLayerMove;
+      }
+    }
+  }
+  return FigureCaptureError::kNone;
+}
+
+void Editor::AcknowledgeFigureCaptureError() {
+  if (figure_capture_) figure_capture_->cross_page_input = false;
+}
+
+std::optional<std::vector<Stroke>> Editor::CapturedStrokes() const {
+  if (!figure_capture_ || FigureCaptureStatus() != FigureCaptureError::kNone) return std::nullopt;
+  const FigureCapture &capture = *figure_capture_;
+  std::vector<Stroke> strokes;
+  for (const auto &box : document().pages[capture.page]->layers[capture.layer].elements) {
+    const Stroke *stroke = std::get_if<Stroke>(&box->value);
+    if (stroke && capture.stroke_ids.contains(stroke->id)) strokes.push_back(*stroke);
+  }
+  return strokes;
+}
+
+std::optional<Figure> Editor::CompleteFigureCapture() {
+  if (!figure_capture_ || live_ || erase_ || select_ || transform_ || ignored_) return std::nullopt;
+  std::optional<std::vector<Stroke>> captured = CapturedStrokes();
+  if (!captured) return std::nullopt;
+  FigureCapture capture = *figure_capture_;
+  if (captured->empty()) {
+    layer_ = capture.previous_layer;
+    figure_capture_.reset();
+    return std::nullopt;
+  }
+
+  Document next = document();
+  Page page = *next.pages[capture.page];
+  Elements &elements = page.layers[capture.layer].elements;
+  Elements children, grouped;
+  size_t first = elements.size();
+  for (size_t i = 0; i < elements.size(); ++i) {
+    const Stroke *stroke = std::get_if<Stroke>(&elements[i]->value);
+    if (!stroke || !capture.stroke_ids.contains(stroke->id)) continue;
+    if (first == elements.size()) first = i;
+    children = std::move(children).push_back(elements[i]);
+  }
+  Figure figure{.id = history_->ids().FigureId(), .children = std::move(children)};
+  figure.scene_href = "../assets/" + figure.id + ".scene.json";
+  figure.tikz_href = "../assets/" + figure.id + ".tikz";
+  for (size_t i = 0; i < elements.size(); ++i) {
+    if (i == first) grouped = std::move(grouped).push_back(immer::box<Element>(Element{figure}));
+    const Stroke *stroke = std::get_if<Stroke>(&elements[i]->value);
+    if (stroke && capture.stroke_ids.contains(stroke->id)) continue;
+    grouped = std::move(grouped).push_back(elements[i]);
+  }
+  elements = std::move(grouped);
+  next.pages = next.pages.set(capture.page, immer::box<Page>(std::move(page)));
+  history_->Push(std::move(next));
+  ClearSelection();
+  layer_ = capture.previous_layer;
+  figure_capture_.reset();
+  return figure;
+}
+
 InkPenSample Editor::ToPage(InkPenSample sample, const Point &origin) const {
   Point content = ToContent(view_, sample.x, sample.y);
   sample.x = content.x - origin.x;
@@ -207,6 +308,10 @@ void Editor::Input(const InkPenSample *samples, size_t count) {
       const std::vector<PagePlacement> layout = LayoutPages(document());
       const PagePlacement *placement = PageAt(layout, at.y);
       if (!placement) continue;
+      if (figure_capture_ && placement->page != figure_capture_->page) {
+        figure_capture_->cross_page_input = true;
+        continue;
+      }
       page_ = placement->page;
       live_.emplace(LiveStroke{.tool = InkTool(s.tool), .t0 = s.time, .pen = pen_,
                                .origin = {placement->x, placement->y}});
@@ -279,6 +384,7 @@ void Editor::Commit() {
     elements = live.pen.brush == INK_BRUSH_HIGHLIGHTER ? std::move(elements).push_front(box)
                                                        : std::move(elements).push_back(box);
     committed_.push_back({id, page_, layer_, t0, live.pen, live.origin, std::move(piece)});
+    if (figure_capture_) figure_capture_->stroke_ids.insert(id);
   }
   next.pages = next.pages.set(page_, immer::box<Page>(std::move(page)));
   history_->Push(std::move(next));

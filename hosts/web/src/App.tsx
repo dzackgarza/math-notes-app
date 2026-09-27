@@ -171,11 +171,16 @@ export function App() {
           root={r}
           folders={library()?.folders ?? data.folders}
           templates={data.templates}
+          metadata={library()?.metadata ?? data.metadata}
+          onMetadata={updateMetadata}
           parent={selected()}
           dismiss={dismiss}
-          onCreate={(parent, title) =>
+          onCreate={(parent, title, fields) =>
             run(async () => {
               const path = await createFolder(r, parent, title);
+              const latest = library();
+              if (!latest) return;
+              await writeMetadata(r, { ...latest.metadata, folders: { ...latest.metadata.folders, [pathKey(path)]: fields } });
               await refetch();
               setSection("library");
               setSelected(path);
@@ -198,18 +203,30 @@ export function App() {
           folder={folder}
           metadata={library()?.metadata ?? data.metadata}
           onMetadata={updateMetadata}
+          onSaveTemplate={(settings) => updateMetadata((m) => ({ ...m, startingTemplates: [...m.startingTemplates, settings] }))}
           dismiss={dismiss}
           onSettings={() => setSection("settings")}
-          onCreate={(parent, title, template, tags) =>
+          onSaveDraft={(draft) =>
+            run(async () => {
+              const latest = library();
+              if (!latest) return;
+              const metadata = { ...latest.metadata, draft };
+              await writeMetadata(r, metadata);
+              mutate({ ...latest, metadata });
+              await dismiss();
+            })
+          }
+          onCreate={(parent, title, template, tags, pageSize) =>
             run(async () => {
               const e = engine();
               if (!e) return;
               setSelected(parent);
-              const notebook = await createNotebook(e, r, parent, title, template);
+              const notebook = await createNotebook(e, r, parent, title, template, pageSize);
               const metadata = library()?.metadata;
-              if (tags.length > 0 && metadata) {
+              if (metadata && (tags.length > 0 || metadata.draft)) {
                 const key = pathKey(notebook.path);
-                await writeMetadata(r, { ...metadata, notes: { ...metadata.notes, [key]: { ...emptyNote(), tags } } });
+                const notes = tags.length > 0 ? { ...metadata.notes, [key]: { ...emptyNote(), tags } } : metadata.notes;
+                await writeMetadata(r, { ...metadata, notes, draft: undefined });
               }
               showNotebook(notebook);
               await refetch();
@@ -228,7 +245,7 @@ export function App() {
         fallback={
           // The library's layout, empty, behind the folder choice.
           <>
-            <Shell sidebar={{ folders: [], metadata: { tags: [], notes: {} }, section: "library", onSection: () => {}, onMetadata: () => {} }}>
+            <Shell sidebar={{ folders: [], metadata: { tags: [], notes: {}, folders: {}, startingTemplates: [] }, section: "library", onSection: () => {}, onMetadata: () => {} }}>
               <IonContent class="main">
                 <LibraryHeader title="Library" lede="A collection of mathematical notebooks." />
               </IonContent>
@@ -270,7 +287,9 @@ export function App() {
                   <Editor
                     notebook={notebook}
                     folderName={folderOf(notebook.path)?.name ?? MY_NOTES}
+                    folderDescription={data().metadata.folders[pathKey(notebook.path.slice(0, -1))]?.description ?? ""}
                     folderNotes={folderOf(notebook.path)?.notes.map((n) => ({ path: n.path, name: n.name })) ?? []}
+                    libraryNotes={data().folders.flatMap((folder) => folder.notes.map((note) => ({ path: note.path, name: note.name, folderName: folder.name })))}
                     tabs={tabs()}
                     tags={noteTags(notebook.path)}
                     allTags={data().metadata.tags}

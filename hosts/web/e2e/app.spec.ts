@@ -1,7 +1,8 @@
 // The deployed web app in Chromium: pen input through CDP, saving to the
 // origin-private file system (?root=opfs), reload, and offline start.
 /// <reference path="../src/window.d.ts" />
-import { expect, type Locator, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 
 const APP = "?root=opfs";
 
@@ -112,6 +113,68 @@ test("a pen stroke is saved, byte for byte as the engine wrote it, and renders a
   expect(Math.min(pr, pg, pb)).toBeGreaterThan(240); // paper
 });
 
+test("Drawing mode saves a bounded TikZ figure and reopens its scene after reload", async ({ page }, testInfo) => {
+  await startEmpty(page);
+  await newNote(page, "Figure");
+  const box = (await page.locator("#ink-canvas").boundingBox())!;
+  await page.getByRole("button", { name: "Drawing", exact: true }).click();
+  await drawWithPen(page, Array.from({ length: 20 }, (_, i) => ({
+    x: box.x + 150 + i * 8,
+    y: box.y + 110 + 4 * Math.sin(i / 3),
+  })));
+  await expect(page.getByRole("textbox", { name: "Generated TikZ source" })).toHaveValue(/\\draw/);
+  await page.getByRole("button", { name: "Drawing", exact: true }).click();
+  await expect(page.locator(".figure-page-bounds")).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("completed-figure.png") });
+  await expect.poll(async () => Buffer.from(await readOpfsFile(page, "Figure/pages/0001.svg"), "base64").toString(), { timeout: 5000 }).toContain('class="mn-figure"');
+  const saved = Buffer.from(await readOpfsFile(page, "Figure/pages/0001.svg"), "base64").toString();
+  const id = saved.match(/id="(f-[a-z2-7]+)" class="mn-figure"/)?.[1];
+  expect(id).toBeTruthy();
+  const scene = Buffer.from(await readOpfsFile(page, `Figure/assets/${id}.scene.json`), "base64").toString();
+  const source = Buffer.from(await readOpfsFile(page, `Figure/assets/${id}.tikz`), "base64").toString();
+  expect(JSON.parse(scene).objects).toHaveLength(1);
+  expect(source).toContain("\\begin{tikzpicture}");
+
+  await page.reload();
+  await openNote(page, "Figure");
+  await page.getByRole("button", { name: "Lasso", exact: true }).click();
+  const loop = [
+    ...Array.from({ length: 10 }, (_, i) => ({ x: 130 + i * 22, y: 75 })),
+    ...Array.from({ length: 5 }, (_, i) => ({ x: 350, y: 75 + i * 18 })),
+    ...Array.from({ length: 10 }, (_, i) => ({ x: 350 - i * 22, y: 165 })),
+    ...Array.from({ length: 5 }, (_, i) => ({ x: 130, y: 165 - i * 18 })),
+  ].map((p) => ({ x: box.x + p.x, y: box.y + p.y }));
+  await drawWithPen(page, loop);
+  await expect(page.getByRole("complementary", { name: "TikZ drawing preview" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Generated TikZ source" })).toHaveValue(source);
+});
+
+test("pages have a narrow desk gap and one finger moves the view", async ({ page }, testInfo) => {
+  await startEmpty(page);
+  await newNote(page, "Two Pages");
+  await page.getByRole("button", { name: "Page actions" }).click();
+  await page.getByText("Insert page after", { exact: true }).click();
+  await expect(page.locator("ion-popover")).toBeHidden();
+  const box = (await page.locator("#ink-canvas").boundingBox())!;
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  const scale = box.width / 595.28;
+  await page.mouse.move(x, y);
+  await page.mouse.wheel(0, 841.89 * scale - box.height / 2);
+  const gapColor = async (at: number) => (await pixel(page, x, at))[0];
+  await expect.poll(() => gapColor(y + 3 * scale)).toBeLessThan(242);
+  await page.screenshot({ path: testInfo.outputPath("page-gap.png") });
+  expect(await gapColor(y - 4)).toBeGreaterThan(245);
+  expect(await gapColor(y + 7 * scale)).toBeGreaterThan(245);
+
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 2 });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y: y + 80, id: 1 }] });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y, id: 1 }] });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await expect.poll(() => gapColor(y + 3 * scale - 80)).toBeLessThan(242);
+});
+
 test("nginx serves the engine as application/wasm", async ({ page }) => {
   const wasm = page.waitForResponse((r) => r.url().endsWith(".wasm"));
   await page.goto(APP);
@@ -178,6 +241,243 @@ test("a note created in a new folder with the dotted template is listed in its f
   const svg = Buffer.from(await readOpfsFile(page, "Topology/Knots/pages/0001.svg"), "base64").toString();
   expect(svg).toContain('mn:ruling="dotted"');
   expect(svg).toContain('<path id="s-');
+});
+
+test("the editor opens a searched library note in a tab and preserves each note's ink", async ({ page }, testInfo) => {
+  await startEmpty(page);
+  await newNote(page, "Algebra");
+  const box = (await page.locator("#ink-canvas").boundingBox())!;
+  await drawWithPen(page, Array.from({ length: 20 }, (_, i) => ({ x: box.x + 150 + i * 8, y: box.y + 100 })));
+  await savedStrokes(page, "pages/0001.svg");
+  const algebra = await savedStrokeIds(page, "Algebra/pages/0001.svg");
+  await page.getByRole("button", { name: "Library" }).click();
+
+  await page.getByRole("button", { name: "New Notebook" }).click();
+  await page.getByRole("textbox", { name: "Notebook Title" }).fill("Topology");
+  await page.getByRole("button", { name: "Create Notebook" }).click();
+  await page.getByRole("button", { name: "New Note in Topology" }).click();
+  await page.getByRole("textbox", { name: "Title" }).fill("Knots");
+  await page.getByRole("button", { name: "Create Note" }).click();
+  await page.locator("#ink-canvas").waitFor();
+  const knotsBox = (await page.locator("#ink-canvas").boundingBox())!;
+  await drawWithPen(page, Array.from({ length: 20 }, (_, i) => ({ x: knotsBox.x + 150 + i * 8, y: knotsBox.y + 180 })));
+  await expect.poll(async () => savedStrokeIds(page, "Topology/Knots/pages/0001.svg")).not.toEqual([]);
+  const knots = await savedStrokeIds(page, "Topology/Knots/pages/0001.svg");
+  await page.getByRole("button", { name: "Library" }).click();
+  await openFolder(page, "My Notes");
+  await openNote(page, "Algebra");
+
+  await page.getByRole("button", { name: "Open another note" }).click();
+  await page.getByRole("search", { name: "Search library notes" }).getByRole("searchbox").fill("Knots");
+  await page.screenshot({ path: testInfo.outputPath("note-picker.png") });
+  await page.locator("ion-modal").getByText("Knots", { exact: true }).click();
+  await expect(page.getByRole("tab", { name: "Knots" })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("tab", { name: "Algebra" }).click();
+  await expect(page.getByRole("tab", { name: "Algebra" })).toHaveAttribute("aria-selected", "true");
+  expect(await savedStrokeIds(page, "Algebra/pages/0001.svg")).toEqual(algebra);
+  expect(await savedStrokeIds(page, "Topology/Knots/pages/0001.svg")).toEqual(knots);
+  expect(algebra).not.toEqual(knots);
+});
+
+test("New Note restores its saved draft after reload and removes the draft when the note is created", async ({ page }, testInfo) => {
+  await startEmpty(page);
+  await page.getByRole("button", { name: "New Notebook" }).click();
+  await page.getByRole("textbox", { name: "Notebook Title" }).fill("Topology");
+  await page.getByRole("button", { name: "Create Notebook" }).click();
+  await page.getByRole("button", { name: "New Note in Topology" }).click();
+  await page.getByRole("textbox", { name: "Title" }).fill("Knots");
+  await page.getByText("Grid Paper, medium", { exact: true }).click();
+  await page.locator("ion-chip[aria-label='Add Tag']").click();
+  await page.getByText("New Tag…", { exact: true }).click();
+  await page.locator("ion-alert").getByRole("textbox", { name: "Name" }).fill("Research");
+  await page.locator("ion-alert").getByRole("button", { name: "Add Tag" }).click();
+  await expect(page.locator("ion-chip.tag-chip")).toContainText("Research");
+  await page.getByRole("button", { name: "Save as Draft" }).click();
+  await expect.poll(async () => JSON.parse(Buffer.from(await readOpfsFile(page, ".library.json"), "base64").toString()).draft).toEqual({
+    folder: ["Topology"], title: "Knots", template: "grid-medium", tags: ["Research"], pageSize: "a4",
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "New Note", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "Title" })).toHaveValue("Knots");
+  await expect(page.getByText("Grid Paper, medium", { exact: true }).locator("..")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("ion-chip.tag-chip")).toContainText("Research");
+  await expect(page.locator(".target-name")).toHaveText("Topology");
+  await page.screenshot({ path: testInfo.outputPath("restored-draft.png") });
+  await page.getByRole("button", { name: "Create Note" }).click();
+  await page.locator("#ink-canvas").waitFor();
+  const metadata = JSON.parse(Buffer.from(await readOpfsFile(page, ".library.json"), "base64").toString());
+  expect(metadata.draft).toBeUndefined();
+  expect(metadata.notes["Topology/Knots"].tags).toEqual(["Research"]);
+  const notebook = JSON.parse(Buffer.from(await readOpfsFile(page, "Topology/Knots/notebook.json"), "base64").toString());
+  expect(notebook.template).toBe("grid-medium");
+});
+
+test("notebook fields persist, appear in the library, and set the new-note paper", async ({ page }, testInfo) => {
+  await startEmpty(page);
+  await page.getByRole("button", { name: "New Notebook" }).click();
+  await page.getByRole("textbox", { name: "Notebook Title" }).fill("Topology");
+  await page.getByRole("textbox", { name: "Description" }).fill("Spaces and knots");
+  await page.getByText("Graph Paper", { exact: true }).click();
+  await page.getByRole("button", { name: "Cover #C9B8F0" }).click();
+  await page.getByText("Spine", { exact: true }).click();
+  await page.locator("ion-chip[aria-label='Add a tag']").click();
+  await page.getByText("New Tag…", { exact: true }).click();
+  await page.locator("ion-alert").getByRole("textbox", { name: "Name" }).fill("Research");
+  await page.locator("ion-alert").getByRole("button", { name: "Add Tag" }).click();
+  await expect(page.locator("ion-chip.tag-chip")).toContainText("Research");
+  await page.screenshot({ path: testInfo.outputPath("notebook-form.png") });
+  await page.getByRole("button", { name: "Create Notebook" }).click();
+  await expect.poll(async () => JSON.parse(Buffer.from(await readOpfsFile(page, ".library.json"), "base64").toString()).folders?.Topology).toEqual({
+    description: "Spaces and knots", paper: "grid-coarse", coverColor: "#C9B8F0", coverStyle: "spine", tags: ["Research"],
+  });
+  await page.reload();
+  const metadata = JSON.parse(Buffer.from(await readOpfsFile(page, ".library.json"), "base64").toString());
+  expect(metadata.folders.Topology).toEqual({
+    description: "Spaces and knots", paper: "grid-coarse", coverColor: "#C9B8F0", coverStyle: "spine", tags: ["Research"],
+  });
+  await openFolder(page, "My Notes");
+  const card = page.getByRole("list", { name: "Notebooks" }).getByRole("listitem").filter({ hasText: "Topology" });
+  await expect(card).toContainText("Spaces and knots");
+  await card.getByRole("button", { name: "Topology", exact: true }).click();
+  await expect(page.locator(".detail-description")).toHaveText("Spaces and knots");
+  await expect(page.locator(".detail")).toContainText("Research");
+  await page.screenshot({ path: testInfo.outputPath("notebook-library.png") });
+  await page.getByRole("button", { name: "Add notebook tag" }).click();
+  await page.getByText("New Tag…", { exact: true }).click();
+  await page.locator("ion-alert").getByRole("textbox", { name: "Name" }).fill("Review");
+  await page.locator("ion-alert").getByRole("button", { name: "Add Tag" }).click();
+  await expect(page.locator(".detail")).toContainText("Review");
+  await page.getByRole("button", { name: "New Note in Topology" }).click();
+  await expect(page.getByText("Grid Paper, coarse", { exact: true }).locator("..")).toHaveAttribute("aria-pressed", "true");
+});
+
+test("a saved starting template applies its folder, paper, page size and tags after reload", async ({ page }) => {
+  await startEmpty(page);
+  await page.getByRole("button", { name: "New Notebook" }).click();
+  await page.getByRole("textbox", { name: "Notebook Title" }).fill("Topology");
+  await page.getByRole("button", { name: "Create Notebook" }).click();
+  await page.getByRole("button", { name: "New Note in Topology" }).click();
+  await page.getByText("Grid Paper, medium", { exact: true }).click();
+  await page.getByRole("button", { name: "Page Size" }).click();
+  await page.getByText("Letter", { exact: true }).click();
+  await page.locator("ion-chip[aria-label='Add Tag']").click();
+  await page.getByText("New Tag…", { exact: true }).click();
+  await page.locator("ion-alert").getByRole("textbox", { name: "Name" }).fill("Research");
+  await page.locator("ion-alert").getByRole("button", { name: "Add Tag" }).click();
+  await page.getByRole("button", { name: "Save as template" }).click();
+  await page.locator("ion-alert").getByRole("textbox", { name: "Template name" }).fill("Seminar");
+  await expect(page.locator("ion-alert").getByRole("textbox", { name: "Template name" })).toHaveValue("Seminar");
+  await page.locator("ion-alert").getByRole("button", { name: "Save" }).click();
+  await expect.poll(async () => JSON.parse(Buffer.from(await readOpfsFile(page, ".library.json"), "base64").toString()).startingTemplates?.[0]?.name).toBe("Seminar");
+  await page.reload();
+  await page.getByRole("button", { name: "New Note", exact: true }).click();
+  await page.getByText("Seminar", { exact: true }).click();
+  await expect(page.locator(".target-name")).toHaveText("Topology");
+  await expect(page.getByText("Grid Paper, medium", { exact: true }).locator("..")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("ion-chip.tag-chip")).toContainText("Research");
+  await page.getByRole("textbox", { name: "Title" }).fill("Lecture");
+  await page.getByRole("button", { name: "Create Note" }).click();
+  await page.locator("#ink-canvas").waitFor();
+  const notebook = JSON.parse(Buffer.from(await readOpfsFile(page, "Topology/Lecture/notebook.json"), "base64").toString());
+  const metadata = JSON.parse(Buffer.from(await readOpfsFile(page, ".library.json"), "base64").toString());
+  expect(notebook.template).toBe("grid-medium");
+  expect(notebook.pageSize).toBe("Letter");
+  expect(metadata.notes["Topology/Lecture"].tags).toEqual(["Research"]);
+  const page1 = Buffer.from(await readOpfsFile(page, "Topology/Lecture/pages/0001.svg"), "base64").toString();
+  expect(page1).toContain('viewBox="0 0 612 792"');
+});
+
+test("the Image tool stores a PNG asset and shows it after reload", async ({ page }, testInfo) => {
+  await startEmpty(page);
+  await newNote(page, "Diagram");
+  await page.locator("input[type=file]").setInputFiles("../../core/tests/fixtures/render/full/0001.png");
+  await expect.poll(async () => {
+    const svg = Buffer.from(await readOpfsFile(page, "Diagram/pages/0001.svg"), "base64").toString();
+    return svg.match(/<image[^>]+/)?.[0];
+  }).toMatch(/href="\.\.\/assets\/[0-9a-f]+\.png"/);
+  const svg = Buffer.from(await readOpfsFile(page, "Diagram/pages/0001.svg"), "base64").toString();
+  const asset = svg.match(/href="\.\.\/assets\/([0-9a-f]+\.png)"/)![1];
+  expect((await readOpfsFile(page, `Diagram/assets/${asset}`)).length).toBeGreaterThan(100);
+  await page.reload();
+  await openNote(page, "Diagram");
+  await expect(page.locator("#ink-canvas")).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("image-reopened.png") });
+  const png = (await page.locator("#ink-canvas").screenshot()).toString("base64");
+  const red = await page.evaluate(async (data) => {
+    const image = new Image();
+    image.src = `data:image/png;base64,${data}`;
+    await image.decode();
+    const context = new OffscreenCanvas(image.width, image.height).getContext("2d")!;
+    context.drawImage(image, 0, 0);
+    const pixels = context.getImageData(0, 0, image.width, image.height).data;
+    let count = 0;
+    for (let i = 0; i < pixels.length; i += 4) {
+      if (pixels[i] > 245 && pixels[i + 1] > 90 && pixels[i + 1] < 160 && pixels[i + 2] > 90 && pixels[i + 2] < 160) count++;
+    }
+    return count;
+  }, png);
+  expect(red).toBeGreaterThan(50);
+});
+
+test("the Image tool renders an imported JPEG after reload", async ({ page }, testInfo) => {
+  await startEmpty(page);
+  await newNote(page, "Photo");
+  const jpeg = await page.locator(".tools").screenshot({ type: "jpeg" });
+  await page.locator("input[type=file]").setInputFiles({ name: "tools.jpg", mimeType: "image/jpeg", buffer: jpeg });
+  await expect.poll(async () => {
+    const svg = Buffer.from(await readOpfsFile(page, "Photo/pages/0001.svg"), "base64").toString();
+    return svg.match(/href="\.\.\/assets\/[0-9a-f]+\.jpg"/)?.[0];
+  }).toMatch(/\.jpg"/);
+  await page.reload();
+  await openNote(page, "Photo");
+  await page.screenshot({ path: testInfo.outputPath("jpeg-reopened.png") });
+  const png = (await page.locator("#ink-canvas").screenshot()).toString("base64");
+  const dark = await page.evaluate(async (data) => {
+    const image = new Image();
+    image.src = `data:image/png;base64,${data}`;
+    await image.decode();
+    const context = new OffscreenCanvas(image.width, image.height).getContext("2d")!;
+    context.drawImage(image, 0, 0);
+    const pixels = context.getImageData(200, 100, 500, 450).data;
+    let count = 0;
+    for (let i = 0; i < pixels.length; i += 4) if (pixels[i] < 80 && pixels[i + 1] < 80 && pixels[i + 2] < 80) count++;
+    return count;
+  }, png);
+  expect(dark).toBeGreaterThan(50);
+});
+
+test("the Text tool saves editable SVG text that renders after reload", async ({ page }, testInfo) => {
+  await startEmpty(page);
+  await newNote(page, "Definitions");
+  const box = (await page.locator("#ink-canvas").boundingBox())!;
+  await page.getByRole("button", { name: "Text", exact: true }).click();
+  await page.mouse.click(box.x + 250, box.y + 200);
+  await page.getByRole("textbox", { name: "Page text" }).fill("Homotopy group");
+  await page.getByRole("button", { name: "Save Text" }).click();
+  await expect.poll(async () => Buffer.from(await readOpfsFile(page, "Definitions/pages/0001.svg"), "base64").toString()).toContain("Homotopy group");
+  await page.reload();
+  await openNote(page, "Definitions");
+  await page.screenshot({ path: testInfo.outputPath("text-reopened.png") });
+  const png = (await page.locator("#ink-canvas").screenshot()).toString("base64");
+  const dark = await page.evaluate(async (data) => {
+    const image = new Image();
+    image.src = `data:image/png;base64,${data}`;
+    await image.decode();
+    const context = new OffscreenCanvas(image.width, image.height).getContext("2d")!;
+    context.drawImage(image, 0, 0);
+    const pixels = context.getImageData(240, 190, 180, 60).data;
+    let count = 0;
+    for (let i = 0; i < pixels.length; i += 4) if (pixels[i] < 100 && pixels[i + 1] < 100 && pixels[i + 2] < 100) count++;
+    return count;
+  }, png);
+  expect(dark).toBeGreaterThan(20);
+  await page.getByRole("button", { name: "Text", exact: true }).click();
+  const reopened = (await page.locator("#ink-canvas").boundingBox())!;
+  await page.mouse.click(reopened.x + 270, reopened.y + 210);
+  await expect(page.getByRole("textbox", { name: "Page text" })).toHaveValue("Homotopy group");
+  await page.getByRole("textbox", { name: "Page text" }).fill("Fundamental group");
+  await page.getByRole("button", { name: "Save Text" }).click();
+  await expect.poll(async () => Buffer.from(await readOpfsFile(page, "Definitions/pages/0001.svg"), "base64").toString()).toContain("Fundamental group");
 });
 
 test("the tool rail's presets and palette color reach the saved strokes", async ({ page }) => {
@@ -716,74 +1016,53 @@ test("a thumbnail is rendered again when an image that page 1 shows changes", as
   expect(await cachedColor()).toEqual([0, 0, 255]);
 });
 
-// Every file under the notes root, with its size and modification time.
-async function notesFolderState(page: Page): Promise<string[]> {
-  return page.evaluate(async () => {
-    const files: string[] = [];
-    const walk = async (dir: FileSystemDirectoryHandle, prefix: string) => {
-      for await (const [name, handle] of dir.entries()) {
-        if (handle.kind === "directory") {
-          await walk(handle, `${prefix}${name}/`);
-          continue;
-        }
-        const file = await handle.getFile();
-        files.push(`${prefix}${name} ${file.size} ${file.lastModified}`);
-      }
-    };
-    await walk(await navigator.storage.getDirectory(), "");
-    return files.sort();
-  });
-}
-
-// Clicks each control, which is placed from the mockups before its feature
-// lands (#57): each shows a toast naming the issue that implements it, and
-// the notes folder is unchanged.
-async function expectStubs(page: Page, controls: [Locator, number][]): Promise<void> {
-  const before = await notesFolderState(page);
-  for (const [control, issue] of controls) {
-    await control.click();
-    await expect(page.locator("ion-toast")).toHaveCount(1);
-    await expect(page.getByText(`Not implemented yet (#${issue})`, { exact: true })).toBeVisible();
-    await page.evaluate(() => Promise.all(Array.from(document.querySelectorAll<HTMLElement & { dismiss(): Promise<boolean> }>("ion-toast"), (t) => t.dismiss())));
-    await expect(page.locator("ion-toast")).toHaveCount(0);
-  }
-  expect(await notesFolderState(page)).toEqual(before);
-}
-
-test("each control whose feature has not landed names its issue and changes no file", async ({ page }) => {
+test("Share exports the open notebook as a PDF", async ({ page }) => {
   await startEmpty(page);
-  await newNote(page, "Stubs");
-  await expect.poll(async () => (await notesFolderState(page)).some((f) => f.startsWith(".pens.json ")), { timeout: 5000 }).toBe(true);
-  await expectStubs(page, [
-    [page.getByRole("button", { name: "Shapes", exact: true }), 10],
-    [page.getByRole("button", { name: "Image", exact: true }), 60],
-    [page.getByRole("button", { name: "Text", exact: true }), 61],
-    [page.getByRole("button", { name: "Open another note" }), 62],
-    [page.getByRole("button", { name: "Share" }), 29],
+  await newNote(page, "Algebra");
+  await drawWithPen(page, [
+    { x: 300, y: 200 },
+    { x: 330, y: 210 },
+    { x: 360, y: 200 },
   ]);
+  await expect.poll(async () => {
+    const svg = Buffer.from(await readOpfsFile(page, "Algebra/pages/0001.svg"), "base64").toString();
+    return svg.includes('<path id="s-');
+  }).toBe(true);
 
-  await page.getByRole("button", { name: "Library" }).click();
-  await page.getByRole("button", { name: "My Notes", exact: true }).click();
-  // Opening the library renders the note's cover into .thumbnail-cache/.
-  await expect.poll(() => page.evaluate(() => window.mathNotesThumbnails!.renders), { timeout: 5000 }).toBe(1);
-  await expectStubs(page, [
-    [page.getByRole("button", { name: "Shared", exact: true }), 59],
-    [page.getByRole("button", { name: "Add notebook tag" }), 58],
-  ]);
+  await page.getByRole("button", { name: "Share" }).click();
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export PDF" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("Algebra.pdf");
+  const pdf = await readFile((await download.path())!);
+  expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
+  expect(pdf.length).toBeGreaterThan(1000);
+});
 
-  await page.getByRole("button", { name: "New Notebook" }).click();
-  await expectStubs(page, [
-    [page.getByRole("textbox", { name: "Description" }), 58],
-    [page.getByRole("button", { name: "Graph Paper" }), 58],
-    [page.getByRole("button", { name: "Cover #C9B8F0" }), 58],
-    [page.getByRole("button", { name: "Spine" }), 58],
-    [page.getByRole("button", { name: "Add a tag" }), 58],
+test("Share exports only the selected PDF page range", async ({ page }) => {
+  await startEmpty(page);
+  await newNote(page, "Range");
+  await drawWithPen(page, [
+    { x: 300, y: 200 },
+    { x: 330, y: 210 },
+    { x: 360, y: 200 },
   ]);
-  await page.getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("button", { name: "Page actions" }).click();
+  await page.getByText("Insert page after", { exact: true }).click();
+  await expect(page.getByLabel("Page", { exact: true })).toHaveText(/\/ 2$/);
 
-  await page.getByRole("button", { name: "New Note", exact: true }).click();
-  await expectStubs(page, [
-    [page.getByRole("button", { name: "Theorem / Proof" }), 49],
-    [page.getByRole("button", { name: "Save as Draft" }), 63],
-  ]);
+  await page.getByRole("button", { name: "Share" }).click();
+  await page.getByLabel("From page").fill("2");
+  const secondDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export PDF" }).click();
+  const second = await readFile((await (await secondDownload).path())!);
+
+  await page.getByRole("button", { name: "Share" }).click();
+  await page.getByLabel("Through page").fill("1");
+  const firstDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export PDF" }).click();
+  const first = await readFile((await (await firstDownload).path())!);
+  expect(first.subarray(0, 5).toString()).toBe("%PDF-");
+  expect(second.subarray(0, 5).toString()).toBe("%PDF-");
+  expect(first).not.toEqual(second);
 });

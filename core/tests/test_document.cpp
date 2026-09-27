@@ -135,3 +135,42 @@ TEST_CASE("A page with 400 recorded strokes") {
               stroke.samples.size(), ink_test::Outline(recorded).size(), bytes.size());
   CHECK(ReadPage(bytes, page.file, {layer.layer_id}).layers[0].elements.size() == 400);
 }
+
+TEST_CASE("A TikZ figure stays visible in standalone SVG and retains its editable references") {
+  Stroke ink{.id = "s-3kd92lq0mzpa", .fill = {26, 26, 26}, .brush = "pressure-pen",
+             .size = 2, .time = "2026-09-25T17:43:21.123Z",
+             .outline = {{{10, 20}, {12, 20}, {12, 22}}},
+             .channels = kChannelX | kChannelY | kChannelT,
+             .samples = {{.x = 10, .y = 20, .t = 0}, {.x = 12, .y = 22, .t = 20}}};
+  Figure figure{.id = "f-c718xa2kq9mz", .transform = {.e = 35, .f = 47},
+                .scene_href = "../assets/f-c718xa2kq9mz.scene.json",
+                .tikz_href = "../assets/f-c718xa2kq9mz.tikz"};
+  figure.children = figure.children.push_back(immer::box<Element>(Element{ink}));
+  Page page{.id = "p-c718xa", .file = "pages/0001.svg", .width = 595.28, .height = 841.89};
+  LayerContent layer{.layer_id = "l-8f3kq0"};
+  layer.elements = layer.elements.push_back(immer::box<Element>(Element{figure}));
+  layer.elements = layer.elements.push_back(
+      immer::box<Element>(Element{Bookmark{"b-27r4cq9ax6mh", {}}}));
+  page.layers.push_back(layer);
+
+  const std::string bytes = WritePage(page);
+  CHECK(bytes.find("<g id=\"f-c718xa2kq9mz\" class=\"mn-figure\" transform=\"translate(35,47)\" "
+                   "mn:scene=\"../assets/f-c718xa2kq9mz.scene.json\" "
+                   "mn:tikz=\"../assets/f-c718xa2kq9mz.tikz\">") != std::string::npos);
+  CHECK(bytes.find("<inkml:trace contextRef=\"#xyt\">10 20 0,12 22 20</inkml:trace>") !=
+        std::string::npos);
+  CHECK(bytes.find("d=\"M10 20l2 0 0 2Z\"") != std::string::npos);
+
+  Page reopened = ReadPage(bytes, page.file, {layer.layer_id});
+  REQUIRE_FALSE(reopened.error.has_value());
+  REQUIRE(reopened.layers[0].elements.size() == 2);
+  const Figure &saved = std::get<Figure>(reopened.layers[0].elements[0]->value);
+  CHECK(saved.id == figure.id);
+  CHECK(saved.transform == figure.transform);
+  CHECK(saved.scene_href == figure.scene_href);
+  CHECK(saved.tikz_href == figure.tikz_href);
+  REQUIRE(saved.children.size() == 1);
+  CHECK(std::get<Stroke>(saved.children[0]->value).samples == ink.samples);
+  CHECK(std::get<Bookmark>(reopened.layers[0].elements[1]->value).id == "b-27r4cq9ax6mh");
+  CHECK(WritePage(reopened) == bytes);
+}

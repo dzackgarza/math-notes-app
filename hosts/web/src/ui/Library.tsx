@@ -14,7 +14,6 @@ import {
   folderOutline,
   gridOutline,
   listOutline,
-  peopleOutline,
   searchOutline,
   settingsOutline,
   star,
@@ -25,9 +24,9 @@ import {
 import { createMemo, createSignal, For, type JSX, Match, mergeProps, Show, Switch } from "solid-js";
 
 import { compareBy, type Folder, MY_NOTES, nameError, type Note, pathKey, type Sort } from "../storage/library.ts";
-import { emptyNote, type LibraryMetadata, type NoteMetadata, TAG_COLORS } from "../storage/metadata.ts";
-import { chooseAction, notImplemented, presentPopover, promptText } from "./ionic.ts";
-import { NoteCover, type Thumbnails } from "./paper.tsx";
+import { emptyFolder, emptyNote, type LibraryMetadata, type NoteMetadata, TAG_COLORS } from "../storage/metadata.ts";
+import { chooseAction, presentPopover, promptText } from "./ionic.ts";
+import { NoteCover, PaperTile, paperLabel, type Thumbnails } from "./paper.tsx";
 
 export type Section = "library" | "search" | "recent" | "favorites" | "trash" | "settings" | `tag:${string}`;
 
@@ -179,10 +178,6 @@ export function Sidebar(props: SidebarProps) {
           {item("library", glyph(bookOutline), "Library")}
           {item("search", glyph(searchOutline), "Search")}
           {item("recent", glyph(timeOutline), "Recent")}
-          <IonItem button detail={false} class="nav-item" onClick={() => notImplemented(59)}>
-            <IonIcon slot="start" icon={peopleOutline} />
-            <IonLabel>Shared</IonLabel>
-          </IonItem>
           {item("favorites", glyph(starOutline), "Favorites")}
           {item("trash", glyph(trashOutline), "Trash")}
         </IonList>
@@ -368,10 +363,13 @@ function NoteRow(props: { note: Note; subtitle: string; view: View }) {
 
 // A folder's cover: its first note's page 1 (spec, "New Notebook").
 function FolderCover(props: { folder: Folder; view: View; class: string }) {
+  const meta = () => props.view.metadata.folders[pathKey(props.folder.path)] ?? emptyFolder();
   return (
-    <Show when={[...props.folder.notes].sort(compareBy(props.view.sort))[0]} fallback={<div class={`paper-tile ${props.class} empty-cover`} />}>
-      {(first) => <NoteCover root={props.view.root} note={first()} thumbnail={props.view.thumbnail} class={props.class} />}
-    </Show>
+    <div class={`folder-cover ${props.class}`} classList={{ spine: meta().coverStyle === "spine" }} style={{ "--cover": meta().coverColor }}>
+      <Show when={[...props.folder.notes].sort(compareBy(props.view.sort))[0]} fallback={<PaperTile root={props.view.root} template={meta().paper} />}>
+        {(first) => <NoteCover root={props.view.root} note={first()} thumbnail={props.view.thumbnail} />}
+      </Show>
+    </div>
   );
 }
 
@@ -434,7 +432,7 @@ function FolderView(props: View) {
     const here = props.folders.find((f) => pathKey(f.path) === pathKey(props.selected))?.notes ?? [];
     return here.filter((n) => matches(n.name) && passes(n)).sort(compareBy(props.sort));
   });
-  const folderTags = (folder: Folder) => [...new Set(folder.notes.flatMap((n) => noteMeta(n)?.tags ?? []))];
+  const folderTags = (folder: Folder) => props.metadata.folders[pathKey(folder.path)]?.tags ?? [];
   const folderMeta = (folder: Folder) => {
     const inner = subfolders(props.folders, folder.path).length;
     return inner > 0 ? `${noteCount(folder.notes.length)} · ${inner} ${inner === 1 ? "folder" : "folders"}` : noteCount(folder.notes.length);
@@ -488,6 +486,14 @@ function FolderView(props: View) {
                   <Show when={folder.modified > 0}>
                     <p>Modified {ago(folder.modified)}</p>
                   </Show>
+                  <Show when={props.metadata.folders[pathKey(folder.path)]}>
+                    {(meta) => (
+                      <>
+                        <Show when={meta().description}><p>{meta().description}</p></Show>
+                        <p>{paperLabel(meta().paper)} · {meta().coverStyle === "classic" ? "Classic" : "Spine"} cover</p>
+                      </>
+                    )}
+                  </Show>
                   <TagChips metadata={props.metadata} tags={folderTags(folder)} />
                 </IonCardContent>
               </IonCard>
@@ -530,6 +536,29 @@ function FolderView(props: View) {
 
 function DetailPane(props: View) {
   const folder = () => props.folders.find((f) => pathKey(f.path) === pathKey(props.selected));
+  const meta = () => props.metadata.folders[pathKey(props.selected)] ?? emptyFolder();
+  const updateTags = (tags: string[]) =>
+    props.onMetadata((m) => ({ ...m, folders: { ...m.folders, [pathKey(props.selected)]: { ...(m.folders[pathKey(props.selected)] ?? emptyFolder()), tags } } }));
+  const tagMenu = (e: Event) =>
+    void presentPopover(e, (dismiss) => (
+      <IonList lines="full">
+        <For each={props.metadata.tags}>
+          {(tag) => (
+            <IonItem>
+              <span slot="start" class="tag-dot" style={{ background: tag.color }} />
+              <IonCheckbox
+                justify="space-between"
+                checked={meta().tags.includes(tag.name)}
+                on:ionChange={(event) => updateTags(event.detail.checked ? [...meta().tags, tag.name] : meta().tags.filter((name) => name !== tag.name))}
+              >
+                {tag.name}
+              </IonCheckbox>
+            </IonItem>
+          )}
+        </For>
+        <MenuItem label="New Tag…" icon={add} dismiss={dismiss} onSelect={() => addTagPrompt(props.metadata, props.onMetadata, (name) => updateTags([...meta().tags, name]))} />
+      </IonList>
+    ));
   const [query, setQuery] = createSignal("");
   const [tab, setTab] = createSignal<"notes" | "info">("notes");
   const parent = () => props.selected.slice(0, -1);
@@ -559,9 +588,10 @@ function DetailPane(props: View) {
             {noteCount(f().notes.length)}
             <Show when={f().modified > 0}> · Modified {ago(f().modified)}</Show>
           </IonNote>
+          <Show when={meta().description}><p class="detail-description">{meta().description}</p></Show>
           <div class="chips">
-            <TagChips metadata={props.metadata} tags={[...new Set(f().notes.flatMap((n) => props.metadata.notes[pathKey(n.path)]?.tags ?? []))]} />
-            <IonButton class="chip-add" size="small" fill="outline" color="medium" aria-label="Add notebook tag" onClick={() => notImplemented(58)}>
+            <TagChips metadata={props.metadata} tags={meta().tags} />
+            <IonButton class="chip-add" size="small" fill="outline" color="medium" aria-label="Add notebook tag" onClick={tagMenu}>
               <IonIcon slot="icon-only" icon={add} />
             </IonButton>
           </div>
@@ -580,6 +610,14 @@ function DetailPane(props: View) {
                 <IonItem>
                   <IonLabel>Location</IonLabel>
                   <IonNote slot="end">{[MY_NOTES, ...f().path].join(" / ")}</IonNote>
+                </IonItem>
+                <IonItem>
+                  <IonLabel>Paper</IonLabel>
+                  <IonNote slot="end">{paperLabel(meta().paper)}</IonNote>
+                </IonItem>
+                <IonItem>
+                  <IonLabel>Cover</IonLabel>
+                  <IonNote slot="end">{meta().coverStyle === "classic" ? "Classic" : "Spine"} · {meta().coverColor}</IonNote>
                 </IonItem>
                 <IonItem>
                   <IonLabel>Notes</IonLabel>

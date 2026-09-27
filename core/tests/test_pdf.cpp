@@ -2,6 +2,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <fstream>
+#include <string>
 
 #include "include/codec/SkCodec.h"
 #include "include/codec/SkPngDecoder.h"
@@ -17,6 +18,8 @@
 #include "include/docs/SkPDFJpegHelpers.h"
 #include "include/encode/SkPngEncoder.h"
 #include "include/utils/SkParsePath.h"
+#include "ink.h"
+#include "support/session.h"
 
 namespace {
 
@@ -62,4 +65,33 @@ TEST_CASE("Skia PDF writes a deterministic A4 page with a path and a PNG") {
   REQUIRE(first->equals(second.get()));
   std::ofstream("a4.pdf", std::ios::binary)
       .write(static_cast<const char *>(first->data()), first->size());
+}
+
+TEST_CASE("A notebook exports a selected page range as a deterministic PDF") {
+  ink_test::Session session;
+  InkPenSample ink[] = {
+      {.x = 100, .y = 100, .time = 0, .tool = INK_TOOL_PEN, .phase = INK_PHASE_BEGIN},
+      {.x = 150, .y = 100, .time = 20, .id = 1, .tool = INK_TOOL_PEN, .phase = INK_PHASE_MOVE},
+      {.x = 200, .y = 100, .time = 40, .id = 2, .tool = INK_TOOL_PEN, .phase = INK_PHASE_END}};
+  REQUIRE(ink_input(session.get(), ink, 3) == INK_OK);
+  REQUIRE(ink_document_set_page_size(session.document, INK_PAGE_LETTER, 0, 0) == INK_OK);
+  REQUIRE(ink_document_insert_page(session.document, 1) == INK_OK);
+  REQUIRE(ink_document_insert_page(session.document, 2) == INK_OK);
+  const InkPdfExportSpec range{.first_page = 1, .page_count = 2};
+  const uint8_t *bytes = nullptr;
+  size_t size = 0;
+  REQUIRE(ink_export_pdf(session.document, "Algebra", &range, &bytes, &size) == INK_OK);
+  const std::string first(reinterpret_cast<const char *>(bytes), size);
+  REQUIRE(first.starts_with("%PDF-"));
+  REQUIRE(first.size() > 1000);
+
+  REQUIRE(ink_export_pdf(session.document, "Algebra", &range, &bytes, &size) == INK_OK);
+  CHECK(std::string(reinterpret_cast<const char *>(bytes), size) == first);
+  std::ofstream("notebook-range.pdf", std::ios::binary).write(first.data(), first.size());
+
+  const InkPdfExportSpec full{.first_page = 0, .page_count = 3};
+  REQUIRE(ink_export_pdf(session.document, "Algebra", &full, &bytes, &size) == INK_OK);
+  CHECK(size > first.size());
+  std::ofstream("notebook-full.pdf", std::ios::binary)
+      .write(reinterpret_cast<const char *>(bytes), size);
 }

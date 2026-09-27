@@ -239,6 +239,19 @@ Image ReadImage(const pugi::xml_node &node) {
   return image;
 }
 
+Text ReadText(const pugi::xml_node &node) {
+  Text text;
+  text.id = node.attribute("id").value();
+  text.transform = ReadTransform(node.attribute("transform").value());
+  text.fill = ReadColor(node.attribute("fill").value());
+  text.x = Num(node, "x");
+  text.y = Num(node, "y");
+  if (node.attribute("font-size")) text.size = Num(node, "font-size");
+  for (pugi::xml_node line : node.children("tspan")) text.lines.emplace_back(line.text().get());
+  if (text.lines.empty()) text.lines.emplace_back(node.text().get());
+  return text;
+}
+
 Elements ReadElements(const pugi::xml_node &parent, const ReadContext &context) {
   Elements elements;
   for (pugi::xml_node node : parent.children()) {
@@ -251,8 +264,17 @@ Elements ReadElements(const pugi::xml_node &parent, const ReadContext &context) 
       element.value = ReadShape(node);
     } else if (tag == "image") {
       element.value = ReadImage(node);
+    } else if (tag == "text") {
+      element.value = ReadText(node);
     } else if (tag == "g") {
-      element.value = Bookmark{node.attribute("id").value(), ReadElements(node, context)};
+      if (std::string_view(node.attribute("class").value()) == "mn-figure") {
+        element.value = Figure{node.attribute("id").value(),
+                               ReadTransform(node.attribute("transform").value()),
+                               node.attribute("mn:scene").value(),
+                               node.attribute("mn:tikz").value(), ReadElements(node, context)};
+      } else {
+        element.value = Bookmark{node.attribute("id").value(), ReadElements(node, context)};
+      }
     } else if (tag == "a") {
       std::string href = node.attribute("href") ? node.attribute("href").value()
                                                 : node.attribute("xlink:href").value();
@@ -381,6 +403,23 @@ void WriteImage(pugi::xml_node &parent, const Image &image) {
   Set(node, "height", Coord(image.height));
 }
 
+void WriteText(pugi::xml_node &parent, const Text &text) {
+  pugi::xml_node node = parent.append_child("text");
+  Set(node, "id", text.id);
+  AppendTransform(node, text.transform);
+  Set(node, "x", Coord(text.x));
+  Set(node, "y", Coord(text.y));
+  Set(node, "fill", WriteColor(text.fill));
+  Set(node, "font-family", "sans-serif");
+  Set(node, "font-size", Coord(text.size));
+  for (size_t i = 0; i < text.lines.size(); ++i) {
+    pugi::xml_node line = node.append_child("tspan");
+    Set(line, "x", Coord(text.x));
+    if (i > 0) Set(line, "dy", Coord(text.size * 1.2));
+    line.text() = text.lines[i].c_str();
+  }
+}
+
 void WriteElements(pugi::xml_node &parent, const Elements &elements) {
   for (const auto &box : elements) {
     std::visit(
@@ -392,10 +431,20 @@ void WriteElements(pugi::xml_node &parent, const Elements &elements) {
             WriteShape(parent, e);
           } else if constexpr (std::is_same_v<T, Image>) {
             WriteImage(parent, e);
+          } else if constexpr (std::is_same_v<T, Text>) {
+            WriteText(parent, e);
           } else if constexpr (std::is_same_v<T, Bookmark>) {
             pugi::xml_node g = parent.append_child("g");
             Set(g, "id", e.id);
             Set(g, "class", "mn-bookmark");
+            WriteElements(g, e.children);
+          } else if constexpr (std::is_same_v<T, Figure>) {
+            pugi::xml_node g = parent.append_child("g");
+            Set(g, "id", e.id);
+            Set(g, "class", "mn-figure");
+            AppendTransform(g, e.transform);
+            Set(g, "mn:scene", e.scene_href);
+            Set(g, "mn:tikz", e.tikz_href);
             WriteElements(g, e.children);
           } else {
             pugi::xml_node a = parent.append_child("a");
@@ -415,6 +464,8 @@ void CollectChannelSets(const Elements &elements, std::vector<uint32_t> &sets) {
       }
     } else if (auto *b = std::get_if<Bookmark>(&box->value)) {
       CollectChannelSets(b->children, sets);
+    } else if (auto *f = std::get_if<Figure>(&box->value)) {
+      CollectChannelSets(f->children, sets);
     } else if (auto *l = std::get_if<Link>(&box->value)) {
       CollectChannelSets(l->children, sets);
     }

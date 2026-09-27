@@ -15,6 +15,7 @@
     "vitest": "^5.0.2"
   },
   "dependencies": {
+    "@dzackgarza/freetikz": "github:dzackgarza/freetikz#9e5fb05c22dbc5637ff7cebf99f3dbee6f962b68",
     "@ionic-solidjs/core": "^1.3.0",
     "@ionic/core": "^8.6.5",
     "idb-keyval": "^6.3.0",

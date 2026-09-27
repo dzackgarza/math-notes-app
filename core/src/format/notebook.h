@@ -3,6 +3,7 @@
 #pragma once
 
 #include <map>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -35,6 +36,9 @@ NotebookFiles ChangedFiles(const Document &current, const Document *saved);
 // Page files of `saved` that `current` no longer has: deleted pages, whose
 // files the host removes. Error pages are never removed (FORMAT.md).
 std::vector<std::string> RemovedFiles(const Document &current, const Document *saved);
+
+// Scene and TikZ sidecars still referenced by page figures.
+std::set<std::string> FigureAssetPaths(const Document &document);
 
 // Every file of the notebook, for a first save.
 NotebookFiles AllFiles(const Document &document);

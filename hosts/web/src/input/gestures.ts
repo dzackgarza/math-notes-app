@@ -1,5 +1,5 @@
 // The view over the pages: content (pt) -> view (CSS px) by a scale and a
-// translation, moved by two-finger pan and pinch, and by the wheel. Follows
+// translation, moved by one-finger pan, two-finger pinch, and the wheel. Follows
 // MDN "Pinch zoom gestures" (Pointer Events): the pointers are kept in a
 // cache by pointerId, and each move compares the two with their last
 // positions.
@@ -51,6 +51,9 @@ export class ViewController {
         const other = [...this.touches].find(([id]) => id !== e.pointerId)?.[1];
         this.touches.set(e.pointerId, at);
         if (other && this.touches.size === 2) this.twoFingers(before, at, other);
+        else if (this.touches.size === 1) {
+          this.set({ ...this.view, x: this.view.x + at.x - before.x, y: this.view.y + at.y - before.y });
+        }
         break;
       }
       default:

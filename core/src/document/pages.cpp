@@ -12,13 +12,14 @@ std::array<double, 2> PageDimensions(const PageSize &size) {
   return std::get<std::string>(size) == "Letter" ? kLetter : kA4;
 }
 
-Document NewNotebook(IdGenerator &ids) {
+Document NewNotebook(IdGenerator &ids, PageSize size, const std::optional<Page> &template_page) {
   Document document;
+  document.notebook.page_size = std::move(size);
   document.notebook.template_name = "blank";
   document.notebook.layers.push_back({.id = ids.LayerId(), .name = "Ink"});
-  Page page{.id = ids.PageId(), .file = "pages/0001.svg", .width = kA4[0], .height = kA4[1]};
-  page.background = MakeBackground({Ruling::kBlank}, page.width, page.height);
-  page.layers.push_back({.layer_id = document.notebook.layers[0].id});
+  Page page = NewPage(document, template_page);
+  page.id = ids.PageId();
+  page.file = "pages/0001.svg";
   document.pages = document.pages.push_back(immer::box<Page>(std::move(page)));
   return document;
 }

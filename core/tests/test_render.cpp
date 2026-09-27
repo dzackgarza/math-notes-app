@@ -88,20 +88,21 @@ std::vector<std::vector<InkPenSample>> StrokeEvents(double x, double y, uint32_t
 
 }  // namespace
 
-TEST_CASE("Listed pages stack without a gap, centered on the widest") {
+TEST_CASE("Listed pages have a small desk gap and center on the widest") {
   Document doc = LoadNotebook(ink_test::ReadNotebookDir(kDocuments + "/full"));
   std::vector<PagePlacement> layout = LayoutPages(doc);
   REQUIRE(layout.size() == 5);  // the unlisted page 0005.svg is not laid out
   double widest = 612;          // the Letter page 0003.svg
   CHECK(layout[0].x == (widest - 595.28) / 2);
   CHECK(layout[0].y == 0);
-  CHECK(layout[1].y == 841.89);
+  CHECK(layout[1].y == 841.89 + 6);
   CHECK(layout[2].x == 0);
-  CHECK(layout[2].y == 2 * 841.89);
-  CHECK(layout[3].y == 2 * 841.89 + 792);
+  CHECK(layout[2].y == 2 * (841.89 + 6));
+  CHECK(layout[3].y == 2 * (841.89 + 6) + 792 + 6);
   CHECK(PageAt(layout, -50)->page == 0);
   CHECK(PageAt(layout, 841.89 - 0.1)->page == 0);
-  CHECK(PageAt(layout, 841.89 + 0.1)->page == 1);
+  CHECK(PageAt(layout, 841.89 + 0.1) == nullptr);
+  CHECK(PageAt(layout, 841.89 + 6.1)->page == 1);
   CHECK(PageAt(layout, 1e6)->page == layout.back().page);
 }
 

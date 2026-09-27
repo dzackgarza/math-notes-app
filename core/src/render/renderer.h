@@ -98,6 +98,10 @@ class Renderer {
   // onto `screen`.
   void Draw(SkCanvas *screen, const LiveInk *live, const SelectionOverlay *overlay);
 
+  // Paints one page at its native point size on a PDF page canvas.
+  void DrawPageForExport(SkCanvas *canvas, const Document &document, const Page &page,
+                         bool include_hidden_layers);
+
   // Redraws everything on the next Update: the assets changed.
   void Invalidate() { invalidated_ = true; }
 
@@ -114,7 +118,8 @@ class Renderer {
   sk_sp<SkImage> Asset(const std::string &page_file, const std::string &href);
   SkMatrix ContentMatrix() const;
   void Redraw(const SkRegion &region);
-  void DrawPage(SkCanvas *canvas, const Page &page, const SkRect &cull);
+  void DrawPage(SkCanvas *canvas, const Page &page, const SkRect &cull,
+                bool include_hidden_layers = false);
   void DrawElements(SkCanvas *canvas, const Page &page, const Elements &elements,
                     const SkRect &cull);
   void DrawImage(SkCanvas *canvas, const Page &page, const Image &image);

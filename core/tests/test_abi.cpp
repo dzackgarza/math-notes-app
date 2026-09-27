@@ -4,6 +4,7 @@
 #include <array>
 #include <cstdlib>
 #include <map>
+#include <set>
 #include <string>
 
 #include "editor/canvas.h"
@@ -77,6 +78,97 @@ TEST_CASE("A null handle or pointer gives an argument status") {
   InkToolSettings unknown{7, 0, 1, 1};
   CHECK(ink_canvas_set_tool(session.get(), &unknown) == INK_ERROR_ARGUMENT);
   CHECK(ink_canvas_set_view(session.get(), 0, 0, 0, 0, 0, 0) == INK_ERROR_ARGUMENT);
+}
+
+TEST_CASE("Drawing mode completes one editable figure and removes its files when deleted") {
+  ink_test::Session session;
+  REQUIRE(ink_document_mark_saved(session.document) == INK_OK);
+  REQUIRE(ink_canvas_figure_begin(session.get(), 0, 0) == INK_OK);
+  DrawLine(session.get(), 100);
+  DrawLine(session.get(), 120);
+  const uint8_t *scene = nullptr;
+  size_t scene_size = 0;
+  REQUIRE(ink_canvas_figure_scene(session.get(), &scene, &scene_size) == INK_OK);
+  std::string scene_bytes(reinterpret_cast<const char *>(scene), scene_size);
+  CHECK(scene_bytes.find("\"rawStroke\"") != std::string::npos);
+  CHECK(scene_bytes.find("\"force\"") != std::string::npos);
+  const std::string tikz = "\\begin{tikzpicture}\\draw (0,0)--(1,1);\\end{tikzpicture}\n";
+  const uint8_t *id = nullptr;
+  size_t id_size = 0;
+  REQUIRE(ink_canvas_figure_complete(session.get(), Data(scene_bytes), scene_bytes.size(),
+                                     Data(tikz), tikz.size(), &id, &id_size) == INK_OK);
+  const std::string figure_id(reinterpret_cast<const char *>(id), id_size);
+  REQUIRE(figure_id.starts_with("f-"));
+  const auto &elements = session.doc().pages[0]->layers[0].elements;
+  REQUIRE(elements.size() == 1);
+  const Figure &figure = std::get<Figure>(elements[0]->value);
+  CHECK(figure.id == figure_id);
+  CHECK(figure.children.size() == 2);
+  auto changed = DirtyFiles(session.document);
+  CHECK(changed.at("assets/" + figure_id + ".scene.json") == scene_bytes);
+  CHECK(changed.at("assets/" + figure_id + ".tikz") == tikz);
+  CHECK(changed.at("pages/0001.svg").find("class=\"mn-figure\"") != std::string::npos);
+
+  REQUIRE(ink_document_mark_saved(session.document) == INK_OK);
+  REQUIRE(ink_canvas_select_all(session.get(), 0) == INK_OK);
+  REQUIRE(ink_canvas_delete_selection(session.get()) == INK_OK);
+  const InkFile *files = nullptr;
+  size_t count = 0;
+  REQUIRE(ink_document_dirty_files(session.document, &files, &count) == INK_OK);
+  std::set<std::string> removed;
+  for (size_t i = 0; i < count; ++i) {
+    if (files[i].kind == INK_FILE_DELETE) removed.insert(files[i].path);
+  }
+  CHECK(removed.contains("assets/" + figure_id + ".scene.json"));
+  CHECK(removed.contains("assets/" + figure_id + ".tikz"));
+}
+
+TEST_CASE("A duplicated figure has its own scene and TikZ files") {
+  ink_test::Session session;
+  REQUIRE(ink_canvas_figure_begin(session.get(), 0, 0) == INK_OK);
+  DrawLine(session.get(), 100);
+  const uint8_t *scene = nullptr;
+  size_t size = 0;
+  REQUIRE(ink_canvas_figure_scene(session.get(), &scene, &size) == INK_OK);
+  const std::string scene_bytes(reinterpret_cast<const char *>(scene), size);
+  const std::string tikz = "\\begin{tikzpicture}\\end{tikzpicture}\n";
+  const uint8_t *id = nullptr;
+  size_t id_size = 0;
+  REQUIRE(ink_canvas_figure_complete(session.get(), Data(scene_bytes), scene_bytes.size(),
+                                     Data(tikz), tikz.size(), &id, &id_size) == INK_OK);
+  REQUIRE(ink_canvas_select_all(session.get(), 0) == INK_OK);
+  REQUIRE(ink_canvas_duplicate_selection(session.get()) == INK_OK);
+  const auto &elements = session.doc().pages[0]->layers[0].elements;
+  REQUIRE(elements.size() == 2);
+  const Figure &first = std::get<Figure>(elements[0]->value);
+  const Figure &second = std::get<Figure>(elements[1]->value);
+  CHECK(first.id != second.id);
+  CHECK(first.scene_href != second.scene_href);
+  CHECK(first.tikz_href != second.tikz_href);
+  const auto dirty = DirtyFiles(session.document);
+  CHECK(dirty.at("assets/" + second.id + ".scene.json") == scene_bytes);
+  CHECK(dirty.at("assets/" + second.id + ".tikz") == tikz);
+  const uint8_t *selected = nullptr;
+  size_t selected_size = 0;
+  REQUIRE(ink_canvas_selected_figure(session.get(), &selected, &selected_size) == INK_OK);
+  CHECK(std::string(reinterpret_cast<const char *>(selected), selected_size) == second.id);
+  const uint8_t *asset = nullptr;
+  size_t asset_size = 0;
+  REQUIRE(ink_document_asset(session.document, ("assets/" + second.id + ".tikz").c_str(),
+                             &asset, &asset_size) == INK_OK);
+  CHECK(std::string(reinterpret_cast<const char *>(asset), asset_size) == tikz);
+}
+
+TEST_CASE("An empty drawing session leaves the page and assets unchanged") {
+  ink_test::Session session;
+  REQUIRE(ink_document_mark_saved(session.document) == INK_OK);
+  REQUIRE(ink_canvas_figure_begin(session.get(), 0, 0) == INK_OK);
+  const uint8_t *id = nullptr;
+  size_t id_size = 1;
+  REQUIRE(ink_canvas_figure_complete(session.get(), nullptr, 0, nullptr, 0,
+                                     &id, &id_size) == INK_OK);
+  CHECK(id_size == 0);
+  CHECK(DirtyFiles(session.document).empty());
 }
 
 TEST_CASE("A notebook loaded file by file equals the notebook loaded at once") {

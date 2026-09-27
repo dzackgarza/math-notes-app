@@ -17,6 +17,7 @@ class IdGenerator {
   std::string LayerId() { return Make("l-", 6); }
   std::string StrokeId() { return Make("s-", 12); }
   std::string BookmarkId() { return Make("b-", 12); }
+  std::string FigureId() { return Make("f-", 12); }
 
  private:
   std::string Make(const char *prefix, int length) {

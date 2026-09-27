@@ -84,6 +84,17 @@ std::vector<ElementRef> Append(Page &page, const std::string &layer_id, const El
   return items;
 }
 
+std::vector<std::string> TextLines(std::string_view utf8) {
+  std::vector<std::string> lines;
+  while (true) {
+    size_t end = utf8.find('\n');
+    lines.emplace_back(utf8.substr(0, end));
+    if (end == std::string_view::npos) break;
+    utf8.remove_prefix(end + 1);
+  }
+  return lines;
+}
+
 }  // namespace
 
 double Editor::ViewScale() const { return std::sqrt(std::abs(view_.a * view_.d - view_.b * view_.c)); }
@@ -438,7 +449,7 @@ bool Editor::Paste(std::string_view svg, double x, double y, double view_width, 
   return true;
 }
 
-void Editor::DuplicateSelection() {
+void Editor::DuplicateSelection(Assets &assets, NotebookFiles &added) {
   const Selection *selection = CurrentSelection();
   if (!selection) return;
   Document next = document();
@@ -446,8 +457,9 @@ void Editor::DuplicateSelection() {
   std::vector<ElementRef> items;
   for (const ElementRef &item : selection->items) {
     const Element &original = *page.layers[item.layer].elements[item.index];
-    Element copy = Transformed(WithNewIds(original, history_->ids()),
-                               Translation(kDuplicateOffset, kDuplicateOffset));
+    Element copy = InlineImages(original, page.file, assets);
+    copy = StoreImages(WithNewIds(copy, history_->ids()), page.file, assets, added);
+    copy = Transformed(copy, Translation(kDuplicateOffset, kDuplicateOffset));
     std::vector<ElementRef> added =
         Append(page, page.layers[item.layer].layer_id, Elements{immer::box<Element>(std::move(copy))});
     items.insert(items.end(), added.begin(), added.end());
@@ -455,6 +467,88 @@ void Editor::DuplicateSelection() {
   size_t index = selection->page;
   next.pages = next.pages.set(index, immer::box<Page>(std::move(page)));
   PushSelection(std::move(next), index, std::move(items));
+}
+
+bool Editor::InsertText(std::string_view utf8, double x, double y) {
+  if (utf8.empty()) return false;
+  Document next = document();
+  const std::vector<PagePlacement> layout = LayoutPages(next);
+  Point at = ToContent(view_, x, y);
+  const PagePlacement *placement = PageContaining(layout, at);
+  if (!placement) return false;
+  Page page = *next.pages[placement->page];
+  if (page.layers.empty() || layer_ >= page.layers.size() ||
+      !Selectable(next, page.layers[layer_])) return false;
+  Text text{.id = history_->ids().StrokeId(),
+            .x = at.x - placement->x,
+            .y = at.y - placement->y + 18,
+            .lines = TextLines(utf8)};
+  std::vector<ElementRef> items = Append(page, page.layers[layer_].layer_id,
+                                          Elements{immer::box<Element>(Element{text})});
+  next.pages = next.pages.set(placement->page, immer::box<Page>(std::move(page)));
+  PushSelection(std::move(next), placement->page, std::move(items));
+  return true;
+}
+
+bool Editor::SelectTextAt(double x, double y) {
+  const Document &doc = document();
+  Point at = ToContent(view_, x, y);
+  const std::vector<PagePlacement> layout = LayoutPages(doc);
+  const PagePlacement *placement = PageContaining(layout, at);
+  if (!placement) {
+    ClearSelection();
+    return false;
+  }
+  const Page &page = *doc.pages[placement->page];
+  Point local{at.x - placement->x, at.y - placement->y};
+  for (size_t l = page.layers.size(); l-- > 0;) {
+    if (!Selectable(doc, page.layers[l])) continue;
+    const Elements &elements = page.layers[l].elements;
+    for (size_t i = elements.size(); i-- > 0;) {
+      if (!std::holds_alternative<Text>(elements[i]->value)) continue;
+      Rect bounds = ElementBounds(*elements[i]);
+      if (local.x < bounds.left || local.x > bounds.right ||
+          local.y < bounds.top || local.y > bounds.bottom) continue;
+      selection_ = Selection{.page = placement->page, .value = doc.pages[placement->page],
+                             .items = {{l, i}}};
+      selection_->rect = SelectionRect(bounds, ViewScale());
+      ++overlay_version_;
+      return true;
+    }
+  }
+  ClearSelection();
+  return false;
+}
+
+std::optional<std::string> Editor::SelectedText() {
+  const Selection *selection = CurrentSelection();
+  if (!selection || selection->items.size() != 1) return std::nullopt;
+  const ElementRef &item = selection->items.front();
+  const Text *text = std::get_if<Text>(&selection->value->layers[item.layer].elements[item.index]->value);
+  if (!text) return std::nullopt;
+  std::string utf8;
+  for (size_t i = 0; i < text->lines.size(); ++i) {
+    if (i > 0) utf8 += '\n';
+    utf8 += text->lines[i];
+  }
+  return utf8;
+}
+
+bool Editor::SetSelectedText(std::string_view utf8) {
+  const Selection *selection = CurrentSelection();
+  if (!selection || selection->items.size() != 1 || utf8.empty()) return false;
+  const ElementRef item = selection->items.front();
+  Page page = *selection->value;
+  const Text *old = std::get_if<Text>(&page.layers[item.layer].elements[item.index]->value);
+  if (!old) return false;
+  Text changed = *old;
+  changed.lines = TextLines(utf8);
+  page.layers[item.layer].elements = page.layers[item.layer].elements.set(
+      item.index, immer::box<Element>(Element{std::move(changed)}));
+  Document next = document();
+  next.pages = next.pages.set(selection->page, immer::box<Page>(std::move(page)));
+  PushSelection(std::move(next), selection->page, selection->items);
+  return true;
 }
 
 std::optional<SelectionOverlay> Editor::Overlay() {

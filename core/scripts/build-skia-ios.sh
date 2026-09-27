@@ -34,6 +34,7 @@ args=(
   skia_use_system_libwebp=false
   skia_use_system_zlib=false
   skia_use_system_freetype2=false
+  skia_enable_fontmgr_custom_embedded=true
   skia_use_system_harfbuzz=false
   skia_use_system_icu=false
   skia_use_dng_sdk=false

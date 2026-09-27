@@ -26,6 +26,8 @@ struct InkDocument {
   std::vector<InkFile> dirty_view;
   // The last ink_document_page_png result.
   std::string png;
+  // The last ink_export_pdf result.
+  std::string pdf;
 };
 
 struct InkCanvas {
@@ -39,5 +41,8 @@ struct InkCanvas {
   float pixel_ratio = 1;
   bool was_drawing = false;
   std::string clipboard;  // the last ink_canvas_copy_selection result
+  std::string selected_text;  // the last ink_canvas_selected_text result
+  std::string figure_scene;   // the last ink_canvas_figure_scene result
+  std::string figure_id;      // the last ink_canvas_figure_complete result
   uint64_t assets_seen = 0;
 };

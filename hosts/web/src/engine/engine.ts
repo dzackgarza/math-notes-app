@@ -46,11 +46,12 @@ export const TOOL_SETTINGS = { byteLength: 16, brush: 0, rgb: 4, size: 8, opacit
 export const INK_PEN = { byteLength: 24, id: 0, name: 4, tool: 8 } as const;
 export const INK_FILE = { byteLength: 16, path: 0, bytes: 4, size: 8, kind: 12 } as const;
 export const SELECTION_INFO = { byteLength: 40, count: 0, page: 4, x: 8, y: 16, width: 24, height: 32 } as const;
+export const PDF_EXPORT_SPEC = { byteLength: 16, firstPage: 0, pageCount: 4, includeLinks: 8, includeHiddenLayers: 12 } as const;
 export const FileKind = { write: 0, delete: 1 } as const;
 export const PageSize = { a4: 0, letter: 1, custom: 2 } as const;
 
 // InkStruct ids of ink_struct_layout.
-export const Struct = { penSample: 0, toolSettings: 1, file: 2, selectionInfo: 3, pen: 4 } as const;
+export const Struct = { penSample: 0, toolSettings: 1, file: 2, selectionInfo: 3, pen: 4, pdfExportSpec: 5 } as const;
 
 export interface PenSample {
   x: number;
@@ -356,12 +357,12 @@ export class Engine {
 
   // A new notebook on template `name`, whose pages/0001.svg is `page1`:
   // page 1 has the template's background, with no undo step.
-  createDocumentFromTemplate(seed: bigint, name: string, page1: Uint8Array): InkDocument {
+  createDocumentFromTemplate(seed: bigint, name: string, page1: Uint8Array, pageSize: number): InkDocument {
     const pointer = this.withCString(name, (text) => {
       const bytes = this.copyIn(page1);
       try {
         return this.withScratch(4, (out) => {
-          this.check(this.module._ink_document_create_from_template(seed, text, bytes, page1.length, out));
+          this.check(this.module._ink_document_create_from_template(seed, text, bytes, page1.length, pageSize, 0, 0, out));
           return this.view().getUint32(out, true);
         });
       } finally {
@@ -417,6 +418,16 @@ export class InkDocument {
     });
   }
 
+  asset(path: string): Uint8Array<ArrayBuffer> {
+    const e = this.engine;
+    return e.withCString(path, (name) => e.withScratch(8, (out) => {
+      e.check(e.module._ink_document_asset(this.pointer, name, out, out + 4));
+      const view = e.view();
+      const at = view.getUint32(out, true);
+      return e.heap().slice(at, at + view.getUint32(out + 4, true));
+    }));
+  }
+
   dirtyFiles(): FileChange[] {
     const e = this.engine;
     return e.withScratch(8, (out) => {
@@ -446,6 +457,23 @@ export class InkDocument {
       e.check(e.module._ink_document_page_count(this.pointer, out));
       return e.view().getUint32(out, true);
     });
+  }
+
+  exportPdf(title: string, firstPage: number, pageCount: number): Uint8Array<ArrayBuffer> {
+    const e = this.engine;
+    return e.withCString(title, (name) => e.withScratch(PDF_EXPORT_SPEC.byteLength + 8, (scratch) => {
+      const view = e.view();
+      view.setUint32(scratch + PDF_EXPORT_SPEC.firstPage, firstPage, true);
+      view.setUint32(scratch + PDF_EXPORT_SPEC.pageCount, pageCount, true);
+      view.setUint32(scratch + PDF_EXPORT_SPEC.includeLinks, 0, true);
+      view.setUint32(scratch + PDF_EXPORT_SPEC.includeHiddenLayers, 0, true);
+      const out = scratch + PDF_EXPORT_SPEC.byteLength;
+      e.check(e.module._ink_export_pdf(this.pointer, name, scratch, out, out + 4));
+      const result = e.view();
+      const bytes = result.getUint32(out, true);
+      const size = result.getUint32(out + 4, true);
+      return e.heap().slice(bytes, bytes + size);
+    }));
   }
 
   // Before page `index`; the page count appends.
@@ -587,6 +615,39 @@ export class Canvas {
     this.engine.check(this.engine.module._ink_canvas_set_selector(this.pointer, kind, active ? 1 : 0));
   }
 
+  beginFigure(page: number, layer = 0): void {
+    this.engine.check(this.engine.module._ink_canvas_figure_begin(this.pointer, page, layer));
+  }
+
+  figureScene(): string {
+    const e = this.engine;
+    return e.withScratch(8, (out) => {
+      e.check(e.module._ink_canvas_figure_scene(this.pointer, out, out + 4));
+      const view = e.view();
+      const at = view.getUint32(out, true);
+      return decoder.decode(e.heap().subarray(at, at + view.getUint32(out + 4, true)));
+    });
+  }
+
+  completeFigure(scene: string, tikz: string): string {
+    const e = this.engine;
+    const sceneBytes = encoder.encode(scene), tikzBytes = encoder.encode(tikz);
+    const sceneAt = e.copyIn(sceneBytes), tikzAt = e.copyIn(tikzBytes);
+    try {
+      return e.withScratch(8, (out) => {
+        e.check(e.module._ink_canvas_figure_complete(
+          this.pointer, sceneAt, sceneBytes.length, tikzAt, tikzBytes.length, out, out + 4,
+        ));
+        const view = e.view();
+        const at = view.getUint32(out, true);
+        return decoder.decode(e.heap().subarray(at, at + view.getUint32(out + 4, true)));
+      });
+    } finally {
+      e.free(sceneAt);
+      e.free(tikzAt);
+    }
+  }
+
   // The selection, or null when nothing is selected.
   selection(): SelectionInfo | null {
     const e = this.engine;
@@ -604,6 +665,16 @@ export class Canvas {
         width: view.getFloat64(at + o.width, true),
         height: view.getFloat64(at + o.height, true),
       };
+    });
+  }
+
+  selectedFigure(): string {
+    const e = this.engine;
+    return e.withScratch(8, (out) => {
+      e.check(e.module._ink_canvas_selected_figure(this.pointer, out, out + 4));
+      const view = e.view();
+      const at = view.getUint32(out, true);
+      return decoder.decode(e.heap().subarray(at, at + view.getUint32(out + 4, true)));
     });
   }
 
@@ -639,6 +710,46 @@ export class Canvas {
     const bytes = e.copyIn(text);
     try {
       e.check(e.module._ink_canvas_paste(this.pointer, bytes, text.length, x, y));
+    } finally {
+      e.free(bytes);
+    }
+  }
+
+  insertText(value: string, x: number, y: number): void {
+    const e = this.engine;
+    const text = encoder.encode(value);
+    const bytes = e.copyIn(text);
+    try {
+      e.check(e.module._ink_canvas_insert_text(this.pointer, bytes, text.length, x, y));
+    } finally {
+      e.free(bytes);
+    }
+  }
+
+  selectTextAt(x: number, y: number): boolean {
+    const e = this.engine;
+    return e.withScratch(4, (out) => {
+      e.check(e.module._ink_canvas_select_text_at(this.pointer, x, y, out));
+      return e.view().getInt32(out, true) !== 0;
+    });
+  }
+
+  selectedText(): string {
+    const e = this.engine;
+    return e.withScratch(8, (out) => {
+      e.check(e.module._ink_canvas_selected_text(this.pointer, out, out + 4));
+      const view = e.view();
+      const at = view.getUint32(out, true);
+      return decoder.decode(e.heap().subarray(at, at + view.getUint32(out + 4, true)));
+    });
+  }
+
+  setSelectedText(value: string): void {
+    const e = this.engine;
+    const text = encoder.encode(value);
+    const bytes = e.copyIn(text);
+    try {
+      e.check(e.module._ink_canvas_set_selected_text(this.pointer, bytes, text.length));
     } finally {
       e.free(bytes);
     }
