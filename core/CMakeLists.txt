@@ -29,8 +29,8 @@ include(third_party/ink.cmake)
 # both engine targets so text geometry and rendering use one font.
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/NotoSans-Regular.ttf" TEXT_FONT_HEX HEX)
 string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," TEXT_FONT_BYTES "${TEXT_FONT_HEX}")
-file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/text_font.inc"
-  "constexpr unsigned char kTextFontData[] = {${TEXT_FONT_BYTES}};\n")
+file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/text_font.inc"
+  CONTENT "constexpr unsigned char kTextFontData[] = {${TEXT_FONT_BYTES}};\n")
 unset(TEXT_FONT_HEX)
 unset(TEXT_FONT_BYTES)
 

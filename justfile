@@ -14,8 +14,9 @@ setup:
     [ -d {{emsdk}} ] || git clone -q https://github.com/emscripten-core/emsdk {{emsdk}}
     {{emsdk}}/emsdk install 4.0.7 && {{emsdk}}/emsdk activate 4.0.7
     [ -d {{vcpkg}} ] || git clone -q https://github.com/microsoft/vcpkg {{vcpkg}}
-    {{vcpkg}}/bootstrap-vcpkg.sh -disableMetrics
+    [ -x {{vcpkg}}/vcpkg ] || {{vcpkg}}/bootstrap-vcpkg.sh -disableMetrics
     cd core/tests/webgl && bun install --frozen-lockfile && bunx playwright install chromium chromium-headless-shell
+    cd hosts/web && bun install --frozen-lockfile && bunx playwright install chromium chromium-headless-shell
 
 engine-wasm:
     cmake -S core -B {{build}} -G Ninja -DCMAKE_BUILD_TYPE=Release \

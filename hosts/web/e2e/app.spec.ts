@@ -169,10 +169,68 @@ test("pages have a narrow desk gap and one finger moves the view", async ({ page
 
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 2 });
+  const scroll = page.locator(".editor-scroll");
+  const beforeTouch = await scroll.evaluate((e) => e.scrollTop);
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y: y + 80, id: 1 }] });
   await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y, id: 1 }] });
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-  await expect.poll(() => gapColor(y + 3 * scale - 80)).toBeLessThan(242);
+  await expect.poll(() => scroll.evaluate((e) => e.scrollTop)).toBeGreaterThan(beforeTouch + 30);
+  await page.screenshot({ path: testInfo.outputPath("after-touch.png") });
+  await expect(page.getByLabel("Page", { exact: true })).toContainText("2 / 2");
+});
+
+test("a held bottom pull adds one page while a short pull and normal scroll add none", async ({ page }) => {
+  await startEmpty(page);
+  await newNote(page, "Pull Pages");
+  await page.locator("#ink-canvas").hover();
+  await page.mouse.wheel(0, 200);
+  await expect(page.getByLabel("Page", { exact: true })).toContainText("/ 1");
+  const scroll = page.locator(".editor-scroll");
+  await scroll.evaluate((e) => { e.scrollTop = e.scrollHeight; });
+  const box = (await page.locator("#ink-canvas").boundingBox())!;
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height - 100;
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+  const pull = async (holdMs: number) => {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y, id: 1 }] });
+    for (let step = 1; step <= 8; step++) {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y - 40 * step, id: 1 }] });
+    }
+    await expect(scroll).toHaveClass(/ptr-pull-up/);
+    if (holdMs) await page.waitForTimeout(holdMs);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  };
+
+  await pull(0);
+  await expect(page.getByLabel("Page", { exact: true })).toContainText("/ 1");
+  await expect.poll(async () => Buffer.from(await readOpfsFile(page, "Pull Pages/notebook.json"), "base64").toString()).not.toContain("pages/0002.svg");
+  await expect(scroll).not.toHaveClass(/ptr-transitioning/);
+
+  await pull(500);
+  await expect(page.getByLabel("Page", { exact: true })).toContainText("/ 2");
+  await expect.poll(async () => Buffer.from(await readOpfsFile(page, "Pull Pages/notebook.json"), "base64").toString()).toContain("pages/0002.svg");
+});
+
+test.describe("touch pinch", () => {
+  test.use({ hasTouch: true });
+  test("two fingers zoom the notebook", async ({ page }) => {
+    await startEmpty(page);
+    await newNote(page, "Zoom");
+    const zoom = page.locator("ion-button.bar-menu").first();
+    await expect(zoom).toContainText("100%");
+    const box = (await page.locator("#ink-canvas").boundingBox())!;
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 2 });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: x - 50, y, id: 1 }, { x: x + 50, y, id: 2 }] });
+    for (let step = 1; step <= 4; step++) {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x - 50 - 20 * step, y, id: 1 }, { x: x + 50 + 20 * step, y, id: 2 }] });
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await expect.poll(async () => Number.parseInt(await zoom.textContent() ?? "0", 10)).toBeGreaterThan(100);
+  });
 });
 
 test("nginx serves the engine as application/wasm", async ({ page }) => {
@@ -583,12 +641,11 @@ test("a .pens.json changed by another device is read when the note opens again",
     .toEqual([["pressure-pen", "#B51F1F", "3"]]);
 });
 
-test("pulling past the last page adds a page only past the threshold, and the view stops at the pages", async ({ page }) => {
+test("wheel scrolling stops at the page ends without adding a page", async ({ page }) => {
   await startEmpty(page);
   await newNote(page, "Pull");
   const box = (await page.locator("#ink-canvas").boundingBox())!;
   const indicator = page.getByLabel("Page", { exact: true });
-  const pull = page.locator(".pull-indicator");
   // Paper, not desk, at the canvas's top and bottom edges.
   const paperAt = async (y: number) => Math.min(...(await pixel(page, box.x + 5, y)).slice(0, 3)) > 240;
   // The A4 page fills the canvas width: this far down its end meets the canvas's.
@@ -598,16 +655,11 @@ test("pulling past the last page adds a page only past the threshold, and the vi
   await page.mouse.wheel(0, -500);
   expect(await paperAt(box.y + 1)).toBe(true);
 
-  await page.mouse.wheel(0, toEnd + 40); // 40 px of pull, under the threshold
-  await expect(pull).toHaveText("Pull to add a page");
-  await expect(pull).toHaveCSS("height", "0px"); // released: springs back
+  await page.mouse.wheel(0, toEnd + 150);
   await expect(indicator).toHaveText(/\/ 1$/);
   expect(await paperAt(box.y + box.height - 2)).toBe(true);
-
-  await page.mouse.wheel(0, 150);
-  await expect(pull).toHaveText("Release to add a page");
-  await expect(indicator).toHaveText(/\/ 2$/);
-  await expect(pull).toHaveCSS("height", "0px");
+  const scroll = page.locator(".editor-scroll");
+  expect(await scroll.evaluate((e) => e.scrollTop)).toBe(await scroll.evaluate((e) => e.scrollHeight - e.clientHeight));
 });
 
 // The ids of the strokes in a saved page file, in document order.
