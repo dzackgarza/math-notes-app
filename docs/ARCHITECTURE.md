@@ -16,9 +16,10 @@ chrome, colors, paper) follow GoodNotes and Noteful and the tablet spec
 ([specs/tablet-ui.md](specs/tablet-ui.md)); nothing visual is taken from
 Write.
 
-Work order and milestones: the GitHub issue tree rooted at
+The GitHub issue tree rooted at
 [#11](https://github.com/dzackgarza/math-notes-app/issues/11)
-(`itree next dzackgarza/math-notes-app` gives the next work unit).
+records requirements and gaps. MVP work lands as integrated product slices
+on `main`, chosen by the next missing end-to-end behavior.
 
 ```text
             ink engine (C++20, built to WASM and to iOS arm64)
