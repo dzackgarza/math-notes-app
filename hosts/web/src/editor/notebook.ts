@@ -141,11 +141,11 @@ export class Saver extends EventTarget {
   }
 
   // Retire only the pending bytes included in an explicit comparison.
-  async resolved(path: string, original: Uint8Array, copy: Uint8Array): Promise<void> {
+  async resolved(path: string, original: Uint8Array | null, copy: Uint8Array): Promise<void> {
     clearTimeout(this.timer);
     await this.writing.catch(() => {});
     const change = this.pending.get(path);
-    if (change?.kind === "write" && (sameBytes(change.bytes, original) || sameBytes(change.bytes, copy))) {
+    if (change?.kind === "write" && (sameBytes(change.bytes, original ?? undefined) || sameBytes(change.bytes, copy))) {
       this.pending.delete(path);
     }
     await this.checkpoint();

@@ -74,13 +74,21 @@ Future<String?> compareVersions(
                       ),
                       CupertinoButton(
                         onPressed: () => Navigator.pop(context, 'original'),
-                        child: const Text('Keep current file'),
+                        child: Text(
+                          conflict.originalBytes == null
+                              ? 'Keep deletion'
+                              : 'Keep current file',
+                        ),
                       ),
                       CupertinoButton(
                         onPressed: () => Navigator.pop(context, 'copy'),
-                        child: const Text('Keep conflict copy'),
+                        child: Text(
+                          conflict.originalBytes == null
+                              ? 'Restore conflict copy'
+                              : 'Keep conflict copy',
+                        ),
                       ),
-                      if (conflict.page)
+                      if (conflict.page && conflict.originalBytes != null)
                         CupertinoButton.filled(
                           onPressed: () => Navigator.pop(context, 'both'),
                           child: const Text('Keep both pages'),

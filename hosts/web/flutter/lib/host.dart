@@ -159,7 +159,7 @@ extension type Saver(JSObject value) implements JSObject {
   external JSPromise<VoidResult> save();
   external JSPromise<VoidResult> resolved(
     String path,
-    JSUint8Array original,
+    JSUint8Array? original,
     JSUint8Array copy,
   );
   external void addEventListener(String type, JSFunction listener);
@@ -280,7 +280,7 @@ extension type OpenNote(JSObject value) implements JSObject {
 }
 
 extension type NoteConflict(JSObject value) implements JSObject {
-  external JSUint8Array get originalBytes;
+  external JSUint8Array? get originalBytes;
   external JSUint8Array get copyBytes;
   external String get original;
   external String get copy;

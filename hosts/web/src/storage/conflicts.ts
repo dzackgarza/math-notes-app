@@ -9,7 +9,7 @@ interface NotebookIndex {
 
 export interface ConflictName { original: string; copy: string; provider: string }
 export interface NoteConflict extends ConflictName {
-  originalBytes: Uint8Array<ArrayBuffer>;
+  originalBytes: Uint8Array<ArrayBuffer> | null;
   copyBytes: Uint8Array<ArrayBuffer>;
   left: Uint8Array<ArrayBuffer> | null;
   right: Uint8Array<ArrayBuffer> | null;
@@ -67,6 +67,14 @@ async function readFile(dir: FileSystemDirectoryHandle, path: string): Promise<U
   return new Uint8Array(await (await (await dir.getFileHandle(parts.at(-1)!)).getFile()).arrayBuffer());
 }
 
+async function readCurrentFile(dir: FileSystemDirectoryHandle, path: string): Promise<Uint8Array<ArrayBuffer> | null> {
+  try { return await readFile(dir, path); }
+  catch (error) {
+    if (error instanceof DOMException && error.name === "NotFoundError") return null;
+    throw error;
+  }
+}
+
 function load(engine: Engine, files: NotebookFiles, conflict?: ConflictName, copy?: Uint8Array): InkDocument {
   const doc = engine.createDocument(crypto.getRandomValues(new BigUint64Array(1))[0]);
   try {
@@ -74,6 +82,9 @@ function load(engine: Engine, files: NotebookFiles, conflict?: ConflictName, cop
     for (const page of files.pages) {
       try { doc.loadPage(page.path, page.path === conflict?.original ? copy! : page.bytes); }
       catch (error) { if (!(error instanceof EngineError && error.status === Status.parse)) throw error; }
+    }
+    if (conflict?.original.startsWith("pages/") && !files.pages.some(page => page.path === conflict.original)) {
+      doc.loadPage(conflict.original, copy!);
     }
     for (const asset of files.assets) doc.loadAsset(asset.path, asset.bytes);
     doc.markSaved();
@@ -89,20 +100,21 @@ export async function noteConflicts(engine: Engine, dir: FileSystemDirectoryHand
   const index = decode(files.notebookJson);
   const result: NoteConflict[] = [];
   for (const name of await conflictNames(dir, index.pages)) {
-    const originalBytes = await readFile(dir, name.original);
+    const originalBytes = await readCurrentFile(dir, name.original);
     const copyBytes = await readFile(dir, name.copy);
     const notebook = name.original === "notebook.json";
     const page = name.original.startsWith("pages/");
     const preview = (replacement: boolean): { image: Uint8Array<ArrayBuffer> | null; summary: string } => {
       try {
+        if (!replacement && originalBytes === null) return { image: null, summary: "This file was deleted outside Math Notes." };
         if (!notebook && !page) {
-          const bytes = replacement ? copyBytes : originalBytes;
+          const bytes = replacement ? copyBytes : originalBytes!;
           return /\.(png|jpe?g)$/i.test(name.original)
             ? { image: bytes, summary: name.original }
             : { image: null, summary: new TextDecoder().decode(bytes) };
         }
         if (notebook) {
-          const value = decode(replacement ? copyBytes : originalBytes);
+          const value = decode(replacement ? copyBytes : originalBytes!);
           return { image: null, summary: `Pages\n${value.pages.map((p) => p.file).join("\n")}\n\nLayers\n${value.layers.map((l) => `${l.name}${l.hidden ? " (hidden)" : ""}${l.locked ? " (locked)" : ""}`).join("\n")}` };
         }
         const doc = load(engine, files, replacement ? name : undefined, copyBytes);
@@ -117,16 +129,26 @@ export async function noteConflicts(engine: Engine, dir: FileSystemDirectoryHand
   return result;
 }
 
-function same(a: Uint8Array, b: Uint8Array): boolean {
+function same(a: Uint8Array | null, b: Uint8Array | null): boolean {
+  if (a === null || b === null) return a === b;
   return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
 export async function resolveConflict(engine: Engine, dir: FileSystemDirectoryHandle, conflict: NoteConflict, choice: "original" | "copy" | "both"): Promise<void> {
   await navigator.locks.request("math-notes-files", async () => {
-    if (!same(await readFile(dir, conflict.original), conflict.originalBytes) || !same(await readFile(dir, conflict.copy), conflict.copyBytes)) {
+    if (!same(await readCurrentFile(dir, conflict.original), conflict.originalBytes) || !same(await readFile(dir, conflict.copy), conflict.copyBytes)) {
       throw new Error("A version changed during comparison. Reopen the conflict before choosing.");
     }
     let changes: FileChange[] = [];
+    if (choice === "original" && conflict.originalBytes === null && conflict.page) {
+      const files = await readNotebook(dir);
+      const doc = load(engine, files);
+      try {
+        const index = decode(files.notebookJson).pages.findIndex(page => page.file === conflict.original);
+        if (index >= 0) doc.deletePage(index);
+        changes = doc.dirtyFiles();
+      } finally { doc.free(); }
+    }
     if (choice === "copy") {
       const files = await readNotebook(dir);
       const doc = load(engine, files);
@@ -137,6 +159,7 @@ export async function resolveConflict(engine: Engine, dir: FileSystemDirectoryHa
       changes = [{ kind: "write", path: conflict.original, bytes: conflict.copyBytes }];
     }
     if (choice === "both") {
+      if (conflict.originalBytes === null) throw new Error("Restore the conflict copy or keep the deletion.");
       if (!conflict.page) throw new Error("Choose one version of this file.");
       const files = await readNotebook(dir);
       const doc = load(engine, files);
