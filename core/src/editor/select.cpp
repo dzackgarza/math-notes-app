@@ -399,7 +399,7 @@ std::string Editor::CopySelection(bool cut, const Assets &assets) {
 }
 
 bool Editor::Paste(std::string_view svg, double x, double y, double view_width, double view_height,
-                   Assets &assets, NotebookFiles &added) {
+                   Assets &assets, NotebookFiles &added, bool place_at_pointer) {
   if (!ResolveActiveLayer()) return false;
   std::optional<Elements> pasted = ReadClipboard(svg);
   if (!pasted) return false;
@@ -434,7 +434,7 @@ bool Editor::Paste(std::string_view svg, double x, double y, double view_width, 
   bool visible = b.left <= screen.right && screen.left <= b.right && b.top <= screen.bottom &&
                  screen.top <= b.bottom;
   Point center{(b.left + b.right) / 2, (b.top + b.bottom) / 2};
-  if (!IsEmpty(b) && !(visible && on_page(center.x, center.y) && on_page(b.left, b.top))) {
+  if (!IsEmpty(b) && (place_at_pointer || !(visible && on_page(center.x, center.y) && on_page(b.left, b.top)))) {
     double w = b.right - b.left, h = b.bottom - b.top;
     double xr = page.background.x_ruling, yr = page.background.y_ruling;
     Point p{at.x - placement->x, at.y - placement->y};

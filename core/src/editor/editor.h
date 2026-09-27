@@ -122,7 +122,7 @@ class Editor {
   // centered on (x, y), kept on the page. Inline images become files of
   // `assets`, the new ones also in `added`. False when `svg` does not parse.
   bool Paste(std::string_view svg, double x, double y, double view_width, double view_height,
-             Assets &assets, NotebookFiles &added);
+             Assets &assets, NotebookFiles &added, bool place_at_pointer = false);
   // Copies the selection kDuplicateOffset right and down, new ids, as the
   // new selection: one history step. Figure sidecars become new assets.
   void DuplicateSelection(Assets &assets, NotebookFiles &added);

@@ -101,6 +101,8 @@ Element Transformed(const Element &element, const Transform &m);
 
 // Gives the element, and every element inside a group, a new id from `ids`.
 Element WithNewIds(const Element &element, IdGenerator &ids);
+// Write scribblearea.cpp:648-669 clears authored timestamps on clipping drops.
+Element WithoutTimes(const Element &element);
 
 // Gives each element whose id is in `taken` a new id. A pasted figure always
 // gets a new id so its sidecars have independent file names.

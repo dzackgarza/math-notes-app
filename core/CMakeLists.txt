@@ -88,6 +88,7 @@ if(EMSCRIPTEN)
     _ink_document_move_page _ink_document_set_page_size _ink_document_set_template
     _ink_document_layers _ink_document_add_layer _ink_document_set_layer _ink_document_move_layer _ink_document_remove_layer
     _ink_canvas_set_layer _ink_canvas_active_layer
+    _ink_clipping_add _ink_clipping_svg
     _ink_builtin_template_count _ink_builtin_template_name _ink_builtin_template_create
     _ink_document_create_from_template _ink_export_pdf _ink_export_pdf_layers
     _ink_canvas_create_webgl _ink_canvas_set_view _ink_canvas_set_surface_size
@@ -95,7 +96,7 @@ if(EMSCRIPTEN)
     _ink_canvas_set_tool _ink_canvas_figure_begin _ink_canvas_figure_scene _ink_canvas_figure_complete _ink_canvas_selected_figure
     _ink_canvas_set_eraser _ink_canvas_set_utc_offset _ink_canvas_free _ink_canvas_page_at
     _ink_canvas_set_selector _ink_canvas_selection _ink_canvas_select_all _ink_canvas_clear_selection
-    _ink_canvas_delete_selection _ink_canvas_copy_selection _ink_canvas_paste _ink_canvas_duplicate_selection
+    _ink_canvas_delete_selection _ink_canvas_copy_selection _ink_canvas_paste _ink_canvas_paste_at _ink_canvas_duplicate_selection
     _ink_canvas_insert_text _ink_canvas_select_text_at _ink_canvas_selected_text _ink_canvas_set_selected_text
     _ink_input _ink_input_update _ink_render _ink_undo _ink_redo _ink_document_page_rect _ink_document_page_png _ink_struct_layout
     _malloc _free)

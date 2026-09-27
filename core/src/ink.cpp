@@ -342,6 +342,58 @@ InkStatus ink_document_insert_page(InkDocument *document, size_t index) {
   });
 }
 
+InkStatus ink_clipping_add(InkDocument *document, const uint8_t *svg, size_t size) {
+  return Call([&] {
+    if (!document || !svg) return NullArgument("document or svg");
+    auto elements = ink_engine::ReadClipboard(Bytes(svg, size));
+    if (!elements || elements->empty()) return Fail(INK_ERROR_PARSE, "clipping has no supported content");
+    auto bounds = ink_engine::ElementBounds(**elements->begin());
+    for (const auto &element : *elements) bounds = ink_engine::Union(bounds, ink_engine::ElementBounds(*element));
+    if (ink_engine::IsEmpty(bounds)) return Fail(INK_ERROR_ARGUMENT, "clipping has no bounds");
+    // Write clippingview.cpp:selectionDropped: fit the selection with a small
+    // blank margin, then translate its original geometry into that page.
+    const double padx = std::max(3.0, (bounds.right - bounds.left) * 0.05);
+    const double pady = std::max(3.0, (bounds.bottom - bounds.top) * 0.05);
+    auto &history = document->history;
+    auto next = history.current();
+    auto page = ink_engine::NewPage(next, std::nullopt);
+    page.id = history.ids().PageId();
+    page.file = ink_engine::NextPageFile(next);
+    page.width = bounds.right - bounds.left + 2 * padx;
+    page.height = bounds.bottom - bounds.top + 2 * pady;
+    if (page.layers.empty()) return Fail(INK_ERROR_ARGUMENT, "clippings need a layer");
+    for (const auto &element : *elements) {
+      auto copy = ink_engine::Transformed(*element, {.e = padx - bounds.left, .f = pady - bounds.top});
+      copy = ink_engine::WithNewIds(copy, history.ids());
+      copy = ink_engine::StoreImages(copy, page.file, document->assets, document->new_assets);
+      page.layers.front().elements = page.layers.front().elements.push_back(immer::box<ink_engine::Element>(std::move(copy)));
+    }
+    next.pages = next.pages.insert(ink_engine::ListedPageCount(next), immer::box<ink_engine::Page>(std::move(page)));
+    ++document->assets_version;
+    history.Push(std::move(next));
+    return INK_OK;
+  });
+}
+
+InkStatus ink_clipping_svg(InkDocument *document, size_t index, const char **svg) {
+  return Call([&] {
+    if (!document || !svg) return NullArgument("document or svg");
+    auto &history = document->history;
+    if (index >= ink_engine::ListedPageCount(history.current())) return BadPageIndex();
+    const auto &page = *history.current().pages[index];
+    if (page.error || page.layers.empty()) return Fail(INK_ERROR_PARSE, "clipping page could not be read");
+    ink_engine::Elements elements;
+    for (const auto &layer : page.layers) for (const auto &element : layer.elements) {
+      auto copy = ink_engine::InlineImages(*element, page.file, document->assets);
+      copy = ink_engine::WithoutTimes(ink_engine::WithNewIds(copy, history.ids()));
+      elements = elements.push_back(immer::box<ink_engine::Element>(std::move(copy)));
+    }
+    document->clipping_svg = ink_engine::ClipboardSvg(elements, page.layers.front().layer_id);
+    *svg = document->clipping_svg.c_str();
+    return INK_OK;
+  });
+}
+
 InkStatus ink_import_page_svg(InkDocument *document, size_t index, const uint8_t *svg, size_t size) {
   return Call([&] {
     if (!document || !svg) return NullArgument("document or svg");
@@ -786,15 +838,15 @@ InkStatus ink_canvas_copy_selection(InkCanvas *canvas, int32_t cut, const uint8_
   });
 }
 
-InkStatus ink_canvas_paste(InkCanvas *canvas, const uint8_t *svg, size_t size, double x,
-                           double y) {
+static InkStatus PasteCanvas(InkCanvas *canvas, const uint8_t *svg, size_t size, double x,
+                           double y, bool place_at_pointer) {
   return Call([&] {
     if (!canvas) return NullArgument("canvas");
     if (!svg && size) return NullArgument("svg");
     InkDocument &document = *canvas->document;
     ink_engine::NotebookFiles added;
     if (!canvas->editor.Paste(Bytes(svg, size), x, y, canvas->width / canvas->pixel_ratio,
-                              canvas->height / canvas->pixel_ratio, document.assets, added)) {
+                              canvas->height / canvas->pixel_ratio, document.assets, added, place_at_pointer)) {
       return Fail(INK_ERROR_PARSE, "the clipboard text is not a page SVG");
     }
     if (!added.empty()) {
@@ -803,6 +855,14 @@ InkStatus ink_canvas_paste(InkCanvas *canvas, const uint8_t *svg, size_t size, d
     }
     return INK_OK;
   });
+}
+
+InkStatus ink_canvas_paste(InkCanvas *canvas, const uint8_t *svg, size_t size, double x, double y) {
+  return PasteCanvas(canvas, svg, size, x, y, false);
+}
+
+InkStatus ink_canvas_paste_at(InkCanvas *canvas, const uint8_t *svg, size_t size, double x, double y) {
+  return PasteCanvas(canvas, svg, size, x, y, true);
 }
 
 InkStatus ink_canvas_duplicate_selection(InkCanvas *canvas) {

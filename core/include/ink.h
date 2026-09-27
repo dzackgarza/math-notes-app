@@ -99,6 +99,10 @@ InkStatus ink_import_page_image(InkDocument *document, size_t index, const uint8
                                 size_t size, double width_pt, double height_pt);
 /* Insert a copy of a page SVG using this notebook's assets and new element ids. */
 InkStatus ink_import_page_svg(InkDocument *document, size_t index, const uint8_t *svg, size_t size);
+/* Save selection SVG as a tightly fitted, blank clipping page. */
+InkStatus ink_clipping_add(InkDocument *document, const uint8_t *svg, size_t size);
+/* Clipboard SVG with fresh identities and cleared authored timestamps. */
+InkStatus ink_clipping_svg(InkDocument *document, size_t index, const char **svg);
 /* Removes a page; ink_document_dirty_files then lists its file for deletion. */
 InkStatus ink_document_delete_page(InkDocument *document, size_t index);
 /* Moves page `from` to position `to`. Page files keep their names. */
@@ -287,6 +291,8 @@ InkStatus ink_canvas_copy_selection(InkCanvas *canvas, int32_t cut, const uint8_
    not a page SVG. */
 InkStatus ink_canvas_paste(InkCanvas *canvas, const uint8_t *svg, size_t size, double x,
                            double y);
+/* Paste with the selection centered at the drop position in view coordinates. */
+InkStatus ink_canvas_paste_at(InkCanvas *canvas, const uint8_t *svg, size_t size, double x, double y);
 /* Copies the selection 10 pt right and down, with new ids, and selects the
    copy: one history step. */
 InkStatus ink_canvas_duplicate_selection(InkCanvas *canvas);

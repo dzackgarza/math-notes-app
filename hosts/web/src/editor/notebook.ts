@@ -3,7 +3,7 @@
 import { createStore, del, entries, set } from "idb-keyval";
 import type { Engine, FileChange, InkDocument, NotebookFile } from "../engine/engine.ts";
 import { EngineError, PageSize, Status } from "../engine/engine.ts";
-import { ensureTemplates, readNotebook, readTemplatePage, writeFiles } from "../storage/folder.ts";
+import { ensureTemplates, readNotebook, readTemplatePage, writeFiles, type NotebookFiles } from "../storage/folder.ts";
 import { directoryAt, entryNames, nameError } from "../storage/library.ts";
 import type { PageSizeSetting } from "../storage/metadata.ts";
 
@@ -255,9 +255,15 @@ export async function openNotebook(engine: Engine, root: FileSystemDirectoryHand
   await ensureTemplates(root, engine);
   const dir = await directoryAt(root, path);
   const name = path[path.length - 1];
-  const files = await readNotebook(dir);
-  const base = [{ path: "notebook.json", bytes: files.notebookJson }, ...files.pages, ...files.assets];
   const recovery = await pendingRecovery(dir);
+  let files: NotebookFiles;
+  try { files = await readNotebook(dir); }
+  catch (error) {
+    const index = recovery?.changes.find((file) => file.path === "notebook.json" && file.kind === "write");
+    if (!(error instanceof DOMException && error.name === "NotFoundError") || index?.kind !== "write") throw error;
+    files = await readNotebook(dir, index.bytes);
+  }
+  const base = [{ path: "notebook.json", bytes: files.notebookJson }, ...files.pages, ...files.assets];
   const restored = new Map(base.map((file) => [file.path, file.bytes]));
   for (const change of recovery?.changes ?? []) {
     if (change.kind === "write") restored.set(change.path, change.bytes);

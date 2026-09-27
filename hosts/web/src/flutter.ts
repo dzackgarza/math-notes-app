@@ -16,6 +16,7 @@ import { readPens, writePens } from "./storage/pens.ts";
 import { Workbox } from "workbox-window";
 import { importPdf } from "./editor/pdf.ts";
 import { noteConflicts, resolveConflict } from "./storage/conflicts.ts";
+import { listClippings, saveClipping, clippingSvg, changeClipping } from "./editor/clippings.ts";
 
 async function paperPreview(engine: Engine, root: FileSystemDirectoryHandle, paper: string, size: "a4" | "letter"): Promise<Uint8Array<ArrayBuffer>> {
   const page = await readTemplatePage(root, paper);
@@ -153,6 +154,7 @@ async function insertImage(note: OpenNotebook, canvas: Canvas, page: number, x: 
 }
 
 const api = {
+  listClippings, saveClipping, clippingSvg, changeClipping,
   noteConflicts, resolveConflict,
   importPdf,
   applyTemplate, listTemplates, finishFigure, figureSource,

@@ -495,6 +495,22 @@ export class InkDocument {
     });
   }
 
+  addClipping(svg: string): void {
+    const e = this.engine;
+    const encoded = new TextEncoder().encode(svg);
+    const bytes = e.copyIn(encoded);
+    try { e.check(e.module._ink_clipping_add(this.pointer, bytes, encoded.length)); }
+    finally { e.free(bytes); }
+  }
+
+  clippingSvg(index: number): string {
+    const e = this.engine;
+    return e.withScratch(4, (out) => {
+      e.check(e.module._ink_clipping_svg(this.pointer, index, out));
+      return e.readCString(e.view().getUint32(out, true));
+    });
+  }
+
   addLayer(name: string): void {
     const e = this.engine;
     e.withCString(name, (text) => e.check(e.module._ink_document_add_layer(this.pointer, text)));
@@ -772,12 +788,14 @@ export class Canvas {
 
   // Pastes a clipboard document on the page under view point (x, y). Throws
   // EngineError with Status.parse when the text is not a page SVG.
-  paste(svg: string, x: number, y: number): void {
+  paste(svg: string, x: number, y: number, placeAtPointer = false): void {
     const e = this.engine;
     const text = encoder.encode(svg);
     const bytes = e.copyIn(text);
     try {
-      e.check(e.module._ink_canvas_paste(this.pointer, bytes, text.length, x, y));
+      e.check(placeAtPointer
+        ? e.module._ink_canvas_paste_at(this.pointer, bytes, text.length, x, y)
+        : e.module._ink_canvas_paste(this.pointer, bytes, text.length, x, y));
     } finally {
       e.free(bytes);
     }

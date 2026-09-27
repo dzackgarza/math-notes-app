@@ -227,7 +227,7 @@ extension type Canvas(JSObject value) implements JSObject {
   external void clearSelection();
   external void deleteSelection();
   external String copySelection(bool cut);
-  external void paste(String svg, double x, double y);
+  external void paste(String svg, double x, double y, [bool placeAtPointer]);
   external void duplicateSelection();
   external void insertText(String value, double x, double y);
   external bool selectTextAt(double x, double y);
@@ -262,7 +262,32 @@ extension type NoteConflict(JSObject value) implements JSObject {
   external String get rightSummary;
 }
 
+extension type Clipping(JSObject value) implements JSObject {
+  external String get id;
+  external JSUint8Array get png;
+}
+
 extension type Host(JSObject value) implements JSObject {
+  external JSPromise<JSArray<Clipping>> listClippings(
+    Engine engine,
+    Directory root,
+  );
+  external JSPromise<VoidResult> saveClipping(
+    Engine engine,
+    Directory root,
+    String svg,
+  );
+  external JSPromise<JSString> clippingSvg(
+    Engine engine,
+    Directory root,
+    String id,
+  );
+  external JSPromise<VoidResult> changeClipping(
+    Engine engine,
+    Directory root,
+    String id,
+    String action,
+  );
   external JSPromise<JSArray<NoteConflict>> noteConflicts(
     Engine engine,
     Directory dir,

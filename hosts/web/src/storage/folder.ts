@@ -67,12 +67,12 @@ async function subdirectory(dir: FileSystemDirectoryHandle, name: string): Promi
   }
 }
 
-export async function readNotebook(dir: FileSystemDirectoryHandle): Promise<NotebookFiles> {
-  const json = await (await dir.getFileHandle("notebook.json")).getFile();
+export async function readNotebook(dir: FileSystemDirectoryHandle, recoveredIndex?: Uint8Array<ArrayBuffer>): Promise<NotebookFiles> {
+  const notebookJson = recoveredIndex ?? new Uint8Array(await (await (await dir.getFileHandle("notebook.json")).getFile()).arrayBuffer());
   const pages = await subdirectory(dir, "pages");
   const assets = await subdirectory(dir, "assets");
   return {
-    notebookJson: new Uint8Array(await json.arrayBuffer()),
+    notebookJson,
     pages: pages ? (await readDirectory(pages, "pages")).filter((f) => f.path.endsWith(".svg")) : [],
     assets: assets ? await readDirectory(assets, "assets") : [],
   };

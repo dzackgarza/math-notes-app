@@ -306,6 +306,12 @@ Element WithNewIds(const Element &element, IdGenerator &ids) {
   return copy;
 }
 
+Element WithoutTimes(const Element &element) {
+  Element copy = MapChildren(element, [](const Element &child) { return WithoutTimes(child); });
+  if (auto *stroke = std::get_if<Stroke>(&copy.value)) stroke->time.clear();
+  return copy;
+}
+
 Element WithFreeIds(const Element &element, const std::vector<std::string> &taken, IdGenerator &ids) {
   Element copy = MapChildren(element, [&](const Element &c) { return WithFreeIds(c, taken, ids); });
   std::string *id = IdOf(copy);
