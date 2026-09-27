@@ -6,6 +6,41 @@ import { readFile } from "node:fs/promises";
 
 const APP = "?root=opfs";
 
+test("a failed save keeps the note open and retry persists its ink", async ({ page }, testInfo) => {
+  await startEmpty(page);
+  await newNote(page, "Save recovery");
+  const writer = await page.evaluateHandle(async () => {
+    const root = await navigator.storage.getDirectory();
+    const dir = await root.getDirectoryHandle("Save recovery");
+    const pages = await dir.getDirectoryHandle("pages");
+    const file = await pages.getFileHandle("0001.svg");
+    const options: FileSystemCreateWritableOptions & { mode: "exclusive" } = { keepExistingData: true, mode: "exclusive" };
+    return file.createWritable(options);
+  });
+  try {
+    const box = await page.locator("#ink-canvas").boundingBox();
+    if (!box) throw new Error("Notebook canvas has no bounds");
+    await drawWithPen(page, [{ x: box.x + 120, y: box.y + 120 }, { x: box.x + 190, y: box.y + 160 }]);
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(page.getByRole("status", { name: "Notebook save" })).toHaveText("Save failed");
+    await expect(page.getByRole("alert")).toBeVisible();
+    await page.getByRole("button", { name: "Library", exact: true }).click();
+    await expect(page.locator("#ink-canvas")).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath("save-error.png") });
+  } finally {
+    await writer.evaluate((stream) => stream.close());
+    await writer.dispose();
+  }
+  await page.getByRole("button", { name: "Retry save", exact: true }).click();
+  await expect(page.getByRole("status", { name: "Notebook save" })).toHaveText("Saved");
+  const saved = await readOpfsFile(page, "Save recovery/pages/0001.svg");
+  expect(Buffer.from(saved, "base64").toString()).toContain('<path id="s-');
+  await page.screenshot({ path: testInfo.outputPath("save-recovered.png") });
+  await page.reload();
+  await openNote(page, "Save recovery");
+  expect(await readOpfsFile(page, "Save recovery/pages/0001.svg")).toBe(saved);
+});
+
 // Opens the app on an empty origin-private file system. The clearing runs on
 // a page of the origin without the app, which holds no file of it open.
 async function startEmpty(page: Page): Promise<void> {

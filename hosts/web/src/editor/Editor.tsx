@@ -379,6 +379,12 @@ export function Editor(props: {
   let penTouchStartTime: number | null = null;
   const ids = { next: 0 };
   const { document: doc, saver, root } = props.notebook;
+  const [saveState, setSaveState] = createSignal(saver.state);
+  const saveChanged = () => setSaveState(saver.state);
+  saver.addEventListener("change", saveChanged);
+  onCleanup(() => saver.removeEventListener("change", saveChanged));
+  const saveLabel = () => ({ saved: "Saved", pending: "Unsaved changes", saving: "Saving…", error: "Save failed" })[saveState().status];
+  const saveNow = () => saver.save().catch((error) => toast(error instanceof Error ? error.message : String(error), "danger"));
   const [templates] = createResource(() => listTemplates(root));
   const [template, setTemplate] = createSignal(props.notebook.template);
   // The presets of Notes/.pens.json, in toolbar order.
@@ -840,7 +846,12 @@ export function Editor(props: {
       await toast("Complete the drawing before leaving this note.");
       return;
     }
-    await saver.save();
+    try {
+      await saver.save();
+    } catch (error) {
+      await toast(error instanceof Error ? error.message : String(error), "danger");
+      return;
+    }
     if (penWrite) await writePensNow();
     await penWritePending;
     canvas?.free();
@@ -989,6 +1000,10 @@ export function Editor(props: {
             </IonButton>
           </div>
           <IonButtons slot="end">
+            <span role="status" aria-label="Notebook save" aria-live="polite">{saveLabel()}</span>
+            <IonButton disabled={saveState().status === "saving"} onClick={() => void saveNow()}>
+              {saveState().status === "error" ? "Retry save" : "Save"}
+            </IonButton>
             <IonButton aria-label="Share" onClick={share}>
               <IonIcon slot="icon-only" icon={shareOutline} />
             </IonButton>
@@ -998,6 +1013,11 @@ export function Editor(props: {
           </IonButtons>
         </IonToolbar>
       </IonHeader>
+      <Show when={saveState().status === "error"}>
+        <div role="alert">
+          {(() => { const state = saveState(); return state.status === "error" ? state.message : ""; })()}
+        </div>
+      </Show>
       <div class="editor-body">
         <aside class="tool-rail" aria-label="Tools">
           <IonList lines="none" class="tools">
