@@ -184,7 +184,7 @@ call site already uses them. Source evidence and exact pins are in
 | Drag-and-drop and selection manipulation | [interact.js 1.10.28](https://interactjs.io/docs/draggable/) owns web selected-object handle sessions. UIKit supplies native contact events and [drag-and-drop](https://developer.apple.com/documentation/uikit/drag-and-drop) for external transfers. The current engine owns selection membership and committed object transforms on both hosts. |
 | Split panes | [corvu Resizable 0.2.5](https://corvu.dev/docs/primitives/resizable/) owns the web splitter; UIKit/SwiftUI own native panes. The host stores proportions and connects document position callbacks. |
 | History | The existing `DocumentHistory` and Immer document values own undo/redo. The notebook model tracks saved-file identity. |
-| Ink editing | Google Ink owns brush and stroke geometry. The current engine owns document edits, selection, erasure, and notebook mapping. #30 and #31 add ruled tools and reflow at this boundary, using the [Write assessment](ink-reflow-owners.md) as reference evidence. |
+| Ink editing | Google Ink owns brush and stroke geometry. The current engine owns document edits, selection, erasure, and notebook mapping. The [v1 ruled-editing decision](v1-ruled-editing-decision.md) selects a bounded port of pinned Write algorithms for #30 and #31 and names the fixed-page residue. |
 | Persistence and offline lifecycle | File System Access, IndexedDB/idb-keyval, Apple file coordination, and Vite PWA/Workbox own their respective platform mechanisms. #3, #5, and #7 define the minimum notebook-format and save-transaction adapters, including interruption and conflict behavior. |
 | Source syntax and graphics | pugixml 1.16 maps page SVG and InkML/namespaced metadata; nlohmann-json at vcpkg baseline `10541e31` owns notebook JSON syntax. Skia renders the current document. `@tikz-editor/core` owns TikZ syntax and source patches. The adapter maps documented fields and preserves authored source. |
 | Mathematical figures | The [FreeTikZ integration plan](specs/tikz-drawing-mode.md#component-ownership) uses TikZ Editor `app-v0.5.2`, Planegcs 1.2.0, BusyTeX 1.4.0 with the pinned TeX Live extra-plus-pictures profile, and MuPDF C SVG output 1.28.0. The app owns capture-to-figure identity and notebook file mapping. |
@@ -192,9 +192,9 @@ call site already uses them. Source evidence and exact pins are in
 ### Ink reflow owner survey
 
 Issues #30 and #31 deliver ruled selection, erasure, insert space, and reflow
-within the current engine. The [ink assessment](ink-reflow-owners.md) provides
-reference algorithms and a candidate for later ownership review. It does not
-select a v1 engine replacement.
+within the current engine. The [v1 decision](v1-ruled-editing-decision.md)
+selects the source algorithms, engine boundary, and product-owned residue.
+The [whole-editor assessment](ink-reflow-owners.md) is post-v1 work.
 
 ## Dependencies
 
