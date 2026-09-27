@@ -34,12 +34,16 @@ The preview includes the implementation through `890c083`. The figure editor
 loads, but its compiler assets are still absent. Compilation cannot complete
 until the source build below is installed and the host is rebuilt.
 
-## Resume the compiler build first
+## Compiler build running in the background
 
-Storage is available again. The download was stopped for this handoff, and
-the recipe now resumes partial downloads. It verifies the complete pinned
-SHA-512 digest before extraction. Retain the partial ISO at
+The compiler recipe is running under `nohup`, with output in
+`/tmp/math-notes-tex-build.log`. Inspect that log and the running process before
+starting another build. Downloads and builds can continue across this handoff.
+The recipe resumes partial downloads and verifies the complete pinned
+SHA-512 digest before extraction. Retain the ISO at
 `.ci/busytex-build/source/texlive2026.iso`.
+
+If the process has exited before completion, resume with:
 
 ```sh
 MATH_NOTES_TEX_BUILD="$PWD/.ci/busytex-build" just web-figure-compiler \
