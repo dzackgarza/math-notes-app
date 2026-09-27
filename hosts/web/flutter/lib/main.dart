@@ -7,6 +7,7 @@ import 'package:flutter/semantics.dart';
 import 'host.dart' as native;
 import 'notebook.dart';
 import 'creation_sheet.dart';
+import 'note_thumbnail.dart';
 
 void main() {
   runApp(const MathNotes());
@@ -66,6 +67,8 @@ class _WorkspaceState extends State<Workspace> {
   String? confirmation;
   String section = 'folder';
   String sort = 'name';
+  String? selectedTag;
+  bool grid = false;
 
   @override
   void initState() {
@@ -121,12 +124,95 @@ class _WorkspaceState extends State<Workspace> {
       library!.metadata.notes[native.pathKey(note.path)] ??
       native.host.emptyNote();
 
+  void registerTags(native.LibraryMetadata metadata, JSArray<JSString> names) {
+    final tags = metadata.tags.toDart.toList();
+    final colors = native.host.tagColors.toDart;
+    for (final name in names.toDart) {
+      if (!tags.any((tag) => tag.name == name.toDart)) {
+        tags.add(
+          native.Tag.create(
+            name: name.toDart,
+            color: colors[tags.length % colors.length].toDart,
+          ),
+        );
+      }
+    }
+    metadata.tags = tags.toJS;
+  }
+
+  Future<void> addTag() async {
+    final name = TextEditingController();
+    var color = native.host.tagColors.toDart.first.toDart;
+    final accepted = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, update) => CupertinoAlertDialog(
+          title: const Text('New tag'),
+          content: Column(
+            children: [
+              CupertinoTextField(
+                controller: name,
+                placeholder: 'Tag name',
+                autofocus: true,
+                onChanged: (_) => update(() {}),
+              ),
+              Wrap(
+                children: [
+                  for (final value in native.host.tagColors.toDart)
+                    CupertinoButton(
+                      onPressed: () => update(() => color = value.toDart),
+                      child: Semantics(
+                        label: value.toDart,
+                        selected: color == value.toDart,
+                        child: Icon(
+                          CupertinoIcons.circle_fill,
+                          color: Color(
+                            int.parse(value.toDart.substring(1), radix: 16) |
+                                0xFF000000,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            CupertinoDialogAction(
+              onPressed: name.text.trim().isEmpty
+                  ? null
+                  : () => Navigator.pop(context, true),
+              child: const Text('Add tag'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final title = name.text.trim();
+    name.dispose();
+    if (accepted != true) return;
+    final metadata = await native.host.readMetadata(root!).toDart;
+    if (metadata.tags.toDart.any((tag) => tag.name == title))
+      throw StateError('This tag name is already in use.');
+    metadata.tags = [
+      ...metadata.tags.toDart,
+      native.Tag.create(name: title, color: color),
+    ].toJS;
+    await native.host.writeMetadata(root!, metadata).toDart;
+    await refresh();
+  }
+
   Future<void> saveNoteMetadata(
     native.Note note,
     native.NoteMetadata metadata,
   ) async {
     final current = await native.host.readMetadata(root!).toDart;
     current.notes[native.pathKey(note.path)] = metadata;
+    registerTags(current, metadata.tags);
     await native.host.writeMetadata(root!, current).toDart;
     await refresh();
   }
@@ -547,6 +633,7 @@ class _WorkspaceState extends State<Workspace> {
     if (accepted == null) return;
     await run(() async {
       final current = await native.host.readMetadata(root!).toDart;
+      registerTags(current, chosenTags);
       if (accepted == 'draft') {
         current.draft = native.NoteDraft.create(
           folder: target,
@@ -747,6 +834,12 @@ class _WorkspaceState extends State<Workspace> {
                           ))
                             CupertinoListTile(
                               title: Text(note.name),
+                              leadingSize: 48,
+                              leading: NoteThumbnail(
+                                engine: engine!,
+                                root: root!,
+                                note: note,
+                              ),
                               subtitle: Text(folder.name),
                               onTap: () => Navigator.pop(context, note),
                             ),
@@ -780,6 +873,9 @@ class _WorkspaceState extends State<Workspace> {
     final notes = candidates.where((note) {
       final metadata = noteMetadata(note);
       if (section == 'favorites' && !metadata.favorite) return false;
+      if (section == 'tag' &&
+          !metadata.tags.toDart.any((tag) => tag.toDart == selectedTag))
+        return false;
       final text =
           '${note.name} ${metadata.description} ${metadata.tags.toDart.map((tag) => tag.toDart).join(' ')}'
               .toLowerCase();
@@ -826,40 +922,120 @@ class _WorkspaceState extends State<Workspace> {
                       children: [
                         SizedBox(
                           width: 240,
-                          child: CupertinoListSection(
-                            header: const Text('NOTEBOOKS'),
+                          child: ListView(
                             children: [
-                              for (final item in const {
-                                'recent': 'Recent',
-                                'favorites': 'Favorites',
-                                'trash': 'Trash',
-                              }.entries)
-                                CupertinoListTile(
-                                  title: Text(item.value),
-                                  backgroundColor: section == item.key
-                                      ? const Color(0xFFE3EBFC)
-                                      : null,
-                                  onTap: () =>
-                                      setState(() => section = item.key),
-                                ),
-                              for (final item in library!.folders.toDart)
-                                CupertinoListTile(
-                                  title: Text(item.name),
-                                  leading: const Icon(CupertinoIcons.folder),
-                                  backgroundColor:
-                                      native.pathKey(item.path) ==
-                                          native.pathKey(folder)
-                                      ? const Color(0xFFE3EBFC)
-                                      : null,
-                                  onTap: () => setState(() {
-                                    folder = item.path;
-                                    section = 'folder';
-                                  }),
-                                ),
+                              CupertinoListSection(
+                                header: const Text('NOTEBOOKS'),
+                                children: [
+                                  for (final item in const {
+                                    'library': 'Library',
+                                    'search': 'Search',
+                                    'recent': 'Recent',
+                                    'favorites': 'Favorites',
+                                    'trash': 'Trash',
+                                  }.entries)
+                                    CupertinoListTile(
+                                      title: Text(item.value),
+                                      backgroundColor: section == item.key
+                                          ? const Color(0xFFE3EBFC)
+                                          : null,
+                                      onTap: () =>
+                                          setState(() => section = item.key),
+                                    ),
+                                  for (final item in library!.folders.toDart)
+                                    CupertinoListTile(
+                                      title: Text(item.name),
+                                      leading: const Icon(
+                                        CupertinoIcons.folder,
+                                      ),
+                                      backgroundColor:
+                                          section == 'folder' &&
+                                              native.pathKey(item.path) ==
+                                                  native.pathKey(folder)
+                                          ? const Color(0xFFE3EBFC)
+                                          : null,
+                                      onTap: () => setState(() {
+                                        folder = item.path;
+                                        section = 'folder';
+                                      }),
+                                    ),
+                                  CupertinoListTile(
+                                    title: const Text('Choose notes folder'),
+                                    leading: const Icon(
+                                      CupertinoIcons.folder_open,
+                                    ),
+                                    onTap: () => run(chooseRoot),
+                                  ),
+                                ],
+                              ),
+                              CupertinoListSection(
+                                header: const Text('TAGS'),
+                                children: [
+                                  for (final tag
+                                      in library!.metadata.tags.toDart)
+                                    CupertinoListTile(
+                                      title: Text(tag.name),
+                                      backgroundColor:
+                                          section == 'tag' &&
+                                              selectedTag == tag.name
+                                          ? const Color(0xFFE3EBFC)
+                                          : null,
+                                      leading: Icon(
+                                        CupertinoIcons.circle_fill,
+                                        color: Color(
+                                          int.parse(
+                                                tag.color.substring(1),
+                                                radix: 16,
+                                              ) |
+                                              0xFF000000,
+                                        ),
+                                      ),
+                                      trailing: Text(
+                                        '${all.where((note) => noteMetadata(note).tags.toDart.any((name) => name.toDart == tag.name)).length}',
+                                      ),
+                                      onTap: () => setState(() {
+                                        selectedTag = tag.name;
+                                        section = 'tag';
+                                      }),
+                                    ),
+                                  CupertinoListTile(
+                                    title: const Text('Add tag'),
+                                    leading: const Icon(CupertinoIcons.add),
+                                    onTap: () => run(addTag),
+                                  ),
+                                ],
+                              ),
                               CupertinoListTile(
-                                title: const Text('Choose notes folder'),
-                                leading: const Icon(CupertinoIcons.folder_open),
-                                onTap: () => run(chooseRoot),
+                                title: const Text('Settings'),
+                                leading: const Icon(CupertinoIcons.settings),
+                                onTap: () => showCupertinoModalPopup<void>(
+                                  context: context,
+                                  builder: (context) => CupertinoActionSheet(
+                                    title: const Text('Settings'),
+                                    actions: [
+                                      CupertinoActionSheetAction(
+                                        onPressed: () {
+                                          Navigator.pop(context);
+                                          unawaited(run(chooseRoot));
+                                        },
+                                        child: const Text(
+                                          'Choose notes folder',
+                                        ),
+                                      ),
+                                      CupertinoActionSheetAction(
+                                        onPressed: () {
+                                          Navigator.pop(context);
+                                          unawaited(run(refresh));
+                                        },
+                                        child: const Text('Refresh library'),
+                                      ),
+                                    ],
+                                    cancelButton: CupertinoActionSheetAction(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: const Text('Cancel'),
+                                    ),
+                                  ),
+                                ),
                               ),
                             ],
                           ),
@@ -878,6 +1054,9 @@ class _WorkspaceState extends State<Workspace> {
                                           'recent' => 'Recent',
                                           'favorites' => 'Favorites',
                                           'trash' => 'Trash',
+                                          'tag' => selectedTag!,
+                                          'library' => 'Library',
+                                          'search' => 'Search',
                                           _ => selected?.name ?? 'Library',
                                         },
                                         style: const TextStyle(
@@ -907,57 +1086,170 @@ class _WorkspaceState extends State<Workspace> {
                                   onChanged: (_) => setState(() {}),
                                 ),
                                 const SizedBox(height: 16),
-                                CupertinoSlidingSegmentedControl<String>(
-                                  groupValue: sort,
-                                  children: const {
-                                    'name': Text('Name'),
-                                    'modified': Text('Last modified'),
-                                  },
-                                  onValueChanged: (value) {
-                                    if (value != null)
-                                      setState(() => sort = value);
-                                  },
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child:
+                                          CupertinoSlidingSegmentedControl<
+                                            String
+                                          >(
+                                            groupValue: sort,
+                                            children: const {
+                                              'name': Text('Name'),
+                                              'modified': Text('Last modified'),
+                                            },
+                                            onValueChanged: (value) {
+                                              if (value != null)
+                                                setState(() => sort = value);
+                                            },
+                                          ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    CupertinoSlidingSegmentedControl<bool>(
+                                      groupValue: grid,
+                                      children: const {
+                                        false: Text('List'),
+                                        true: Text('Grid'),
+                                      },
+                                      onValueChanged: (value) {
+                                        if (value != null)
+                                          setState(() => grid = value);
+                                      },
+                                    ),
+                                  ],
                                 ),
                                 const SizedBox(height: 16),
                                 Expanded(
-                                  child: ListView(
-                                    children: [
-                                      for (final item in notes)
-                                        CupertinoListTile.notched(
-                                          title: CupertinoButton(
-                                            padding: EdgeInsets.zero,
-                                            alignment: Alignment.centerLeft,
-                                            onPressed: section == 'trash'
-                                                ? () => run(
-                                                    () => noteActions(item),
-                                                  )
-                                                : () => run(
-                                                    () => open(item.path),
+                                  child: grid
+                                      ? GridView.extent(
+                                          maxCrossAxisExtent: 260,
+                                          mainAxisSpacing: 16,
+                                          crossAxisSpacing: 16,
+                                          childAspectRatio: 0.72,
+                                          children: [
+                                            for (final item in notes)
+                                              DecoratedBox(
+                                                decoration: BoxDecoration(
+                                                  color: CupertinoColors.white,
+                                                  border: Border.all(
+                                                    color: CupertinoColors
+                                                        .separator,
                                                   ),
-                                            child: Text(item.name),
-                                          ),
-                                          subtitle: Text(
-                                            noteMetadata(item).tags.toDart
-                                                .map((tag) => tag.toDart)
-                                                .join(' · '),
-                                          ),
-                                          leading: const Icon(
-                                            CupertinoIcons.doc_text,
-                                          ),
-                                          trailing: CupertinoButton(
-                                            padding: EdgeInsets.zero,
-                                            onPressed: () =>
-                                                run(() => noteActions(item)),
-                                            child: Semantics(
-                                              label: '${item.name} actions',
-                                              child: const Icon(
-                                                CupertinoIcons.ellipsis,
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                                child: Column(
+                                                  children: [
+                                                    Expanded(
+                                                      child: CupertinoButton(
+                                                        onPressed: () => run(
+                                                          () =>
+                                                              section == 'trash'
+                                                              ? noteActions(
+                                                                  item,
+                                                                )
+                                                              : open(item.path),
+                                                        ),
+                                                        child: NoteThumbnail(
+                                                          engine: engine!,
+                                                          root: root!,
+                                                          note: item,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    Row(
+                                                      children: [
+                                                        Expanded(
+                                                          child: Padding(
+                                                            padding:
+                                                                const EdgeInsets.only(
+                                                                  left: 12,
+                                                                ),
+                                                            child: Text(
+                                                              item.name,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        CupertinoButton(
+                                                          onPressed: () => run(
+                                                            () => noteActions(
+                                                              item,
+                                                            ),
+                                                          ),
+                                                          child: Semantics(
+                                                            label:
+                                                                '${item.name} actions',
+                                                            child: const Icon(
+                                                              CupertinoIcons
+                                                                  .ellipsis,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    Padding(
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                            12,
+                                                          ),
+                                                      child: Text(
+                                                        noteMetadata(item)
+                                                            .description,
+                                                        maxLines: 2,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
                                               ),
-                                            ),
-                                          ),
+                                          ],
+                                        )
+                                      : ListView(
+                                          children: [
+                                            for (final item in notes)
+                                              CupertinoListTile.notched(
+                                                leadingSize: 48,
+                                                title: CupertinoButton(
+                                                  padding: EdgeInsets.zero,
+                                                  alignment:
+                                                      Alignment.centerLeft,
+                                                  onPressed: section == 'trash'
+                                                      ? () => run(
+                                                          () =>
+                                                              noteActions(item),
+                                                        )
+                                                      : () => run(
+                                                          () => open(item.path),
+                                                        ),
+                                                  child: Text(item.name),
+                                                ),
+                                                subtitle: Text(
+                                                  noteMetadata(item).tags.toDart
+                                                      .map((tag) => tag.toDart)
+                                                      .join(' · '),
+                                                ),
+                                                leading: NoteThumbnail(
+                                                  engine: engine!,
+                                                  root: root!,
+                                                  note: item,
+                                                ),
+                                                trailing: CupertinoButton(
+                                                  padding: EdgeInsets.zero,
+                                                  onPressed: () => run(
+                                                    () => noteActions(item),
+                                                  ),
+                                                  child: Semantics(
+                                                    label:
+                                                        '${item.name} actions',
+                                                    child: const Icon(
+                                                      CupertinoIcons.ellipsis,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                          ],
                                         ),
-                                    ],
-                                  ),
                                 ),
                               ],
                             ),

@@ -29,6 +29,13 @@ extension type Folder(JSObject value) implements JSObject {
   external String get name;
   external JSArray<JSString> get path;
   external JSArray<Note> get notes;
+  external double get modified;
+}
+
+extension type Tag(JSObject value) implements JSObject {
+  external factory Tag.create({String name, String color});
+  external String get name;
+  external String get color;
 }
 
 extension type Library(JSObject value) implements JSObject {
@@ -67,6 +74,8 @@ extension type FolderMetadata(JSObject value) implements JSObject {
 }
 
 extension type LibraryMetadata(JSObject value) implements JSObject {
+  external JSArray<Tag> get tags;
+  external set tags(JSArray<Tag> value);
   external MetadataMap<NoteMetadata> get notes;
   external MetadataMap<FolderMetadata> get folders;
   external JSArray<StartingTemplate> get startingTemplates;
@@ -214,6 +223,12 @@ extension type OpenNote(JSObject value) implements JSObject {
 }
 
 extension type Host(JSObject value) implements JSObject {
+  external JSPromise<JSUint8Array?> thumbnail(
+    Engine engine,
+    Directory root,
+    Note note,
+  );
+  external JSArray<JSString> get tagColors;
   external JSPromise<JSUint8Array> paperPreview(
     Engine engine,
     Directory root,

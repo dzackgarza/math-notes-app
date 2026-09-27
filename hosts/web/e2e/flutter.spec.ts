@@ -1,5 +1,6 @@
 import { expect, test, type Locator } from "@playwright/test";
 import { execFileSync } from "node:child_process";
+import { readFile } from "node:fs/promises";
 
 // Flutter activates its text input channel after semantic focus is delivered.
 // Use actual keyboard input after clicking, rather than fill's synchronous DOM
@@ -9,6 +10,47 @@ async function enterText(field: Locator, value: string): Promise<void> {
   await field.press("ControlOrMeta+a");
   await field.pressSequentially(value);
 }
+
+test("Flutter finds an image note through persistent tags and its page thumbnail", async ({ page }, info) => {
+  test.setTimeout(90_000);
+  await page.goto("flutter/?root=opfs");
+  await page.getByRole("button", { name: "New Note", exact: true }).click();
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Diagram");
+  await enterText(page.getByRole("textbox", { name: "Tags, separated by commas", exact: true }), "topology");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).waitFor();
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Image", exact: true }).click();
+  await (await chooser).setFiles("../../core/tests/fixtures/render/full/0001.png");
+  await expect(page.getByRole("button", { name: "Delete selection", exact: true })).toBeAttached();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.reload();
+  await page.getByRole("button", { name: /^topology/ }).click();
+  await page.getByRole("button", { name: "Grid", exact: true }).click();
+  await expect(page.getByRole("img", { name: "Diagram first page", exact: true })).toBeVisible();
+  await page.screenshot({ path: info.outputPath("tagged-image-card.png") });
+  await page.getByRole("button", { name: "Diagram first page", exact: true }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).waitFor();
+  const saved = await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    const dir = await root.getDirectoryHandle("Diagram");
+    const pages = await dir.getDirectoryHandle("pages");
+    const svg = await (await (await pages.getFileHandle("0001.svg")).getFile()).text();
+    const name = svg.match(/href="\.\.\/assets\/([0-9a-f]+\.png)"/)?.[1];
+    if (!name) throw new Error("Saved image has no PNG asset reference");
+    const assets = await dir.getDirectoryHandle("assets");
+    const file = await (await assets.getFileHandle(name)).getFile();
+    return {
+      image: btoa(String.fromCharCode(...new Uint8Array(await file.arrayBuffer()))),
+      metadata: await (await (await root.getFileHandle(".library.json")).getFile()).text(),
+    };
+  });
+  expect(Buffer.from(saved.image, "base64")).toEqual(await readFile("../../core/tests/fixtures/render/full/0001.png"));
+  expect(JSON.parse(saved.metadata).tags).toContainEqual({ name: "topology", color: "#2F6FEB" });
+  await page.screenshot({ path: info.outputPath("image-note-reopened.png") });
+});
 
 test("Flutter adds a page only after a held edge pull and preserves keyboard history", async ({ page }) => {
   test.setTimeout(60_000);

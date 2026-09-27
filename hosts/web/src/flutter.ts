@@ -7,8 +7,9 @@ import type { Canvas, Engine } from "./engine/engine.ts";
 import { PageSize } from "./engine/engine.ts";
 import { capabilities, penSamples } from "./input/pointer.ts";
 import { ensureTemplates, hasPermission, listTemplates, pickRoot, readTemplatePage, requestPermission, savedRoot } from "./storage/folder.ts";
-import { createFolder, moveEntry, moveToTrash, scanLibrary, scanTrash } from "./storage/library.ts";
-import { emptyFolder, emptyNote, moveNotes, readMetadata, writeMetadata } from "./storage/metadata.ts";
+import { createFolder, moveEntry, moveToTrash, scanLibrary, scanTrash, type Note } from "./storage/library.ts";
+import { emptyFolder, emptyNote, moveNotes, readMetadata, writeMetadata, TAG_COLORS } from "./storage/metadata.ts";
+import { noteThumbnail } from "./storage/thumbnails.ts";
 import { readPens, writePens } from "./storage/pens.ts";
 import { Workbox } from "workbox-window";
 
@@ -21,6 +22,11 @@ async function paperPreview(engine: Engine, root: FileSystemDirectoryHandle, pap
   } finally {
     document.free();
   }
+}
+
+async function thumbnail(engine: Engine, root: FileSystemDirectoryHandle, note: Note): Promise<Uint8Array<ArrayBuffer> | null> {
+  const blob = await noteThumbnail(engine, root, note);
+  return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
 }
 
 async function cacheApp(): Promise<void> {
@@ -131,6 +137,7 @@ async function insertImage(note: OpenNotebook, canvas: Canvas, page: number, x: 
 }
 
 const api = {
+  thumbnail, tagColors: TAG_COLORS,
   cacheApp, paperPreview, exportPdf, insertImage, loadEngine, startRoot, pickRoot, requestPermission, library,
   createNotebook, openNotebook, createFolder, moveEntry, moveToTrash,
   emptyFolder, emptyNote, moveNotes, readMetadata, writeMetadata, readPens, writePens, acceptPen, mountCanvas,
