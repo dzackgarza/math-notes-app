@@ -44,7 +44,7 @@ export async function listNotebooks(root: FileSystemDirectoryHandle): Promise<st
 }
 
 export interface NotebookFiles {
-  notebookJson: Uint8Array;
+  notebookJson: Uint8Array<ArrayBuffer>;
   pages: NotebookFile[];
   assets: NotebookFile[];
 }

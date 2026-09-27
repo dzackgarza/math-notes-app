@@ -383,7 +383,7 @@ export function Editor(props: {
   const saveChanged = () => setSaveState(saver.state);
   saver.addEventListener("change", saveChanged);
   onCleanup(() => saver.removeEventListener("change", saveChanged));
-  const saveLabel = () => ({ saved: "Saved", pending: "Unsaved changes", saving: "Saving…", error: "Save failed" })[saveState().status];
+  const saveLabel = () => ({ saved: "Saved", pending: "Unsaved changes", recoverable: "Pending file save", saving: "Saving…", error: "Save failed" })[saveState().status];
   const saveNow = () => saver.save().catch((error) => toast(error instanceof Error ? error.message : String(error), "danger"));
   const [templates] = createResource(() => listTemplates(root));
   const [template, setTemplate] = createSignal(props.notebook.template);
