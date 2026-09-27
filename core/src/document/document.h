@@ -127,6 +127,7 @@ struct Figure {
   std::string scene_href;  // relative to the page SVG
   std::string tikz_href;   // relative to the page SVG
   Elements children;       // standalone SVG view, including original ink and InkML
+  std::string draft_href;  // source edits awaiting a compiled page view
   bool operator==(const Figure &) const = default;
 };
 

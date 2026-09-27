@@ -30,6 +30,7 @@ struct InkDocument {
   std::string pdf;
   std::string layers_json;
   std::string navigation_json;
+  std::string figure_source;
   std::string clipping_svg;
 };
 

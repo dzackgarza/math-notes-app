@@ -286,7 +286,8 @@ Elements ReadElements(const pugi::xml_node &parent, const ReadContext &context) 
         element.value = Figure{node.attribute("id").value(),
                                ReadTransform(node.attribute("transform").value()),
                                node.attribute("mn:scene").value(),
-                               node.attribute("mn:tikz").value(), ReadElements(node, context)};
+                               node.attribute("mn:tikz").value(), ReadElements(node, context),
+                               node.attribute("mn:draft").value()};
       } else {
         element.value = Bookmark{node.attribute("id").value(), ReadElements(node, context)};
       }
@@ -465,6 +466,7 @@ void WriteElements(pugi::xml_node &parent, const Elements &elements) {
             AppendTransform(g, e.transform);
             Set(g, "mn:scene", e.scene_href);
             Set(g, "mn:tikz", e.tikz_href);
+            if (!e.draft_href.empty()) Set(g, "mn:draft", e.draft_href);
             WriteElements(g, e.children);
           } else {
             pugi::xml_node a = parent.append_child("a");

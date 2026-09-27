@@ -239,6 +239,12 @@ same in-place save and dirty-file contract as page files. A missing or invalid
 sidecar is an explicit figure error; the page's visible SVG children remain
 available for viewing and recovery.
 
+During source editing, `mn:draft` points to the durable TikZ draft in
+`assets/`. Each changed draft has a new asset path. History restores the
+referenced bytes when undo returns to a previously saved revision. The
+accepted `mn:tikz` source and page view change together after compilation.
+Draft source travels with a copied figure and remains available on reopen.
+
 Plain `.svg` only; `.svgz` is not written. ZIP is only a transport form of
 a notebook directory (send, archive, download).
 

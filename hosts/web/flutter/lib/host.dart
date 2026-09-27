@@ -299,6 +299,11 @@ extension type Clipping(JSObject value) implements JSObject {
 }
 
 extension type Host(JSObject value) implements JSObject {
+  external FigureEditor mountFigureEditor(
+    OpenNote note,
+    String id,
+    web.HTMLIFrameElement frame,
+  );
   external JSPromise<JSArray<Clipping>> listClippings(
     Engine engine,
     Directory root,
@@ -429,6 +434,15 @@ extension type Host(JSObject value) implements JSObject {
     web.HTMLCanvasElement element,
     double stamp,
   );
+}
+
+extension type FigureEditor(JSObject value) implements JSObject {
+  external bool get ready;
+  external String get error;
+  external JSPromise<VoidResult> save();
+  external void dispose();
+  external void addEventListener(String type, JSFunction listener);
+  external void removeEventListener(String type, JSFunction listener);
 }
 
 String pathKey(JSArray<JSString> path) =>

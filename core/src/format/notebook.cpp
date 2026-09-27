@@ -27,13 +27,9 @@ bool IsPageFile(const std::string &path) {
 void FigureAssets(const Elements &elements, std::set<std::string> &paths) {
   for (const auto &box : elements) {
     if (const auto *figure = std::get_if<Figure>(&box->value)) {
-      const std::string prefix = "../assets/" + figure->id;
-      if (figure->scene_href == prefix + ".scene.json") {
-        paths.insert("assets/" + figure->id + ".scene.json");
-      }
-      if (figure->tikz_href == prefix + ".tikz") {
-        paths.insert("assets/" + figure->id + ".tikz");
-      }
+      for (const auto &href : {figure->scene_href, figure->tikz_href, figure->draft_href})
+        if (href.starts_with("../assets/") && href.find('/', 10) == std::string::npos)
+          paths.insert(href.substr(3));
       FigureAssets(figure->children, paths);
     } else if (const auto *group = std::get_if<Bookmark>(&box->value)) {
       FigureAssets(group->children, paths);

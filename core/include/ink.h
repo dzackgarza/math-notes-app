@@ -278,6 +278,9 @@ InkStatus ink_canvas_selection(InkCanvas *canvas, InkSelectionInfo *out);
 InkStatus ink_canvas_select_all(InkCanvas *canvas, size_t index);
 InkStatus ink_canvas_clear_selection(InkCanvas *canvas);
 InkStatus ink_canvas_bookmark_selection(InkCanvas *canvas);
+/* Figure source edits remain a draft until their compiled page view is accepted. */
+InkStatus ink_document_figure_source(InkDocument *document, const char *id, const uint8_t **text, size_t *size);
+InkStatus ink_document_figure_draft(InkDocument *document, const char *id, const uint8_t *text, size_t size);
 InkStatus ink_canvas_link_selection(InkCanvas *canvas, const char *href);
 InkStatus ink_canvas_ungroup_selection(InkCanvas *canvas);
 InkStatus ink_canvas_add_bookmark(InkCanvas *canvas, double x, double y);

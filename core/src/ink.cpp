@@ -14,6 +14,7 @@
 #include "document/templates.h"
 #include "document/layers.h"
 #include "document/navigation.h"
+#include "document/figures.h"
 #include "selection/ruled.h"
 #include "render/text_layout.h"
 #include "render/text_font.h"
@@ -234,6 +235,13 @@ InkStatus ink_document_dirty_files(InkDocument *document, const InkFile **files,
     }
     ink_engine::NotebookFiles changed = ink_engine::ChangedFiles(history.current(), history.saved());
     const std::set<std::string> figure_assets = ink_engine::FigureAssetPaths(history.current());
+    const auto saved_assets = history.saved() ? ink_engine::FigureAssetPaths(*history.saved()) : std::set<std::string>{};
+    for (const auto &path : figure_assets) {
+      if (saved_assets.contains(path)) continue;
+      const auto file = document->assets.find(path);
+      if (file == document->assets.end()) return Fail(INK_ERROR_PARSE, "missing figure asset: " + path);
+      changed[path] = std::string(static_cast<const char *>(file->second->data()), file->second->size());
+    }
     for (const auto &[path, bytes] : document->new_assets) {
       if (!path.starts_with("assets/f-") || figure_assets.contains(path)) changed[path] = bytes;
     }
@@ -849,6 +857,40 @@ InkStatus ink_canvas_bookmark_selection(InkCanvas *canvas) {
   return Call([&] {
     if (!canvas) return NullArgument("canvas");
     canvas->editor.BookmarkSelection();
+    return INK_OK;
+  });
+}
+
+InkStatus ink_document_figure_source(InkDocument *document, const char *id, const uint8_t **text, size_t *size) {
+  return Call([&] {
+    if (!document || !id || !text || !size) return NullArgument("figure source argument");
+    const auto &current = document->history.current();
+    const auto location = ink_engine::FindFigure(current, id);
+    const auto &href = location.figure->draft_href.empty() ? location.figure->tikz_href : location.figure->draft_href;
+    const auto path = ink_engine::NotebookPath(current.pages[location.page]->file, href);
+    const auto file = document->assets.find(path);
+    if (file == document->assets.end()) return Fail(INK_ERROR_PARSE, "missing figure source: " + path);
+    document->figure_source.assign(static_cast<const char *>(file->second->data()), file->second->size());
+    *text = reinterpret_cast<const uint8_t *>(document->figure_source.data());
+    *size = document->figure_source.size();
+    return INK_OK;
+  });
+}
+
+InkStatus ink_document_figure_draft(InkDocument *document, const char *id, const uint8_t *text, size_t size) {
+  return Call([&] {
+    if (!document || !id || (!text && size)) return NullArgument("figure draft argument");
+    auto &history = document->history;
+    const auto location = ink_engine::FindFigure(history.current(), id);
+    const auto &href = location.figure->draft_href.empty() ? location.figure->tikz_href : location.figure->draft_href;
+    const auto previous = document->assets.find(ink_engine::NotebookPath(history.current().pages[location.page]->file, href));
+    if (previous != document->assets.end() && std::string_view(static_cast<const char *>(previous->second->data()), previous->second->size()) == Bytes(text, size)) return INK_OK;
+    const std::string path = std::string("assets/") + id + "-" + history.ids().StrokeId() + ".draft.tikz";
+    auto next = ink_engine::SetFigureDraft(history.current(), id, "../" + path);
+    document->assets[path] = SkData::MakeWithCopy(text, size);
+    document->new_assets[path] = std::string(Bytes(text, size));
+    ++document->assets_version;
+    history.Push(std::move(next));
     return INK_OK;
   });
 }

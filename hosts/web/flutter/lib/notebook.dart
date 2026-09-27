@@ -12,6 +12,7 @@ import 'package:web/web.dart' as web;
 import 'host.dart' as native;
 import 'layers_sheet.dart';
 import 'bookmarks_sheet.dart';
+import 'figure_editor.dart';
 
 typedef NotebookViewport = ({double scale, double x, double y, double scroll});
 typedef NoteDestination = ({String noteKey, String file, String id});
@@ -344,6 +345,7 @@ class _NotebookState extends State<Notebook>
       text: (properties?.width ?? 300).toString(),
     );
     final controller = TextEditingController(text: properties?.content ?? '');
+    String? validation;
     final accepted = await showCupertinoDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -383,6 +385,11 @@ class _NotebookState extends State<Notebook>
                   ),
                 ),
                 const Text('Use 0 for the full text width.'),
+                if (validation != null)
+                  Text(
+                    validation!,
+                    style: const TextStyle(color: CupertinoColors.systemRed),
+                  ),
                 Row(
                   children: [
                     const Expanded(child: Text('Right to left')),
@@ -402,7 +409,17 @@ class _NotebookState extends State<Notebook>
             ),
             CupertinoDialogAction(
               isDefaultAction: true,
-              onPressed: () => Navigator.pop(context, true),
+              onPressed: () {
+                final width = double.tryParse(boxWidth.text);
+                if (width == null ||
+                    !width.isFinite ||
+                    width < 0 ||
+                    width > 100000) {
+                  update(() => validation = 'Use a width from 0 to 100000 pt.');
+                  return;
+                }
+                Navigator.pop(context, true);
+              },
               child: const Text('Done'),
             ),
           ],
@@ -410,12 +427,7 @@ class _NotebookState extends State<Notebook>
       ),
     );
     if (accepted == true && controller.text.isNotEmpty) {
-      final width = double.tryParse(boxWidth.text);
-      if (width == null || !width.isFinite || width < 0) {
-        controller.dispose();
-        boxWidth.dispose();
-        throw StateError('Enter a nonnegative text width.');
-      }
+      final width = double.parse(boxWidth.text);
       edit(
         () => target.editText(
           native.TextBoxProperties(
@@ -428,6 +440,8 @@ class _NotebookState extends State<Notebook>
           existing,
         ),
       );
+    } else if (accepted == true && existing) {
+      edit(() => target.deleteSelection());
     }
     controller.dispose();
     boxWidth.dispose();
@@ -490,10 +504,11 @@ class _NotebookState extends State<Notebook>
   void toggleDrawing() {
     if (canvas == null) return;
     if (drawing) {
-      native.host.finishFigure(canvas!);
+      final id = native.host.finishFigure(canvas!);
       drawing = false;
       widget.onCaptureChanged(false);
       edit(() {});
+      if (id.isNotEmpty) unawaited(run(() => editFigure(id)));
     } else {
       canvas!.beginFigure(page);
       chooseTool('pen');
@@ -503,6 +518,20 @@ class _NotebookState extends State<Notebook>
         () =>
             figureSource = native.host.figureSource(widget.note, canvas!, true),
       );
+    }
+  }
+
+  Future<void> editFigure(String id) async {
+    widget.onCaptureChanged(true);
+    try {
+      await Navigator.of(context).push<void>(
+        CupertinoPageRoute(
+          builder: (context) => FigureEditor(note: widget.note, id: id),
+        ),
+      );
+    } finally {
+      widget.onCaptureChanged(false);
+      if (mounted) setState(() {});
     }
   }
 
@@ -1144,6 +1173,15 @@ class _NotebookState extends State<Notebook>
                               unawaited(textAt(Offset(width / 2, height / 2)));
                             },
                           ),
+                          if (!drawing &&
+                              canvas != null &&
+                              canvas!.selectedFigure().isNotEmpty)
+                            CupertinoListTile(
+                              title: const Text('Edit figure'),
+                              onTap: () => run(
+                                () => editFigure(canvas!.selectedFigure()),
+                              ),
+                            ),
                           CupertinoListTile(
                             title: const Text('Insert space'),
                             leading: const Icon(CupertinoIcons.arrow_up_down),

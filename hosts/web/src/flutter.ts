@@ -17,6 +17,7 @@ import { Workbox } from "workbox-window";
 import { importPdf } from "./editor/pdf.ts";
 import { noteConflicts, resolveConflict } from "./storage/conflicts.ts";
 import { listClippings, saveClipping, clippingSvg, changeClipping } from "./editor/clippings.ts";
+import { mountFigureEditor } from "./editor/figure-editor.ts";
 
 async function paperPreview(engine: Engine, root: FileSystemDirectoryHandle, paper: string, size: "a4" | "letter"): Promise<Uint8Array<ArrayBuffer>> {
   const page = await readTemplatePage(root, paper);
@@ -42,7 +43,7 @@ function finishFigure(canvas: Canvas): string {
 function figureSource(note: OpenNotebook, canvas: Canvas, capturing: boolean): string {
   if (capturing) return generateTikz(deserializeScene(canvas.figureScene())).source;
   const id = canvas.selectedFigure();
-  return id ? new TextDecoder().decode(note.document.asset(`assets/${id}.tikz`)) : "";
+  return id ? note.document.figureSource(id) : "";
 }
 
 async function cacheApp(): Promise<void> {
@@ -154,6 +155,7 @@ async function insertImage(note: OpenNotebook, canvas: Canvas, page: number, x: 
 }
 
 const api = {
+  mountFigureEditor,
   listClippings, saveClipping, clippingSvg, changeClipping,
   noteConflicts, resolveConflict,
   importPdf,

@@ -520,6 +520,24 @@ export class InkDocument {
     });
   }
 
+  figureSource(id: string): string {
+    const e = this.engine;
+    return e.withCString(id, name => e.withScratch(8, out => {
+      e.check(e.module._ink_document_figure_source(this.pointer, name, out, out + 4));
+      const view = e.view();
+      const at = view.getUint32(out, true);
+      return decoder.decode(e.heap().subarray(at, at + view.getUint32(out + 4, true)));
+    }));
+  }
+
+  saveFigureDraft(id: string, source: string): void {
+    const e = this.engine;
+    const data = new TextEncoder().encode(source);
+    const bytes = e.copyIn(data);
+    try { e.withCString(id, name => e.check(e.module._ink_document_figure_draft(this.pointer, name, bytes, data.length))); }
+    finally { e.free(bytes); }
+  }
+
   bookmarkPng(id: string, width: number): Uint8Array<ArrayBuffer> {
     const e = this.engine;
     return e.withCString(id, name => e.withScratch(8, out => {
