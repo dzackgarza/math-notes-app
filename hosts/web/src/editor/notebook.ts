@@ -21,23 +21,37 @@ export interface OpenNotebook {
   saver: Saver;
 }
 
-export class Saver {
+export type SaveState =
+  | { status: "saved" | "pending" | "saving" }
+  | { status: "error"; message: string };
+
+export class Saver extends EventTarget {
   private readonly document: InkDocument;
   private readonly dir: FileSystemDirectoryHandle;
   // Changes taken from the engine and not yet written, newest per path.
   private readonly pending = new Map<string, FileChange>();
   private timer: ReturnType<typeof setTimeout> | undefined;
   private writing: Promise<void> = Promise.resolve();
+  private revision = 0;
+  state: SaveState = { status: "saved" };
 
   constructor(document: InkDocument, dir: FileSystemDirectoryHandle) {
+    super();
     this.document = document;
     this.dir = dir;
   }
 
   // After a committed edit: save once edits pause for SAVE_DELAY_MS.
   schedule(): void {
+    this.revision++;
+    this.setState({ status: "pending" });
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => void this.save(), SAVE_DELAY_MS);
+    this.timer = setTimeout(() => void this.save().catch(console.error), SAVE_DELAY_MS);
+  }
+
+  private setState(state: SaveState): void {
+    this.state = state;
+    this.dispatchEvent(new Event("change"));
   }
 
   // Takes the dirty files and marks them saved in the same task, so no edit
@@ -46,14 +60,21 @@ export class Saver {
     clearTimeout(this.timer);
     for (const change of this.document.dirtyFiles()) this.pending.set(change.path, change);
     this.document.markSaved();
+    const revision = this.revision;
     const writePending = async () => {
       const changes = [...this.pending.values()];
-      if (changes.length === 0) return;
-      await writeFiles(this.dir, changes);
+      this.setState({ status: "saving" });
+      try {
+        await writeFiles(this.dir, changes);
+      } catch (error) {
+        this.setState({ status: "error", message: error instanceof Error ? error.message : String(error) });
+        throw error;
+      }
       for (const change of changes) {
         if (this.pending.get(change.path) === change) this.pending.delete(change.path);
         if (change.kind === "write") window.mathNotesWrites?.push({ path: change.path, bytes: change.bytes });
       }
+      this.setState({ status: revision === this.revision && this.pending.size === 0 ? "saved" : "pending" });
     };
     // A new save is an explicit retry after failure. Both promise outcomes
     // serialize it behind the previous attempt; its own failure still rejects.
