@@ -223,6 +223,43 @@ test("Flutter ignores a palm that drags during a pen stroke", async ({ page }) =
   expect(Math.max(...ys) - Math.min(...ys)).toBeLessThan(Math.max(...xs) - Math.min(...xs));
 });
 
+test("Flutter undoes on a two-finger tap and redoes on a three-finger tap", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto("flutter/?root=opfs");
+  await page.getByRole("button", { name: "New Note", exact: true }).click();
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Taps");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  const canvas = page.locator('canvas[id^="ink-canvas-"]');
+  await canvas.waitFor();
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Notebook canvas has no bounds");
+  const cdp = await page.context().newCDPSession(page);
+  const pen = { pointerType: "pen" as const, force: 0.6 };
+  await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, x: box.x + 160, y: box.y + 150, ...pen });
+  await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", button: "left", buttons: 1, x: box.x + 240, y: box.y + 190, ...pen });
+  await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, x: box.x + 240, y: box.y + 190, ...pen });
+  const strokes = async () => {
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+    return page.evaluate(async () => {
+      const root = await navigator.storage.getDirectory();
+      const pages = await (await root.getDirectoryHandle("Taps")).getDirectoryHandle("pages");
+      const svg = await (await (await pages.getFileHandle("0001.svg")).getFile()).text();
+      return svg.match(/<path id="s-/g)?.length ?? 0;
+    });
+  };
+  const tap = async (fingers: number) => {
+    const touchPoints = Array.from({ length: fingers }, (_, id) => ({ id, x: box.x + 400 + 60 * id, y: box.y + 300 }));
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  };
+  expect(await strokes()).toBe(1);
+  await tap(2);
+  expect(await strokes()).toBe(0);
+  await tap(3);
+  expect(await strokes()).toBe(1);
+});
+
 test("Flutter notebook retains pen input and pages after save and reopen", async ({ page }, info) => {
   test.setTimeout(120_000);
   await page.goto("favicon.svg");
