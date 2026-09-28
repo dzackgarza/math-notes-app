@@ -113,14 +113,14 @@ web-build: engine-module
     cp {{build}}/web/engine.* {{build}}/web/engine_test.* hosts/web/src/engine/wasm/
     cd hosts/web && bunx tsc -b && bunx --bun vite build
 
-# Builds the web app and copies it to /var/www/math-notes (served at http://localhost/math-notes/, README).
-web-deploy: web-build
-    rsync -a --delete hosts/web/dist/ /var/www/math-notes/
-
-# Vitest Browser Mode in Chromium, then Playwright against the deployment.
-web-test: web-deploy web-flutter-build
+# Builds both web hosts and copies them to /var/www/math-notes (served at http://localhost/math-notes/, README).
+web-deploy: web-build web-flutter-build
+    rsync -a --delete --exclude /flutter/ hosts/web/dist/ /var/www/math-notes/
     mkdir -p /var/www/math-notes/flutter
     rsync -a --delete hosts/web/flutter/build/web/ /var/www/math-notes/flutter/
+
+# Vitest Browser Mode in Chromium, then Playwright against the deployment.
+web-test: web-deploy
     cd hosts/web && bunx vitest run
     cd hosts/web && bunx playwright test
 

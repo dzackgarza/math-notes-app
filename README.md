@@ -27,7 +27,7 @@ iPad: SideStore source ◄── releases/latest/download/source.json
 
 ## Web app on this machine
 
-`just web-deploy` builds the site and copies it to `/var/www/math-notes`. nginx serves it at `http://localhost/math-notes/` with `include <repo>/hosts/web/deploy/nginx-math-notes.conf;` inside the `server` block for `localhost`, then `sudo nginx -s reload`. Only `assets/` gets a long cache lifetime. Use `localhost`, not a LAN address: the folder picker and coalesced pen events need a secure context.
+`just web-deploy` builds the Solid site and the Flutter host and copies them to `/var/www/math-notes` and `/var/www/math-notes/flutter`. nginx serves it at `http://localhost/math-notes/` with `include <repo>/hosts/web/deploy/nginx-math-notes.conf;` inside the `server` block for `localhost`, then `sudo nginx -s reload`. Only `assets/` gets a long cache lifetime. Use `localhost`, not a LAN address: the folder picker and coalesced pen events need a secure context.
 
 In Chrome, choose the notes folder once; after a restart, **Reconnect folder** grants access again (it needs a click).
 
