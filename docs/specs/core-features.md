@@ -26,12 +26,12 @@ earlier layers exists and works in the deployed app.
 | Highlighter drawn beneath the ink | Exists (`core/src/editor/editor.cpp`, as Write's DRAW_UNDER). |
 | Stroke eraser | Exists. |
 | Freehand lasso: move, delete, cut, copy, paste | Exists. |
-| Undo and redo: toolbar buttons, rewind dial, and Ctrl+Z | Partial: bottom-bar buttons and Ctrl+Z. No toolbar buttons and no rewind dial. |
+| Undo and redo: toolbar buttons, rewind dial, and Ctrl+Z | Exists. A drag on the undo button turns the rewind dial (`hosts/web/flutter/lib/undo_dial.dart`, from Write's `ButtonDragDial`). |
 | Pen draws; one finger pans | Exists. |
 | Palm rejection: a resting hand neither draws nor moves the page during a stroke | Exists (`PalmRejection` in `hosts/web/flutter/lib/notebook.dart`). |
 | Pinch zoom | Exists. |
 | Multi-page document, vertical page stack | Exists. |
-| Add and delete a page | Exists: held pull at the end and the page menu. |
+| Add and delete a page | Exists: held pull at the end, the **Pages** and **⋯** menus, and the page overview. |
 | Ruled, grid, dotted, and blank paper | Exists. |
 | Autosave and reopen | Exists. |
 | Library with folders | Exists. |
@@ -41,15 +41,15 @@ earlier layers exists and works in the deployed app.
 
 | Feature | Math Notes |
 | --- | --- |
-| One toolbar tool per kind; saved pens as toolbar shortcuts | Absent. The rail shows each preset as a separate tool. |
-| Tool popover: stroke sample, pen types, size presets, slider, advanced tab | Absent. The current popover mixes tool kinds and has no advanced tab. |
-| Touch color picker and customizable palette | Absent. The palette is fixed; **+** opens the browser color input. |
-| Dark app chrome; floating icon toolbar; top-right pull-down menus | Absent. |
+| One toolbar tool per kind; saved pens as toolbar shortcuts | Exists. Tool settings and saved pens persist in `.pens.json`. |
+| Tool popover: stroke sample, pen types, size presets, slider, advanced tab | Exists. A tap on the selected tool opens it. |
+| Touch color picker and customizable palette | Exists: an HSV wheel (`flex_color_picker`) edits a swatch; **+** edits the palette. |
+| Dark app chrome; floating icon toolbar; top-right pull-down menus | Exists (`pull_down_button`). |
 | Partial eraser | Exists. |
 | Two-finger tap undo; three-finger tap redo | Exists (`FingerTap` in `hosts/web/flutter/lib/notebook.dart`). |
 | Stylus eraser end or side button switches to the eraser | Exists. A stroke begun with the side button held erases until the pen lifts. |
 | Finger-drawing toggle | Exists. One finger draws, two fingers pan and zoom, and a second finger cancels the stroke in progress. The choice persists. |
-| Rectangle select; oval select | Rectangle exists. Oval is absent. |
+| Rectangle select; oval select | Exists. |
 | Selection resize | Exists (handles). |
 | Selection recolor | Exists: a palette swatch recolors the selection (`ink_canvas_recolor_selection`). |
 | Selection duplicate | Exists. |

@@ -53,6 +53,9 @@ class _WorkspaceState extends State<Workspace> {
   bool rightFocused = false;
   Axis splitAxis = Axis.horizontal;
   bool linkedViews = false;
+  // The tab bar is shown at the top or hidden; the choice belongs to the
+  // device.
+  bool tabsHidden = web.window.localStorage.getItem('tabBar') == 'hidden';
   final viewport = ValueNotifier<NotebookViewport?>(null);
   final destination = ValueNotifier<NoteDestination?>(null);
 
@@ -1201,6 +1204,11 @@ class _WorkspaceState extends State<Workspace> {
     super.dispose();
   }
 
+  void showTabs(bool hidden) {
+    web.window.localStorage.setItem('tabBar', hidden ? 'hidden' : 'top');
+    setState(() => tabsHidden = hidden);
+  }
+
   @override
   Widget build(BuildContext context) {
     return IndexedStack(
@@ -1209,83 +1217,86 @@ class _WorkspaceState extends State<Workspace> {
         ExcludeFocus(excluding: !inLibrary, child: buildLibrary(context)),
         Column(
           children: [
-            SafeArea(
-              bottom: false,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          for (var i = 0; i < opened.length; i++)
-                            DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: tab == i
-                                    ? selectedFill
-                                    : CupertinoColors.systemGrey6.resolveFrom(
-                                        context,
-                                      ),
-                                border: const Border(
-                                  right: BorderSide(
-                                    color: CupertinoColors.separator,
-                                  ),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  CupertinoButton(
-                                    onPressed: () =>
-                                        run(() => open(opened[i].path)),
-                                    child: Text(opened[i].name),
-                                  ),
-                                  CupertinoButton(
-                                    onPressed: () => run(() => closeNote(i)),
-                                    child: Semantics(
-                                      label: 'Close ${opened[i].name}',
-                                      child: const Icon(
-                                        CupertinoIcons.xmark,
-                                        size: 16,
-                                      ),
+            if (!tabsHidden)
+              SafeArea(
+                bottom: false,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            for (var i = 0; i < opened.length; i++)
+                              DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: tab == i
+                                      ? selectedFill
+                                      : CupertinoColors.systemGrey6.resolveFrom(
+                                          context,
+                                        ),
+                                  border: const Border(
+                                    right: BorderSide(
+                                      color: CupertinoColors.separator,
                                     ),
                                   ),
-                                ],
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    CupertinoButton(
+                                      onPressed: () =>
+                                          run(() => open(opened[i].path)),
+                                      child: Text(opened[i].name),
+                                    ),
+                                    CupertinoButton(
+                                      onPressed: () => run(() => closeNote(i)),
+                                      child: Semantics(
+                                        label: 'Close ${opened[i].name}',
+                                        child: const Icon(
+                                          CupertinoIcons.xmark,
+                                          size: 16,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  CupertinoButton(
-                    onPressed: () => run(splitNote),
-                    child: Text(secondary == null ? 'Split' : 'Close split'),
-                  ),
-                  if (secondary != null)
                     CupertinoButton(
-                      onPressed: () =>
-                          setState(() => linkedViews = !linkedViews),
-                      child: Text(linkedViews ? 'Unlink views' : 'Link views'),
+                      onPressed: () => run(splitNote),
+                      child: Text(secondary == null ? 'Split' : 'Close split'),
                     ),
-                  if (secondary != null)
-                    CupertinoButton(
-                      onPressed: () => setState(
-                        () => splitAxis = splitAxis == Axis.horizontal
-                            ? Axis.vertical
-                            : Axis.horizontal,
+                    if (secondary != null)
+                      CupertinoButton(
+                        onPressed: () =>
+                            setState(() => linkedViews = !linkedViews),
+                        child: Text(
+                          linkedViews ? 'Unlink views' : 'Link views',
+                        ),
                       ),
-                      child: const Text('Rotate split'),
+                    if (secondary != null)
+                      CupertinoButton(
+                        onPressed: () => setState(
+                          () => splitAxis = splitAxis == Axis.horizontal
+                              ? Axis.vertical
+                              : Axis.horizontal,
+                        ),
+                        child: const Text('Rotate split'),
+                      ),
+                    CupertinoButton(
+                      onPressed: () => run(pickNote),
+                      child: Semantics(
+                        label: 'Open note',
+                        child: const Icon(CupertinoIcons.add),
+                      ),
                     ),
-                  CupertinoButton(
-                    onPressed: () => run(pickNote),
-                    child: Semantics(
-                      label: 'Open note',
-                      child: const Icon(CupertinoIcons.add),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
             Expanded(
               child: MultiSplitView(
                 controller: panes,
@@ -1308,6 +1319,8 @@ class _WorkspaceState extends State<Workspace> {
                                   child: Notebook(
                                     note: opened[i],
                                     destination: destination,
+                                    tabsHidden: tabsHidden,
+                                    onTabsHidden: showTabs,
                                     onFollowLink: (href, page) =>
                                         followLink(opened[i], href, page),
                                     onChooseNotebookLink: (page) =>
@@ -1358,6 +1371,8 @@ class _WorkspaceState extends State<Workspace> {
                                     key: ValueKey('reference-$secondary'),
                                     note: secondaryNote!,
                                     destination: destination,
+                                    tabsHidden: tabsHidden,
+                                    onTabsHidden: showTabs,
                                     onFollowLink: (href, page) =>
                                         followLink(secondaryNote!, href, page),
                                     onChooseNotebookLink: (page) =>
