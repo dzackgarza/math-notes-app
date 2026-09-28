@@ -2,28 +2,21 @@
 
 Date: 2026-09-28. Branch: `write-core-integration`.
 
-## Next work: core note-taking features
+## Next work: keep, find, and share notes
 
 The [delivery order](web-daily-notes-handoff.md#delivery-order) is strict.
-Phase A, the core note-taking features in #56, is the only active work. Earlier
-sessions built later-phase features (PDF import, split view, conflicts,
-layers, clippings, ruled editing, bookmarks, typed text, figures, a TeX
-compiler) before phase A passed. That code stays. It gets no further work
-until its phase starts.
+Phase A, the core note-taking features, is complete: every L0 and L1 row of
+[core features](../specs/core-features.md) exists. Phase B, keep, find, and
+share notes in #56, #62, and #29, is the only active work. Earlier sessions
+built later-phase features (PDF import, split view, conflicts, layers,
+clippings, ruled editing, bookmarks, typed text, figures) before their phase.
+That code stays. It gets no further work until its phase starts.
 
 Preserve these pre-existing user files with their current untracked status.
 They are the reference for the pen tool popover:
 
 - `noteful-customize-pencil.webp`
 - `noteful-pen-tool.webp`
-
-### Phase A work, in order
-
-Phase A is every L0 and L1 feature of [core features](../specs/core-features.md).
-The missing ones, in order:
-
-1. **Remove the superseded TeX compiler integration.** Compiler, preamble,
-   compiled-page view, their build recipes, and cache entries.
 
 ## Current application
 
@@ -45,22 +38,14 @@ The missing ones, in order:
 | `dbfd524` | Bookmarks, links, destination navigation, PDF annotations. |
 | `d355bc2` | Skia Paragraph text shaping, wrapping, bidi, source retention, and pinned font assets. |
 | `caa4c8d` | Complete upstream TikZ Editor iframe and durable source drafts. |
-| `827fdf3` | LuaLaTeX adapter, project preamble UI, MuPDF SVG output, compiled vector/PDF/source acceptance. |
 | `cd7eddb` | Conflict comparison when an indexed page's current file was externally deleted. |
-| `890c083` | Creation location picker, shared removable tags, resumable TeX input download. |
+| `890c083` | Creation location picker and shared removable tags. |
 
-Figure integration lives in `hosts/web/src/editor/figure-*.ts`,
+Figure integration lives in `hosts/web/src/editor/figure-editor.ts`,
 `hosts/web/flutter/lib/figure_editor.dart`, `core/src/document/figures.*`,
-`core/src/render/figure_view.*`, and the figure C ABI in `core/src/ink.cpp`.
+and the figure C ABI in `core/src/ink.cpp`.
 `build-tikz.mjs` builds the pinned full editor and embed protocol. Generated
 upstream workspaces are under `.ci`; preserve the vendor boundary.
-
-The installed MuPDF JavaScript `DocumentWriter` already exposes the native
-SVG writer with `text=path`. A new MuPDF binding is unnecessary for this path.
-Compiled figure acceptance stores immutable source/scene/PDF sidecars, an
-embedded SVG view, and preserved original ink in one history edit. The scene's
-`editor` record keeps source and preamble. Its original FreeTikZ geometry is
-still the capture geometry; it is not a complete semantic mapping of edits.
 
 ## Later-phase gaps
 
@@ -79,10 +64,9 @@ Record only. These wait for their phase.
 
 ## Evidence and practical limits
 
-Native engine targets and the Flutter/TypeScript host build succeeded for
-the figure changes. The tag-form Dart analyzer reported no issues. The
-final preview build includes the tag form. These are
-implementation checks, not full product acceptance.
+Native engine targets, the Flutter/TypeScript host build, and the Dart
+analyzer succeeded for the tag form. These are implementation checks, not
+full product acceptance.
 
 A headless Chromium session rendered the preview library and creation form.
 The form exposed the new location picker and removable tag control. Creating
@@ -104,10 +88,8 @@ Use a fresh isolated context for a new deployment inspection; existing
 Workbox-controlled pages retain the active version until its pages close.
 The browser daemon was stopped for this handoff.
 
-Build logs: `/tmp/math-notes-final-host-build.log`,
-`/tmp/math-notes-figure-compile-host-build.log`, and
-`/tmp/math-notes-tex-build.log`. Generated sources, fonts, and compiler inputs
-remain in ignored `.ci` paths for resumption.
+Build log: `/tmp/math-notes-final-host-build.log`. Generated sources and
+fonts remain in ignored `.ci` paths for resumption.
 
 For future native rebuilds, keep emcc in `PATH` during CMake regeneration.
 Build `engine` and `engine_test` targets, then copy both generated module/type

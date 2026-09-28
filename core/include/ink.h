@@ -288,12 +288,9 @@ InkStatus ink_canvas_selection(InkCanvas *canvas, InkSelectionInfo *out);
 InkStatus ink_canvas_select_all(InkCanvas *canvas, size_t index);
 InkStatus ink_canvas_clear_selection(InkCanvas *canvas);
 InkStatus ink_canvas_bookmark_selection(InkCanvas *canvas);
-/* Figure source edits remain a draft until their compiled page view is accepted. */
+/* The figure source is its latest edited draft, or the captured TikZ when it has none. */
 InkStatus ink_document_figure_source(InkDocument *document, const char *id, const uint8_t **text, size_t *size);
 InkStatus ink_document_figure_draft(InkDocument *document, const char *id, const uint8_t *text, size_t size);
-/* JSON {source, preamble, svg, width, height}; PDF, source, and page view commit together. */
-InkStatus ink_document_figure_accept(InkDocument *document, const char *id, const char *json,
-                                      const uint8_t *pdf, size_t pdf_size);
 InkStatus ink_canvas_link_selection(InkCanvas *canvas, const char *href);
 InkStatus ink_canvas_ungroup_selection(InkCanvas *canvas);
 InkStatus ink_canvas_add_bookmark(InkCanvas *canvas, double x, double y);

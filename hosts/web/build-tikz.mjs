@@ -42,9 +42,3 @@ const output = path.join(root, 'hosts/web/flutter/build/web/tikz-editor');
 await mkdir(output, { recursive: true });
 await cp(path.join(embed, 'dist'), output, { recursive: true });
 await cp(path.join(editor, 'LICENSE'), path.join(output, 'LICENSE'));
-const compiler = path.join(root, '.ci/figure-compiler');
-let compiled = true;
-try { await access(path.join(compiler, 'manifest.json')); }
-catch (error) { if (error.code !== 'ENOENT') throw error; compiled = false; }
-if (compiled) await cp(compiler, path.join(root, 'hosts/web/flutter/build/web/busytex'), { recursive: true });
-else console.log('Figure compiler assets await the pinned TeX Live build.');

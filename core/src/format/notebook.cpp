@@ -27,7 +27,7 @@ bool IsPageFile(const std::string &path) {
 void FigureAssets(const Elements &elements, std::set<std::string> &paths) {
   for (const auto &box : elements) {
     if (const auto *figure = std::get_if<Figure>(&box->value)) {
-      for (const auto &href : {figure->scene_href, figure->tikz_href, figure->draft_href, figure->pdf_href})
+      for (const auto &href : {figure->scene_href, figure->tikz_href, figure->draft_href})
         if (href.starts_with("../assets/") && href.find('/', 10) == std::string::npos)
           paths.insert(href.substr(3));
       FigureAssets(figure->children, paths);

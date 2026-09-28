@@ -121,7 +121,7 @@ bool InRuledRange(const Element &element, const RuledRange &range, bool overlap)
   if (const auto *bookmark = std::get_if<Bookmark>(&element.value))
     return group(bookmark->children, {});
   if (const auto *link = std::get_if<Link>(&element.value)) return group(link->children, {});
-  if (const auto *figure = std::get_if<Figure>(&element.value); figure && !figure->view)
+  if (const auto *figure = std::get_if<Figure>(&element.value))
     return group(figure->children, figure->transform);
   const auto bounds = ElementBounds(element);
   const auto &grid = range.grid;

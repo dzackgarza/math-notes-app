@@ -3,7 +3,6 @@ import 'dart:js_interop';
 import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/cupertino.dart';
-import 'package:pointer_interceptor/pointer_interceptor.dart';
 import 'package:web/web.dart' as web;
 
 import 'host.dart' as native;
@@ -42,7 +41,7 @@ class _FigureEditorState extends State<FigureEditor> {
   }
 
   Future<void> close() async {
-    if (closing || editor.compiling) return;
+    if (closing) return;
     setState(() {
       closing = true;
       failure = null;
@@ -63,115 +62,6 @@ class _FigureEditorState extends State<FigureEditor> {
     }
   }
 
-  Future<void> compile() async {
-    setState(() => failure = null);
-    try {
-      await editor.compile().toDart;
-    } catch (error) {
-      if (mounted) setState(() => failure = error.toString());
-    }
-  }
-
-  Future<void> preamble() async {
-    try {
-      final original =
-          (await native.host.readFigurePreamble(widget.note.root).toDart)
-              .toDart;
-      if (!mounted) return;
-      final text = TextEditingController(text: original);
-      String? error;
-      bool saving = false;
-      await showCupertinoDialog<void>(
-        context: context,
-        builder: (context) => StatefulBuilder(
-          builder: (context, update) => PointerInterceptor(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: 800,
-                  maxHeight: 560,
-                ),
-                child: CupertinoPopupSurface(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        const Text('Project figure preamble'),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 8),
-                          child: Text(
-                            'Packages, TikZ libraries, and macros shared by figures in this notes folder.',
-                          ),
-                        ),
-                        Expanded(
-                          child: CupertinoTextField(
-                            controller: text,
-                            expands: true,
-                            maxLines: null,
-                            textAlignVertical: TextAlignVertical.top,
-                            style: const TextStyle(fontFamily: 'monospace'),
-                          ),
-                        ),
-                        if (error != null)
-                          Text(
-                            error!,
-                            style: const TextStyle(
-                              color: CupertinoColors.systemRed,
-                            ),
-                          ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            CupertinoButton(
-                              onPressed: saving
-                                  ? null
-                                  : () => Navigator.pop(context),
-                              child: const Text('Cancel'),
-                            ),
-                            CupertinoButton(
-                              onPressed: saving
-                                  ? null
-                                  : () async {
-                                      update(() {
-                                        saving = true;
-                                        error = null;
-                                      });
-                                      try {
-                                        await native.host
-                                            .writeFigurePreamble(
-                                              widget.note.root,
-                                              text.text,
-                                              original,
-                                            )
-                                            .toDart;
-                                        if (context.mounted)
-                                          Navigator.pop(context);
-                                      } catch (problem) {
-                                        update(() {
-                                          error = problem.toString();
-                                          saving = false;
-                                        });
-                                      }
-                                    },
-                              child: Text(saving ? 'Saving…' : 'Save'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-      text.dispose();
-    } catch (error) {
-      if (mounted) setState(() => failure = error.toString());
-    }
-  }
-
   @override
   void dispose() {
     editor.removeEventListener('change', listener);
@@ -189,14 +79,9 @@ class _FigureEditorState extends State<FigureEditor> {
       navigationBar: CupertinoNavigationBar(
         automaticallyImplyLeading: false,
         middle: const Text('Figure editor'),
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: editor.compiling || closing ? null : preamble,
-          child: const Text('Preamble'),
-        ),
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
-          onPressed: closing || editor.compiling ? null : close,
+          onPressed: closing ? null : close,
           child: Text(closing ? 'Saving…' : 'Save and close'),
         ),
       ),
@@ -216,28 +101,6 @@ class _FigureEditorState extends State<FigureEditor> {
                 padding: EdgeInsets.all(8),
                 child: CupertinoActivityIndicator(),
               ),
-            Padding(
-              padding: EdgeInsets.all(8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      editor.progress.isEmpty
-                          ? 'Compile the source to update its page view.'
-                          : editor.progress,
-                    ),
-                  ),
-                  CupertinoButton(
-                    onPressed: !editor.ready || editor.compiling || closing
-                        ? null
-                        : compile,
-                    child: Text(
-                      editor.compiling ? 'Compiling…' : 'Compile figure',
-                    ),
-                  ),
-                ],
-              ),
-            ),
             Expanded(child: HtmlElementView(viewType: viewType)),
           ],
         ),

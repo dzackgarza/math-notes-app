@@ -977,53 +977,6 @@ InkStatus ink_document_figure_draft(InkDocument *document, const char *id, const
   });
 }
 
-InkStatus ink_document_figure_accept(InkDocument *document, const char *id, const char *json,
-                                      const uint8_t *pdf, size_t pdf_size) {
-  return Call([&] {
-    if (!document || !id || !json || !pdf || !pdf_size) return NullArgument("compiled figure argument");
-    const auto recipe = nlohmann::json::parse(json);
-    const auto source = recipe.at("source").get<std::string>();
-    const auto preamble = recipe.at("preamble").get<std::string>();
-    ink_engine::FigureView view{.svg = recipe.at("svg").get<std::string>(),
-                                .width = recipe.at("width").get<double>(),
-                                .height = recipe.at("height").get<double>()};
-    if (!(std::isfinite(view.width) && std::isfinite(view.height) && view.width > 0 && view.height > 0))
-      return Fail(INK_ERROR_ARGUMENT, "invalid compiled figure dimensions");
-    ink_engine::ParseFigureView(view.svg);
-    const uint8_t *current_source = nullptr;
-    size_t current_size = 0;
-    const auto status = ink_document_figure_source(document, id, &current_source, &current_size);
-    if (status != INK_OK) return status;
-    if (Bytes(current_source, current_size) != source)
-      return Fail(INK_ERROR_ARGUMENT, "figure source changed during compilation; compile the current draft");
-    auto &history = document->history;
-    const auto location = ink_engine::FindFigure(history.current(), id);
-    ink_engine::Figure figure = *location.figure;
-    ink_engine::Figure local = figure;
-    local.transform = {};
-    const auto bounds = ink_engine::ElementBounds(ink_engine::Element{local});
-    view.x = bounds.left; view.y = bounds.top;
-    const auto scene_file = document->assets.find(ink_engine::NotebookPath(history.current().pages[location.page]->file, figure.scene_href));
-    if (scene_file == document->assets.end()) return Fail(INK_ERROR_PARSE, "missing figure scene");
-    auto scene = nlohmann::json::parse(Bytes(static_cast<const uint8_t *>(scene_file->second->data()), scene_file->second->size()));
-    scene["editor"] = {{"source", source}, {"preamble", preamble}, {"backend", "tikz-editor"}};
-    const std::string prefix = std::string("assets/") + id + "-" + history.ids().StrokeId();
-    figure.tikz_href = "../" + prefix + ".tikz";
-    figure.scene_href = "../" + prefix + ".scene.json";
-    figure.pdf_href = "../" + prefix + ".pdf";
-    figure.draft_href.clear();
-    figure.view = std::move(view);
-    auto next = ink_engine::ReplaceFigure(history.current(), figure);
-    const ink_engine::NotebookFiles files{{prefix + ".tikz", source}, {prefix + ".scene.json", scene.dump(2) + "\n"}, {prefix + ".pdf", std::string(Bytes(pdf, pdf_size))}};
-    for (const auto &[path, bytes] : files) {
-      document->assets[path] = SkData::MakeWithCopy(bytes.data(), bytes.size());
-      document->new_assets[path] = bytes;
-    }
-    ++document->assets_version;
-    history.Push(std::move(next));
-    return INK_OK;
-  });
-}
 InkStatus ink_canvas_link_selection(InkCanvas *canvas, const char *href) {
   return Call([&] {
     if (!canvas || !href) return NullArgument("canvas or href");

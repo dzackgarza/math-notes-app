@@ -142,10 +142,7 @@ bool IsEmpty(const Rect &r) { return r.left > r.right || r.top > r.bottom; }
 Rect ElementBounds(const Element &element) {
   Rect bounds = Empty();
   if (const auto *figure = std::get_if<Figure>(&element.value)) {
-    if (figure->view) {
-      const auto &view = *figure->view;
-      bounds = {view.x, view.y, view.x + view.width, view.y + view.height};
-    } else for (const auto &child : figure->children) bounds = Union(bounds, ElementBounds(*child));
+    for (const auto &child : figure->children) bounds = Union(bounds, ElementBounds(*child));
     if (IsEmpty(bounds)) return bounds;
     Rect transformed = Empty();
     for (Point p : {Point{bounds.left, bounds.top}, Point{bounds.right, bounds.top},
@@ -421,7 +418,6 @@ Element InlineImages(const Element &element, const std::string &page_file, const
     figure.scene_href = InlineAsset(page_file, figure.scene_href, "application/json", assets);
     figure.tikz_href = InlineAsset(page_file, figure.tikz_href, "text/plain", assets);
     if (!figure.draft_href.empty()) figure.draft_href = InlineAsset(page_file, figure.draft_href, "text/plain", assets);
-    if (!figure.pdf_href.empty()) figure.pdf_href = InlineAsset(page_file, figure.pdf_href, "application/pdf", assets);
   };
   return MapAssets(element, image, figure);
 }
@@ -465,7 +461,6 @@ Element StoreImages(const Element &element, const std::string &page_file, Assets
     figure.tikz_href = StoreFigureAsset(std::move(tikz), page_file, figure.id,
                                          ".tikz", assets, added);
     if (!figure.draft_href.empty()) figure.draft_href = StoreFigureAsset(DecodeFigureAsset(figure.draft_href), page_file, figure.id, ".draft.tikz", assets, added);
-    if (!figure.pdf_href.empty()) figure.pdf_href = StoreFigureAsset(DecodeFigureAsset(figure.pdf_href), page_file, figure.id, ".pdf", assets, added);
   };
   return MapAssets(element, image, figure);
 }

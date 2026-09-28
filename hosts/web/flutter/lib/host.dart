@@ -311,12 +311,6 @@ extension type Host(JSObject value) implements JSObject {
     String id,
     web.HTMLIFrameElement frame,
   );
-  external JSPromise<JSString> readFigurePreamble(Directory root);
-  external JSPromise<VoidResult> writeFigurePreamble(
-    Directory root,
-    String content,
-    String expected,
-  );
   external JSPromise<JSArray<Clipping>> listClippings(
     Engine engine,
     Directory root,
@@ -463,9 +457,6 @@ extension type Host(JSObject value) implements JSObject {
 extension type FigureEditor(JSObject value) implements JSObject {
   external bool get ready;
   external String get error;
-  external bool get compiling;
-  external String get progress;
-  external JSPromise<VoidResult> compile();
   external JSPromise<VoidResult> save();
   external void dispose();
   external void addEventListener(String type, JSFunction listener);

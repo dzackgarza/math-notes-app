@@ -4,9 +4,9 @@ import { generateSW } from "workbox-build";
 // https://developer.chrome.com/docs/workbox/modules/workbox-build
 const result = await generateSW({
   globDirectory: "flutter/build/web",
-  globPatterns: ["**/*.{js,wasm,html,svg,png,ttf,otf,json,bin,frag,data}"],
+  globPatterns: ["**/*.{js,wasm,html,svg,png,ttf,otf,json,bin,frag}"],
   globIgnores: ["sw.js", "workbox-*.js", "flutter_service_worker.js"],
-  maximumFileSizeToCacheInBytes: 512 * 1024 * 1024,
+  maximumFileSizeToCacheInBytes: 32 * 1024 * 1024,
   swDest: "flutter/build/web/sw.js",
   navigateFallback: "index.html",
   cleanupOutdatedCaches: true,

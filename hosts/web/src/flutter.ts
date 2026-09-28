@@ -18,7 +18,6 @@ import { importPdf } from "./editor/pdf.ts";
 import { noteConflicts, resolveConflict } from "./storage/conflicts.ts";
 import { listClippings, saveClipping, clippingSvg, changeClipping } from "./editor/clippings.ts";
 import { mountFigureEditor } from "./editor/figure-editor.ts";
-import { readFigurePreamble, writeFigurePreamble } from "./editor/figure-compile.ts";
 
 async function paperPreview(engine: Engine, root: FileSystemDirectoryHandle, paper: string, size: "a4" | "letter", orientation: "portrait" | "landscape"): Promise<Uint8Array<ArrayBuffer>> {
   const page = await readTemplatePage(root, paper);
@@ -175,7 +174,6 @@ async function insertImage(note: OpenNotebook, canvas: Canvas, page: number, x: 
 
 const api = {
   mountFigureEditor,
-  readFigurePreamble, writeFigurePreamble,
   listClippings, saveClipping, clippingSvg, changeClipping,
   noteConflicts, resolveConflict,
   importPdf,
