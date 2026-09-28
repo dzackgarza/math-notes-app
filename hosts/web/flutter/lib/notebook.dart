@@ -16,6 +16,11 @@ import 'pages_sheet.dart';
 import 'bookmarks_sheet.dart';
 import 'figure_editor.dart';
 
+const accent = Color(0xFF2F6FEB);
+const chrome = Color(0xFF151B2B);
+const chromeBar = Color(0xFF1E2638);
+const selectedFill = Color(0x662F6FEB);
+
 typedef NotebookViewport = ({double scale, double x, double y, double scroll});
 typedef NoteDestination = ({String noteKey, String file, String id});
 
@@ -1244,7 +1249,7 @@ class _NotebookState extends State<Notebook>
         subtitle: tool == 'bookmark' && !drawing
             ? const Text('Tap the line to mark.')
             : null,
-        backgroundColor: const Color(0xFFE3EBFC),
+        backgroundColor: selectedFill,
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
           onPressed: drawing ? toggleDrawing : () => chooseTool('pen'),
@@ -1632,7 +1637,7 @@ class _NotebookState extends State<Notebook>
                                 color: Color(0xFF000000 | pens[i].tool.rgb),
                               ),
                               backgroundColor: tool == 'pen' && pen == i
-                                  ? const Color(0xFFE3EBFC)
+                                  ? selectedFill
                                   : null,
                               onTap: () {
                                 if (tool == 'pen' && pen == i) {
@@ -1931,8 +1936,10 @@ class _NotebookState extends State<Notebook>
                           }),
                           builder: (context, candidates, rejected) => ColoredBox(
                             color: candidates.isEmpty
-                                ? CupertinoColors.systemGrey6
-                                : const Color(0xFFD8E8FF),
+                                ? CupertinoColors.systemGrey6.resolveFrom(
+                                    context,
+                                  )
+                                : selectedFill,
                             child: Column(
                               children: [
                                 Row(

@@ -27,8 +27,10 @@ class MathNotes extends StatelessWidget {
   Widget build(BuildContext context) => const CupertinoApp(
     title: 'Math Notes',
     theme: CupertinoThemeData(
-      brightness: Brightness.light,
-      primaryColor: Color(0xFF2F6FEB),
+      brightness: Brightness.dark,
+      primaryColor: accent,
+      scaffoldBackgroundColor: chrome,
+      barBackgroundColor: chromeBar,
     ),
     home: Workspace(),
   );
@@ -1220,8 +1222,10 @@ class _WorkspaceState extends State<Workspace> {
                             DecoratedBox(
                               decoration: BoxDecoration(
                                 color: tab == i
-                                    ? const Color(0xFFE3EBFC)
-                                    : CupertinoColors.systemGrey6,
+                                    ? selectedFill
+                                    : CupertinoColors.systemGrey6.resolveFrom(
+                                        context,
+                                      ),
                                 border: const Border(
                                   right: BorderSide(
                                     color: CupertinoColors.separator,
@@ -1544,7 +1548,7 @@ class _WorkspaceState extends State<Workspace> {
                                     CupertinoListTile(
                                       title: Text(item.value),
                                       backgroundColor: section == item.key
-                                          ? const Color(0xFFE3EBFC)
+                                          ? selectedFill
                                           : null,
                                       onTap: () =>
                                           setState(() => section = item.key),
@@ -1559,7 +1563,7 @@ class _WorkspaceState extends State<Workspace> {
                                           section == 'folder' &&
                                               native.pathKey(item.path) ==
                                                   native.pathKey(folder)
-                                          ? const Color(0xFFE3EBFC)
+                                          ? selectedFill
                                           : null,
                                       onTap: () => setState(() {
                                         folder = item.path;
@@ -1585,7 +1589,7 @@ class _WorkspaceState extends State<Workspace> {
                                       backgroundColor:
                                           section == 'tag' &&
                                               selectedTag == tag.name
-                                          ? const Color(0xFFE3EBFC)
+                                          ? selectedFill
                                           : null,
                                       leading: Icon(
                                         CupertinoIcons.circle_fill,
