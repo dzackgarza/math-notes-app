@@ -59,7 +59,9 @@ Record only. These wait for their phase.
   version; split-view drag copies instead of moving; ruled reflow on mixed
   pages and columns, negative space, live preview, and Write's
   timestamp-grouped stroke centers; #50 fixture reproducibility.
-- Phase F: diagram-skeleton extraction and Copy TikZ per the
+- Phase F: an integration layer on the reusable TikZ workbench module,
+  blocked until that module is complete. Diagram-skeleton extraction and
+  Copy TikZ follow the
   [TikZ contract](../specs/tikz-drawing-mode.md).
 
 ## Evidence and practical limits

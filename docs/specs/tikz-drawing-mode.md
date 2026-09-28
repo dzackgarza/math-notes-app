@@ -35,14 +35,21 @@ Preserve original ink so an interpretation can be revised.
 
 ## Component ownership
 
-The existing FreeTikZ capture integration owns the captured figure and
-original ink. TikZ Editor provides supported geometric and source operations.
-The notebook adapter owns figure identity,
-persistence, selection, and clipboard delivery.
+The [TikZ workbench](https://github.com/dzackgarza/zettlr-pandoc/tree/tikz-workbench-module/packages/tikz-workbench)
+in `dzackgarza/zettlr-pandoc` owns the TikZ interface and core. That project
+is making the workbench a reusable module with a host contract that is
+independent of Zettlr, for example
+[zettlr-pandoc#123](https://github.com/dzackgarza/zettlr-pandoc/issues/123).
+The module is expected to support stylus and touch input through its pinned
+editor forks, TikZ Editor and Quiver.
 
-The next implementation step is to connect captured diagram interpretation
-to editable source and a clear Copy TikZ action. Use existing dependency
-capabilities for the supported diagram vocabulary.
+This feature is a small integration layer on that module. It is blocked
+until the module is complete. The notebook adapter owns only figure
+identity, the association with the original ink, persistence, selection,
+and clipboard delivery. When the integration needs a capability from the
+core, such as stylus capture or interpretation of doodled geometry, file
+the request as an issue on `dzackgarza/zettlr-pandoc`. Do not build the
+capability in this app.
 
 ## Acceptance
 
