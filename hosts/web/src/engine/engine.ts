@@ -621,6 +621,10 @@ export class InkDocument {
     this.engine.check(this.engine.module._ink_document_move_page(this.pointer, from, to));
   }
 
+  duplicatePage(index: number): void {
+    this.engine.check(this.engine.module._ink_document_duplicate_page(this.pointer, index));
+  }
+
   setPageSize(size: number, width = 0, height = 0): void {
     this.engine.check(this.engine.module._ink_document_set_page_size(this.pointer, size, width, height));
   }

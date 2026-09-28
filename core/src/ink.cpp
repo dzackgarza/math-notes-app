@@ -421,30 +421,54 @@ InkStatus ink_clipping_svg(InkDocument *document, size_t index, const char **svg
   });
 }
 
+namespace {
+
+// Inserts `page` as listed page `index` of `next` with a new page id and new
+// element ids, and pushes the result as one history step.
+void InsertPageCopy(InkDocument &document, ink_engine::Document next, size_t index,
+                    ink_engine::Page page) {
+  auto &history = document.history;
+  page.id = history.ids().PageId();
+  for (auto &layer : page.layers) {
+    ink_engine::Elements copied;
+    for (const auto &element : layer.elements) {
+      auto copy = ink_engine::InlineImages(*element, page.file, document.assets);
+      copy = ink_engine::WithNewIds(copy, history.ids());
+      copy = ink_engine::StoreImages(copy, page.file, document.assets, document.new_assets);
+      copied = copied.push_back(immer::box<ink_engine::Element>(std::move(copy)));
+    }
+    layer.elements = std::move(copied);
+  }
+  next.pages = next.pages.insert(index, immer::box<ink_engine::Page>(std::move(page)));
+  ++document.assets_version;
+  history.Push(std::move(next));
+}
+
+}  // namespace
+
 InkStatus ink_import_page_svg(InkDocument *document, size_t index, const uint8_t *svg, size_t size) {
   return Call([&] {
     if (!document || !svg) return NullArgument("document or svg");
-    auto &history = document->history;
-    auto next = history.current();
+    auto next = document->history.current();
     if (index > ink_engine::ListedPageCount(next)) return BadPageIndex();
     std::vector<std::string> layers;
     for (const auto &layer : next.notebook.layers) layers.push_back(layer.id);
     auto page = ink_engine::ReadPage(Bytes(svg, size), ink_engine::NextPageFile(next), layers);
     if (page.error) return Fail(INK_ERROR_PARSE, *page.error);
-    page.id = history.ids().PageId();
-    for (auto &layer : page.layers) {
-      ink_engine::Elements copied;
-      for (const auto &element : layer.elements) {
-        auto copy = ink_engine::InlineImages(*element, page.file, document->assets);
-        copy = ink_engine::WithNewIds(copy, history.ids());
-        copy = ink_engine::StoreImages(copy, page.file, document->assets, document->new_assets);
-        copied = copied.push_back(immer::box<ink_engine::Element>(std::move(copy)));
-      }
-      layer.elements = std::move(copied);
-    }
-    next.pages = next.pages.insert(index, immer::box<ink_engine::Page>(std::move(page)));
-    ++document->assets_version;
-    history.Push(std::move(next));
+    InsertPageCopy(*document, std::move(next), index, std::move(page));
+    return INK_OK;
+  });
+}
+
+InkStatus ink_document_duplicate_page(InkDocument *document, size_t index) {
+  return Call([&] {
+    if (!document) return NullArgument("document");
+    auto next = document->history.current();
+    if (index >= ink_engine::ListedPageCount(next)) return BadPageIndex();
+    ink_engine::Page page = *next.pages[index];
+    if (page.error) return Fail(INK_ERROR_ARGUMENT, "a page that did not load cannot be duplicated");
+    page.file = ink_engine::NextPageFile(next);
+    InsertPageCopy(*document, std::move(next), index + 1, std::move(page));
     return INK_OK;
   });
 }

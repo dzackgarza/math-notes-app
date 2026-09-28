@@ -107,6 +107,8 @@ InkStatus ink_clipping_svg(InkDocument *document, size_t index, const char **svg
 InkStatus ink_document_delete_page(InkDocument *document, size_t index);
 /* Moves page `from` to position `to`. Page files keep their names. */
 InkStatus ink_document_move_page(InkDocument *document, size_t from, size_t to);
+/* A copy of page `index` after it, with a new file and new element ids. */
+InkStatus ink_document_duplicate_page(InkDocument *document, size_t index);
 
 /* The size of new pages: A4, Letter, or `width` × `height` pt. */
 InkStatus ink_document_set_page_size(InkDocument *document, InkPageSize size, double width,

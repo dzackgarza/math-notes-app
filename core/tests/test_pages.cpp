@@ -1,14 +1,17 @@
 // Page operations, page sizes and templates through the C ABI (issue #21).
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <map>
 #include <string>
+#include <vector>
 
 #include "document/templates.h"
 #include "format/notebook.h"
 #include "format/page_svg.h"
 #include "ink.h"
 #include "support/session.h"
+#include "support/write_fixture.h"
 
 using namespace ink_engine;
 
@@ -87,6 +90,47 @@ TEST_CASE("A deleted page's file is listed for deletion; a moved page changes on
   ink_undo(session.document, &undone, &page);
   CHECK(DirtyFiles(session.document).empty());
   CHECK(ink_document_delete_page(session.document, 3) == INK_ERROR_ARGUMENT);
+}
+
+TEST_CASE("A duplicated page follows its original with the same ink under new ids") {
+  ink_test::Session session(ink_test::WithStrokes(ink_test::Session().doc(), {{{100, 100}, {200, 150}}}));
+  REQUIRE(ink_document_insert_page(session.document, 1) == INK_OK);
+  REQUIRE(ink_document_mark_saved(session.document) == INK_OK);
+
+  REQUIRE(ink_document_duplicate_page(session.document, 0) == INK_OK);
+  CHECK(ListedFiles(session.doc()) ==
+        std::vector<std::string>{"pages/0001.svg", "pages/0003.svg", "pages/0002.svg"});
+  auto dirty = DirtyFiles(session.document);
+  CHECK(dirty.size() == 2);
+  CHECK(dirty.contains("notebook.json"));
+  std::map<std::string, std::string> files = AllFiles(session.doc());
+  auto ids = [](const std::string &svg) {
+    std::vector<std::string> out;
+    for (size_t at = svg.find("id=\""); at != std::string::npos; at = svg.find("id=\"", at + 1))
+      out.push_back(svg.substr(at + 4, svg.find('"', at + 4) - at - 4));
+    return out;
+  };
+  auto without_ids = [](std::string svg) {
+    for (size_t at = svg.find("id=\""); at != std::string::npos; at = svg.find("id=\"", at + 1))
+      svg.erase(at + 4, svg.find('"', at + 4) - at - 4);
+    return svg;
+  };
+  const std::string &original = files.at("pages/0001.svg");
+  const std::string &copy = dirty.at("pages/0003.svg").bytes;
+  CHECK(copy == files.at("pages/0003.svg"));
+  CHECK(copy.find("<path id=\"s-") != std::string::npos);
+  CHECK(without_ids(copy) == without_ids(original));
+  const std::vector<std::string> original_ids = ids(original);
+  for (const std::string &id : ids(copy)) {
+    if (id.starts_with("p-") || id.starts_with("s-"))
+      CHECK(std::ranges::find(original_ids, id) == original_ids.end());
+  }
+
+  int32_t undone = 0;
+  int32_t page = 0;
+  ink_undo(session.document, &undone, &page);
+  CHECK(DirtyFiles(session.document).empty());
+  CHECK(ink_document_duplicate_page(session.document, 2) == INK_ERROR_ARGUMENT);
 }
 
 TEST_CASE("New pages take the notebook's page size") {
