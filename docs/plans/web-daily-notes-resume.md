@@ -20,7 +20,10 @@ They are the reference for the pen tool popover:
 ### Core-loop state on 2026-09-28
 
 Measured in the deployed Flutter preview with synthetic CDP pen and touch
-input in headless Chromium (software rendering, no GPU).
+input in headless Chromium on the Intel Iris Xe GPU
+(`--enable-gpu --use-gl=angle --use-angle=gl-egl --ignore-gpu-blocklist`).
+Default headless Chromium renders with SwiftShader; its frame times are not
+evidence about writing latency.
 
 | Capability | State |
 | --- | --- |
@@ -33,28 +36,25 @@ input in headless Chromium (software rendering, no GPU).
 | Ctrl+wheel zoom | No effect. |
 | Autosave | Saves about 3 s after an edit. |
 | Reload and reopen | Strokes and pages retained. |
-| Writing on a full page | 240 short strokes on one page: 976 main-thread long tasks, longest 518 ms, 57 s blocked in total. One new stroke on that page blocks for 116 ms. |
+| Writing on a full page | 240 strokes on one page: frames during a new stroke hold 60 Hz (p95 16.7 ms, max 16.8 ms). |
 | Tool rail | 22 labeled rows; overflows at 1024 px height; core tools share the rail with later-phase tools. |
 | Physical pen and touch | Not verified. |
 
 ### Phase A work, in order
 
-1. **Writing latency on full pages.** Profile one stroke on a dense page
-   and remove the per-stroke cost that grows with page content. Confirm on
-   GPU-backed Chrome. Ink must follow the pen with no visible lag on a full
-   page and in a 10-page notebook.
-2. **Compact tool rail.** Match the tablet spec rail: pen, thick pen, and
+1. **Compact tool rail.** Match the tablet spec rail: pen, thick pen, and
    highlighter with sizes; eraser; lasso; a color palette with **+**; undo
    and redo. A pen tool popover follows the Noteful reference images.
    Later-phase tools move to a secondary menu.
-3. **Lasso completion.** Resize, delete, copy, and paste of a selection.
-4. **Zoom.** Ctrl+wheel, trackpad pinch, and keyboard zoom.
-5. **Remove the superseded TeX compiler integration.** Compiler, preamble,
+2. **Lasso completion.** Resize, delete, copy, and paste of a selection.
+3. **Zoom.** Ctrl+wheel, trackpad pinch, and keyboard zoom.
+4. **Remove the superseded TeX compiler integration.** Compiler, preamble,
    compiled-page view, their build recipes, and cache entries. Figure capture
    and source storage stay for phase F.
-6. **Physical input.** Pen, palm, one-finger pan, and pinch on the target
+5. **Physical input.** Pen, palm, one-finger pan, and pinch on the target
    Chrome machine through standard Wayland and Chrome pointer events.
-7. **#56 acceptance list** in the deployed app.
+6. **#56 acceptance list** in the deployed app, including GPU frame
+   timing while writing in a 10-page notebook.
 
 ## Current application
 
