@@ -42,7 +42,7 @@ earlier layers exists and works in the deployed app.
 | Feature | Math Notes |
 | --- | --- |
 | Pen presets | Exists: Pen, Thick pen, Highlighter. |
-| Pen settings popover: preview, size presets, slider, full color picker | Missing. A centered alert with six colors. |
+| Pen settings popover: preview, size presets, slider, full color picker | Exists: a popover beside the rail with an engine-rendered stroke preview, brush, size presets, size and opacity sliders, the palette, and the browser color picker. |
 | Partial eraser | Exists. |
 | Two-finger tap undo; three-finger tap redo | Exists (`FingerTap` in `hosts/web/flutter/lib/notebook.dart`). |
 | Stylus eraser end or side button switches to the eraser | Eraser end exists. Side button missing. |

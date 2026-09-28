@@ -5,7 +5,7 @@ import { deserializeScene } from "@dzackgarza/freetikz/scene";
 import { generateTikz } from "@dzackgarza/freetikz/tikz";
 import type { OpenNotebook } from "./editor/notebook.ts";
 import { loadEngine } from "./engine/load.ts";
-import type { Canvas, Engine } from "./engine/engine.ts";
+import type { Canvas, Engine, ToolSettings } from "./engine/engine.ts";
 import { PageSize } from "./engine/engine.ts";
 import { capabilities, penSamples } from "./input/pointer.ts";
 import { ensureTemplates, hasPermission, listTemplates, pickRoot, readTemplatePage, requestPermission, savedRoot } from "./storage/folder.ts";
@@ -34,6 +34,10 @@ async function paperPreview(engine: Engine, root: FileSystemDirectoryHandle, pap
 async function thumbnail(engine: Engine, root: FileSystemDirectoryHandle, note: Note): Promise<Uint8Array<ArrayBuffer> | null> {
   const blob = await noteThumbnail(engine, root, note);
   return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
+}
+
+function penPreview(engine: Engine, tool: ToolSettings, width: number, height: number, scale: number): Uint8Array<ArrayBuffer> {
+  return engine.penPreviewPng(tool, width, height, scale);
 }
 
 function finishFigure(canvas: Canvas): string {
@@ -165,7 +169,7 @@ const api = {
   thumbnail, tagColors: TAG_COLORS,
   cacheApp, paperPreview, exportPdf, insertImage, loadEngine, startRoot, pickRoot, requestPermission, library,
   createNotebook, openNotebook, createFolder, moveEntry, moveToTrash,
-  emptyFolder, emptyNote, moveNotes, readMetadata, writeMetadata, readPens, writePens, acceptPen, mountCanvas,
+  emptyFolder, emptyNote, moveNotes, readMetadata, writeMetadata, readPens, writePens, penPreview, acceptPen, mountCanvas,
 };
 
 declare global {

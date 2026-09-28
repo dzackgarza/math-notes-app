@@ -201,6 +201,11 @@ InkStatus ink_pens_read(const uint8_t *json, size_t size, const InkPen **pens, s
 /* The .pens.json of `pens`. `*json` stays valid until the next ink_pens_*
    call. */
 InkStatus ink_pens_write(const InkPen *pens, size_t count, const uint8_t **json, size_t *size);
+/* A PNG of a sample stroke drawn with `tool`: `width` x `height` pixels at
+   `scale` pixels per pt, on a transparent background. `*png` stays valid
+   until the next ink_pens_* call. */
+InkStatus ink_pens_preview_png(const InkToolSettings *tool, int32_t width, int32_t height,
+                               float scale, const uint8_t **png, size_t *size);
 
 #ifdef __EMSCRIPTEN__
 /* A canvas on `document` that draws into the WebGL2 canvas element matched

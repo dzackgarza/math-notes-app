@@ -34,62 +34,63 @@ class CreationSheet extends StatelessWidget {
             explicitChildNodes: true,
             label: title,
             child: CupertinoPopupSurface(
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Semantics(
-                    header: true,
-                    child: DefaultTextStyle(
-                      style: CupertinoTheme.of(context)
-                          .textTheme
-                          .navTitleTextStyle,
-                      child: Text(title),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Semantics(
+                      header: true,
+                      child: DefaultTextStyle(
+                        style: CupertinoTheme.of(context)
+                            .textTheme
+                            .navTitleTextStyle,
+                        child: Text(title),
+                      ),
                     ),
                   ),
-                ),
-                Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final form = Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: content,
-                      );
-                      if (constraints.maxWidth < 640) {
-                        return SingleChildScrollView(
-                          child: Column(
-                            children: [
-                              form,
-                              SizedBox(height: 260, child: preview),
-                            ],
-                          ),
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final form = Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: content,
                         );
-                      }
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(child: SingleChildScrollView(child: form)),
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.all(24),
-                              child: preview,
+                        if (constraints.maxWidth < 640) {
+                          return SingleChildScrollView(
+                            child: Column(
+                              children: [
+                                form,
+                                SizedBox(height: 260, child: preview),
+                              ],
                             ),
-                          ),
-                        ],
-                      );
-                    },
+                          );
+                        }
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(child: SingleChildScrollView(child: form)),
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24),
+                                child: preview,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: actions,
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: actions,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          )),
+          ),
         ),
       ),
     ),

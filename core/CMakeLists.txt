@@ -119,7 +119,7 @@ if(EMSCRIPTEN)
     _ink_builtin_template_count _ink_builtin_template_name _ink_builtin_template_create
     _ink_document_create_from_template _ink_export_pdf _ink_export_pdf_layers
     _ink_canvas_create_webgl _ink_canvas_set_view _ink_canvas_set_surface_size
-    _ink_pens_default _ink_pens_read _ink_pens_write
+    _ink_pens_default _ink_pens_read _ink_pens_write _ink_pens_preview_png
     _ink_canvas_set_tool _ink_canvas_figure_begin _ink_canvas_figure_scene _ink_canvas_figure_complete _ink_canvas_selected_figure
     _ink_canvas_set_eraser _ink_canvas_set_utc_offset _ink_canvas_free _ink_canvas_page_at
     _ink_canvas_set_selector _ink_canvas_selection _ink_canvas_select_all _ink_canvas_clear_selection

@@ -7,6 +7,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:popover/popover.dart';
 import 'package:web/web.dart' as web;
 
 import 'host.dart' as native;
@@ -119,6 +120,9 @@ class _NotebookState extends State<Notebook>
   native.Canvas? canvas;
   List<native.Pen> pens = [];
   int pen = 0;
+  // The selected pen's rail row, where the pen settings popover points.
+  final penTile = GlobalKey();
+  web.HTMLInputElement? colorInput;
   int eraser = 0;
   String tool = 'pen';
   bool clippingsOpen = false;
@@ -728,93 +732,237 @@ class _NotebookState extends State<Notebook>
       );
   }
 
+  // The pen settings popover beside the selected pen's rail row (Noteful's
+  // pen popover): a sample stroke, brush, size presets and slider, opacity,
+  // and color. The preset changes once, when the popover closes.
   Future<void> configurePen() async {
     if (pens.isEmpty) return;
-    final original = pens[pen];
-    var rgb = original.tool.rgb;
-    var size = original.tool.size;
-    var opacity = original.tool.opacity;
-    var brush = original.tool.brush;
-    final accepted = await showCupertinoDialog<bool>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, update) => CupertinoAlertDialog(
-          title: Text(original.name),
-          content: Column(
-            children: [
-              const SizedBox(height: 16),
-              CupertinoSlidingSegmentedControl<int>(
-                groupValue: brush,
-                children: const {
-                  0: Text('Pen'),
-                  1: Text('Marker'),
-                  2: Text('Highlight'),
-                },
-                onValueChanged: (value) {
-                  if (value != null) update(() => brush = value);
-                },
-              ),
-              const SizedBox(height: 16),
-              Wrap(
-                children: [
-                  for (final color in [
-                    0x171717,
-                    0x246BCE,
-                    0xD92D39,
-                    0x29955B,
-                    0xFFCF26,
-                    0x865AC2,
-                  ])
-                    Semantics(
-                      label: 'Color ${color.toRadixString(16)}',
-                      selected: rgb == color,
-                      child: CupertinoButton(
-                        padding: const EdgeInsets.all(8),
-                        onPressed: () => update(() => rgb = color),
-                        child: Icon(
-                          rgb == color
-                              ? CupertinoIcons.checkmark_circle_fill
-                              : CupertinoIcons.circle_fill,
-                          color: Color(0xFF000000 | color),
+    final original = pens[pen].tool;
+    var brush = original.brush;
+    var rgb = original.rgb;
+    var size = original.size;
+    var opacity = original.opacity;
+    final ratio = MediaQuery.devicePixelRatioOf(context);
+    final background = CupertinoColors.systemBackground.resolveFrom(context);
+    await showPopover<void>(
+      context: penTile.currentContext ?? context,
+      direction: PopoverDirection.right,
+      width: 320,
+      backgroundColor: background,
+      barrierColor: const Color(0x00000000),
+      barrierLabel: 'Close pen settings',
+      bodyBuilder: (context) => StatefulBuilder(
+        builder: (context, update) {
+          final preview = native.host
+              .penPreview(
+                widget.engine,
+                native.ToolSettings.create(
+                  brush: brush,
+                  rgb: rgb,
+                  size: size,
+                  opacity: opacity,
+                ),
+                (288 * ratio).round(),
+                (64 * ratio).round(),
+                1.5 * ratio,
+              )
+              .toDart;
+          final presets = brush == 2
+              ? const [4.8, 7.2, 9.6, 14.4, 19.2]
+              : const [0.6, 1.2, 1.8, 2.4, 3.6];
+          final caption = CupertinoTheme.of(context)
+              .textTheme
+              .tabLabelTextStyle;
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  pens[pen].name,
+                  style: CupertinoTheme.of(context).textTheme.navTitleTextStyle,
+                ),
+                Image.memory(
+                  preview,
+                  width: 288,
+                  height: 64,
+                  gaplessPlayback: true,
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    for (final (value, label, icon) in const [
+                      (0, 'Pen', CupertinoIcons.pencil),
+                      (1, 'Marker', CupertinoIcons.pencil_outline),
+                      (2, 'Highlighter', CupertinoIcons.paintbrush),
+                    ])
+                      CupertinoButton(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        onPressed: () => update(() => brush = value),
+                        child: Column(
+                          children: [
+                            Icon(
+                              icon,
+                              color: brush == value
+                                  ? CupertinoColors.activeBlue
+                                  : CupertinoColors.label.resolveFrom(context),
+                            ),
+                            Text(
+                              label,
+                              style: caption.copyWith(
+                                color: brush == value
+                                    ? CupertinoColors.activeBlue
+                                    : null,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
+                  ],
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    for (final (i, value) in presets.indexed)
+                      Semantics(
+                        label: '$value pt',
+                        button: true,
+                        excludeSemantics: true,
+                        child: CupertinoButton(
+                          padding: EdgeInsets.zero,
+                          minimumSize: const Size(40, 40),
+                          onPressed: () => update(() => size = value),
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: (size - value).abs() < 0.05
+                                    ? CupertinoColors.activeBlue
+                                    : const Color(0x00000000),
+                                width: 2,
+                              ),
+                            ),
+                            child: Container(
+                              width: 4.0 + 5 * i,
+                              height: 4.0 + 5 * i,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Color(0xFF000000 | rgb),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    const Text('Size'),
+                    Expanded(
+                      child: CupertinoSlider(
+                        value: size.clamp(0.2, 20),
+                        min: 0.2,
+                        max: 20,
+                        divisions: 99,
+                        onChanged: (value) => update(() => size = value),
+                      ),
                     ),
-                ],
-              ),
-              Text('Width ${size.toStringAsFixed(1)} pt'),
-              CupertinoSlider(
-                value: size,
-                min: 0.2,
-                max: 20,
-                divisions: 99,
-                onChanged: (value) => update(() => size = value),
-              ),
-              Text('Opacity ${(opacity * 100).round()}%'),
-              CupertinoSlider(
-                value: opacity,
-                min: 0.1,
-                max: 1,
-                divisions: 9,
-                onChanged: (value) => update(() => opacity = value),
-              ),
-            ],
-          ),
-          actions: [
-            CupertinoDialogAction(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
+                    Text('${size.toStringAsFixed(1)} pt'),
+                  ],
+                ),
+                Row(
+                  children: [
+                    const Text('Opacity'),
+                    Expanded(
+                      child: CupertinoSlider(
+                        value: opacity,
+                        min: 0.1,
+                        max: 1,
+                        divisions: 9,
+                        onChanged: (value) => update(() => opacity = value),
+                      ),
+                    ),
+                    Text('${(opacity * 100).round()}%'),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final color in palette)
+                      CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(28, 28),
+                        onPressed: () => update(() => rgb = color),
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color(0xFF000000 | color),
+                            border: Border.all(
+                              color: rgb == color
+                                  ? CupertinoColors.activeBlue
+                                  : CupertinoColors.systemGrey4,
+                              width: rgb == color ? 3 : 1,
+                            ),
+                          ),
+                        ),
+                      ),
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(28, 28),
+                      onPressed: () => pickColor(
+                        context,
+                        rgb,
+                        (color) => update(() => rgb = color),
+                      ),
+                      child: const Icon(
+                        CupertinoIcons.add_circled,
+                        size: 28,
+                        semanticLabel: 'Other color',
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            CupertinoDialogAction(
-              isDefaultAction: true,
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Done'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
-    if (accepted != true) return;
+    if (brush == original.brush &&
+        rgb == original.rgb &&
+        size == original.size &&
+        opacity == original.opacity) {
+      return;
+    }
     await updatePen(brush: brush, rgb: rgb, size: size, opacity: opacity);
+  }
+
+  // The browser's color input, placed over the widget of `context`: iPadOS
+  // Safari opens the system color picker there. The input opens only during
+  // the tap that asks for it (HTML Standard, user activation).
+  void pickColor(BuildContext context, int rgb, void Function(int) chosen) {
+    final box = context.findRenderObject()! as RenderBox;
+    final at = box.localToGlobal(Offset.zero);
+    final input = colorInput ??=
+        (web.document.createElement('input') as web.HTMLInputElement)
+          ..type = 'color';
+    input.style.cssText =
+        'position:fixed;left:${at.dx}px;top:${at.dy}px;'
+        'width:${box.size.width}px;height:${box.size.height}px;'
+        'opacity:0;pointer-events:none;border:0;padding:0';
+    if (!input.isConnected) web.document.body!.append(input);
+    input.value = '#${rgb.toRadixString(16).padLeft(6, '0')}';
+    input.onchange = (web.Event _) {
+      chosen(int.parse(input.value.substring(1), radix: 16));
+    }.toJS;
+    input.click();
   }
 
   // Replaces the selected preset in .pens.json; later strokes use it.
@@ -900,14 +1048,22 @@ class _NotebookState extends State<Notebook>
                 ),
               ),
             ),
-          CupertinoButton(
-            padding: EdgeInsets.zero,
-            minimumSize: const Size(36, 36),
-            onPressed: () => run(configurePen),
-            child: const Icon(
-              CupertinoIcons.add_circled,
-              size: 34,
-              semanticLabel: 'Pen settings',
+          Builder(
+            builder: (context) => CupertinoButton(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(36, 36),
+              onPressed: () => pickColor(context, current ?? 0, (color) {
+                if (selection != null) {
+                  edit(() => canvas!.recolorSelection(color));
+                  return;
+                }
+                unawaited(run(() => choosePenColor(color)));
+              }),
+              child: const Icon(
+                CupertinoIcons.add_circled,
+                size: 34,
+                semanticLabel: 'Other color',
+              ),
             ),
           ),
         ],
@@ -1312,6 +1468,7 @@ class _NotebookState extends State<Notebook>
     scroll.dispose();
     transform.dispose();
     canvas?.free();
+    colorInput?.remove();
     super.dispose();
   }
 
@@ -1417,6 +1574,7 @@ class _NotebookState extends State<Notebook>
                         children: [
                           for (var i = 0; i < pens.length; i++)
                             CupertinoListTile(
+                              key: i == pen ? penTile : null,
                               title: Text(pens[i].name),
                               subtitle: Text(
                                 '${pens[i].tool.size.toStringAsFixed(1)} pt',

@@ -393,8 +393,6 @@ test("Flutter notebook retains pen input and pages after save and reopen", async
     const pages = await dir.getDirectoryHandle("pages");
     return (await (await pages.getFileHandle("0001.svg")).getFile()).text();
   })).toContain("Every basis spans the space.");
-  await page.getByRole("button", { name: "Pen settings", exact: true }).click();
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await page.getByRole("button", { name: "Export PDF", exact: true }).click();
   const exported = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export", exact: true }).click();
@@ -436,4 +434,32 @@ test("Flutter notebook retains pen input and pages after save and reopen", async
   await page.reload();
   await page.getByText("Favorites", { exact: true }).click();
   await expect(page.getByRole("button", { name: "Lecture", exact: true })).toBeVisible();
+});
+
+test("Flutter pen popover changes the brush and size of the selected preset", async ({ page }, info) => {
+  test.setTimeout(120_000);
+  await page.goto("favicon.svg");
+  await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    for await (const name of root.keys()) await root.removeEntry(name, { recursive: true });
+  });
+  await page.goto("flutter/?root=opfs");
+  await page.getByRole("button", { name: "New Note", exact: true }).click();
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Pens");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.locator('canvas[id^="ink-canvas-"]').waitFor();
+  // A tap on the selected pen opens its settings beside the rail.
+  await page.getByRole("button", { name: "Pen 1.2 pt", exact: true }).click();
+  await page.getByRole("button", { name: "Marker", exact: true }).click();
+  await page.getByRole("button", { name: "3.6 pt", exact: true }).click();
+  await page.screenshot({ path: info.outputPath("pen-popover.png") });
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("Page has no viewport");
+  await page.mouse.click(viewport.width - 20, viewport.height - 20);
+  await expect(page.getByRole("button", { name: "Pen 3.6 pt", exact: true })).toBeVisible();
+  const pens = await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    return JSON.parse(await (await (await root.getFileHandle(".pens.json")).getFile()).text());
+  });
+  expect(pens[0]).toMatchObject({ id: "pen", brush: "marker", size: 3.6 });
 });

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <exception>
+#include <numbers>
 #include <optional>
 #include <set>
 #include <string>
@@ -23,7 +24,9 @@
 #include "format/pens.h"
 #include "geometry/affine.h"
 #include "layout/layout.h"
+#include "strokes/outline.h"
 #include "include/core/SkData.h"
+#include "include/core/SkPaint.h"
 #include "include/core/SkCanvas.h"
 #include "include/core/SkImage.h"
 #include "include/core/SkColorSpace.h"
@@ -121,6 +124,7 @@ struct PenFile {
   std::string json;
   std::vector<ink_engine::PenPreset> presets;
   std::vector<InkPen> pens;
+  sk_sp<SkData> preview;
 };
 PenFile gPenFile;
 
@@ -798,6 +802,48 @@ InkStatus ink_pens_write(const InkPen *pens, size_t count, const uint8_t **json,
     gPenFile.json = ink_engine::WritePens(presets);
     *json = reinterpret_cast<const uint8_t *>(gPenFile.json.data());
     *size = gPenFile.json.size();
+    return INK_OK;
+  });
+}
+
+InkStatus ink_pens_preview_png(const InkToolSettings *tool, int32_t width, int32_t height,
+                               float scale, const uint8_t **png, size_t *size) {
+  return Call([&] {
+    if (!tool || !png || !size) return NullArgument("tool, png or size");
+    if (auto error = CheckTool(*tool)) return Fail(INK_ERROR_ARGUMENT, *error);
+    if (width <= 0 || width > 4096 || height <= 0 || height > 4096 || !(scale > 0)) {
+      return Fail(INK_ERROR_ARGUMENT, "invalid preview size");
+    }
+    // One wave across the middle 70% of the image, drawn with a stylus whose
+    // pressure rises and falls, so the brush's width response shows.
+    const float w = width / scale, h = height / scale;
+    constexpr int kSamples = 64;
+    ink::StrokeInputBatch batch;
+    for (int i = 0; i <= kSamples; ++i) {
+      const float t = float(i) / kSamples;
+      const float phase = 2 * std::numbers::pi_v<float> * t;
+      (void)batch.Append({.tool_type = ink::StrokeInput::ToolType::kStylus,
+                          .position = {w * (0.15f + 0.7f * t), h / 2 - h / 4 * std::sin(phase)},
+                          .elapsed_time = ink::Duration32::Millis(8.0f * i),
+                          .pressure = 0.3f + 0.6f * std::sin(std::numbers::pi_v<float> * t)});
+    }
+    const ink_engine::Pen pen = ToPen(*tool);
+    const ink::Stroke stroke(ink_engine::MakeBrush(pen), batch);
+    auto surface = SkSurfaces::Raster(SkImageInfo::MakeN32Premul(width, height));
+    if (!surface) return Fail(INK_ERROR_INTERNAL, "cannot allocate pen preview");
+    surface->getCanvas()->scale(scale, scale);
+    SkPaint paint(SkColor4f::FromColor(SkColorSetARGB(uint8_t(std::lround(pen.opacity * 255)),
+                                                      pen.color.r, pen.color.g, pen.color.b)));
+    paint.setAntiAlias(true);
+    surface->getCanvas()->drawPath(
+        ink_engine::OutlinePath(ink_engine::StrokeOutline(stroke.GetShape())), paint);
+    SkPixmap pixels;
+    if (!surface->peekPixels(&pixels)) return Fail(INK_ERROR_INTERNAL, "no preview pixels");
+    SkDynamicMemoryWStream out;
+    if (!SkPngEncoder::Encode(&out, pixels, {})) return Fail(INK_ERROR_INTERNAL, "PNG encoding failed");
+    gPenFile.preview = out.detachAsData();
+    *png = gPenFile.preview->bytes();
+    *size = gPenFile.preview->size();
     return INK_OK;
   });
 }

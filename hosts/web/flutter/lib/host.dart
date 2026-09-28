@@ -434,6 +434,13 @@ extension type Host(JSObject value) implements JSObject {
     Engine engine,
     JSArray<Pen> pens,
   );
+  external JSUint8Array penPreview(
+    Engine engine,
+    ToolSettings tool,
+    int width,
+    int height,
+    double scale,
+  );
   external JSPromise<Canvas> mountCanvas(
     OpenNote note,
     web.HTMLCanvasElement canvas,

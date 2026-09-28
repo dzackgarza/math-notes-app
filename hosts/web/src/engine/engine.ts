@@ -347,6 +347,19 @@ export class Engine {
     }
   }
 
+  // A PNG of a sample stroke drawn with `tool`, at `scale` pixels per pt.
+  penPreviewPng(tool: ToolSettings, width: number, height: number, scale: number): Uint8Array<ArrayBuffer> {
+    return this.withScratch(TOOL_SETTINGS.byteLength, (at) => {
+      writeTool(this.view(), at, tool);
+      return this.withScratch(8, (out) => {
+        this.check(this.module._ink_pens_preview_png(at, width, height, scale, out, out + 4));
+        const view = this.view();
+        const png = view.getUint32(out, true);
+        return this.heap().slice(png, png + view.getUint32(out + 4, true));
+      });
+    });
+  }
+
   builtinTemplates(): string[] {
     const count = this.withScratch(4, (out) => {
       this.check(this.module._ink_builtin_template_count(out));
