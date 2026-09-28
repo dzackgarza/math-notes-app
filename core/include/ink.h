@@ -50,12 +50,15 @@ typedef struct InkFile {
    generator. */
 InkStatus ink_document_create(uint64_t seed, InkDocument **out);
 typedef enum InkPageSize { INK_PAGE_A4 = 0, INK_PAGE_LETTER = 1, INK_PAGE_CUSTOM = 2 } InkPageSize;
+/* Portrait puts the long side of a page size vertical; landscape puts it horizontal. */
+typedef enum InkOrientation { INK_PORTRAIT = 0, INK_LANDSCAPE = 1 } InkOrientation;
 /* A new notebook as ink_document_create, with template `name` set as by
    ink_document_set_template and page 1 on that template's background. The
-   selected page size sets both the first page and future pages. The document
-   starts with no undo step. */
+   selected page size and orientation set both the first page and future
+   pages. The document starts with no undo step. */
 InkStatus ink_document_create_from_template(uint64_t seed, const char *name, const uint8_t *svg,
-                                            size_t size, InkPageSize page_size, double width,
+                                            size_t size, InkPageSize page_size,
+                                            InkOrientation orientation, double width,
                                             double height, InkDocument **out);
 /* Replaces the document with the notebook of notebook.json. Its listed pages
    are error pages ("missing file") until ink_document_load_page loads them. */
@@ -110,9 +113,9 @@ InkStatus ink_document_move_page(InkDocument *document, size_t from, size_t to);
 /* A copy of page `index` after it, with a new file and new element ids. */
 InkStatus ink_document_duplicate_page(InkDocument *document, size_t index);
 
-/* The size of new pages: A4, Letter, or `width` × `height` pt. */
-InkStatus ink_document_set_page_size(InkDocument *document, InkPageSize size, double width,
-                                     double height);
+/* The size of new pages: A4, Letter, or `width` × `height` pt, in `orientation`. */
+InkStatus ink_document_set_page_size(InkDocument *document, InkPageSize size,
+                                     InkOrientation orientation, double width, double height);
 
 /* The notebook's template: `name` under Notes/.templates/, and the bytes of
    that template notebook's pages/0001.svg, whose background new pages copy. */

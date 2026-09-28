@@ -136,7 +136,7 @@ TEST_CASE("Undoing a stroke on page 7 shows page 7 and saves only its file") {
   CHECK(written.contains("pages/0007.svg"));
   CHECK(written.at("pages/0007.svg") == AllFiles(session.doc()).at("pages/0007.svg"));
 
-  ink_document_set_page_size(session.document, INK_PAGE_LETTER, 0, 0);
+  ink_document_set_page_size(session.document, INK_PAGE_LETTER, INK_PORTRAIT, 0, 0);
   ink_undo(session.document, &moved, &page);
   CHECK(page == -1);  // a notebook setting, on no page
 }

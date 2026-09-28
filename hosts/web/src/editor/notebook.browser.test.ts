@@ -12,15 +12,15 @@ test("new notes keep existing notebook folders and their contents", async () => 
   const root = await origin.getDirectoryHandle(name, { create: true });
   try {
     await createFolder(root, [], "Course");
-    const lecture = await createNotebook(engine, root, ["Course"], "Lecture", "dotted", "a4");
+    const lecture = await createNotebook(engine, root, ["Course"], "Lecture", "dotted", "a4", "portrait");
     lecture.document.free();
-    await expect(createNotebook(engine, root, [], "Course", "blank", "a4").then((note) => {
+    await expect(createNotebook(engine, root, [], "Course", "blank", "a4", "portrait").then((note) => {
       note.document.free();
       return note.name;
     })).rejects.toThrow("already exists");
     const folders = await scanLibrary(root);
     expect(folders.find((folder) => folder.name === "Course")?.notes.map((note) => note.name)).toEqual(["Lecture"]);
-    const notes = await createNotebook(engine, root, [], "Notes", "blank", "a4");
+    const notes = await createNotebook(engine, root, [], "Notes", "blank", "a4", "portrait");
     notes.document.free();
     expect((await scanLibrary(root)).find((folder) => folder.path.length === 0)?.notes.map((note) => note.name)).toEqual(["Notes"]);
   } finally {

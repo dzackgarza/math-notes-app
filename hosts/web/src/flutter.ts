@@ -6,7 +6,7 @@ import { generateTikz } from "@dzackgarza/freetikz/tikz";
 import type { OpenNotebook } from "./editor/notebook.ts";
 import { loadEngine } from "./engine/load.ts";
 import type { Canvas, Engine, ToolSettings } from "./engine/engine.ts";
-import { PageSize, Phase, Tool } from "./engine/engine.ts";
+import { Orientation, PageSize, Phase, Tool } from "./engine/engine.ts";
 import { capabilities, penSamples } from "./input/pointer.ts";
 import { ensureTemplates, hasPermission, listTemplates, pickRoot, readTemplatePage, requestPermission, savedRoot } from "./storage/folder.ts";
 import { createFolder, moveEntry, moveToTrash, scanLibrary, scanTrash, type Note } from "./storage/library.ts";
@@ -20,10 +20,10 @@ import { listClippings, saveClipping, clippingSvg, changeClipping } from "./edit
 import { mountFigureEditor } from "./editor/figure-editor.ts";
 import { readFigurePreamble, writeFigurePreamble } from "./editor/figure-compile.ts";
 
-async function paperPreview(engine: Engine, root: FileSystemDirectoryHandle, paper: string, size: "a4" | "letter"): Promise<Uint8Array<ArrayBuffer>> {
+async function paperPreview(engine: Engine, root: FileSystemDirectoryHandle, paper: string, size: "a4" | "letter", orientation: "portrait" | "landscape"): Promise<Uint8Array<ArrayBuffer>> {
   const page = await readTemplatePage(root, paper);
   if (!page) throw new Error(`Template ${paper} has no first page.`);
-  const document = engine.createDocumentFromTemplate(1n, paper, page, PageSize[size]);
+  const document = engine.createDocumentFromTemplate(1n, paper, page, PageSize[size], Orientation[orientation]);
   try {
     return document.pagePng(0, 480);
   } finally {

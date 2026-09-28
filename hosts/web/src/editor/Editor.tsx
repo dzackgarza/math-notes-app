@@ -34,7 +34,7 @@ import Framework7 from "framework7";
 import PullToRefresh from "framework7/components/pull-to-refresh";
 import "framework7/components/pull-to-refresh/css";
 
-import { Brush, Eraser, PageSize, Selector, type Canvas, type Pen, type SelectionInfo, type ToolSettings } from "../engine/engine.ts";
+import { Brush, Eraser, Orientation, PageSize, Selector, type Canvas, type Pen, type SelectionInfo, type ToolSettings } from "../engine/engine.ts";
 import { capabilities, penSamples } from "../input/pointer.ts";
 import { listTemplates } from "../storage/folder.ts";
 import type { Tag } from "../storage/metadata.ts";
@@ -885,8 +885,8 @@ export function Editor(props: {
           dismiss={dismiss}
           onSelect={() => edit(() => currentPage() < doc.pageCount() - 1 && doc.movePage(currentPage(), currentPage() + 1))}
         />
-        <MenuItem label="Page size: A4" dismiss={dismiss} onSelect={() => edit(() => doc.setPageSize(PageSize.a4))} />
-        <MenuItem label="Page size: Letter" dismiss={dismiss} onSelect={() => edit(() => doc.setPageSize(PageSize.letter))} />
+        <MenuItem label="Page size: A4" dismiss={dismiss} onSelect={() => edit(() => doc.setPageSize(PageSize.a4, Orientation.portrait))} />
+        <MenuItem label="Page size: Letter" dismiss={dismiss} onSelect={() => edit(() => doc.setPageSize(PageSize.letter, Orientation.portrait))} />
       </IonList>
     ));
   };

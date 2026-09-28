@@ -138,16 +138,21 @@ TEST_CASE("New pages take the notebook's page size") {
   ink_document_insert_page(session.document, 1);
   CHECK(session.doc().pages[1]->width == 595.28);
   CHECK(session.doc().pages[1]->height == 841.89);
-  REQUIRE(ink_document_set_page_size(session.document, INK_PAGE_LETTER, 0, 0) == INK_OK);
+  REQUIRE(ink_document_set_page_size(session.document, INK_PAGE_LETTER, INK_PORTRAIT, 0, 0) == INK_OK);
   ink_document_insert_page(session.document, 2);
   CHECK(session.doc().pages[2]->width == 612);
   CHECK(session.doc().pages[2]->height == 792);
   CHECK(DirtyFiles(session.document).at("notebook.json").bytes.find("\"pageSize\": \"Letter\"") !=
         std::string::npos);
-  REQUIRE(ink_document_set_page_size(session.document, INK_PAGE_CUSTOM, 500, 700.5) == INK_OK);
+  REQUIRE(ink_document_set_page_size(session.document, INK_PAGE_CUSTOM, INK_PORTRAIT, 500, 700.5) == INK_OK);
   ink_document_insert_page(session.document, 0);
   CHECK(session.doc().pages[0]->width == 500);
   CHECK(session.doc().pages[0]->height == 700.5);
+  REQUIRE(ink_document_set_page_size(session.document, INK_PAGE_LETTER, INK_LANDSCAPE, 0, 0) == INK_OK);
+  ink_document_insert_page(session.document, 0);
+  CHECK(session.doc().pages[0]->width == 792);
+  CHECK(session.doc().pages[0]->height == 612);
+  CHECK(session.doc().notebook.page_size == PageSize{std::array<double, 2>{792, 612}});
 }
 
 TEST_CASE("A new page copies the template's background, regenerated for another page size") {
@@ -164,7 +169,7 @@ TEST_CASE("A new page copies the template's background, regenerated for another 
   const Background &a4 = session.doc().pages[1]->background;
   CHECK(a4 == session.document->template_page->background);
 
-  ink_document_set_page_size(session.document, INK_PAGE_LETTER, 0, 0);
+  ink_document_set_page_size(session.document, INK_PAGE_LETTER, INK_PORTRAIT, 0, 0);
   ink_document_insert_page(session.document, 2);
   const Page &letter = *session.doc().pages[2];
   CHECK(letter.background.ruling == Ruling::kLined);
@@ -223,7 +228,7 @@ TEST_CASE("A notebook created from a template has page 1 on its background") {
 
   InkDocument *document = nullptr;
   const auto *svg = reinterpret_cast<const uint8_t *>(page1.data());
-  REQUIRE(ink_document_create_from_template(5, "dotted", svg, page1.size(), INK_PAGE_A4, 0, 0, &document) == INK_OK);
+  REQUIRE(ink_document_create_from_template(5, "dotted", svg, page1.size(), INK_PAGE_A4, INK_PORTRAIT, 0, 0, &document) == INK_OK);
   const Document &doc = document->history.current();
   CHECK(doc.notebook.template_name == "dotted");
   REQUIRE(doc.pages.size() == 1);

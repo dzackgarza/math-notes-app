@@ -696,8 +696,10 @@ class _NotebookState extends State<Notebook>
             if (count > 1) 'delete': 'Delete page',
             if (page > 0) 'up': 'Move page up',
             if (page < count - 1) 'down': 'Move page down',
-            'a4': 'Page size: A4',
-            'letter': 'Page size: Letter',
+            'a4': 'New pages: A4 portrait',
+            'a4-landscape': 'New pages: A4 landscape',
+            'letter': 'New pages: Letter portrait',
+            'letter-landscape': 'New pages: Letter landscape',
           }.entries)
             CupertinoActionSheetAction(
               onPressed: () => Navigator.pop(context, entry.key),
@@ -727,9 +729,13 @@ class _NotebookState extends State<Notebook>
           widget.note.document.movePage(page, page + 1);
           page++;
         case 'a4':
-          widget.note.document.setPageSize(0);
+          widget.note.document.setPageSize(0, 0);
+        case 'a4-landscape':
+          widget.note.document.setPageSize(0, 1);
         case 'letter':
-          widget.note.document.setPageSize(1);
+          widget.note.document.setPageSize(1, 0);
+        case 'letter-landscape':
+          widget.note.document.setPageSize(1, 1);
       }
     });
   }

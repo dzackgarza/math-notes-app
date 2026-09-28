@@ -22,8 +22,7 @@ They are the reference for the pen tool popover:
 Phase A is every L0 and L1 feature of [core features](../specs/core-features.md).
 The missing ones, in order:
 
-1. **Page orientation (L1).**
-2. **Remove the superseded TeX compiler integration.** Compiler, preamble,
+1. **Remove the superseded TeX compiler integration.** Compiler, preamble,
    compiled-page view, their build recipes, and cache entries.
 
 ## Current application

@@ -93,12 +93,14 @@ extension type NoteDraft(JSObject value) implements JSObject {
     String template,
     JSArray<JSString> tags,
     String pageSize,
+    String orientation,
   });
   external JSArray<JSString> get folder;
   external String get title;
   external String get template;
   external JSArray<JSString> get tags;
   external String? get pageSize;
+  external String? get orientation;
 }
 
 extension type StartingTemplate(JSObject value) implements JSObject {
@@ -107,12 +109,14 @@ extension type StartingTemplate(JSObject value) implements JSObject {
     JSArray<JSString> folder,
     String paper,
     String pageSize,
+    String orientation,
     JSArray<JSString> tags,
   });
   external String get name;
   external JSArray<JSString> get folder;
   external String get paper;
   external String get pageSize;
+  external String? get orientation;
   external JSArray<JSString> get tags;
 }
 
@@ -200,7 +204,7 @@ extension type Document(JSObject value) implements JSObject {
   external void movePage(int from, int to);
   external void duplicatePage(int index);
   external JSUint8Array pagePng(int index, int width);
-  external void setPageSize(int size);
+  external void setPageSize(int size, int orientation);
   external Size contentSize();
   external PageRect pageRect(int index);
   external HistoryStep? undo();
@@ -362,6 +366,7 @@ extension type Host(JSObject value) implements JSObject {
     Directory root,
     String paper,
     String size,
+    String orientation,
   );
   external JSPromise<VoidResult> cacheApp();
   external void exportPdf(
@@ -416,6 +421,7 @@ extension type Host(JSObject value) implements JSObject {
     String name,
     String template,
     String size,
+    String orientation,
   );
   external JSPromise<OpenNote> openNotebook(
     Engine engine,

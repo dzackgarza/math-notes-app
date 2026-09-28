@@ -49,6 +49,7 @@ export const SELECTION_INFO = { byteLength: 40, count: 0, page: 4, x: 8, y: 16, 
 export const PDF_EXPORT_SPEC = { byteLength: 16, firstPage: 0, pageCount: 4, includeLinks: 8, includeHiddenLayers: 12 } as const;
 export const FileKind = { write: 0, delete: 1 } as const;
 export const PageSize = { a4: 0, letter: 1, custom: 2 } as const;
+export const Orientation = { portrait: 0, landscape: 1 } as const;
 
 // InkStruct ids of ink_struct_layout.
 export const Struct = { penSample: 0, toolSettings: 1, file: 2, selectionInfo: 3, pen: 4, pdfExportSpec: 5 } as const;
@@ -394,12 +395,12 @@ export class Engine {
 
   // A new notebook on template `name`, whose pages/0001.svg is `page1`:
   // page 1 has the template's background, with no undo step.
-  createDocumentFromTemplate(seed: bigint, name: string, page1: Uint8Array, pageSize: number): InkDocument {
+  createDocumentFromTemplate(seed: bigint, name: string, page1: Uint8Array, pageSize: number, orientation: number): InkDocument {
     const pointer = this.withCString(name, (text) => {
       const bytes = this.copyIn(page1);
       try {
         return this.withScratch(4, (out) => {
-          this.check(this.module._ink_document_create_from_template(seed, text, bytes, page1.length, pageSize, 0, 0, out));
+          this.check(this.module._ink_document_create_from_template(seed, text, bytes, page1.length, pageSize, orientation, 0, 0, out));
           return this.view().getUint32(out, true);
         });
       } finally {
@@ -638,8 +639,8 @@ export class InkDocument {
     this.engine.check(this.engine.module._ink_document_duplicate_page(this.pointer, index));
   }
 
-  setPageSize(size: number, width = 0, height = 0): void {
-    this.engine.check(this.engine.module._ink_document_set_page_size(this.pointer, size, width, height));
+  setPageSize(size: number, orientation: number, width = 0, height = 0): void {
+    this.engine.check(this.engine.module._ink_document_set_page_size(this.pointer, size, orientation, width, height));
   }
 
   // `page1` is the template notebook's pages/0001.svg.

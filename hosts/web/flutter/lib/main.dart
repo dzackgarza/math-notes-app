@@ -621,6 +621,7 @@ class _WorkspaceState extends State<Workspace> {
       root: root!,
       paper: metadata.paper,
       size: 'a4',
+      orientation: 'portrait',
     );
   }
 
@@ -930,6 +931,7 @@ class _WorkspaceState extends State<Workspace> {
     var target = draft?.folder ?? folder;
     var paper = draft?.template ?? defaults.paper;
     var size = draft?.pageSize ?? 'a4';
+    var orientation = draft?.orientation ?? 'portrait';
     var coverColor = defaults.coverColor;
     var coverStyle = defaults.coverStyle;
     final accepted = await showCupertinoDialog<String>(
@@ -942,6 +944,7 @@ class _WorkspaceState extends State<Workspace> {
             root: root!,
             paper: paper,
             size: size,
+            orientation: orientation,
           ),
           content: Column(
             children: [
@@ -1051,12 +1054,24 @@ class _WorkspaceState extends State<Workspace> {
                     if (value != null) update(() => size = value);
                   },
                 ),
+                const SizedBox(height: 12),
+                CupertinoSlidingSegmentedControl<String>(
+                  groupValue: orientation,
+                  children: const {
+                    'portrait': Text('Portrait'),
+                    'landscape': Text('Landscape'),
+                  },
+                  onValueChanged: (value) {
+                    if (value != null) update(() => orientation = value);
+                  },
+                ),
                 for (final settings in metadata.startingTemplates.toDart)
                   CupertinoButton(
                     onPressed: () => update(() {
                       target = settings.folder;
                       paper = settings.paper;
                       size = settings.pageSize;
+                      orientation = settings.orientation ?? 'portrait';
                       tags.replace(
                         settings.tags.toDart.map((tag) => tag.toDart).toList(),
                       );
@@ -1116,6 +1131,7 @@ class _WorkspaceState extends State<Workspace> {
           template: paper,
           tags: chosenTags,
           pageSize: size,
+          orientation: orientation,
         );
         await native.host.writeMetadata(root!, current).toDart;
         await refresh();
@@ -1132,6 +1148,7 @@ class _WorkspaceState extends State<Workspace> {
             folder: target,
             paper: paper,
             pageSize: size,
+            orientation: orientation,
             tags: chosenTags,
           ),
         ].toJS;
@@ -1151,7 +1168,15 @@ class _WorkspaceState extends State<Workspace> {
         current.folders[native.pathKey(folder)] = values;
       } else {
         active = await native.host
-            .createNotebook(engine!, root!, target, name, paper, size)
+            .createNotebook(
+              engine!,
+              root!,
+              target,
+              name,
+              paper,
+              size,
+              orientation,
+            )
             .toDart;
         final values = native.host.emptyNote();
         values.tags = chosenTags;

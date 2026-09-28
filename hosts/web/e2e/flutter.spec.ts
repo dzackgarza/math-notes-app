@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 
@@ -11,13 +11,18 @@ async function enterText(field: Locator, value: string): Promise<void> {
   await field.pressSequentially(value);
 }
 
+async function addTag(page: Page, tag: string): Promise<void> {
+  await enterText(page.getByRole("textbox", { name: "Add a tag…", exact: true }), tag);
+  await page.getByRole("button", { name: "Add tag", exact: true }).click();
+}
+
 test("Flutter notebook cards retain their notes and metadata after rename", async ({ page }, info) => {
   test.setTimeout(90_000);
   await page.goto("flutter/?root=opfs");
   await page.getByRole("button", { name: "New Notebook", exact: true }).click();
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Algebra");
   await enterText(page.getByRole("textbox", { name: "Description", exact: true }), "Lecture notes");
-  await enterText(page.getByRole("textbox", { name: "Tags, separated by commas", exact: true }), "groups");
+  await addTag(page, "groups");
   await page.getByRole("button", { name: "Ruled", exact: true }).click();
   await page.getByRole("button", { name: "Create", exact: true }).click();
   await expect(page.getByRole("button", { name: "Algebra", exact: true })).toBeVisible();
@@ -63,7 +68,7 @@ test("Flutter finds an image note through persistent tags and its page thumbnail
   await page.goto("flutter/?root=opfs");
   await page.getByRole("button", { name: "New Note", exact: true }).click();
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Diagram");
-  await enterText(page.getByRole("textbox", { name: "Tags, separated by commas", exact: true }), "topology");
+  await addTag(page, "topology");
   await page.getByRole("button", { name: "Create", exact: true }).click();
   await page.getByRole("button", { name: "Save", exact: true }).waitFor();
   const chooser = page.waitForEvent("filechooser");
@@ -143,16 +148,17 @@ test("Flutter adds a page only after a held edge pull and preserves keyboard his
   expect(JSON.parse(manifest).pages).toHaveLength(2);
 });
 
-test("Flutter creation resumes a draft and applies saved note settings", async ({ page }, info) => {
-  test.setTimeout(60_000);
+test("Flutter creation resumes a draft and applies saved note settings, including landscape Letter", async ({ page }, info) => {
+  test.setTimeout(120_000);
   page.on("pageerror", error => console.error(error.stack));
   page.on("console", message => { if (message.type() === "error") console.error(message.text()); });
   await page.goto("flutter/?root=opfs");
   await page.getByRole("button", { name: "New Note", exact: true }).click();
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Seminar");
   await page.getByRole("button", { name: "Ruled", exact: true }).click();
-  await enterText(page.getByRole("textbox", { name: "Tags, separated by commas", exact: true }), "analysis");
+  await addTag(page, "analysis");
   await page.getByRole("button", { name: "Letter", exact: true }).click();
+  await page.getByRole("button", { name: "Landscape", exact: true }).click();
   await page.getByRole("button", { name: "Save as Draft", exact: true }).click();
   await expect(page.getByRole("status", { name: "Draft saved", exact: true })).toBeVisible();
   await page.reload();
@@ -164,12 +170,12 @@ test("Flutter creation resumes a draft and applies saved note settings", async (
   await page.reload();
   await page.getByRole("button", { name: "New Note", exact: true }).click();
   await page.getByRole("button", { name: "Plain", exact: true }).click();
-  await enterText(page.getByRole("textbox", { name: "Tags, separated by commas", exact: true }), "temporary");
+  await addTag(page, "temporary");
   await page.getByRole("button", { name: "Proof paper", exact: true }).click();
   await expect(page.getByRole("img", { name: "First page preview", exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath("settings-selected.png") });
-  await page.getByRole("textbox", { name: "Tags, separated by commas", exact: true }).click();
-  await expect(page.getByRole("textbox", { name: "Tags, separated by commas", exact: true })).toHaveValue("analysis");
+  await expect(page.getByRole("button", { name: "Remove tag analysis", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Remove tag temporary", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Create", exact: true }).click();
   await page.getByRole("button", { name: "Save", exact: true }).waitFor();
   const stored = await page.evaluate(async () => {
@@ -181,6 +187,7 @@ test("Flutter creation resumes a draft and applies saved note settings", async (
     };
   });
   expect(JSON.parse(stored.manifest).template).toBe("lined-medium");
+  expect(JSON.parse(stored.manifest).pageSize).toEqual([792, 612]);
   expect(JSON.parse(stored.metadata).notes.Seminar.tags).toEqual(["analysis"]);
   expect(JSON.parse(stored.metadata).draft).toBeUndefined();
 });

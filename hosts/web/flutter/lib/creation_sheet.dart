@@ -104,11 +104,13 @@ class PaperPreview extends StatefulWidget {
     required this.root,
     required this.paper,
     required this.size,
+    required this.orientation,
   });
   final native.Engine engine;
   final native.Directory root;
   final String paper;
   final String size;
+  final String orientation;
 
   @override
   State<PaperPreview> createState() => _PaperPreviewState();
@@ -119,7 +121,13 @@ class _PaperPreviewState extends State<PaperPreview> {
 
   void load() {
     image = native.host
-        .paperPreview(widget.engine, widget.root, widget.paper, widget.size)
+        .paperPreview(
+          widget.engine,
+          widget.root,
+          widget.paper,
+          widget.size,
+          widget.orientation,
+        )
         .toDart
         .then((bytes) => bytes.toDart);
   }
@@ -133,7 +141,9 @@ class _PaperPreviewState extends State<PaperPreview> {
   @override
   void didUpdateWidget(PaperPreview oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.paper != widget.paper || oldWidget.size != widget.size)
+    if (oldWidget.paper != widget.paper ||
+        oldWidget.size != widget.size ||
+        oldWidget.orientation != widget.orientation)
       load();
   }
 

@@ -31,12 +31,14 @@ export interface LibraryMetadata {
 }
 
 export type PageSizeSetting = "a4" | "letter";
+export type OrientationSetting = "portrait" | "landscape";
 
 export interface StartingTemplate {
   name: string;
   folder: string[];
   paper: string;
   pageSize: PageSizeSetting;
+  orientation?: OrientationSetting;
   tags: string[];
 }
 
@@ -46,6 +48,7 @@ export interface NoteDraft {
   template: string;
   tags: string[];
   pageSize?: PageSizeSetting;
+  orientation?: OrientationSetting;
 }
 
 const FILE = ".library.json";

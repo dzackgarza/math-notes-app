@@ -34,7 +34,7 @@ export async function importPdf(
     for (let index = 0; index < opened.count; ++index) {
       const page = await request({ kind: "page", index });
       if (page.kind !== "page") throw new Error("The PDF worker returned no page.");
-      if (!note) note = await createNotebook(engine, root, parent, file.name.replace(/\.pdf$/i, ""), "blank", "a4");
+      if (!note) note = await createNotebook(engine, root, parent, file.name.replace(/\.pdf$/i, ""), "blank", "a4", "portrait");
       note.document.importPageImage(index, page.png, page.width, page.height);
       if (index === 0) note.document.deletePage(1);
       await note.saver.save();

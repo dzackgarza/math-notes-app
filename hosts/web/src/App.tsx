@@ -221,7 +221,7 @@ export function App() {
               const e = engine();
               if (!e) return;
               setSelected(parent);
-              const notebook = await createNotebook(e, r, parent, title, template, pageSize);
+              const notebook = await createNotebook(e, r, parent, title, template, pageSize, "portrait");
               const metadata = library()?.metadata;
               if (metadata && (tags.length > 0 || metadata.draft)) {
                 const key = pathKey(notebook.path);

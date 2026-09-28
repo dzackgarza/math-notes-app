@@ -52,7 +52,7 @@ earlier layers exists and works in the deployed app.
 | Selection recolor | Exists: a palette swatch recolors the selection (`ink_canvas_recolor_selection`). |
 | Selection duplicate | Exists. |
 | Page overview: thumbnail grid with drag reorder, duplicate, delete | Exists: **Pages** (`hosts/web/flutter/lib/pages_sheet.dart`, on `reorderable_grid`). |
-| Page size and orientation | Size exists (A4, Letter). Orientation missing. |
+| Page size and orientation | Exists: A4 or Letter, portrait or landscape, at creation and for new pages. |
 | Rename, move, and trash notes | Exists. |
 | Title search | Exists. |
 | PDF import and annotation | Exists. |

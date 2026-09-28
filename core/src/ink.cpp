@@ -67,16 +67,27 @@ std::string_view Bytes(const uint8_t *bytes, size_t size) {
 
 InkStatus BadPageIndex() { return Fail(INK_ERROR_ARGUMENT, "page index out of range"); }
 
-InkStatus ParsePageSize(InkPageSize size, double width, double height, ink_engine::PageSize *page_size) {
+// A portrait A4 or Letter keeps its name in notebook.json; every other size
+// is stored as its dimensions.
+InkStatus ParsePageSize(InkPageSize size, InkOrientation orientation, double width, double height,
+                        ink_engine::PageSize *page_size) {
+  if (orientation != INK_PORTRAIT && orientation != INK_LANDSCAPE)
+    return Fail(INK_ERROR_ARGUMENT, "unknown orientation");
   switch (size) {
-    case INK_PAGE_A4: *page_size = std::string("A4"); return INK_OK;
-    case INK_PAGE_LETTER: *page_size = std::string("Letter"); return INK_OK;
+    case INK_PAGE_A4: *page_size = std::string("A4"); break;
+    case INK_PAGE_LETTER: *page_size = std::string("Letter"); break;
     case INK_PAGE_CUSTOM:
       if (!(width > 0 && height > 0)) return Fail(INK_ERROR_ARGUMENT, "non-positive page size");
       *page_size = std::array<double, 2>{width, height};
-      return INK_OK;
+      break;
     default: return Fail(INK_ERROR_ARGUMENT, "unknown page size");
   }
+  if (orientation == INK_PORTRAIT && std::holds_alternative<std::string>(*page_size)) return INK_OK;
+  auto [a, b] = ink_engine::PageDimensions(*page_size);
+  auto [shorter, longer] = std::minmax(a, b);
+  *page_size = orientation == INK_LANDSCAPE ? std::array<double, 2>{longer, shorter}
+                                            : std::array<double, 2>{shorter, longer};
+  return INK_OK;
 }
 
 // One undo or redo step: `*page` is the page the step changed, or -1.
@@ -149,14 +160,15 @@ InkStatus ink_document_create(uint64_t seed, InkDocument **out) {
 }
 
 InkStatus ink_document_create_from_template(uint64_t seed, const char *name, const uint8_t *svg,
-                                            size_t size, InkPageSize page_size, double width,
+                                            size_t size, InkPageSize page_size,
+                                            InkOrientation orientation, double width,
                                             double height, InkDocument **out) {
   return Call([&] {
     if (!name) return NullArgument("name");
     if (!svg && size) return NullArgument("svg");
     if (!out) return NullArgument("out");
     ink_engine::PageSize parsed_size;
-    InkStatus size_status = ParsePageSize(page_size, width, height, &parsed_size);
+    InkStatus size_status = ParsePageSize(page_size, orientation, width, height, &parsed_size);
     if (size_status != INK_OK) return size_status;
     ink_engine::Page template_page = ink_engine::ReadPage(Bytes(svg, size), "pages/0001.svg", {});
     if (template_page.error) return Fail(INK_ERROR_PARSE, std::string(name) + ": " + *template_page.error);
@@ -530,12 +542,12 @@ InkStatus ink_document_move_page(InkDocument *document, size_t from, size_t to) 
   });
 }
 
-InkStatus ink_document_set_page_size(InkDocument *document, InkPageSize size, double width,
-                                     double height) {
+InkStatus ink_document_set_page_size(InkDocument *document, InkPageSize size,
+                                     InkOrientation orientation, double width, double height) {
   return Call([&] {
     if (!document) return NullArgument("document");
     ink_engine::PageSize page_size;
-    InkStatus size_status = ParsePageSize(size, width, height, &page_size);
+    InkStatus size_status = ParsePageSize(size, orientation, width, height, &page_size);
     if (size_status != INK_OK) return size_status;
     ink_engine::DocumentHistory &history = document->history;
     if (history.current().notebook.page_size == page_size) return INK_OK;
