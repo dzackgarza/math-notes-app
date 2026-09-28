@@ -145,11 +145,18 @@ extension type ToolSettings(JSObject value) implements JSObject {
   external double get opacity;
 }
 
-extension type Pen(JSObject value) implements JSObject {
-  external factory Pen.create({String id, String name, ToolSettings tool});
-  external String get id;
-  external String get name;
-  external ToolSettings get tool;
+// Notes/.pens.json (docs/FORMAT.md, Other files).
+extension type PenFile(JSObject value) implements JSObject {
+  external factory PenFile.create({
+    ToolSettings pen,
+    ToolSettings highlighter,
+    JSArray<JSNumber> palette,
+    JSArray<ToolSettings> saved,
+  });
+  external ToolSettings get pen;
+  external ToolSettings get highlighter;
+  external JSArray<JSNumber> get palette;
+  external JSArray<ToolSettings> get saved;
 }
 
 extension type SaveState(JSObject value) implements JSObject {
@@ -428,11 +435,11 @@ extension type Host(JSObject value) implements JSObject {
     JSArray<JSString> parent,
     JSFunction progress,
   );
-  external JSPromise<JSArray<Pen>> readPens(Directory root, Engine engine);
+  external JSPromise<PenFile> readPens(Directory root, Engine engine);
   external JSPromise<VoidResult> writePens(
     Directory root,
     Engine engine,
-    JSArray<Pen> pens,
+    PenFile pens,
   );
   external JSUint8Array penPreview(
     Engine engine,

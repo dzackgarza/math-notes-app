@@ -122,19 +122,29 @@ std::optional<std::string> CheckTool(const InkToolSettings &tool) {
   return std::nullopt;
 }
 
+uint32_t PackRgb(const ink_engine::Rgb &color) {
+  return uint32_t(color.r) << 16 | uint32_t(color.g) << 8 | color.b;
+}
+
+ink_engine::Rgb UnpackRgb(uint32_t rgb) { return {uint8_t(rgb >> 16), uint8_t(rgb >> 8), uint8_t(rgb)}; }
+
 ink_engine::Pen ToPen(const InkToolSettings &tool) {
-  uint32_t rgb = tool.rgb;
-  return {.brush = InkBrush(tool.brush),
-          .color = {uint8_t(rgb >> 16), uint8_t(rgb >> 8), uint8_t(rgb)},
-          .size = tool.size,
-          .opacity = tool.opacity};
+  return {.brush = InkBrush(tool.brush), .color = UnpackRgb(tool.rgb), .size = tool.size, .opacity = tool.opacity};
+}
+
+// The pen and the highlighter each have their own brush kind (InkPenFile).
+std::optional<std::string> CheckKinds(const InkPenFile &file) {
+  if (file.pen.brush == INK_BRUSH_HIGHLIGHTER) return "the pen has the highlighter brush";
+  if (file.highlighter.brush != INK_BRUSH_HIGHLIGHTER) return "the highlighter has a pen brush";
+  return std::nullopt;
 }
 
 // The results of the last ink_pens_* call.
 struct PenFile {
   std::string json;
-  std::vector<ink_engine::PenPreset> presets;
-  std::vector<InkPen> pens;
+  InkPenFile file;
+  std::vector<uint32_t> palette;
+  std::vector<InkToolSettings> saved;
   sk_sp<SkData> preview;
 };
 PenFile gPenFile;
@@ -780,38 +790,54 @@ InkStatus ink_pens_default(const uint8_t **json, size_t *size) {
   });
 }
 
-InkStatus ink_pens_read(const uint8_t *json, size_t size, const InkPen **pens, size_t *count) {
+InkStatus ink_pens_read(const uint8_t *json, size_t size, const InkPenFile **file) {
   return Call([&] {
-    if (!json || !pens || !count) return NullArgument("json, pens or count");
-    gPenFile.presets = ink_engine::ReadPens(Bytes(json, size));
-    gPenFile.pens.clear();
-    for (const ink_engine::PenPreset &p : gPenFile.presets) {
-      InkToolSettings tool{.brush = uint32_t(ink_engine::BrushFromName(p.brush)),
-                           .rgb = uint32_t(p.color.r) << 16 | uint32_t(p.color.g) << 8 | p.color.b,
-                           .size = float(p.size),
-                           .opacity = float(p.opacity)};
-      if (auto error = CheckTool(tool)) return Fail(INK_ERROR_PARSE, "pen " + p.id + ": " + *error);
-      gPenFile.pens.push_back({p.id.c_str(), p.name.c_str(), tool});
-    }
-    *pens = gPenFile.pens.data();
-    *count = gPenFile.pens.size();
+    if (!json || !file) return NullArgument("json or file");
+    ink_engine::PenFile pens = ink_engine::ReadPens(Bytes(json, size));
+    std::optional<std::string> error;
+    auto tool = [&](const ink_engine::PenPreset &p) {
+      if (ink_engine::BrushName(ink_engine::BrushFromName(p.brush)) != p.brush) error = "unknown brush " + p.brush;
+      InkToolSettings settings{.brush = uint32_t(ink_engine::BrushFromName(p.brush)),
+                               .rgb = PackRgb(p.color),
+                               .size = float(p.size),
+                               .opacity = float(p.opacity)};
+      if (auto bad = CheckTool(settings)) error = *bad;
+      return settings;
+    };
+    gPenFile.palette.clear();
+    for (const ink_engine::Rgb &color : pens.palette) gPenFile.palette.push_back(PackRgb(color));
+    gPenFile.saved.clear();
+    for (const ink_engine::PenPreset &p : pens.saved) gPenFile.saved.push_back(tool(p));
+    gPenFile.file = {.pen = tool(pens.pen),
+                     .highlighter = tool(pens.highlighter),
+                     .palette = gPenFile.palette.data(),
+                     .palette_count = gPenFile.palette.size(),
+                     .saved = gPenFile.saved.data(),
+                     .saved_count = gPenFile.saved.size()};
+    if (!error) error = CheckKinds(gPenFile.file);
+    if (error) return Fail(INK_ERROR_PARSE, *error);
+    *file = &gPenFile.file;
     return INK_OK;
   });
 }
 
-InkStatus ink_pens_write(const InkPen *pens, size_t count, const uint8_t **json, size_t *size) {
+InkStatus ink_pens_write(const InkPenFile *file, const uint8_t **json, size_t *size) {
   return Call([&] {
-    if ((!pens && count) || !json || !size) return NullArgument("pens, json or size");
-    std::vector<ink_engine::PenPreset> presets;
-    for (size_t i = 0; i < count; ++i) {
-      if (!pens[i].id || !pens[i].name) return NullArgument("pen id or name");
-      if (auto error = CheckTool(pens[i].tool)) return Fail(INK_ERROR_ARGUMENT, *error);
-      ink_engine::Pen pen = ToPen(pens[i].tool);
-      presets.push_back({.id = pens[i].id, .name = pens[i].name,
-                         .brush = ink_engine::BrushName(pen.brush), .color = pen.color,
-                         .opacity = pen.opacity, .size = pen.size});
-    }
-    gPenFile.json = ink_engine::WritePens(presets);
+    if (!file || (!file->palette && file->palette_count) || (!file->saved && file->saved_count) || !json ||
+        !size)
+      return NullArgument("file, palette, saved, json or size");
+    std::optional<std::string> error = CheckKinds(*file);
+    auto preset = [&](const InkToolSettings &tool) {
+      if (auto bad = CheckTool(tool)) error = *bad;
+      ink_engine::Pen pen = ToPen(tool);
+      return ink_engine::PenPreset{.brush = ink_engine::BrushName(pen.brush), .color = pen.color,
+                                   .opacity = pen.opacity, .size = pen.size};
+    };
+    ink_engine::PenFile pens{.pen = preset(file->pen), .highlighter = preset(file->highlighter)};
+    for (size_t i = 0; i < file->palette_count; ++i) pens.palette.push_back(UnpackRgb(file->palette[i]));
+    for (size_t i = 0; i < file->saved_count; ++i) pens.saved.push_back(preset(file->saved[i]));
+    if (error) return Fail(INK_ERROR_ARGUMENT, *error);
+    gPenFile.json = ink_engine::WritePens(pens);
     *json = reinterpret_cast<const uint8_t *>(gPenFile.json.data());
     *size = gPenFile.json.size();
     return INK_OK;
@@ -1415,9 +1441,14 @@ InkStatus ink_struct_layout(InkStruct which, uint32_t *out, size_t capacity, siz
                   offsetof(InkSelectionInfo, y),     offsetof(InkSelectionInfo, width),
                   offsetof(InkSelectionInfo, height)};
         break;
-      case INK_STRUCT_PEN:
-        layout = {sizeof(InkPen), offsetof(InkPen, id), offsetof(InkPen, name),
-                  offsetof(InkPen, tool)};
+      case INK_STRUCT_PEN_FILE:
+        layout = {sizeof(InkPenFile),
+                  offsetof(InkPenFile, pen),
+                  offsetof(InkPenFile, highlighter),
+                  offsetof(InkPenFile, palette),
+                  offsetof(InkPenFile, palette_count),
+                  offsetof(InkPenFile, saved),
+                  offsetof(InkPenFile, saved_count)};
         break;
       case INK_STRUCT_PDF_EXPORT_SPEC:
         layout = {sizeof(InkPdfExportSpec), offsetof(InkPdfExportSpec, first_page),

@@ -1,5 +1,5 @@
-// Pen presets: Notes/.pens.json through the C ABI, and strokes drawn with them
-// (issue #25).
+// Tool settings: Notes/.pens.json through the C ABI, and strokes drawn with
+// them (issue #25).
 #include <catch2/catch_test_macros.hpp>
 
 #include <string>
@@ -14,18 +14,34 @@ std::string Text(const uint8_t *bytes, size_t size) {
   return {reinterpret_cast<const char *>(bytes), size};
 }
 
-std::vector<InkPen> Read(const std::string &json) {
-  const InkPen *pens = nullptr;
-  size_t count = 0;
-  REQUIRE(ink_pens_read(reinterpret_cast<const uint8_t *>(json.data()), json.size(), &pens, &count) ==
-          INK_OK);
-  return {pens, pens + count};
+// A read file, copied out of the engine's buffers.
+struct Pens {
+  InkToolSettings pen;
+  InkToolSettings highlighter;
+  std::vector<uint32_t> palette;
+  std::vector<InkToolSettings> saved;
+};
+
+Pens Read(const std::string &json) {
+  const InkPenFile *file = nullptr;
+  REQUIRE(ink_pens_read(reinterpret_cast<const uint8_t *>(json.data()), json.size(), &file) == INK_OK);
+  return {file->pen, file->highlighter, {file->palette, file->palette + file->palette_count},
+          {file->saved, file->saved + file->saved_count}};
 }
 
-std::string Write(const std::vector<InkPen> &pens) {
+std::string Write(const Pens &pens) {
+  InkPenFile file{pens.pen,           pens.highlighter,    pens.palette.data(),
+                  pens.palette.size(), pens.saved.data(), pens.saved.size()};
   const uint8_t *json = nullptr;
   size_t size = 0;
-  REQUIRE(ink_pens_write(pens.data(), pens.size(), &json, &size) == INK_OK);
+  REQUIRE(ink_pens_write(&file, &json, &size) == INK_OK);
+  return Text(json, size);
+}
+
+std::string Default() {
+  const uint8_t *json = nullptr;
+  size_t size = 0;
+  REQUIRE(ink_pens_default(&json, &size) == INK_OK);
   return Text(json, size);
 }
 
@@ -62,79 +78,76 @@ void Draw(InkCanvas *canvas, double y, double ms) {
 
 }  // namespace
 
-TEST_CASE("The default pen file lists the three presets in FORMAT.md key order") {
-  const uint8_t *json = nullptr;
-  size_t size = 0;
-  REQUIRE(ink_pens_default(&json, &size) == INK_OK);
-  std::string text = Text(json, size);
-  CHECK(text == R"([
-  {
-    "id": "pen",
-    "name": "Pen",
+TEST_CASE("The default tool settings file has the FORMAT.md form") {
+  std::string text = Default();
+  CHECK(text == R"({
+  "pen": {
     "brush": "pressure-pen",
     "brushVersion": 1,
     "color": "#1A1A1A",
     "opacity": 1,
     "size": 1.2
   },
-  {
-    "id": "thick-pen",
-    "name": "Thick pen",
-    "brush": "marker",
-    "brushVersion": 1,
-    "color": "#1A1A1A",
-    "opacity": 1,
-    "size": 2.4
-  },
-  {
-    "id": "highlighter",
-    "name": "Highlighter",
+  "highlighter": {
     "brush": "highlighter",
     "brushVersion": 1,
     "color": "#FFE066",
     "opacity": 0.35,
     "size": 9.6
-  }
-]
+  },
+  "palette": [
+    "#1A1A1A",
+    "#1F4FB5",
+    "#D92D39",
+    "#29955B",
+    "#FFCF26"
+  ],
+  "saved": []
+}
 )");
   CHECK(Write(Read(text)) == text);
 }
 
-TEST_CASE("An edited preset is written with its new brush, color and size") {
-  const uint8_t *json = nullptr;
-  size_t size = 0;
-  REQUIRE(ink_pens_default(&json, &size) == INK_OK);
-  std::vector<InkPen> pens = Read(Text(json, size));
-  pens[1].tool = {INK_BRUSH_MARKER, 0x2F6FEB, 3.25f, 1};
+TEST_CASE("Edited settings, palette and saved pens read back unchanged") {
+  Pens pens = Read(Default());
+  pens.pen = {INK_BRUSH_MARKER, 0x2F6FEB, 3.25f, 1};
+  pens.highlighter.opacity = 0.5f;
+  pens.palette = {0x2F6FEB, 0xFFFFFF};
+  pens.saved = {{INK_BRUSH_PRESSURE_PEN, 0xD92D39, 0.6f, 1}, {INK_BRUSH_HIGHLIGHTER, 0x3CBFAE, 12, 0.35f}};
 
-  std::vector<InkPen> back = Read(Write(pens));
-  REQUIRE(back.size() == 3);
-  CHECK(std::string(back[1].id) == "thick-pen");
-  CHECK(back[1].tool.brush == INK_BRUSH_MARKER);
-  CHECK(back[1].tool.rgb == 0x2F6FEB);
-  CHECK(back[1].tool.size == 3.25f);
-  CHECK(back[2].tool.opacity == 0.35f);
+  Pens back = Read(Write(pens));
+  CHECK(back.pen.brush == INK_BRUSH_MARKER);
+  CHECK(back.pen.rgb == 0x2F6FEB);
+  CHECK(back.pen.size == 3.25f);
+  CHECK(back.highlighter.opacity == 0.5f);
+  CHECK(back.palette == std::vector<uint32_t>{0x2F6FEB, 0xFFFFFF});
+  REQUIRE(back.saved.size() == 2);
+  CHECK(back.saved[0].rgb == 0xD92D39);
+  CHECK(back.saved[1].brush == INK_BRUSH_HIGHLIGHTER);
+  CHECK(back.saved[1].size == 12);
 }
 
-TEST_CASE("A file that is not a pen list gives a parse error") {
-  std::string bad = R"([{"id": "p", "name": "P"}])";
-  const InkPen *pens = nullptr;
-  size_t count = 0;
-  CHECK(ink_pens_read(reinterpret_cast<const uint8_t *>(bad.data()), bad.size(), &pens, &count) ==
-        INK_ERROR_PARSE);
+TEST_CASE("A file without the FORMAT.md form gives a parse error") {
+  std::string highlighter = R"("highlighter": {"brush": "highlighter", "brushVersion": 1, "color": "#FFE066", "opacity": 0.35, "size": 9.6})";
+  for (std::string bad : {
+           std::string(R"([{"id": "pen", "name": "Pen"}])"),
+           R"({"pen": {"brush": "highlighter", "brushVersion": 1, "color": "#1A1A1A", "opacity": 1, "size": 1}, )" +
+               highlighter + R"(, "palette": [], "saved": []})",
+           R"({"pen": {"brush": "chalk", "brushVersion": 1, "color": "#1A1A1A", "opacity": 1, "size": 1}, )" +
+               highlighter + R"(, "palette": [], "saved": []})"}) {
+    const InkPenFile *file = nullptr;
+    CHECK(ink_pens_read(reinterpret_cast<const uint8_t *>(bad.data()), bad.size(), &file) == INK_ERROR_PARSE);
+  }
 }
 
-TEST_CASE("Strokes keep their own brush, color and size after their preset changes") {
-  const uint8_t *json = nullptr;
-  size_t size = 0;
-  REQUIRE(ink_pens_default(&json, &size) == INK_OK);
-  std::vector<InkPen> pens = Read(Text(json, size));
+TEST_CASE("Strokes keep their own brush, color and size after the settings change") {
+  Pens pens = Read(Default());
   ink_test::Session session;
 
-  InkToolSettings highlighter = pens[2].tool;
+  InkToolSettings highlighter = pens.highlighter;
   REQUIRE(ink_canvas_set_tool(session.get(), &highlighter) == INK_OK);
   Draw(session.get(), 100, 0);
-  InkToolSettings pen = pens[0].tool;
+  InkToolSettings pen = pens.pen;
   REQUIRE(ink_canvas_set_tool(session.get(), &pen) == INK_OK);
   Draw(session.get(), 200, 1000);
   std::string before = SavedPage(session.document);

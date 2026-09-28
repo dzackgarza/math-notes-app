@@ -22,45 +22,56 @@ Json Number(double value, int precision) {
   return rounded;
 }
 
-}  // namespace
-
-// The rail's Pen, Thick pen and Highlighter (docs/specs/tablet-ui.md,
-// Editor) on the three stock brushes of Google Cahier
-// app/src/main/java/com/example/cahier/features/drawing/DrawingToolbox.kt:483-505
-// (android/cahier 209db71).
-std::vector<PenPreset> DefaultPens() {
-  return {
-      {"pen", "Pen", "pressure-pen", 1, {0x1A, 0x1A, 0x1A}, 1, 1.2},
-      {"thick-pen", "Thick pen", "marker", 1, {0x1A, 0x1A, 0x1A}, 1, 2.4},
-      {"highlighter", "Highlighter", "highlighter", 1, {0xFF, 0xE0, 0x66}, 0.35, 9.6},
-  };
+Json Preset(const PenPreset &pen) {
+  return {{"brush", pen.brush},
+          {"brushVersion", pen.brush_version},
+          {"color", WriteColor(pen.color)},
+          {"opacity", Number(pen.opacity, kAnglePrecision)},
+          {"size", Number(pen.size, kCoordinatePrecision)}};
 }
 
-std::vector<PenPreset> ReadPens(std::string_view bytes) {
-  std::vector<PenPreset> pens;
-  for (const Json &pen : Json::parse(bytes)) {
-    pens.push_back({.id = pen.at("id").get<std::string>(),
-                    .name = pen.at("name").get<std::string>(),
-                    .brush = pen.at("brush").get<std::string>(),
-                    .brush_version = pen.at("brushVersion").get<int>(),
-                    .color = ReadColor(pen.at("color").get<std::string>()),
-                    .opacity = pen.at("opacity").get<double>(),
-                    .size = pen.at("size").get<double>()});
-  }
+PenPreset Preset(const Json &pen) {
+  return {.brush = pen.at("brush").get<std::string>(),
+          .brush_version = pen.at("brushVersion").get<int>(),
+          .color = ReadColor(pen.at("color").get<std::string>()),
+          .opacity = pen.at("opacity").get<double>(),
+          .size = pen.at("size").get<double>()};
+}
+
+}  // namespace
+
+// The pen and highlighter on two stock brushes of Google Cahier
+// app/src/main/java/com/example/cahier/features/drawing/DrawingToolbox.kt:483-505
+// (android/cahier 209db71); the palette is the first swatches of the editor
+// mockup (docs/specs/tablet-ui.md, Editor).
+PenFile DefaultPens() {
+  return {.pen = {"pressure-pen", 1, {0x1A, 0x1A, 0x1A}, 1, 1.2},
+          .highlighter = {"highlighter", 1, {0xFF, 0xE0, 0x66}, 0.35, 9.6},
+          .palette = {{0x1A, 0x1A, 0x1A},
+                      {0x1F, 0x4F, 0xB5},
+                      {0xD9, 0x2D, 0x39},
+                      {0x29, 0x95, 0x5B},
+                      {0xFF, 0xCF, 0x26}},
+          .saved = {}};
+}
+
+PenFile ReadPens(std::string_view bytes) {
+  Json json = Json::parse(bytes);
+  PenFile pens{.pen = Preset(json.at("pen")), .highlighter = Preset(json.at("highlighter"))};
+  for (const Json &color : json.at("palette")) pens.palette.push_back(ReadColor(color.get<std::string>()));
+  for (const Json &pen : json.at("saved")) pens.saved.push_back(Preset(pen));
   return pens;
 }
 
-std::string WritePens(const std::vector<PenPreset> &pens) {
-  Json json = Json::array();
-  for (const PenPreset &pen : pens) {
-    json.push_back({{"id", pen.id},
-                    {"name", pen.name},
-                    {"brush", pen.brush},
-                    {"brushVersion", pen.brush_version},
-                    {"color", WriteColor(pen.color)},
-                    {"opacity", Number(pen.opacity, kAnglePrecision)},
-                    {"size", Number(pen.size, kCoordinatePrecision)}});
-  }
+std::string WritePens(const PenFile &pens) {
+  Json palette = Json::array();
+  for (const Rgb &color : pens.palette) palette.push_back(WriteColor(color));
+  Json saved = Json::array();
+  for (const PenPreset &pen : pens.saved) saved.push_back(Preset(pen));
+  Json json = {{"pen", Preset(pens.pen)},
+               {"highlighter", Preset(pens.highlighter)},
+               {"palette", palette},
+               {"saved", saved}};
   return json.dump(2) + "\n";
 }
 

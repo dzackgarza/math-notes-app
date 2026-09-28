@@ -631,38 +631,30 @@ test("an edited pen is written to .pens.json in FORMAT.md key order, and earlier
   const box = (await page.locator("#ink-canvas").boundingBox())!;
   const line = (y: number) => Array.from({ length: 20 }, (_, i) => ({ x: box.x + 150 + i * 8, y: box.y + y }));
 
-  const thick = page.getByRole("button", { name: "Thick pen", exact: true });
-  await thick.click();
   await drawWithPen(page, line(100));
-  await thick.click(); // the selected pen again: its editor
+  await page.getByRole("button", { name: "Pen", exact: true }).click(); // the selected pen again: its editor
   const editor = page.locator("ion-popover");
   await editor.getByRole("button", { name: "Marker" }).click();
   await editor.getByRole("textbox", { name: "Hex" }).fill("#3FA35B");
   await editor.getByRole("textbox", { name: "Hex" }).press("Tab");
   await editor.getByRole("slider", { name: "Size" }).focus();
-  for (let i = 0; i < 8; i++) await page.keyboard.press("ArrowRight"); // 2.4 + 8 × 0.1 pt
+  for (let i = 0; i < 8; i++) await page.keyboard.press("ArrowRight"); // 1.2 + 8 × 0.1 pt
   await page.keyboard.press("Escape");
   await drawWithPen(page, line(200));
 
-  const pen = (id: string, name: string, brush: string, color: string, opacity: string, size: string) =>
-    `  {\n    "id": "${id}",\n    "name": "${name}",\n    "brush": "${brush}",\n    "brushVersion": 1,\n` +
-    `    "color": "${color}",\n    "opacity": ${opacity},\n    "size": ${size}\n  }`;
+  const tool = (brush: string, color: string, opacity: string, size: string) =>
+    `{\n    "brush": "${brush}",\n    "brushVersion": 1,\n    "color": "${color}",\n    "opacity": ${opacity},\n    "size": ${size}\n  }`;
   const expected =
-    "[\n" +
-    [
-      pen("pen", "Pen", "pressure-pen", "#1A1A1A", "1", "1.2"),
-      pen("thick-pen", "Thick pen", "marker", "#3FA35B", "1", "3.2"),
-      pen("highlighter", "Highlighter", "highlighter", "#FFE066", "0.35", "9.6"),
-    ].join(",\n") +
-    "\n]\n";
+    `{\n  "pen": ${tool("marker", "#3FA35B", "1", "2")},\n  "highlighter": ${tool("highlighter", "#FFE066", "0.35", "9.6")},\n` +
+    `  "palette": [\n    "#1A1A1A",\n    "#1F4FB5",\n    "#D92D39",\n    "#29955B",\n    "#FFCF26"\n  ],\n  "saved": []\n}\n`;
   await expect
     .poll(async () => Buffer.from(await readOpfsFile(page, ".pens.json"), "base64").toString(), { timeout: 5000 })
     .toBe(expected);
   await expect
     .poll(() => strokeAttributes(page, "Pens/pages/0001.svg"), { timeout: 5000 })
     .toEqual([
-      ["marker", "#1A1A1A", "2.4"],
-      ["marker", "#3FA35B", "3.2"],
+      ["pressure-pen", "#1A1A1A", "1.2"],
+      ["marker", "#3FA35B", "2"],
     ]);
 });
 
@@ -671,12 +663,12 @@ test("a .pens.json changed by another device is read when the note opens again",
   await newNote(page, "Shared");
   await expect
     .poll(async () => Buffer.from(await readOpfsFile(page, ".pens.json"), "base64").toString(), { timeout: 5000 })
-    .toContain('"id": "pen"');
-  // Another device on the same root renames the pen and makes it thicker.
+    .toContain('"pen": {');
+  // Another device on the same root makes the pen thicker.
   await page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
     const file = await (await root.getFileHandle(".pens.json")).getFile();
-    const text = (await file.text()).replace('"name": "Pen"', '"name": "Proof pen"').replace(/("id": "pen"[^}]*"size": )1.2/, "$13");
+    const text = (await file.text()).replace(/("pen": \{[^}]*"size": )1.2/, "$13");
     const writable = await (await root.getFileHandle(".pens.json")).createWritable();
     await writable.write(text);
     await writable.close();
@@ -684,7 +676,6 @@ test("a .pens.json changed by another device is read when the note opens again",
   await page.getByRole("button", { name: "Library" }).click();
   await openNote(page, "Shared");
 
-  await page.getByRole("button", { name: "Proof pen", exact: true }).click();
   const box = (await page.locator("#ink-canvas").boundingBox())!;
   await drawWithPen(page, Array.from({ length: 20 }, (_, i) => ({ x: box.x + 150 + i * 8, y: box.y + 100 })));
   await expect

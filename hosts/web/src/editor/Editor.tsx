@@ -34,7 +34,7 @@ import Framework7 from "framework7";
 import PullToRefresh from "framework7/components/pull-to-refresh";
 import "framework7/components/pull-to-refresh/css";
 
-import { Brush, Eraser, Orientation, PageSize, Selector, type Canvas, type Pen, type SelectionInfo, type ToolSettings } from "../engine/engine.ts";
+import { Brush, Eraser, Orientation, PageSize, Selector, type Canvas, type PenFile, type SelectionInfo, type ToolSettings } from "../engine/engine.ts";
 import { capabilities, penSamples } from "../input/pointer.ts";
 import { listTemplates } from "../storage/folder.ts";
 import type { Tag } from "../storage/metadata.ts";
@@ -79,9 +79,20 @@ const penIcon = (brush: number, color: string) =>
     <PenLine size={22} color={color} />
   );
 
-// A pen preset's id, or one of the other tools.
+// A pen kind, or one of the other tools.
 type ToolId = string;
 const ERASER = "eraser", SELECT = "select", TEXT = "text";
+// The pen kinds of Notes/.pens.json, in toolbar order.
+type PenKind = "pen" | "highlighter";
+const PEN_KINDS: { id: PenKind; name: string }[] = [
+  { id: "pen", name: "Pen" },
+  { id: "highlighter", name: "Highlighter" },
+];
+interface Pen {
+  id: PenKind;
+  name: string;
+  tool: ToolSettings;
+}
 
 // The eraser's two kinds (#23); the pen's eraser end uses the selected one.
 const ERASERS = { stroke: { label: "Whole stroke", kind: Eraser.stroke }, free: { label: "Partial", kind: Eraser.free } } as const;
@@ -387,12 +398,16 @@ export function Editor(props: {
   const saveNow = () => saver.save().catch((error) => toast(error instanceof Error ? error.message : String(error), "danger"));
   const [templates] = createResource(() => listTemplates(root));
   const [template, setTemplate] = createSignal(props.notebook.template);
-  // The presets of Notes/.pens.json, in toolbar order.
-  const [pens, setPens] = createSignal<Pen[]>([]);
+  // Notes/.pens.json; the toolbar shows its pen and highlighter.
+  const [penFile, setPenFile] = createSignal<PenFile | null>(null);
+  const pens = (): Pen[] => {
+    const file = penFile();
+    return file ? PEN_KINDS.map((k) => ({ id: k.id, name: k.name, tool: file[k.id] })) : [];
+  };
   const [tool, setTool] = createSignal<ToolId>("");
-  // The preset the palette and the pen editor change: the selected pen, or
+  // The pen kind the palette and the pen editor change: the selected one, or
   // the last one before the eraser or the lasso.
-  const [penId, setPenId] = createSignal("");
+  const [penId, setPenId] = createSignal<PenKind>("pen");
   const pen = () => pens().find((p) => p.id === penId());
   const [eraser, setEraser] = createSignal<EraserId>("stroke");
   const [selector, setSelector] = createSignal<SelectorId>("lasso");
@@ -406,7 +421,7 @@ export function Editor(props: {
   const [figureOverlay, setFigureOverlay] = createSignal(false);
   const selectTool = (id: ToolId) => {
     setTool(id);
-    if (id !== ERASER && id !== SELECT && id !== TEXT) setPenId(id);
+    if (id === "pen" || id === "highlighter") setPenId(id);
   };
 
   // A pen edit applies at once (Write PenToolbar::updateColor, updateWidth,
@@ -417,11 +432,11 @@ export function Editor(props: {
   const writePensNow = () => {
     clearTimeout(penWrite);
     penWrite = 0;
-    penWritePending = writePens(root, doc.engine, pens());
+    penWritePending = writePens(root, doc.engine, penFile()!);
     return penWritePending;
   };
   const editPen = (change: Partial<ToolSettings>) => {
-    setPens((list) => list.map((p) => (p.id === penId() ? { ...p, tool: { ...p.tool, ...change } } : p)));
+    setPenFile((file) => file && { ...file, [penId()]: { ...file[penId()], ...change } });
     clearTimeout(penWrite);
     penWrite = window.setTimeout(() => void writePensNow(), PEN_WRITE_MS);
   };
@@ -432,14 +447,12 @@ export function Editor(props: {
       alignment: "start",
       cssClass: "pen-editor-popover",
     });
-  // Reads the presets again: on opening and when the window gains focus, as
+  // Reads the settings again: on opening and when the window gains focus, as
   // another device may have changed the file. An edit not yet written wins.
   const loadPens = async () => {
     if (penWrite) return;
-    const list = await readPens(root, doc.engine);
-    setPens(list);
-    if (!list.some((p) => p.id === penId())) setPenId(list[0]?.id ?? "");
-    if (tool() === "" || (tool() !== ERASER && tool() !== SELECT && tool() !== TEXT && !list.some((p) => p.id === tool()))) setTool(penId());
+    setPenFile(await readPens(root, doc.engine));
+    if (tool() === "") setTool(penId());
   };
   const [view, setView] = createSignal<View>({ scale: 1, x: 0, y: 0 });
   const [pages, setPages] = createSignal(doc.pageCount());

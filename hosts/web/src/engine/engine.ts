@@ -43,7 +43,7 @@ export const PEN_SAMPLE = {
   reserved: 59,
 } as const;
 export const TOOL_SETTINGS = { byteLength: 16, brush: 0, rgb: 4, size: 8, opacity: 12 } as const;
-export const INK_PEN = { byteLength: 24, id: 0, name: 4, tool: 8 } as const;
+export const INK_PEN_FILE = { byteLength: 48, pen: 0, highlighter: 16, palette: 32, paletteCount: 36, saved: 40, savedCount: 44 } as const;
 export const INK_FILE = { byteLength: 16, path: 0, bytes: 4, size: 8, kind: 12 } as const;
 export const SELECTION_INFO = { byteLength: 40, count: 0, page: 4, x: 8, y: 16, width: 24, height: 32 } as const;
 export const PDF_EXPORT_SPEC = { byteLength: 16, firstPage: 0, pageCount: 4, includeLinks: 8, includeHiddenLayers: 12 } as const;
@@ -52,7 +52,7 @@ export const PageSize = { a4: 0, letter: 1, custom: 2 } as const;
 export const Orientation = { portrait: 0, landscape: 1 } as const;
 
 // InkStruct ids of ink_struct_layout.
-export const Struct = { penSample: 0, toolSettings: 1, file: 2, selectionInfo: 3, pen: 4, pdfExportSpec: 5 } as const;
+export const Struct = { penSample: 0, toolSettings: 1, file: 2, selectionInfo: 3, penFile: 4, pdfExportSpec: 5 } as const;
 
 export interface PenSample {
   x: number;
@@ -91,11 +91,13 @@ export interface ToolSettings {
   opacity: number;
 }
 
-// A preset of Notes/.pens.json (docs/FORMAT.md, Other files).
-export interface Pen {
-  id: string;
-  name: string;
-  tool: ToolSettings;
+// Notes/.pens.json (docs/FORMAT.md, Other files): the pen and highlighter
+// settings, the palette as 0xRRGGBB values, and the saved pens.
+export interface PenFile {
+  pen: ToolSettings;
+  highlighter: ToolSettings;
+  palette: number[];
+  saved: ToolSettings[];
 }
 
 export interface NavigationMark {
@@ -295,23 +297,27 @@ export class Engine {
     });
   }
 
-  // The presets of a .pens.json. Throws EngineError with Status.parse when the
-  // file is not a pen list.
-  readPens(json: Uint8Array): Pen[] {
+  // The settings of a .pens.json. Throws EngineError with Status.parse when
+  // the file does not have the FORMAT.md form.
+  readPens(json: Uint8Array): PenFile {
     const bytes = this.copyIn(json);
     try {
-      return this.withScratch(8, (out) => {
-        this.check(this.module._ink_pens_read(bytes, json.length, out, out + 4));
+      return this.withScratch(4, (out) => {
+        this.check(this.module._ink_pens_read(bytes, json.length, out));
         const view = this.view();
-        const pens = view.getUint32(out, true);
-        return Array.from({ length: view.getUint32(out + 4, true) }, (_, i) => {
-          const at = pens + i * INK_PEN.byteLength;
-          return {
-            id: this.readCString(view.getUint32(at + INK_PEN.id, true)),
-            name: this.readCString(view.getUint32(at + INK_PEN.name, true)),
-            tool: readTool(view, at + INK_PEN.tool),
-          };
-        });
+        const at = view.getUint32(out, true);
+        const palette = view.getUint32(at + INK_PEN_FILE.palette, true);
+        const saved = view.getUint32(at + INK_PEN_FILE.saved, true);
+        return {
+          pen: readTool(view, at + INK_PEN_FILE.pen),
+          highlighter: readTool(view, at + INK_PEN_FILE.highlighter),
+          palette: Array.from({ length: view.getUint32(at + INK_PEN_FILE.paletteCount, true) }, (_, i) =>
+            view.getUint32(palette + 4 * i, true),
+          ),
+          saved: Array.from({ length: view.getUint32(at + INK_PEN_FILE.savedCount, true) }, (_, i) =>
+            readTool(view, saved + i * TOOL_SETTINGS.byteLength),
+          ),
+        };
       });
     } finally {
       this.free(bytes);
@@ -319,32 +325,30 @@ export class Engine {
   }
 
   // The .pens.json of `pens`.
-  writePens(pens: readonly Pen[]): Uint8Array<ArrayBuffer> {
-    const strings: number[] = [];
-    const cString = (text: string) => {
-      const bytes = encoder.encode(`${text}\0`);
-      strings.push(this.copyIn(bytes));
-      return strings[strings.length - 1];
-    };
-    const array = this.malloc(Math.max(pens.length, 1) * INK_PEN.byteLength);
+  writePens(pens: PenFile): Uint8Array<ArrayBuffer> {
+    const file = this.malloc(INK_PEN_FILE.byteLength);
+    const palette = this.malloc(Math.max(pens.palette.length, 1) * 4);
+    const saved = this.malloc(Math.max(pens.saved.length, 1) * TOOL_SETTINGS.byteLength);
     try {
-      pens.forEach((pen, i) => {
-        const at = array + i * INK_PEN.byteLength;
-        const id = cString(pen.id), name = cString(pen.name);
-        const view = this.view();
-        view.setUint32(at + INK_PEN.id, id, true);
-        view.setUint32(at + INK_PEN.name, name, true);
-        writeTool(view, at + INK_PEN.tool, pen.tool);
-      });
+      const view = this.view();
+      writeTool(view, file + INK_PEN_FILE.pen, pens.pen);
+      writeTool(view, file + INK_PEN_FILE.highlighter, pens.highlighter);
+      pens.palette.forEach((rgb, i) => view.setUint32(palette + 4 * i, rgb, true));
+      pens.saved.forEach((tool, i) => writeTool(view, saved + i * TOOL_SETTINGS.byteLength, tool));
+      view.setUint32(file + INK_PEN_FILE.palette, palette, true);
+      view.setUint32(file + INK_PEN_FILE.paletteCount, pens.palette.length, true);
+      view.setUint32(file + INK_PEN_FILE.saved, saved, true);
+      view.setUint32(file + INK_PEN_FILE.savedCount, pens.saved.length, true);
       return this.withScratch(8, (out) => {
-        this.check(this.module._ink_pens_write(array, pens.length, out, out + 4));
+        this.check(this.module._ink_pens_write(file, out, out + 4));
         const view = this.view();
         const at = view.getUint32(out, true);
         return this.heap().slice(at, at + view.getUint32(out + 4, true));
       });
     } finally {
-      strings.forEach((s) => this.free(s));
-      this.free(array);
+      this.free(saved);
+      this.free(palette);
+      this.free(file);
     }
   }
 

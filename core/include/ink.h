@@ -187,23 +187,29 @@ typedef struct InkToolSettings {
 
 /* ---- Pen presets ------------------------------------------------------ */
 
-/* One preset of Notes/.pens.json (docs/FORMAT.md, Other files). */
-typedef struct InkPen {
-  const char *id;
-  const char *name;
-  InkToolSettings tool;
-} InkPen;
+/* The tool settings of Notes/.pens.json (docs/FORMAT.md, Other files). The
+   pen's brush is the pressure pen or the marker; the highlighter's is the
+   highlighter. A saved pen restores the highlighter when its brush is the
+   highlighter, else the pen. */
+typedef struct InkPenFile {
+  InkToolSettings pen;
+  InkToolSettings highlighter;
+  const uint32_t *palette; /* 0xRRGGBB, in toolbar order */
+  size_t palette_count;
+  const InkToolSettings *saved; /* in toolbar order */
+  size_t saved_count;
+} InkPenFile;
 
 /* The bytes of the default .pens.json, which the host writes on first use.
    `*json` stays valid until the next ink_pens_* call. */
 InkStatus ink_pens_default(const uint8_t **json, size_t *size);
-/* The presets of a .pens.json, in toolbar order. `*pens` and its strings stay
-   valid until the next ink_pens_* call. INK_ERROR_PARSE when the file is not
-   a pen list. */
-InkStatus ink_pens_read(const uint8_t *json, size_t size, const InkPen **pens, size_t *count);
-/* The .pens.json of `pens`. `*json` stays valid until the next ink_pens_*
+/* The settings of a .pens.json. `*file` and its arrays stay valid until the
+   next ink_pens_* call. INK_ERROR_PARSE when the file does not have the
+   FORMAT.md form. */
+InkStatus ink_pens_read(const uint8_t *json, size_t size, const InkPenFile **file);
+/* The .pens.json of `file`. `*json` stays valid until the next ink_pens_*
    call. */
-InkStatus ink_pens_write(const InkPen *pens, size_t count, const uint8_t **json, size_t *size);
+InkStatus ink_pens_write(const InkPenFile *file, const uint8_t **json, size_t *size);
 /* A PNG of a sample stroke drawn with `tool`: `width` x `height` pixels at
    `scale` pixels per pt, on a transparent background. `*png` stays valid
    until the next ink_pens_* call. */
@@ -398,7 +404,7 @@ typedef enum InkStruct {
   INK_STRUCT_TOOL_SETTINGS = 1,
   INK_STRUCT_FILE = 2,
   INK_STRUCT_SELECTION_INFO = 3,
-  INK_STRUCT_PEN = 4,
+  INK_STRUCT_PEN_FILE = 4,
   INK_STRUCT_PDF_EXPORT_SPEC = 5
 } InkStruct;
 
@@ -440,10 +446,13 @@ static_assert(offsetof(InkFile, size) == 2 * sizeof(void *));
 static_assert(offsetof(InkFile, kind) == 3 * sizeof(void *));
 static_assert(sizeof(InkFile) == 4 * sizeof(void *));
 
-static_assert(offsetof(InkPen, id) == 0);
-static_assert(offsetof(InkPen, name) == sizeof(void *));
-static_assert(offsetof(InkPen, tool) == 2 * sizeof(void *));
-static_assert(sizeof(InkPen) == 2 * sizeof(void *) + sizeof(InkToolSettings));
+static_assert(offsetof(InkPenFile, pen) == 0);
+static_assert(offsetof(InkPenFile, highlighter) == 16);
+static_assert(offsetof(InkPenFile, palette) == 32);
+static_assert(offsetof(InkPenFile, palette_count) == 32 + sizeof(void *));
+static_assert(offsetof(InkPenFile, saved) == 32 + 2 * sizeof(void *));
+static_assert(offsetof(InkPenFile, saved_count) == 32 + 3 * sizeof(void *));
+static_assert(sizeof(InkPenFile) == 32 + 4 * sizeof(void *));
 
 static_assert(offsetof(InkSelectionInfo, count) == 0);
 static_assert(offsetof(InkSelectionInfo, page) == 4);

@@ -502,7 +502,7 @@ test("Flutter notebook retains pen input and pages after save and reopen", async
   await expect(page.getByRole("button", { name: "Lecture", exact: true })).toBeVisible();
 });
 
-test("Flutter pen popover changes the brush and size of the selected preset", async ({ page }, info) => {
+test("Flutter pen popover changes the brush and size of the pen", async ({ page }, info) => {
   test.setTimeout(120_000);
   await page.goto("favicon.svg");
   await page.evaluate(async () => {
@@ -527,5 +527,5 @@ test("Flutter pen popover changes the brush and size of the selected preset", as
     const root = await navigator.storage.getDirectory();
     return JSON.parse(await (await (await root.getFileHandle(".pens.json")).getFile()).text());
   });
-  expect(pens[0]).toMatchObject({ id: "pen", brush: "marker", size: 3.6 });
+  expect(pens.pen).toMatchObject({ brush: "marker", size: 3.6 });
 });

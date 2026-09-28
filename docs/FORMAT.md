@@ -25,7 +25,7 @@ new path. A directory is a notebook when it holds a `notebook.json`.
 
 ```text
 Notes/                         root the user picked
-├── .pens.json                 pen presets, shared by all devices
+├── .pens.json                 tool settings, shared by all devices
 ├── .library.json              library metadata: tags, favorites, descriptions
 ├── .templates/                page templates (notebook directories)
 ├── .clippings/                clippings library (a notebook directory)
@@ -249,31 +249,52 @@ a notebook directory (send, archive, download).
 
 ## Other files
 
-- `Notes/.pens.json`: the pen presets, an array of
-  `{ "id", "name", "brush", "brushVersion", "color", "opacity", "size" }`,
-  in toolbar order, with the keys in this order, two-space indent and one
-  trailing newline. `brush` and `brushVersion` are as `mn:brush` and
-  `mn:brush-version`; `color` is `#RRGGBB`; `opacity` (0 to 1, 3 decimals)
-  becomes the strokes' `fill-opacity`; `size` is in points (2 decimals).
-  Numbers have no trailing zeros. The app writes these presets on first use:
+- `Notes/.pens.json`: the tool settings, shared by all devices. An object
+  with the keys `pen`, `highlighter`, `palette`, `saved`, in this order,
+  two-space indent and one trailing newline:
+  - `pen` and `highlighter`: the current settings of the two drawing tools,
+    each `{ "brush", "brushVersion", "color", "opacity", "size" }` with the
+    keys in this order. `brush` and `brushVersion` are as `mn:brush` and
+    `mn:brush-version`; the pen's brush is `pressure-pen` or `marker`, the
+    highlighter's is `highlighter`. `color` is `#RRGGBB`; `opacity` (0 to 1,
+    3 decimals) becomes the strokes' `fill-opacity`; `size` is in points
+    (2 decimals). Numbers have no trailing zeros.
+  - `palette`: the visible color swatches, `#RRGGBB`, in toolbar order.
+  - `saved`: the saved pens, in toolbar order, each in the form of `pen`.
+    A saved pen with the `highlighter` brush restores the highlighter; any
+    other restores the pen.
+
+  The app writes this file on first use:
 
   ```json
-  [
-    {
-      "id": "pen",
-      "name": "Pen",
+  {
+    "pen": {
       "brush": "pressure-pen",
       "brushVersion": 1,
       "color": "#1A1A1A",
       "opacity": 1,
       "size": 1.2
-    }
-  ]
+    },
+    "highlighter": {
+      "brush": "highlighter",
+      "brushVersion": 1,
+      "color": "#FFE066",
+      "opacity": 0.35,
+      "size": 9.6
+    },
+    "palette": [
+      "#1A1A1A",
+      "#1F4FB5",
+      "#D92D39",
+      "#29955B",
+      "#FFCF26"
+    ],
+    "saved": []
+  }
   ```
 
-  followed by `thick-pen` (`Thick pen`, `marker`, `#1A1A1A`, 2.4 pt) and
-  `highlighter` (`highlighter`, `#FFE066`, opacity 0.35, 9.6 pt). A stroke keeps the brush, color, opacity and size
-  it was drawn with; editing a preset changes only later strokes.
+  A stroke keeps the brush, color, opacity and size it was drawn with;
+  changing a tool's settings changes only later strokes.
 - `Notes/.templates/<name>/`: a notebook directory. Page 1's background is
   the template. The app creates `blank`, `lined-wide`, `lined-medium`,
   `lined-narrow` (y-ruling 21.6, 19.2, 16.8 pt; margin 48 pt),

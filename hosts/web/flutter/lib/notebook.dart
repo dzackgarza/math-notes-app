@@ -123,8 +123,14 @@ class _NotebookState extends State<Notebook>
   late final JSFunction saveListener;
   late final String viewType;
   native.Canvas? canvas;
-  List<native.Pen> pens = [];
-  int pen = 0;
+  native.PenFile? pens;
+  // The pen kind the palette and the pen settings change: pen or highlighter.
+  String pen = 'pen';
+  native.ToolSettings get penTool =>
+      pen == 'highlighter' ? pens!.highlighter : pens!.pen;
+  List<int> get palette => [
+    for (final color in pens?.palette.toDart ?? <JSNumber>[]) color.toDartInt,
+  ];
   // The selected pen's rail row, where the pen settings popover points.
   final penTile = GlobalKey();
   web.HTMLInputElement? colorInput;
@@ -222,11 +228,11 @@ class _NotebookState extends State<Notebook>
     })..start();
     unawaited(
       run(() async {
-        pens =
-            (await native.host.readPens(widget.note.root, widget.engine).toDart)
-                .toDart;
+        pens = await native.host
+            .readPens(widget.note.root, widget.engine)
+            .toDart;
         canvas = await native.host.mountCanvas(widget.note, element).toDart;
-        canvas!.setTool(pens[pen].tool);
+        canvas!.setTool(penTool);
         updateView();
         receiveDestination();
       }),
@@ -588,7 +594,7 @@ class _NotebookState extends State<Notebook>
           : selector,
       value == 'lasso' || value == 'space' || ruledErase,
     );
-    if (value == 'pen') canvas?.setTool(pens[pen].tool);
+    if (value == 'pen') canvas?.setTool(penTool);
   }
 
   Future<void> refreshClippings() async {
@@ -785,8 +791,8 @@ class _NotebookState extends State<Notebook>
   // pen popover): a sample stroke, brush, size presets and slider, opacity,
   // and color. The preset changes once, when the popover closes.
   Future<void> configurePen() async {
-    if (pens.isEmpty) return;
-    final original = pens[pen].tool;
+    if (pens == null) return;
+    final original = penTool;
     var brush = original.brush;
     var rgb = original.rgb;
     var size = original.size;
@@ -828,7 +834,7 @@ class _NotebookState extends State<Notebook>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  pens[pen].name,
+                  pen == 'pen' ? 'Pen' : 'Highlighter',
                   style: CupertinoTheme.of(context).textTheme.navTitleTextStyle,
                 ),
                 Image.memory(
@@ -837,38 +843,40 @@ class _NotebookState extends State<Notebook>
                   height: 64,
                   gaplessPlayback: true,
                 ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    for (final (value, label, icon) in const [
-                      (0, 'Pen', CupertinoIcons.pencil),
-                      (1, 'Marker', CupertinoIcons.pencil_outline),
-                      (2, 'Highlighter', CupertinoIcons.paintbrush),
-                    ])
-                      CupertinoButton(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        onPressed: () => update(() => brush = value),
-                        child: Column(
-                          children: [
-                            Icon(
-                              icon,
-                              color: brush == value
-                                  ? CupertinoColors.activeBlue
-                                  : CupertinoColors.label.resolveFrom(context),
-                            ),
-                            Text(
-                              label,
-                              style: caption.copyWith(
+                if (pen == 'pen')
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      for (final (value, label, icon) in const [
+                        (0, 'Pen', CupertinoIcons.pencil),
+                        (1, 'Marker', CupertinoIcons.pencil_outline),
+                      ])
+                        CupertinoButton(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          onPressed: () => update(() => brush = value),
+                          child: Column(
+                            children: [
+                              Icon(
+                                icon,
                                 color: brush == value
                                     ? CupertinoColors.activeBlue
-                                    : null,
+                                    : CupertinoColors.label.resolveFrom(
+                                        context,
+                                      ),
                               ),
-                            ),
-                          ],
+                              Text(
+                                label,
+                                style: caption.copyWith(
+                                  color: brush == value
+                                      ? CupertinoColors.activeBlue
+                                      : null,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                  ],
-                ),
+                    ],
+                  ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
@@ -1014,45 +1022,37 @@ class _NotebookState extends State<Notebook>
     input.click();
   }
 
-  // Replaces the selected preset in .pens.json; later strokes use it.
+  // Replaces the selected kind's settings in .pens.json; later strokes use
+  // them.
   Future<void> updatePen({
     required int brush,
     required int rgb,
     required double size,
     required double opacity,
   }) async {
-    final original = pens[pen];
-    final updated = native.Pen.create(
-      id: original.id,
-      name: original.name,
-      tool: native.ToolSettings.create(
-        brush: brush,
-        rgb: rgb,
-        size: size,
-        opacity: opacity,
-      ),
+    final tool = native.ToolSettings.create(
+      brush: brush,
+      rgb: rgb,
+      size: size,
+      opacity: opacity,
     );
-    final next = [...pens]..[pen] = updated;
-    await native.host
-        .writePens(widget.note.root, widget.engine, next.toJS)
-        .toDart;
+    final next = native.PenFile.create(
+      pen: pen == 'pen' ? tool : pens!.pen,
+      highlighter: pen == 'highlighter' ? tool : pens!.highlighter,
+      palette: pens!.palette,
+      saved: pens!.saved,
+    );
+    await native.host.writePens(widget.note.root, widget.engine, next).toDart;
     setState(() => pens = next);
     chooseTool('pen');
   }
 
   // The rail's swatches (docs/specs/tablet-ui.md, Editor): a color recolors
-  // the selection when there is one, and the selected pen preset otherwise.
-  static const palette = [
-    0x1A1A1A, 0x8E8E93, 0xFFFFFF, //
-    0x1F4FB5, 0xD92D39, 0xF2842B, //
-    0x29955B, 0x865AC2, 0xF4A6C0, //
-    0xFFCF26, 0x3CBFAE, 0xC9A0F2, //
-    0x0B2A5B, 0x8B5A2B, 0x2F9FE0, //
-  ];
+  // the selection when there is one, and the selected pen kind otherwise.
 
   Future<void> choosePenColor(int rgb) async {
-    if (pens.isEmpty) return;
-    final current = pens[pen].tool;
+    if (pens == null) return;
+    final current = penTool;
     await updatePen(
       brush: current.brush,
       rgb: rgb,
@@ -1062,7 +1062,7 @@ class _NotebookState extends State<Notebook>
   }
 
   Widget paletteGrid() {
-    final current = pens.isEmpty ? null : pens[pen].tool.rgb;
+    final current = pens == null ? null : penTool.rgb;
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
       child: Wrap(
@@ -1625,29 +1625,41 @@ class _NotebookState extends State<Notebook>
                       width: 170,
                       child: ListView(
                         children: [
-                          for (var i = 0; i < pens.length; i++)
-                            CupertinoListTile(
-                              key: i == pen ? penTile : null,
-                              title: Text(pens[i].name),
-                              subtitle: Text(
-                                '${pens[i].tool.size.toStringAsFixed(1)} pt',
+                          for (final (kind, name) in const [
+                            ('pen', 'Pen'),
+                            ('highlighter', 'Highlighter'),
+                          ])
+                            if (pens case final file?)
+                              Builder(
+                                builder: (context) {
+                                  final settings = kind == 'pen'
+                                      ? file.pen
+                                      : file.highlighter;
+                                  return CupertinoListTile(
+                                    key: kind == pen ? penTile : null,
+                                    title: Text(name),
+                                    subtitle: Text(
+                                      '${settings.size.toStringAsFixed(1)} pt',
+                                    ),
+                                    leading: Icon(
+                                      CupertinoIcons.pencil,
+                                      color: Color(0xFF000000 | settings.rgb),
+                                    ),
+                                    backgroundColor:
+                                        tool == 'pen' && pen == kind
+                                        ? selectedFill
+                                        : null,
+                                    onTap: () {
+                                      if (tool == 'pen' && pen == kind) {
+                                        unawaited(run(configurePen));
+                                        return;
+                                      }
+                                      pen = kind;
+                                      chooseTool('pen');
+                                    },
+                                  );
+                                },
                               ),
-                              leading: Icon(
-                                CupertinoIcons.pencil,
-                                color: Color(0xFF000000 | pens[i].tool.rgb),
-                              ),
-                              backgroundColor: tool == 'pen' && pen == i
-                                  ? selectedFill
-                                  : null,
-                              onTap: () {
-                                if (tool == 'pen' && pen == i) {
-                                  unawaited(run(configurePen));
-                                  return;
-                                }
-                                pen = i;
-                                chooseTool('pen');
-                              },
-                            ),
                           CupertinoListTile(
                             title: const Text('Eraser'),
                             leading: const Icon(CupertinoIcons.clear),
