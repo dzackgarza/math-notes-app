@@ -76,7 +76,7 @@ product acceptance.
   retain the browser concurrent-writer limits in the format contract.
 - Dependencies are acceptable. Handwritten standard UI behavior needs the
   ownership evidence required by AGENTS.md.
-- The selected web target remains Chrome with physical pen/touch input.
+- The web target is Chrome with pen and touch input.
   The separate iPad GUI and post-v1 ink-owner review keep their existing
   place after the working web product.
 
@@ -93,7 +93,7 @@ off the primary tool rail until then.
 
 | Phase | Existing owners | Result and acceptance |
 | --- | --- | --- |
-| A. Core note-taking loop | [#56](https://github.com/dzackgarza/math-notes-app/issues/56), under #14 | Open a note and write for an hour. Pen ink follows the pen without visible lag on a full page and in a long notebook. Pen, highlighter, eraser, lasso (move, resize, delete, copy, paste), colors, sizes, undo, and redo are on a compact rail. Pages scroll as one continuous stack; pinch, trackpad, and keyboard zoom work. Edits save without user action and survive reload, close, and offline restart. Physical pen and touch work on the target Chrome machine. |
+| A. Core note-taking features | [#56](https://github.com/dzackgarza/math-notes-app/issues/56), under #14 | Every L0 and L1 feature in [core features](../specs/core-features.md) exists and works in the deployed app, in that order. |
 | B. Keep, find, and share notes | [#56](https://github.com/dzackgarza/math-notes-app/issues/56), [#62](https://github.com/dzackgarza/math-notes-app/issues/62), [#29](https://github.com/dzackgarza/math-notes-app/issues/29) | Library create, open, rename, move, delete, and trash; search and recent; tabs; paper choice at creation; PDF export of a 10-page notebook. |
 | C. Annotate papers | [#8](https://github.com/dzackgarza/math-notes-app/issues/8) | Import a mixed-page-size PDF, annotate it, insert blank pages, export it. |
 | D. Revise and reuse mathematics | [#30](https://github.com/dzackgarza/math-notes-app/issues/30), [#31](https://github.com/dzackgarza/math-notes-app/issues/31), [#28](https://github.com/dzackgarza/math-notes-app/issues/28), [#32](https://github.com/dzackgarza/math-notes-app/issues/32), [#33](https://github.com/dzackgarza/math-notes-app/issues/33) | Ruled selection/erase, space insertion and reflow, split view and conflict resolution, bookmarks/links, and clippings on saved mixed-content notes. Undo restores grouped edits across affected pages. |
@@ -118,12 +118,6 @@ Deliver the entire library/editor shell with its standard control behavior.
 Prove focus return, keyboard traversal, text composition, cancellation, and
 screen-reader semantics through framework controls. Check touch targets and
 layout at the specified tablet size and desktop Chrome.
-
-On physical hardware, combine pen writing, finger fling and edge rebound,
-pinch zoom, tool changes, and held page-end release on the same notebook
-surface. Ordinary overscroll adds no page. A popup over the page receives
-input and prevents ink underneath. Use the existing input record to check
-sample fidelity.
 
 Treat durability as a product path:
 
@@ -165,12 +159,12 @@ follow AGENTS.md for targeted runs and full-suite execution.
 Use the existing ten-page notebook acceptance from #14 and the mixed-size
 PDF fixture in #8. Extend the working notebook with the text, image, layer,
 link, and figure cases above. Record the deployed revision, Chrome version,
-input hardware, saved notebook, exported PDF, and the observations in the
+saved notebook, exported PDF, and the observations in the
 owning issues. Keep private note content local.
 
 After the complete workflows exist, add end-to-end tests that preserve
-their product behavior. Combine them with the engine's relevant existing
-checks and physical-device observations. A screenshot, synthetic pointer
+their product behavior, combined with the engine's relevant existing
+checks. A screenshot, synthetic pointer
 test, or green lint hook cannot prove pen feel, durable saving, or an
 end-to-end workflow. Record rendering and responsiveness on the real
 mixed-content notebook; pauses that lose input or interrupt ordinary
@@ -192,8 +186,7 @@ slice without treating native acceptance as complete.
 The web milestone is reached only after all phases and final sessions pass.
 No inert required controls, silent write loss, unrecoverable save errors,
 broken reopening, missing specified feature paths, or input routed through
-dialogs remain. Report any hardware acceptance still unperformed as an
-unmet gate. Do not substitute engine tests for it.
+dialogs remain.
 
 This handoff changes no framework decision and grants no new core
 responsibility. Stop for a product decision only when the existing

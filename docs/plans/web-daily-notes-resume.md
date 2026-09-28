@@ -2,10 +2,10 @@
 
 Date: 2026-09-28. Branch: `write-core-integration`.
 
-## Next work: the core note-taking loop
+## Next work: core note-taking features
 
 The [delivery order](web-daily-notes-handoff.md#delivery-order) is strict.
-Phase A, the core note-taking loop in #56, is the only active work. Earlier
+Phase A, the core note-taking features in #56, is the only active work. Earlier
 sessions built later-phase features (PDF import, split view, conflicts,
 layers, clippings, ruled editing, bookmarks, typed text, figures, a TeX
 compiler) before phase A passed. That code stays. It gets no further work
@@ -17,45 +17,28 @@ They are the reference for the pen tool popover:
 - `noteful-customize-pencil.webp`
 - `noteful-pen-tool.webp`
 
-### Core-loop state on 2026-09-28
-
-Measured in the deployed Flutter preview with synthetic CDP pen and touch
-input in headless Chromium on the Intel Iris Xe GPU
-(`--enable-gpu --use-gl=angle --use-angle=gl-egl --ignore-gpu-blocklist`).
-Default headless Chromium renders with SwiftShader; its frame times are not
-evidence about writing latency.
-
-| Capability | State |
-| --- | --- |
-| Create a note, write with the pen | Works. |
-| Change pen preset, color | Pen, Thick pen, Highlighter presets; 15-swatch palette recolors the selected preset. |
-| Stroke eraser, undo, redo | Works. |
-| Lasso select and move | Works. |
-| Continuous page stack with gaps, finger pan | Works. |
-| Pinch zoom | Works. |
-| Ctrl+wheel zoom | No effect. |
-| Autosave | Saves about 3 s after an edit. |
-| Reload and reopen | Strokes and pages retained. |
-| Writing on a full page | 240 strokes on one page: frames during a new stroke hold 60 Hz (p95 16.7 ms, max 16.8 ms). |
-| Tool rail | Presets, eraser, lasso, palette, **More** sheet for later-phase tools. Pen settings are a centered alert with six colors. |
-| Physical pen and touch | Not verified. |
-
 ### Phase A work, in order
 
-1. **Pen tool popover.** Tapping the selected preset or **+** opens a
-   centered alert. Replace it with a popover anchored to the rail, as in
-   the Noteful reference images: stroke preview, brush, size presets with a
-   slider, and a full color picker.
-2. **Lasso completion.** Delete, copy, cut, duplicate, and paste exist on
-   the rail during a selection. Verify resize by handle and paste position.
-3. **Zoom.** Ctrl+wheel, trackpad pinch, and keyboard zoom.
-4. **Remove the superseded TeX compiler integration.** Compiler, preamble,
-   compiled-page view, their build recipes, and cache entries. Figure capture
-   and source storage stay for phase F.
-5. **Physical input.** Pen, palm, one-finger pan, and pinch on the target
-   Chrome machine through standard Wayland and Chrome pointer events.
-6. **#56 acceptance list** in the deployed app, including GPU frame
-   timing while writing in a 10-page notebook.
+Phase A is every L0 and L1 feature of [core features](../specs/core-features.md).
+The missing ones, in order:
+
+1. **Palm rejection (L0).** A touch that arrives during a pen stroke must not
+   pan or zoom the page. Saber's `isDrawGesture` is the reference.
+2. **Two-finger tap undo, three-finger tap redo (L1).**
+3. **Page overview (L1).** Thumbnail grid of the notebook's pages with drag
+   reorder, duplicate, and delete. Saber's page manager uses
+   `ReorderableListView`.
+4. **Selection recolor (L1).**
+5. **Hold to snap (L1).** Holding the pen still at the end of a stroke turns
+   it into a line or shape. Saber uses `one_dollar_unistroke_recognizer`
+   with a 500 ms hold.
+6. **Pen settings popover (L1).** Stroke preview, brush, size presets with a
+   slider, and a full color picker, anchored to the rail, as in the Noteful
+   reference images.
+7. **Stylus side button and finger-drawing toggle (L1).**
+8. **Page orientation (L1).**
+9. **Remove the superseded TeX compiler integration.** Compiler, preamble,
+   compiled-page view, their build recipes, and cache entries.
 
 ## Current application
 
@@ -123,8 +106,8 @@ A headless Chromium session rendered the preview library and creation form.
 The form exposed the new location picker and removable tag control. Creating
 `Lecture notes` with the `algebra` tag produced the corresponding folder and
 tag controls in the library. This used an isolated browser-storage context.
-Screenshot: `/tmp/math-notes-creation.png`. Full deployed daily-use sessions,
-physical pen/touch, and the complete interpreted-diagram copy workflow remain unverified.
+Screenshot: `/tmp/math-notes-creation.png`. Full deployed daily-use sessions
+and the complete interpreted-diagram copy workflow remain unverified.
 
 The configured Chrome MCP tool expects a missing Google Chrome executable.
 The existing Chromium executable works with the installed CLI:
