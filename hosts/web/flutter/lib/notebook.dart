@@ -11,6 +11,7 @@ import 'package:web/web.dart' as web;
 
 import 'host.dart' as native;
 import 'layers_sheet.dart';
+import 'pages_sheet.dart';
 import 'bookmarks_sheet.dart';
 import 'figure_editor.dart';
 
@@ -689,6 +690,16 @@ class _NotebookState extends State<Notebook>
           widget.note.document.setPageSize(1);
       }
     });
+  }
+
+  Future<void> showPages() async {
+    final chosen = await overviewPages(
+      context,
+      widget.note.document,
+      page,
+      edit,
+    );
+    if (chosen != null) jump(chosen);
   }
 
   Future<void> zoomMenu() async {
@@ -1920,6 +1931,10 @@ class _NotebookState extends State<Notebook>
                   CupertinoButton(
                     onPressed: drawing ? null : () => run(pageMenu),
                     child: const Text('Page'),
+                  ),
+                  CupertinoButton(
+                    onPressed: drawing ? null : () => run(showPages),
+                    child: const Text('Pages'),
                   ),
                   const Spacer(),
                   CupertinoButton(

@@ -260,6 +260,57 @@ test("Flutter undoes on a two-finger tap and redoes on a three-finger tap", asyn
   expect(await strokes()).toBe(1);
 });
 
+test("Flutter page overview duplicates, deletes, reorders, and opens pages", async ({ page }, info) => {
+  test.setTimeout(90_000);
+  await page.goto("flutter/?root=opfs");
+  await page.getByRole("button", { name: "New Note", exact: true }).click();
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Overview");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.locator('canvas[id^="ink-canvas-"]').waitFor();
+  for (let added = 0; added < 2; added++) await page.getByRole("button", { name: "Add page", exact: true }).click();
+  await expect(page.getByText(/^\d \/ 3$/)).toBeVisible();
+  await page.getByRole("button", { name: "Pages", exact: true }).click();
+  const tile = (n: number) => page.getByRole("button", { name: `Page ${n}`, exact: true });
+  await expect(tile(3)).toBeVisible();
+
+  const act = async (n: number, action: string) => {
+    await page.getByRole("button", { name: `Page ${n} actions`, exact: true }).click();
+    await page.getByRole("button", { name: action, exact: true }).click();
+  };
+  await act(1, "Duplicate");
+  await expect(tile(4)).toBeVisible();
+  await act(4, "Delete");
+  await expect(tile(4)).toHaveCount(0);
+
+  const from = await tile(1).boundingBox();
+  const to = await tile(3).boundingBox();
+  if (!from || !to) throw new Error("Page tiles have no bounds");
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(800);
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
+  await page.waitForTimeout(400);
+  await page.mouse.up();
+  await page.screenshot({ path: info.outputPath("page-overview.png") });
+
+  await tile(2).click();
+  await expect(page.getByText("2 / 3", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  const manifest = await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    const dir = await root.getDirectoryHandle("Overview");
+    return (await (await dir.getFileHandle("notebook.json")).getFile()).text();
+  });
+  // Pages 0001-0003; the copy of page 1 is 0004 after it; page 3 (0003)
+  // is deleted; page 1 moves to the end.
+  expect(JSON.parse(manifest).pages.map((entry: { file: string }) => entry.file)).toEqual([
+    "pages/0004.svg",
+    "pages/0002.svg",
+    "pages/0001.svg",
+  ]);
+});
+
 test("Flutter notebook retains pen input and pages after save and reopen", async ({ page }, info) => {
   test.setTimeout(120_000);
   await page.goto("favicon.svg");

@@ -198,6 +198,8 @@ extension type Document(JSObject value) implements JSObject {
   external void insertPage(int index);
   external void deletePage(int index);
   external void movePage(int from, int to);
+  external void duplicatePage(int index);
+  external JSUint8Array pagePng(int index, int width);
   external void setPageSize(int size);
   external Size contentSize();
   external PageRect pageRect(int index);

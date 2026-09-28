@@ -52,7 +52,7 @@ earlier layers exists and works in the deployed app.
 | Selection recolor | Missing. |
 | Selection duplicate | Exists. |
 | Hold at the end of a stroke to snap it to a line or shape | Missing. |
-| Page overview: thumbnail grid with drag reorder, duplicate, delete | Missing. The **Page** menu moves the current page up or down and deletes it. |
+| Page overview: thumbnail grid with drag reorder, duplicate, delete | Exists: **Pages** (`hosts/web/flutter/lib/pages_sheet.dart`, on `reorderable_grid`). |
 | Page size and orientation | Size exists (A4, Letter). Orientation missing. |
 | Rename, move, and trash notes | Exists. |
 | Title search | Exists. |
