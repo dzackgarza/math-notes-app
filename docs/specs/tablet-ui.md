@@ -56,16 +56,43 @@ are the reference for look and interaction.
 
 ![Editor](ui/tablet-editor.png)
 
-- **Top bar**: app mark; notebook title with a menu and a subtitle; a tab
-  per open note with close buttons, and **+**; share and **⋯** at the right.
-- **Tool rail** on the left: Pen, Thick Pen and Highlighter, each with its
-  size; Eraser; Lasso; Drawing mode; then a color palette of 15
-  swatches and **+**. A swatch recolors the lasso selection when there is
-  one, and the selected pen preset otherwise.
-- **Page** fills the rest: dot paper, a handwritten title, tag chips with
-  **+**, and ink with highlighter boxes, color and drawings.
-- **Bottom bar**: undo and redo; a zoom menu ("100%"); a paper menu ("Dot
-  Paper"); a page indicator "1 / 12" with previous and next.
+The mockup shows the page and the tabs. Noteful is the reference for the
+toolbar and the tool popovers; `noteful-pen-tool.webp` shows its pen popover.
+
+- **Top bar**: back to the library; the note title; a tab per open note with
+  close buttons, and **+**. Three pull-down menus at the right:
+  - **Pages**: page overview, bookmarks, and layers.
+  - **View**: vertical scroll, horizontal scroll, or two-page layout;
+    toolbar position (left or right); tab bar position (top or hidden).
+  - **⋯**: paper for new pages (style, size, orientation); share and export
+    PDF; go to page; clear page; delete page; gestures (finger drawing);
+    customize the toolbar.
+- **Toolbar**: one floating vertical bar of icons without text labels, one
+  icon per tool kind: pen, highlighter, eraser, lasso, text, image, insert
+  space, drawing mode. Below a divider: undo, redo, saved pens, the color
+  swatches, and **+**. The bar scrolls when its content is longer than the
+  screen.
+- **Tool popover**: a tap on the selected tool opens its popover. The
+  popover edits the settings of that tool only and never changes the tool.
+  - Pen: a stroke sample drawn by the engine; the pen types (pressure pen,
+    marker); five size presets and a size slider; an **Advanced** tab with
+    opacity; **Save** keeps the current settings as a saved pen.
+  - Highlighter: the stroke sample, size presets and slider, opacity, and
+    **Save**.
+  - Eraser: stroke, partial, or ruled.
+  - Lasso: freehand, rectangle, oval, or ruled.
+- **Colors**: a swatch sets the color of the current pen or highlighter, or
+  recolors the lasso selection when there is one. A tap on the selected
+  swatch opens a touch color picker (an HSV wheel) that edits that swatch.
+  **+** edits the list of visible swatches.
+- **Saved pens**: as in Write, a saved pen is a toolbar shortcut that
+  restores the pen type, size, color, and opacity of the pen or the
+  highlighter. It is not a new tool kind.
+- **Undo and redo**: a tap undoes or redoes one step. A drag from the undo
+  button turns a rewind dial around the button, as in Write
+  (`ButtonDragDial` in `syncscribble/touchwidgets.cpp`): each dial step
+  undoes or redoes one edit.
+- **Page** fills the rest. Fit width keeps the current scroll position.
 
 ## Pages in the editor
 
@@ -94,18 +121,19 @@ components identified in [ARCHITECTURE.md](../ARCHITECTURE.md#component-ownershi
 Apply the colors below through each framework's theme. Math Notes supplies
 product layout and theme values.
 
-Light theme, white and very light gray panels, one blue accent (#2F6FEB,
-approximately) for primary buttons, selection and links. Rounded cards and
-chips, thin gray borders, system sans-serif type. Paper is warm off-white.
+Dark theme: the toolbar, bars, menus, popovers, and library panels are dark
+navy and dark gray, so the page stands apart from the controls. One blue
+accent (#2F6FEB, approximately) for primary buttons, selection and links.
+Rounded cards and chips, system sans-serif type. Paper is warm off-white.
 
 ## Relation to the current model
 
 | Mockup | Current model ([FORMAT.md](../FORMAT.md), [FEATURES.md](../FEATURES.md)) |
 | --- | --- |
 | Paper Style, Starting Template (backgrounds) | Built-in templates: blank, lined-*, grid-*, dotted (#21) |
-| Pen, Highlighter, color palette | Pen presets (#25) and Google Ink brush geometry in the current engine |
+| Pen, highlighter, saved pens, color palette | Tool settings and saved pens in `.pens.json` (#25); Google Ink brush geometry in the current engine |
 | Eraser, Lasso, Drawing mode | #23, #24, [TikZ drawing mode](tikz-drawing-mode.md) |
-| Undo and redo, zoom, page indicator | #22, #21 |
+| Undo and redo, page overview | #22, #21 |
 | Tabs of open notes | A tab per open note, as in GoodNotes and Noteful |
 | Trash | `Notes/.trash/` |
 

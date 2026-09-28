@@ -2,15 +2,39 @@
 
 Date: 2026-09-28. Branch: `write-core-integration`.
 
-## Next work: keep, find, and share notes
+## Next work: the editor toolbar and tool popovers
 
 The [delivery order](web-daily-notes-handoff.md#delivery-order) is strict.
-Phase A, the core note-taking features, is complete: every L0 and L1 row of
-[core features](../specs/core-features.md) exists. Phase B, keep, find, and
-share notes in #56, #62, and #29, is the only active work. Earlier sessions
-built later-phase features (PDF import, split view, conflicts, layers,
-clippings, ruled editing, bookmarks, typed text, figures) before their phase.
-That code stays. It gets no further work until its phase starts.
+Phase A, the core note-taking features, is the active work. The editor chrome
+does not match the [tablet interface](../specs/tablet-ui.md#editor): the rail
+shows presets as separate tools, the pen popover mixes tool kinds, and the
+bottom bar holds zoom and paper controls. Earlier sessions built later-phase
+features (PDF import, split view, conflicts, layers, clippings, ruled
+editing, bookmarks, typed text, figures) before their phase. That code
+stays. It gets no further work until its phase starts.
+
+### Phase A work in order
+
+All work is in `hosts/web/flutter/lib/notebook.dart` and `main.dart`.
+Dependencies: `flex_color_picker` (HSV wheel), `pull_down_button` (iOS
+pull-down menus), `popover`.
+
+1. Dark Cupertino theme for the whole app.
+2. Floating vertical icon toolbar, one icon per tool kind, scrollable.
+3. Per-tool popovers: pen (stroke sample, pressure pen or marker, size
+   presets, slider, advanced tab with opacity), highlighter, eraser modes,
+   lasso modes (freehand, rectangle, oval, ruled). Oval selection needs an
+   engine selector kind.
+4. Color swatches on the toolbar; the HSV wheel edits a swatch; **+** edits
+   the visible palette. Delete the browser color input.
+5. Saved pens: **Save** in the popover adds a toolbar shortcut.
+   Per-kind tool settings and the palette persist in `.pens.json`; extend
+   [FORMAT.md](../FORMAT.md) first.
+6. Undo and redo on the toolbar, with the rewind dial from Write's
+   `ButtonDragDial`.
+7. Top-right pull-down menus: pages, view, and ⋯ as specified.
+8. Delete the bottom bar, the zoom menu, the paper menu, and the in-note tag
+   control. Fit width keeps the scroll position.
 
 Preserve these pre-existing user files with their current untracked status.
 They are the reference for the pen tool popover:

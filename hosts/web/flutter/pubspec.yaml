@@ -13,6 +13,8 @@ dependencies:
   path: 1.9.1
   reorderable_grid: 1.0.13
   popover: 0.4.0
+  flex_color_picker: 4.0.0
+  pull_down_button: 0.10.2
 dev_dependencies:
   flutter_test:
     sdk: flutter
