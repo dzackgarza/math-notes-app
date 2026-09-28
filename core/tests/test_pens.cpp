@@ -131,32 +131,32 @@ TEST_CASE("Strokes keep their own brush, color and size after their preset chang
   std::vector<InkPen> pens = Read(Text(json, size));
   ink_test::Session session;
 
-  InkToolSettings highlighter = pens[4].tool;
+  InkToolSettings highlighter = pens[2].tool;
   REQUIRE(ink_canvas_set_tool(session.get(), &highlighter) == INK_OK);
   Draw(session.get(), 100, 0);
-  InkToolSettings blue = pens[1].tool;
-  REQUIRE(ink_canvas_set_tool(session.get(), &blue) == INK_OK);
+  InkToolSettings pen = pens[0].tool;
+  REQUIRE(ink_canvas_set_tool(session.get(), &pen) == INK_OK);
   Draw(session.get(), 200, 1000);
   std::string before = SavedPage(session.document);
   REQUIRE(ink_document_mark_saved(session.document) == INK_OK);
 
-  // The user edits both presets; the next stroke uses the edited blue pen.
+  // The user edits both presets; the next stroke uses the edited pen.
   highlighter.rgb = 0x3FA35B;
   highlighter.size = 4;
-  blue = {INK_BRUSH_MARKER, 0xD6455D, 2, 1};
-  REQUIRE(ink_canvas_set_tool(session.get(), &blue) == INK_OK);
+  pen = {INK_BRUSH_MARKER, 0xD6455D, 2, 1};
+  REQUIRE(ink_canvas_set_tool(session.get(), &pen) == INK_OK);
   Draw(session.get(), 300, 2000);
   std::string after = SavedPage(session.document);
 
   // The highlighter goes under the ink, so it is the first stroke.
-  std::string old_highlight = StrokeTag(before, 0), old_blue = StrokeTag(before, 1);
+  std::string old_highlight = StrokeTag(before, 0), old_pen = StrokeTag(before, 1);
   CHECK(old_highlight.find(R"(fill="#FFE066" fill-opacity="0.35" mn:brush="highlighter")") !=
         std::string::npos);
   CHECK(old_highlight.find(R"(mn:size="9.6")") != std::string::npos);
-  CHECK(old_blue.find(R"(fill="#1F4FB5" mn:brush="pressure-pen")") != std::string::npos);
-  CHECK(old_blue.find(R"(mn:size="1.2")") != std::string::npos);
+  CHECK(old_pen.find(R"(fill="#1A1A1A" mn:brush="pressure-pen")") != std::string::npos);
+  CHECK(old_pen.find(R"(mn:size="1.2")") != std::string::npos);
   CHECK(StrokeTag(after, 0) == old_highlight);
-  CHECK(StrokeTag(after, 1) == old_blue);
+  CHECK(StrokeTag(after, 1) == old_pen);
   std::string edited = StrokeTag(after, 2);
   CHECK(edited.find(R"(fill="#D6455D" mn:brush="marker")") != std::string::npos);
   CHECK(edited.find(R"(mn:size="2")") != std::string::npos);
