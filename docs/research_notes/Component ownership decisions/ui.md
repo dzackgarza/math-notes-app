@@ -24,7 +24,7 @@ package owner, including a supported extension or fork where necessary.
 Tabs, sheets, menus, text entry, lists, selection handles, transfers, and split
 panes use this same framework input and focus system. The feature issues
 specify product outcomes. They must retain standard keyboard, cancellation,
-focus, and accessibility behavior when they compose controls.
+and focus behavior when they compose controls.
 
 ## Renderer, pen samples, and embedded editor
 
@@ -54,8 +54,8 @@ Flutter SDK and packages in the implementation build.
 
 On physical Chrome pen/touch hardware, verify writing, one-finger fling and
 rebound, pinch, held page-end release, cancellation, and pen interaction with
-open controls. Verify keyboard navigation, text composition, focus return,
-and screen-reader semantics across the library and editor. Verify the TikZ
+open controls. Verify keyboard navigation, text composition, and focus return
+across the library and editor. Verify the TikZ
 iframe when #10 integrates it. These checks validate the adopted owner.
 
 #62 owns note tabs and the picker; #28 owns split view and conflict resolution;

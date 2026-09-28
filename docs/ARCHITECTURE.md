@@ -119,7 +119,7 @@ stays in its current owner during v1 unless a specific defect requires change.
 
 Navigation, scrolling, edge motion, zoom, tabs, text editing, layout,
 drag-and-drop, and other common app behavior belong to platform APIs or
-complete framework components. Use their interaction, accessibility, input,
+complete framework components. Use their interaction, input,
 and lifecycle contracts together with their appearance. The product
 specification describes the user's task and any real departure from those
 contracts. Standard behavior is inherited from the owner. An observed
@@ -182,8 +182,8 @@ call site already uses them. Source evidence and exact pins are in
 | iPad page navigation | [`UIScrollView`](https://developer.apple.com/documentation/uikit/uiscrollview) owns scrolling and zoom around the Metal drawing surface. UIKit arbitrates direct touches and Pencil input. |
 | iPad page-end insertion | [MJRefresh 3.7.9 `MJRefreshBackFooter`](https://github.com/CoderMJLee/MJRefresh/tree/3.7.9) owns bottom-pull behavior on the `UIScrollView`. A held-ready release issues the notebook add-page command. |
 | Web document zoom | Flutter owns touch scaling and navigation. Its `InteractiveViewer` supplies pan, pinch, scale bounds, and friction; Cupertino scrollables supply bounce. #56 must integrate these contracts without an application motion state machine. |
-| Chrome, sheets, menus, and forms | Flutter Cupertino on web; UIKit and SwiftUI on iPad. Framework controls own input, focus, keyboard behavior, and accessibility. Math Notes supplies content, layout, and document commands. |
-| Document tabs | Flutter owns web focus, selection, keyboard input, and semantics; UIKit owns native controls. Math Notes maps note IDs to open documents and view state. #62 delivers the note picker and tabs. |
+| Chrome, sheets, menus, and forms | Flutter Cupertino on web; UIKit and SwiftUI on iPad. Framework controls own input, focus, and keyboard behavior. Math Notes supplies content, layout, and document commands. |
+| Document tabs | Flutter owns web focus, selection, and keyboard input; UIKit owns native controls. Math Notes maps note IDs to open documents and view state. #62 delivers the note picker and tabs. |
 | Typed text | Flutter `CupertinoTextField` and UIKit `UITextView` own input, composition, caret, and selection. [Skia Paragraph](https://skia.org/docs/user/modules/quickstart/) owns shared page-text shaping and layout. The app stores authored text and SVG baselines. |
 | Drag-and-drop and selection manipulation | Flutter owns web input sessions and in-app drag targets; UIKit owns native interaction and external transfers. The current engine owns selection membership and committed object transforms. App adapters map accepted interactions to document coordinates. |
 | Split panes | Flutter owns web layout and input; UIKit/SwiftUI own native panes. #28 composes framework controls and mature Flutter packages where needed for resize behavior and keyboard access. Math Notes stores proportions and links document positions. |
@@ -213,7 +213,7 @@ they do not claim that every component is installed.
 | Ink strokes and geometry | [Google Ink `1b220eee`](https://github.com/google/ink/tree/1b220eee5a05e9b67be9f20f49ae2d574c8667a7), Apache-2.0 | Existing brush, outline, and hit-test owner; the app maps results to its notebook model. |
 | Page rendering | [Skia](https://skia.org) within the pinned Skia build | Render the current document on SkCanvas. |
 | Rendered page text layout | [Skia Paragraph](https://skia.org/docs/user/modules/quickstart/) within the pinned Skia build | Shape and lay out stored authored text. |
-| Complete web GUI | [Flutter with Cupertino](reports/Web%20interface%20framework%20selection.md) | Controls, navigation, input, focus, scrolling, semantics, and HTML platform views. #56 pins the SDK and packages in the host build. |
+| Complete web GUI | [Flutter with Cupertino](reports/Web%20interface%20framework%20selection.md) | Controls, navigation, input, focus, scrolling, and HTML platform views. #56 pins the SDK and packages in the host build. |
 | iPad editor scroll and bottom pull | [UIScrollView](https://developer.apple.com/documentation/uikit/uiscrollview), [MJRefresh 3.7.9](https://github.com/CoderMJLee/MJRefresh/tree/3.7.9) | Native motion and bottom action. |
 | TikZ figure editor and source patching | [TikZ Editor `app-v0.5.2` / `b8b0d001`](https://github.com/DominikPeters/tikz-editor/tree/app-v0.5.2), MIT; [Math Notes FreeTikZ fork `9e5fb05c`](https://github.com/dzackgarza/freetikz/tree/9e5fb05c22dbc5637ff7cebf99f3dbee6f962b68) | Complete React editor, `@tikz-editor/core`, CodeMirror 6; FreeTikZ keeps pen-first capture. |
 | Figure editor host bridge | [TeXlyre embed mirror `b98714d3`](https://github.com/TeXlyre/tikz-editor-embed-mirror/tree/b98714d3584ee849178f19cf44c7768ff9063f6e) protocol, web iframe and bounded iPad `WKWebView` | Host reads/writes notebook files; embedded editor sends source/SVG results. |

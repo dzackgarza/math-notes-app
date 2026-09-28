@@ -23,6 +23,8 @@ These are permanent product boundaries, not features deferred beyond v1.
 Dependency capabilities and agent-written surveys cannot expand them. Read
 the [TikZ contract](docs/specs/tikz-drawing-mode.md) before figure work.
 
+Priority: [core features](docs/specs/core-features.md) layers the standard feature set of handwriting apps. Every L0 and L1 feature exists and works in the deployed app before any work on L2 or L3 features, test expansion, or release administration. The next work is the ordered list in [the resume plan](docs/plans/web-daily-notes-resume.md#phase-a-work-in-order).
+
 Work plan: the GitHub issue tree rooted at #11, one milestone per sub-issue. `uvx --from git+https://github.com/dzackgarza/itree itree next dzackgarza/math-notes-app` names the next work unit in tree order.
 
 Implementation ownership: read [docs/ARCHITECTURE.md#component-ownership](docs/ARCHITECTURE.md#component-ownership) before changing a plan or implementation. Standard application behavior belongs to a mature framework or platform API, including scroll physics and edge motion; a missing standard detail is evidence to check the owner, not a custom feature request. Writing and editing notebook ink are reasonable app responsibilities. For a new domain capability, first seek a dependency that owns the whole problem, then a reference implementation. Only necessary residue with neither may use new ungrounded code. A new subsystem or expanded core boundary needs a linked decision with actual dependency searches, candidate evidence, the exact integration gap, and explicit user approval. Evaluate complete frameworks, SDKs, and forks, including large dependencies. An existing working domain capability does not require replacement merely because a broader dependency exists.

@@ -99,7 +99,7 @@ Record only. These wait for their phase.
 
 Native engine targets and the Flutter/TypeScript host build succeeded for
 the figure changes. The tag-form Dart analyzer reported no issues. The
-final preview build includes the final tag accessibility action. These are
+final preview build includes the tag form. These are
 implementation checks, not full product acceptance.
 
 A headless Chromium session rendered the preview library and creation form.

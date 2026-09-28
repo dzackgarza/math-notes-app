@@ -72,7 +72,7 @@ are the reference for look and interaction.
   fills the full width of the canvas.
 - One finger pans the pages. Two fingers pinch to zoom. Pen input draws.
 - Flutter with Cupertino owns the complete web GUI and its input, focus,
-  navigation, controls, and accessibility. UIKit owns the independent iPad GUI.
+  navigation, and controls. UIKit owns the independent iPad GUI.
   The [adopted framework decision](../reports/Web%20interface%20framework%20selection.md)
   defines the shared-core boundary.
 - The notebook surface preserves framework-owned fling, edge resistance,
@@ -88,7 +88,7 @@ are the reference for look and interaction.
 ## Visual style
 
 Both hosts use complete iOS-style controls: SwiftUI and UIKit on the iPad,
-Flutter Cupertino on the web. Their behavior and accessibility belong to the
+Flutter Cupertino on the web. Their behavior belongs to the
 components identified in [ARCHITECTURE.md](../ARCHITECTURE.md#component-ownership).
 Apply the colors below through each framework's theme. Math Notes supplies
 product layout and theme values.

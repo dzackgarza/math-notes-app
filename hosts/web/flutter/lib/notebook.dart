@@ -1326,31 +1326,26 @@ class _NotebookState extends State<Notebook>
                       child: ListView(
                         children: [
                           for (var i = 0; i < pens.length; i++)
-                            Semantics(
-                              hint: tool == 'pen' && pen == i
-                                  ? 'Activate again for pen settings'
-                                  : null,
-                              child: CupertinoListTile(
-                                title: Text(pens[i].name),
-                                subtitle: Text(
-                                  '${pens[i].tool.size.toStringAsFixed(1)} pt',
-                                ),
-                                leading: Icon(
-                                  CupertinoIcons.pencil,
-                                  color: Color(0xFF000000 | pens[i].tool.rgb),
-                                ),
-                                backgroundColor: tool == 'pen' && pen == i
-                                    ? const Color(0xFFE3EBFC)
-                                    : null,
-                                onTap: () {
-                                  if (tool == 'pen' && pen == i) {
-                                    unawaited(run(configurePen));
-                                    return;
-                                  }
-                                  pen = i;
-                                  chooseTool('pen');
-                                },
+                            CupertinoListTile(
+                              title: Text(pens[i].name),
+                              subtitle: Text(
+                                '${pens[i].tool.size.toStringAsFixed(1)} pt',
                               ),
+                              leading: Icon(
+                                CupertinoIcons.pencil,
+                                color: Color(0xFF000000 | pens[i].tool.rgb),
+                              ),
+                              backgroundColor: tool == 'pen' && pen == i
+                                  ? const Color(0xFFE3EBFC)
+                                  : null,
+                              onTap: () {
+                                if (tool == 'pen' && pen == i) {
+                                  unawaited(run(configurePen));
+                                  return;
+                                }
+                                pen = i;
+                                chooseTool('pen');
+                              },
                             ),
                           CupertinoListTile(
                             title: const Text('Eraser'),

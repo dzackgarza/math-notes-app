@@ -63,12 +63,11 @@ Choose Flutter with Cupertino/Material widgets for the web host and UIKit for iP
 ### Inferences
 
 - The selected HTML TikZ editor should remain a real browser iframe inside Flutter's documented `HtmlElementView`. Qt would have to place it above or beside the canvas with a separate layout/focus bridge because Qt WebEngine is not in the documented WebAssembly module set.
-- Qt's basic WebAssembly accessibility support is a concrete risk for complex controls. Flutter standard widgets provide semantics, and web accessibility can be enabled at startup. Flutter still requires real keyboard and screen-reader acceptance for the notebook UI.
 - UIKit directly supplies the iPad scroll and touch separation around the existing Metal surface. Cross-platform GUI reuse has no value in this decision.
 
 ### Gaps
 
-- A physical pen/touch Chrome acceptance run must prove the Flutter integration: pen drawing with full samples, finger pan with velocity and rebound, pinch, bottom-edge held release, control focus, iframe focus, and keyboard/screen-reader navigation. These checks validate the chosen framework and its bridges; they do not postpone the choice.
+- A physical pen/touch Chrome acceptance run must prove the Flutter integration: pen drawing with full samples, finger pan with velocity and rebound, pinch, bottom-edge held release, control focus, iframe focus, and keyboard navigation. These checks validate the chosen framework and its bridges; they do not postpone the choice.
 
 ## Search record
 

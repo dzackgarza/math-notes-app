@@ -60,7 +60,7 @@ product acceptance.
 ## Fixed ownership and invariants
 
 - Flutter with Cupertino owns the whole web GUI: controls, navigation,
-  input dispatch, focus, keyboard behavior, scroll physics, and semantics.
+  input dispatch, focus, keyboard behavior, and scroll physics.
   Use mature Flutter packages for standard behavior where needed.
 - The existing C++ document model, Google Ink, and Skia remain authoritative.
   App code supplies notebook rules, product layout, and bounded adapters.
@@ -112,14 +112,9 @@ Keep detailed implementation plans with those owners. #50 owns the upstream
 fixture reproducibility defect; resolve it before relying on that fixture
 as reflow evidence.
 
-## Phase A: non-negotiable completion conditions
+## Saving in phase A
 
-Deliver the entire library/editor shell with its standard control behavior.
-Prove focus return, keyboard traversal, text composition, cancellation, and
-screen-reader semantics through framework controls. Check touch targets and
-layout at the specified tablet size and desktop Chrome.
-
-Treat durability as a product path:
+Autosave is an L0 feature. It is complete when:
 
 - A committed edit can be saved explicitly and has clear pending/saved/error
   feedback. A displayed saved state means the write completed.
@@ -143,8 +138,7 @@ new subsystem is introduced.
 Use `http://localhost/math-notes/` on the target machine. Preserve
 `just web-build` and `just web-deploy` as entry points while adapting their
 implementation to Flutter. Rewire the existing web verification entry point
-to the real Flutter application. Configure the appropriate CI/hook gate;
-follow AGENTS.md for targeted runs and full-suite execution.
+to the real Flutter application.
 
 | Session | Required observation |
 | --- | --- |
