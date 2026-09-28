@@ -99,6 +99,12 @@ Point RotateHandle(const Rect &rect, double scale);
 // their children, while a figure keeps one group transform.
 Element Transformed(const Element &element, const Transform &m);
 
+// The element in `color`, as Write's Selection::setStrokeProperties
+// (selection.cpp:362-387) applies a color: strokes and text take it as their
+// fill and shapes as their stroke, keeping opacity; groups recolor their
+// children. Images and figures keep their colors.
+Element Recolored(const Element &element, Rgb color);
+
 // Gives the element, and every element inside a group, a new id from `ids`.
 Element WithNewIds(const Element &element, IdGenerator &ids);
 // Write scribblearea.cpp:648-669 clears authored timestamps on clipping drops.

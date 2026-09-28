@@ -287,6 +287,42 @@ TEST_CASE("Cut keeps ids; pasting where an id exists gives the copy a new one") 
   CHECK(StrokeAt(canvas.doc(), 0, 1).outline == StrokeAt(canvas.doc(), 0, 0).outline);
 }
 
+TEST_CASE("Recoloring a selection changes only the selected strokes' color in one undo step") {
+  ink_test::Session canvas;
+  REQUIRE(ink_canvas_set_surface_size(canvas.get(), 600, 850, 1) == INK_OK);
+  ink_test::SetTool(canvas.get(), INK_BRUSH_HIGHLIGHTER, 0xFFE066, 9.6, 0.35);
+  Gesture(canvas.get(), Line({120, 200}, {320, 260}, 24), 0);
+  ink_test::SetTool(canvas.get(), INK_BRUSH_PRESSURE_PEN, 0x1A1A1A, 1.2);
+  Gesture(canvas.get(), Line({120, 400}, {320, 460}, 24), 1000);
+  Gesture(canvas.get(), Line({120, 600}, {320, 660}, 24), 2000);
+  const Document before = canvas.doc();
+  // A rectangle over the first two strokes.
+  ink_canvas_set_selector(canvas.get(), INK_SELECTOR_RECT, 1);
+  Gesture(canvas.get(), Line({100, 180}, {340, 480}, 4), 3000);
+  ink_canvas_set_selector(canvas.get(), INK_SELECTOR_RECT, 0);
+  InkSelectionInfo selected{};
+  REQUIRE(ink_canvas_selection(canvas.get(), &selected) == INK_OK);
+  REQUIRE(selected.count == 2);
+
+  REQUIRE(ink_canvas_recolor_selection(canvas.get(), 0x2F6FEB) == INK_OK);
+  const Rgb blue{0x2F, 0x6F, 0xEB};
+  for (size_t i : {0, 1}) {
+    Stroke expected = StrokeAt(before, 0, i);
+    expected.fill = blue;
+    CHECK(StrokeAt(canvas.doc(), 0, i) == expected);
+  }
+  CHECK(StrokeAt(canvas.doc(), 0, 0).fill_opacity == StrokeAt(before, 0, 0).fill_opacity);
+  CHECK(StrokeAt(canvas.doc(), 0, 2) == StrokeAt(before, 0, 2));
+  InkSelectionInfo after{};
+  REQUIRE(ink_canvas_selection(canvas.get(), &after) == INK_OK);
+  CHECK(after.count == 2);
+
+  int32_t moved = 0;
+  int32_t page = 0;
+  REQUIRE(ink_undo(canvas.document, &moved, &page) == INK_OK);
+  CHECK(canvas.doc() == before);
+}
+
 TEST_CASE("Paste keeps the position only when it is in view; otherwise it centers on the view point") {
   ink_test::Session source(1);
   Gesture(source.get(), Line({120, 100}, {320, 160}, 20), 0);

@@ -1092,6 +1092,15 @@ InkStatus ink_canvas_duplicate_selection(InkCanvas *canvas) {
   });
 }
 
+InkStatus ink_canvas_recolor_selection(InkCanvas *canvas, uint32_t rgb) {
+  return Call([&] {
+    if (!canvas) return NullArgument("canvas");
+    if (rgb > 0xFFFFFF) return Fail(INK_ERROR_ARGUMENT, "the color must be 0xRRGGBB");
+    canvas->editor.RecolorSelection({uint8_t(rgb >> 16), uint8_t(rgb >> 8), uint8_t(rgb)});
+    return INK_OK;
+  });
+}
+
 InkStatus ink_canvas_insert_text(InkCanvas *canvas, const uint8_t *utf8, size_t size,
                                  double x, double y) {
   return Call([&] {

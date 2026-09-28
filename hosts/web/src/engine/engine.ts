@@ -939,6 +939,10 @@ export class Canvas {
     this.engine.check(this.engine.module._ink_canvas_duplicate_selection(this.pointer));
   }
 
+  recolorSelection(rgb: number): void {
+    this.engine.check(this.engine.module._ink_canvas_recolor_selection(this.pointer, rgb));
+  }
+
   setUtcOffset(utcMinusHostMs: number): void {
     this.engine.check(this.engine.module._ink_canvas_set_utc_offset(this.pointer, utcMinusHostMs));
   }

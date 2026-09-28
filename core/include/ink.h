@@ -317,6 +317,10 @@ InkStatus ink_canvas_paste_at(InkCanvas *canvas, const uint8_t *svg, size_t size
 /* Copies the selection 10 pt right and down, with new ids, and selects the
    copy: one history step. */
 InkStatus ink_canvas_duplicate_selection(InkCanvas *canvas);
+/* Gives the selected strokes and text fill `rgb` (0xRRGGBB) and shapes that
+   stroke color, keeping opacity; groups recolor their children. One history
+   step; the selection stays. */
+InkStatus ink_canvas_recolor_selection(InkCanvas *canvas, uint32_t rgb);
 /* Adds UTF-8 text at a view point and selects it. Each line is SVG text in
    the page file. The position is the text box's top-left corner. */
 InkStatus ink_canvas_insert_text(InkCanvas *canvas, const uint8_t *utf8, size_t size,

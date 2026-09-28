@@ -626,6 +626,22 @@ void Editor::DuplicateSelection(Assets &assets, NotebookFiles &added) {
   PushSelection(std::move(next), index, std::move(items));
 }
 
+bool Editor::RecolorSelection(Rgb color) {
+  const Selection *selection = CurrentSelection();
+  if (!selection) return false;
+  Document next = document();
+  Page page = *selection->value;
+  for (const ElementRef &item : selection->items) {
+    Elements &elements = page.layers[item.layer].elements;
+    elements = elements.set(item.index, immer::box<Element>(Recolored(*elements[item.index], color)));
+  }
+  size_t index = selection->page;
+  std::vector<ElementRef> items = selection->items;
+  next.pages = next.pages.set(index, immer::box<Page>(std::move(page)));
+  PushSelection(std::move(next), index, std::move(items));
+  return true;
+}
+
 bool Editor::InsertText(std::string_view utf8, double x, double y, TextBoxStyle style) {
   if (!ResolveActiveLayer()) return false;
   if (utf8.empty()) return false;

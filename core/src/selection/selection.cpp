@@ -273,6 +273,23 @@ Element Transformed(const Element &element, const Transform &m) {
   return copy;
 }
 
+Element Recolored(const Element &element, Rgb color) {
+  if (std::holds_alternative<Figure>(element.value)) return element;
+  if (Children(element)) return MapChildren(element, [&](const Element &c) { return Recolored(c, color); });
+  Element copy = element;
+  std::visit(
+      [&](auto &e) {
+        using T = std::decay_t<decltype(e)>;
+        if constexpr (std::is_same_v<T, Stroke> || std::is_same_v<T, Text>) {
+          e.fill = color;
+        } else if constexpr (std::is_same_v<T, Shape>) {
+          e.stroke = color;
+        }
+      },
+      copy.value);
+  return copy;
+}
+
 namespace {
 
 // The id field of an element that has one; a link has none.

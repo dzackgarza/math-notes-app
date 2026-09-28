@@ -137,6 +137,9 @@ class Editor {
   // Copies the selection kDuplicateOffset right and down, new ids, as the
   // new selection: one history step. Figure sidecars become new assets.
   void DuplicateSelection(Assets &assets, NotebookFiles &added);
+  // Recolors the selected elements (selection/selection.h Recolored), which
+  // stay selected: one history step. False when nothing is selected.
+  bool RecolorSelection(Rgb color);
   enum class FigureCaptureError { kNone, kCrossPageInput, kPageChanged, kCrossLayerMove };
   // A capture owns pen strokes on one page and layer until completion.
   bool StartFigureCapture(size_t page, size_t layer);
