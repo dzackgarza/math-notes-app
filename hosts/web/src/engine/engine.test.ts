@@ -108,8 +108,8 @@ test("pen presets written through the wrapper read back unchanged, names in UTF-
   const pens = engine.readPens(engine.defaultPens());
   assert.deepEqual(
     pens.map((p) => p.id),
-    ["black-pen", "blue-pen", "red-pen", "marker", "highlighter"],
+    ["pen", "thick-pen", "highlighter"],
   );
-  pens[1] = { id: "blue-pen", name: "Stift ✎ blau", tool: { brush: 1, rgb: 0x2f6feb, size: 3.25, opacity: 0.5 } };
+  pens[1] = { id: "thick-pen", name: "Stift ✎ dick", tool: { brush: 1, rgb: 0x2f6feb, size: 3.25, opacity: 0.5 } };
   assert.deepEqual(engine.readPens(engine.writePens(pens)), pens);
 });

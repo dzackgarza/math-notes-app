@@ -279,8 +279,8 @@ a notebook directory (send, archive, download).
   ```json
   [
     {
-      "id": "black-pen",
-      "name": "Black pen",
+      "id": "pen",
+      "name": "Pen",
       "brush": "pressure-pen",
       "brushVersion": 1,
       "color": "#1A1A1A",
@@ -290,9 +290,8 @@ a notebook directory (send, archive, download).
   ]
   ```
 
-  followed by `blue-pen` (`#1F4FB5`), `red-pen` (`#B51F1F`), `marker`
-  (`marker`, `#1A1A1A`, 2.4 pt) and `highlighter` (`highlighter`, `#FFE066`,
-  opacity 0.35, 9.6 pt). A stroke keeps the brush, color, opacity and size
+  followed by `thick-pen` (`Thick pen`, `marker`, `#1A1A1A`, 2.4 pt) and
+  `highlighter` (`highlighter`, `#FFE066`, opacity 0.35, 9.6 pt). A stroke keeps the brush, color, opacity and size
   it was drawn with; editing a preset changes only later strokes.
 - `Notes/.templates/<name>/`: a notebook directory. Page 1's background is
   the template. The app creates `blank`, `lined-wide`, `lined-medium`,

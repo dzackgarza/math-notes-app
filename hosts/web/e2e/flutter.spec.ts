@@ -67,6 +67,7 @@ test("Flutter finds an image note through persistent tags and its page thumbnail
   await page.getByRole("button", { name: "Create", exact: true }).click();
   await page.getByRole("button", { name: "Save", exact: true }).waitFor();
   const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("button", { name: "Image", exact: true }).click();
   await (await chooser).setFiles("../../core/tests/fixtures/render/full/0001.png");
   await expect(page.getByRole("button", { name: "Delete selection", exact: true })).toBeAttached();
@@ -215,6 +216,7 @@ test("Flutter notebook retains pen input and pages after save and reopen", async
   });
   expect(saved).toContain('<path id="s-');
   expect(saved).toContain("inkml:trace");
+  await page.getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("button", { name: "Text", exact: true }).click();
   await enterText(page.getByRole("textbox", { name: "Text", exact: true }), "Lemma\nEvery basis spans the space.");
   await page.getByRole("button", { name: "Done", exact: true }).click();

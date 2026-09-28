@@ -62,15 +62,15 @@ void Draw(InkCanvas *canvas, double y, double ms) {
 
 }  // namespace
 
-TEST_CASE("The default pen file lists the five presets in FORMAT.md key order") {
+TEST_CASE("The default pen file lists the three presets in FORMAT.md key order") {
   const uint8_t *json = nullptr;
   size_t size = 0;
   REQUIRE(ink_pens_default(&json, &size) == INK_OK);
   std::string text = Text(json, size);
   CHECK(text == R"([
   {
-    "id": "black-pen",
-    "name": "Black pen",
+    "id": "pen",
+    "name": "Pen",
     "brush": "pressure-pen",
     "brushVersion": 1,
     "color": "#1A1A1A",
@@ -78,26 +78,8 @@ TEST_CASE("The default pen file lists the five presets in FORMAT.md key order") 
     "size": 1.2
   },
   {
-    "id": "blue-pen",
-    "name": "Blue pen",
-    "brush": "pressure-pen",
-    "brushVersion": 1,
-    "color": "#1F4FB5",
-    "opacity": 1,
-    "size": 1.2
-  },
-  {
-    "id": "red-pen",
-    "name": "Red pen",
-    "brush": "pressure-pen",
-    "brushVersion": 1,
-    "color": "#B51F1F",
-    "opacity": 1,
-    "size": 1.2
-  },
-  {
-    "id": "marker",
-    "name": "Marker",
+    "id": "thick-pen",
+    "name": "Thick pen",
     "brush": "marker",
     "brushVersion": 1,
     "color": "#1A1A1A",
@@ -126,12 +108,12 @@ TEST_CASE("An edited preset is written with its new brush, color and size") {
   pens[1].tool = {INK_BRUSH_MARKER, 0x2F6FEB, 3.25f, 1};
 
   std::vector<InkPen> back = Read(Write(pens));
-  REQUIRE(back.size() == 5);
-  CHECK(std::string(back[1].id) == "blue-pen");
+  REQUIRE(back.size() == 3);
+  CHECK(std::string(back[1].id) == "thick-pen");
   CHECK(back[1].tool.brush == INK_BRUSH_MARKER);
   CHECK(back[1].tool.rgb == 0x2F6FEB);
   CHECK(back[1].tool.size == 3.25f);
-  CHECK(back[4].tool.opacity == 0.35f);
+  CHECK(back[2].tool.opacity == 0.35f);
 }
 
 TEST_CASE("A file that is not a pen list gives a parse error") {

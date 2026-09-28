@@ -54,6 +54,7 @@ setup:
     cd hosts/web && bun install --frozen-lockfile && bunx playwright install chromium chromium-headless-shell
 
 engine-wasm:
+    @test -x {{emsdk}}/upstream/emscripten/em++ || { echo "No emsdk at {{emsdk}}: run just setup" >&2; exit 1; }
     cmake -S core -B {{build}} -G Ninja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_TOOLCHAIN_FILE={{vcpkg}}/scripts/buildsystems/vcpkg.cmake \
       -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE={{emsdk}}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake \

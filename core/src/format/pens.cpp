@@ -24,15 +24,14 @@ Json Number(double value, int precision) {
 
 }  // namespace
 
-// A pen set on the three stock brushes: Google Cahier
+// The rail's Pen, Thick pen and Highlighter (docs/specs/tablet-ui.md,
+// Editor) on the three stock brushes of Google Cahier
 // app/src/main/java/com/example/cahier/features/drawing/DrawingToolbox.kt:483-505
 // (android/cahier 209db71).
 std::vector<PenPreset> DefaultPens() {
   return {
-      {"black-pen", "Black pen", "pressure-pen", 1, {0x1A, 0x1A, 0x1A}, 1, 1.2},
-      {"blue-pen", "Blue pen", "pressure-pen", 1, {0x1F, 0x4F, 0xB5}, 1, 1.2},
-      {"red-pen", "Red pen", "pressure-pen", 1, {0xB5, 0x1F, 0x1F}, 1, 1.2},
-      {"marker", "Marker", "marker", 1, {0x1A, 0x1A, 0x1A}, 1, 2.4},
+      {"pen", "Pen", "pressure-pen", 1, {0x1A, 0x1A, 0x1A}, 1, 1.2},
+      {"thick-pen", "Thick pen", "marker", 1, {0x1A, 0x1A, 0x1A}, 1, 2.4},
       {"highlighter", "Highlighter", "highlighter", 1, {0xFF, 0xE0, 0x66}, 0.35, 9.6},
   };
 }

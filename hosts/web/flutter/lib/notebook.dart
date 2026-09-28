@@ -726,6 +726,17 @@ class _NotebookState extends State<Notebook>
       ),
     );
     if (accepted != true) return;
+    await updatePen(brush: brush, rgb: rgb, size: size, opacity: opacity);
+  }
+
+  // Replaces the selected preset in .pens.json; later strokes use it.
+  Future<void> updatePen({
+    required int brush,
+    required int rgb,
+    required double size,
+    required double opacity,
+  }) async {
+    final original = pens[pen];
     final updated = native.Pen.create(
       id: original.id,
       name: original.name,
@@ -742,6 +753,233 @@ class _NotebookState extends State<Notebook>
         .toDart;
     setState(() => pens = next);
     chooseTool('pen');
+  }
+
+  // The rail's swatches (docs/specs/tablet-ui.md, Editor): a color applies
+  // to the selected pen preset.
+  static const palette = [
+    0x1A1A1A, 0x8E8E93, 0xFFFFFF, //
+    0x1F4FB5, 0xD92D39, 0xF2842B, //
+    0x29955B, 0x865AC2, 0xF4A6C0, //
+    0xFFCF26, 0x3CBFAE, 0xC9A0F2, //
+    0x0B2A5B, 0x8B5A2B, 0x2F9FE0, //
+  ];
+
+  Future<void> choosePenColor(int rgb) async {
+    if (pens.isEmpty) return;
+    final current = pens[pen].tool;
+    await updatePen(
+      brush: current.brush,
+      rgb: rgb,
+      size: current.size,
+      opacity: current.opacity,
+    );
+  }
+
+  Widget paletteGrid() {
+    final current = pens.isEmpty ? null : pens[pen].tool.rgb;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        children: [
+          for (final color in palette)
+            Semantics(
+              label: 'Color #${color.toRadixString(16).padLeft(6, '0')}',
+              selected: current == color,
+              button: true,
+              excludeSemantics: true,
+              child: CupertinoButton(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(36, 36),
+                onPressed: () => run(() => choosePenColor(color)),
+                child: Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0xFF000000 | color),
+                    border: Border.all(
+                      color: current == color
+                          ? CupertinoColors.activeBlue
+                          : CupertinoColors.systemGrey4,
+                      width: current == color ? 3 : 1,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          CupertinoButton(
+            padding: EdgeInsets.zero,
+            minimumSize: const Size(36, 36),
+            onPressed: () => run(configurePen),
+            child: const Icon(
+              CupertinoIcons.add_circled,
+              size: 34,
+              semanticLabel: 'Pen settings',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // The later-phase tools, off the rail until their phase
+  // (docs/plans/web-daily-notes-handoff.md, Delivery order).
+  Future<void> moreTools() async {
+    final actions = <(String, VoidCallback?)>[
+      ('Pen settings', () => unawaited(run(configurePen))),
+      ('Paste', () => unawaited(run(paste))),
+      ('Select page', () => canvas?.selectAll(page)),
+      (drawing ? 'Complete drawing' : 'Drawing mode', toggleDrawing),
+      if (!drawing && canvas != null && canvas!.selectedFigure().isNotEmpty)
+        (
+          'Edit figure',
+          () => unawaited(run(() => editFigure(canvas!.selectedFigure()))),
+        ),
+      (
+        'Text',
+        () {
+          chooseTool('text');
+          unawaited(textAt(Offset(width / 2, height / 2)));
+        },
+      ),
+      (
+        'Image',
+        () => unawaited(
+          run(() async {
+            final inserted = await native.host
+                .insertImage(widget.note, canvas!, page, width / 2, height / 2)
+                .toDart;
+            if (inserted.toDart) widget.note.saver.schedule();
+          }),
+        ),
+      ),
+      ('Insert space', drawing ? null : () => chooseTool('space')),
+      (
+        'Compare versions',
+        drawing ? null : () => unawaited(run(widget.onConflicts)),
+      ),
+      (
+        'Layers: $layerLabel',
+        drawing || canvas == null
+            ? null
+            : () => unawaited(
+                run(
+                  () => manageLayers(
+                    context,
+                    widget.note.document,
+                    canvas!,
+                    edit,
+                  ),
+                ),
+              ),
+      ),
+      (
+        'Clippings',
+        () => unawaited(
+          run(() async {
+            if (!clippingsOpen) await refreshClippings();
+            setState(() => clippingsOpen = !clippingsOpen);
+          }),
+        ),
+      ),
+      ('Bookmarks', () => unawaited(run(bookmarks))),
+      (
+        'Add bookmark',
+        drawing
+            ? null
+            : () {
+                if (selection != null)
+                  edit(() => canvas!.bookmarkSelection());
+                else
+                  chooseTool('bookmark');
+              },
+      ),
+      ('Follow links', () => chooseTool('navigate')),
+      if (selection != null) ...[
+        (
+          'Remove bookmark or link',
+          () => edit(() => canvas!.ungroupSelection()),
+        ),
+        ('Link selected content', () => unawaited(run(linkSelection))),
+      ],
+    ];
+    final chosen = await showCupertinoModalPopup<VoidCallback>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        actions: [
+          for (final (label, action) in actions)
+            CupertinoActionSheetAction(
+              onPressed: action == null
+                  ? () {}
+                  : () => Navigator.pop(context, action),
+              child: Text(
+                label,
+                style: action == null
+                    ? const TextStyle(color: CupertinoColors.inactiveGray)
+                    : null,
+              ),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+    chosen?.call();
+  }
+
+  // A later-phase tool in use: its name, its mode, and the way back to the pen.
+  List<Widget> activeTool() {
+    final label = drawing
+        ? 'Drawing mode'
+        : switch (tool) {
+            'space' => 'Insert space',
+            'text' => 'Text',
+            'bookmark' => 'Add bookmark',
+            'navigate' => 'Follow links',
+            _ => null,
+          };
+    if (label == null) return [];
+    return [
+      CupertinoListTile(
+        title: Text(label),
+        subtitle: tool == 'bookmark' && !drawing
+            ? const Text('Tap the line to mark.')
+            : null,
+        backgroundColor: const Color(0xFFE3EBFC),
+        trailing: CupertinoButton(
+          padding: EdgeInsets.zero,
+          onPressed: drawing ? toggleDrawing : () => chooseTool('pen'),
+          child: drawing
+              ? const Text('Complete')
+              : Semantics(
+                  label: 'Close $label',
+                  button: true,
+                  excludeSemantics: true,
+                  child: const Icon(CupertinoIcons.xmark_circle),
+                ),
+        ),
+      ),
+      if (tool == 'space' && !drawing)
+        CupertinoSlidingSegmentedControl<int>(
+          groupValue: spaceMode,
+          children: const {
+            4: Text('Vertical'),
+            5: Text('Horizontal'),
+            6: Text('Reflow'),
+          },
+          onValueChanged: (value) {
+            if (value != null) {
+              spaceMode = value;
+              chooseTool('space');
+            }
+          },
+        ),
+    ];
   }
 
   Future<void> exportPdf() async {
@@ -1088,30 +1326,32 @@ class _NotebookState extends State<Notebook>
                       child: ListView(
                         children: [
                           for (var i = 0; i < pens.length; i++)
-                            CupertinoListTile(
-                              title: Text(pens[i].name),
-                              subtitle: Text(
-                                '${pens[i].tool.size.toStringAsFixed(1)} pt',
-                              ),
-                              leading: Icon(
-                                CupertinoIcons.pencil,
-                                color: Color(0xFF000000 | pens[i].tool.rgb),
-                              ),
-                              backgroundColor: tool == 'pen' && pen == i
-                                  ? const Color(0xFFE3EBFC)
+                            Semantics(
+                              hint: tool == 'pen' && pen == i
+                                  ? 'Activate again for pen settings'
                                   : null,
-                              onTap: () {
-                                pen = i;
-                                chooseTool('pen');
-                              },
+                              child: CupertinoListTile(
+                                title: Text(pens[i].name),
+                                subtitle: Text(
+                                  '${pens[i].tool.size.toStringAsFixed(1)} pt',
+                                ),
+                                leading: Icon(
+                                  CupertinoIcons.pencil,
+                                  color: Color(0xFF000000 | pens[i].tool.rgb),
+                                ),
+                                backgroundColor: tool == 'pen' && pen == i
+                                    ? const Color(0xFFE3EBFC)
+                                    : null,
+                                onTap: () {
+                                  if (tool == 'pen' && pen == i) {
+                                    unawaited(run(configurePen));
+                                    return;
+                                  }
+                                  pen = i;
+                                  chooseTool('pen');
+                                },
+                              ),
                             ),
-                          CupertinoListTile(
-                            title: const Text('Pen settings'),
-                            leading: const Icon(
-                              CupertinoIcons.slider_horizontal_3,
-                            ),
-                            onTap: () => run(configurePen),
-                          ),
                           CupertinoListTile(
                             title: const Text('Eraser'),
                             leading: const Icon(CupertinoIcons.clear),
@@ -1156,147 +1396,19 @@ class _NotebookState extends State<Notebook>
                                 }
                               },
                             ),
-                          CupertinoListTile(
-                            title: Text(
-                              drawing ? 'Complete drawing' : 'Drawing mode',
-                            ),
-                            leading: const Icon(CupertinoIcons.pencil_outline),
-                            onTap: () => run(() async {
-                              toggleDrawing();
-                            }),
+                          ...activeTool(),
+                          Container(
+                            height: 1,
+                            margin: const EdgeInsets.symmetric(horizontal: 14),
+                            color: CupertinoColors.systemGrey5,
                           ),
+                          paletteGrid(),
                           CupertinoListTile(
-                            title: const Text('Text'),
-                            leading: const Icon(CupertinoIcons.textformat),
-                            onTap: () {
-                              chooseTool('text');
-                              unawaited(textAt(Offset(width / 2, height / 2)));
-                            },
-                          ),
-                          if (!drawing &&
-                              canvas != null &&
-                              canvas!.selectedFigure().isNotEmpty)
-                            CupertinoListTile(
-                              title: const Text('Edit figure'),
-                              onTap: () => run(
-                                () => editFigure(canvas!.selectedFigure()),
-                              ),
-                            ),
-                          CupertinoListTile(
-                            title: const Text('Insert space'),
-                            leading: const Icon(CupertinoIcons.arrow_up_down),
-                            onTap: drawing ? null : () => chooseTool('space'),
-                          ),
-                          if (tool == 'space')
-                            CupertinoSlidingSegmentedControl<int>(
-                              groupValue: spaceMode,
-                              children: const {
-                                4: Text('Vertical'),
-                                5: Text('Horizontal'),
-                                6: Text('Reflow'),
-                              },
-                              onValueChanged: (value) {
-                                if (value != null) {
-                                  spaceMode = value;
-                                  chooseTool('space');
-                                }
-                              },
-                            ),
-                          CupertinoListTile(
-                            title: const Text('Image'),
-                            leading: const Icon(CupertinoIcons.photo),
-                            onTap: () => run(() async {
-                              final inserted = await native.host
-                                  .insertImage(
-                                    widget.note,
-                                    canvas!,
-                                    page,
-                                    width / 2,
-                                    height / 2,
-                                  )
-                                  .toDart;
-                              if (inserted.toDart) widget.note.saver.schedule();
-                            }),
-                          ),
-                          CupertinoListTile(
-                            title: const Text('Select page'),
-                            leading: const Icon(
-                              CupertinoIcons.selection_pin_in_out,
-                            ),
-                            onTap: () => canvas?.selectAll(page),
-                          ),
-                          CupertinoListTile(
-                            title: const Text('Compare versions'),
-                            leading: const Icon(CupertinoIcons.doc_on_doc),
-                            onTap: drawing
-                                ? null
-                                : () => run(widget.onConflicts),
-                          ),
-                          CupertinoListTile(
-                            title: Text('Layers: $layerLabel'),
-                            leading: const Icon(CupertinoIcons.layers),
-                            onTap: drawing || canvas == null
-                                ? null
-                                : () => run(
-                                    () => manageLayers(
-                                      context,
-                                      widget.note.document,
-                                      canvas!,
-                                      edit,
-                                    ),
-                                  ),
-                          ),
-                          CupertinoListTile(
-                            title: const Text('Clippings'),
-                            leading: const Icon(
-                              CupertinoIcons.square_on_square,
-                            ),
-                            onTap: () => run(() async {
-                              if (!clippingsOpen) await refreshClippings();
-                              setState(() => clippingsOpen = !clippingsOpen);
-                            }),
-                          ),
-                          CupertinoListTile(
-                            title: const Text('Bookmarks'),
-                            leading: const Icon(CupertinoIcons.bookmark),
-                            onTap: () => run(bookmarks),
-                          ),
-                          CupertinoListTile(
-                            title: const Text('Add bookmark'),
-                            subtitle: tool == 'bookmark'
-                                ? const Text('Tap the line to mark.')
-                                : null,
-                            onTap: drawing
-                                ? null
-                                : () {
-                                    if (selection != null)
-                                      edit(() => canvas!.bookmarkSelection());
-                                    else
-                                      chooseTool('bookmark');
-                                  },
-                          ),
-                          CupertinoListTile(
-                            title: const Text('Follow links'),
-                            leading: const Icon(CupertinoIcons.link),
-                            onTap: () => chooseTool('navigate'),
-                          ),
-                          CupertinoListTile(
-                            title: const Text('Paste'),
-                            leading: const Icon(
-                              CupertinoIcons.doc_on_clipboard,
-                            ),
-                            onTap: () => run(paste),
+                            title: const Text('More'),
+                            leading: const Icon(CupertinoIcons.ellipsis_circle),
+                            onTap: () => run(moreTools),
                           ),
                           if (selection != null) ...[
-                            CupertinoListTile(
-                              title: const Text('Remove bookmark or link'),
-                              onTap: () =>
-                                  edit(() => canvas!.ungroupSelection()),
-                            ),
-                            CupertinoListTile(
-                              title: const Text('Link selected content'),
-                              onTap: () => run(linkSelection),
-                            ),
                             LongPressDraggable<SelectionTransfer>(
                               data: SelectionTransfer(
                                 () => canvas!.copySelection(false),

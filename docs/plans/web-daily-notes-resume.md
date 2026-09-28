@@ -28,7 +28,7 @@ evidence about writing latency.
 | Capability | State |
 | --- | --- |
 | Create a note, write with the pen | Works. |
-| Change pen preset, color | Works through fixed presets; no color palette. |
+| Change pen preset, color | Pen, Thick pen, Highlighter presets; 15-swatch palette recolors the selected preset. |
 | Stroke eraser, undo, redo | Works. |
 | Lasso select and move | Works. |
 | Continuous page stack with gaps, finger pan | Works. |
@@ -37,16 +37,17 @@ evidence about writing latency.
 | Autosave | Saves about 3 s after an edit. |
 | Reload and reopen | Strokes and pages retained. |
 | Writing on a full page | 240 strokes on one page: frames during a new stroke hold 60 Hz (p95 16.7 ms, max 16.8 ms). |
-| Tool rail | 22 labeled rows; overflows at 1024 px height; core tools share the rail with later-phase tools. |
+| Tool rail | Presets, eraser, lasso, palette, **More** sheet for later-phase tools. Pen settings are a centered alert with six colors. |
 | Physical pen and touch | Not verified. |
 
 ### Phase A work, in order
 
-1. **Compact tool rail.** Match the tablet spec rail: pen, thick pen, and
-   highlighter with sizes; eraser; lasso; a color palette with **+**; undo
-   and redo. A pen tool popover follows the Noteful reference images.
-   Later-phase tools move to a secondary menu.
-2. **Lasso completion.** Resize, delete, copy, and paste of a selection.
+1. **Pen tool popover.** Tapping the selected preset or **+** opens a
+   centered alert. Replace it with a popover anchored to the rail, as in
+   the Noteful reference images: stroke preview, brush, size presets with a
+   slider, and a full color picker.
+2. **Lasso completion.** Delete, copy, cut, duplicate, and paste exist on
+   the rail during a selection. Verify resize by handle and paste position.
 3. **Zoom.** Ctrl+wheel, trackpad pinch, and keyboard zoom.
 4. **Remove the superseded TeX compiler integration.** Compiler, preamble,
    compiled-page view, their build recipes, and cache entries. Figure capture

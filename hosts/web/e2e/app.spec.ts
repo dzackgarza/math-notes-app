@@ -600,7 +600,7 @@ test("the tool rail's presets and palette color reach the saved strokes", async 
   await page.getByRole("button", { name: "Highlighter", exact: true }).click();
   await page.getByRole("button", { name: "#2BB3C0" }).click();
   await drawWithPen(page, line(100));
-  await page.getByRole("button", { name: "Black pen", exact: true }).click();
+  await page.getByRole("button", { name: "Pen", exact: true }).click();
   await page.getByRole("button", { name: "#D6455D" }).click();
   await drawWithPen(page, line(200));
 
@@ -631,16 +631,16 @@ test("an edited pen is written to .pens.json in FORMAT.md key order, and earlier
   const box = (await page.locator("#ink-canvas").boundingBox())!;
   const line = (y: number) => Array.from({ length: 20 }, (_, i) => ({ x: box.x + 150 + i * 8, y: box.y + y }));
 
-  const blue = page.getByRole("button", { name: "Blue pen", exact: true });
-  await blue.click();
+  const thick = page.getByRole("button", { name: "Thick pen", exact: true });
+  await thick.click();
   await drawWithPen(page, line(100));
-  await blue.click(); // the selected pen again: its editor
+  await thick.click(); // the selected pen again: its editor
   const editor = page.locator("ion-popover");
   await editor.getByRole("button", { name: "Marker" }).click();
   await editor.getByRole("textbox", { name: "Hex" }).fill("#3FA35B");
   await editor.getByRole("textbox", { name: "Hex" }).press("Tab");
   await editor.getByRole("slider", { name: "Size" }).focus();
-  for (let i = 0; i < 8; i++) await page.keyboard.press("ArrowRight"); // 1.2 + 8 × 0.1 pt
+  for (let i = 0; i < 8; i++) await page.keyboard.press("ArrowRight"); // 2.4 + 8 × 0.1 pt
   await page.keyboard.press("Escape");
   await drawWithPen(page, line(200));
 
@@ -650,10 +650,8 @@ test("an edited pen is written to .pens.json in FORMAT.md key order, and earlier
   const expected =
     "[\n" +
     [
-      pen("black-pen", "Black pen", "pressure-pen", "#1A1A1A", "1", "1.2"),
-      pen("blue-pen", "Blue pen", "marker", "#3FA35B", "1", "2"),
-      pen("red-pen", "Red pen", "pressure-pen", "#B51F1F", "1", "1.2"),
-      pen("marker", "Marker", "marker", "#1A1A1A", "1", "2.4"),
+      pen("pen", "Pen", "pressure-pen", "#1A1A1A", "1", "1.2"),
+      pen("thick-pen", "Thick pen", "marker", "#3FA35B", "1", "3.2"),
       pen("highlighter", "Highlighter", "highlighter", "#FFE066", "0.35", "9.6"),
     ].join(",\n") +
     "\n]\n";
@@ -663,8 +661,8 @@ test("an edited pen is written to .pens.json in FORMAT.md key order, and earlier
   await expect
     .poll(() => strokeAttributes(page, "Pens/pages/0001.svg"), { timeout: 5000 })
     .toEqual([
-      ["pressure-pen", "#1F4FB5", "1.2"],
-      ["marker", "#3FA35B", "2"],
+      ["marker", "#1A1A1A", "2.4"],
+      ["marker", "#3FA35B", "3.2"],
     ]);
 });
 
@@ -673,12 +671,12 @@ test("a .pens.json changed by another device is read when the note opens again",
   await newNote(page, "Shared");
   await expect
     .poll(async () => Buffer.from(await readOpfsFile(page, ".pens.json"), "base64").toString(), { timeout: 5000 })
-    .toContain('"id": "red-pen"');
-  // Another device on the same root renames the red pen and makes it thicker.
+    .toContain('"id": "pen"');
+  // Another device on the same root renames the pen and makes it thicker.
   await page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
     const file = await (await root.getFileHandle(".pens.json")).getFile();
-    const text = (await file.text()).replace('"name": "Red pen"', '"name": "Proof red"').replace(/("id": "red-pen"[^}]*"size": )1.2/, "$13");
+    const text = (await file.text()).replace('"name": "Pen"', '"name": "Proof pen"').replace(/("id": "pen"[^}]*"size": )1.2/, "$13");
     const writable = await (await root.getFileHandle(".pens.json")).createWritable();
     await writable.write(text);
     await writable.close();
@@ -686,12 +684,12 @@ test("a .pens.json changed by another device is read when the note opens again",
   await page.getByRole("button", { name: "Library" }).click();
   await openNote(page, "Shared");
 
-  await page.getByRole("button", { name: "Proof red", exact: true }).click();
+  await page.getByRole("button", { name: "Proof pen", exact: true }).click();
   const box = (await page.locator("#ink-canvas").boundingBox())!;
   await drawWithPen(page, Array.from({ length: 20 }, (_, i) => ({ x: box.x + 150 + i * 8, y: box.y + 100 })));
   await expect
     .poll(() => strokeAttributes(page, "Shared/pages/0001.svg"), { timeout: 5000 })
-    .toEqual([["pressure-pen", "#B51F1F", "3"]]);
+    .toEqual([["pressure-pen", "#1A1A1A", "3"]]);
 });
 
 test("wheel scrolling stops at the page ends without adding a page", async ({ page }) => {
