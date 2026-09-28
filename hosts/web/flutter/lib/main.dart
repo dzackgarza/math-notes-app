@@ -102,7 +102,7 @@ class _WorkspaceState extends State<Workspace> {
   Future<void> showLibrary() => run(() async {
     if (captures.isNotEmpty)
       throw StateError('Complete the drawing before returning to the library.');
-    for (final note in opened) await note.saver.save().toDart;
+    await saveOpened();
     await refresh();
     setState(() => inLibrary = true);
   });
@@ -183,15 +183,19 @@ class _WorkspaceState extends State<Workspace> {
     }
   }
 
+  // Saves every open note. The list is read before the first await, so a
+  // note that opens while the saves run cannot invalidate the iteration.
+  Future<void> saveOpened() async {
+    await Future.wait([for (final note in opened) note.saver.save().toDart]);
+  }
+
   Future<void> refresh() async {
     library = await native.host.library(root!, engine!).toDart;
   }
 
   Future<void> chooseRoot() async {
     final chosen = await native.host.pickRoot().toDart;
-    for (final note in opened) {
-      await note.saver.save().toDart;
-    }
+    await saveOpened();
     setState(() {
       releaseNotes(opened.toList());
       opened.clear();
