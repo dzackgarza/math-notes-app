@@ -30,12 +30,12 @@ earlier layers exists and works in the deployed app.
 | Pen draws; one finger pans | Exists. |
 | Palm rejection: a resting hand neither draws nor moves the page during a stroke | Exists (`PalmRejection` in `hosts/web/flutter/lib/notebook.dart`). |
 | Pinch zoom | Exists. |
-| Multi-page document, vertical page stack | Exists. |
+| Multi-page document, vertical page stack | Exists. **View** also offers horizontal scroll and two pages side by side (`ink_document_set_arrangement`). |
 | Add and delete a page | Exists: held pull at the end, the **Pages** and **⋯** menus, and the page overview. |
 | Ruled, grid, dotted, and blank paper | Exists. |
 | Autosave and reopen | Exists. |
 | Library with folders | Exists. |
-| PDF export | Exists. |
+| PDF export | Exists. **⋯ > Share** sends the PDF to the platform share sheet. |
 
 ## L1
 

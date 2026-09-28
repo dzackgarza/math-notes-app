@@ -78,6 +78,17 @@ InkStatus ink_document_asset(InkDocument *document, const char *path,
 InkStatus ink_document_dirty_files(InkDocument *document, const InkFile **files, size_t *count);
 /* The host wrote the dirty files. */
 InkStatus ink_document_mark_saved(InkDocument *document);
+/* The View menu's page layouts: pages stacked vertically, all pages in one
+   row, or two pages per row. Each row is centered on the widest row. */
+typedef enum InkPageArrangement {
+  INK_PAGES_VERTICAL = 0,
+  INK_PAGES_HORIZONTAL = 1,
+  INK_PAGES_TWO_PAGE = 2
+} InkPageArrangement;
+/* Lays out the pages of every canvas on the document, and of
+   ink_document_content_size and ink_document_page_rect, in `arrangement`.
+   A new document is INK_PAGES_VERTICAL. */
+InkStatus ink_document_set_arrangement(InkDocument *document, InkPageArrangement arrangement);
 /* The laid-out pages' extent in content coordinates (pt), for
    ink_canvas_set_view. */
 InkStatus ink_document_content_size(InkDocument *document, double *width, double *height);

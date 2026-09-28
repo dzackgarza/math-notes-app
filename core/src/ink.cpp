@@ -296,15 +296,27 @@ InkStatus ink_document_mark_saved(InkDocument *document) {
   });
 }
 
+InkStatus ink_document_set_arrangement(InkDocument *document, InkPageArrangement arrangement) {
+  return Call([&] {
+    if (!document) return NullArgument("document");
+    if (arrangement < INK_PAGES_VERTICAL || arrangement > INK_PAGES_TWO_PAGE)
+      return Fail(INK_ERROR_ARGUMENT, "unknown page arrangement");
+    document->arrangement = ink_engine::PageArrangement(arrangement);
+    return INK_OK;
+  });
+}
+
 InkStatus ink_document_content_size(InkDocument *document, double *width, double *height) {
   return Call([&] {
     if (!document) return NullArgument("document");
     if (!width || !height) return NullArgument("width or height");
     std::vector<ink_engine::PagePlacement> layout =
-        ink_engine::LayoutPages(document->history.current());
-    *width = 0;
-    for (const auto &page : layout) *width = std::max(*width, page.width);
-    *height = layout.empty() ? 0 : layout.back().y + layout.back().height;
+        ink_engine::LayoutPages(document->history.current(), document->arrangement);
+    *width = 0, *height = 0;
+    for (const auto &page : layout) {
+      *width = std::max(*width, page.x + page.width);
+      *height = std::max(*height, page.y + page.height);
+    }
     return INK_OK;
   });
 }
@@ -916,7 +928,7 @@ InkStatus ink_canvas_selection(InkCanvas *canvas, InkSelectionInfo *out) {
     const ink_engine::Selection *selection = canvas->editor.CurrentSelection();
     if (!selection) return INK_OK;
     std::vector<ink_engine::PagePlacement> layout =
-        ink_engine::LayoutPages(canvas->document->history.current());
+        ink_engine::LayoutPages(canvas->document->history.current(), canvas->document->arrangement);
     auto placement = std::find_if(layout.begin(), layout.end(),
                                   [&](const auto &p) { return p.page == selection->page; });
     if (placement == layout.end()) return INK_OK;
@@ -1225,7 +1237,7 @@ InkStatus ink_canvas_page_at(InkCanvas *canvas, double x, double y, int32_t *pag
       return at.x >= p.x && at.x <= p.x + p.width && at.y >= p.y && at.y <= p.y + p.height;
     };
     std::vector<ink_engine::PagePlacement> layout =
-        ink_engine::LayoutPages(canvas->document->history.current());
+        ink_engine::LayoutPages(canvas->document->history.current(), canvas->document->arrangement);
     *page = -1;
     for (size_t i = 0; i < layout.size(); ++i) {
       if (contains(layout[i])) *page = int32_t(i);
@@ -1283,7 +1295,8 @@ InkStatus ink_render(InkCanvas *canvas, int32_t *drew) {
     bool live_changed = !editor.TakeUpdatedRegion().IsEmpty() || drawing != canvas->was_drawing;
     live_changed = editor.TakeOverlayChanged() || live_changed;
     canvas->was_drawing = drawing;
-    ink_engine::View view{editor.view(), canvas->pixel_ratio, canvas->width, canvas->height};
+    ink_engine::View view{editor.view(), canvas->pixel_ratio, canvas->width, canvas->height,
+                          canvas->document->arrangement};
     if (!canvas->renderer->Update(editor.Shown(), view, live_changed)) return INK_OK;
     SkSurface *screen = canvas->surface->BeginFrame(canvas->width, canvas->height);
     if (!screen) return Fail(INK_ERROR_GPU, "the host surface gave no frame");
@@ -1314,7 +1327,7 @@ InkStatus ink_document_page_rect(InkDocument *document, size_t index, double *x,
     if (!document) return NullArgument("document");
     if (!x || !y || !width || !height) return NullArgument("rectangle");
     std::vector<ink_engine::PagePlacement> layout =
-        ink_engine::LayoutPages(document->history.current());
+        ink_engine::LayoutPages(document->history.current(), document->arrangement);
     if (index >= layout.size()) return BadPageIndex();
     const ink_engine::PagePlacement &p = layout[index];
     *x = p.x, *y = p.y, *width = p.width, *height = p.height;
@@ -1329,7 +1342,7 @@ InkStatus ink_document_page_png(InkDocument *document, size_t index, int32_t wid
     if (!png || !size) return NullArgument("png or size");
     if (width <= 0) return Fail(INK_ERROR_ARGUMENT, "non-positive width");
     const ink_engine::Document &current = document->history.current();
-    std::vector<ink_engine::PagePlacement> layout = ink_engine::LayoutPages(current);
+    std::vector<ink_engine::PagePlacement> layout = ink_engine::LayoutPages(current, document->arrangement);
     if (index >= layout.size()) return BadPageIndex();
     const ink_engine::PagePlacement &p = layout[index];
     // The page alone in a raster view, as test_render.cpp's RenderPage draws

@@ -212,6 +212,7 @@ extension type Document(JSObject value) implements JSObject {
   external void duplicatePage(int index);
   external JSUint8Array pagePng(int index, int width);
   external void setPageSize(int size, int orientation);
+  external void setArrangement(int arrangement);
   external Size contentSize();
   external PageRect pageRect(int index);
   external HistoryStep? undo();
@@ -371,6 +372,12 @@ extension type Host(JSObject value) implements JSObject {
   );
   external JSPromise<VoidResult> cacheApp();
   external void exportPdf(
+    OpenNote note,
+    int first,
+    int count,
+    JSArray<JSString> layers,
+  );
+  external JSPromise<JSAny?> sharePdf(
     OpenNote note,
     int first,
     int count,

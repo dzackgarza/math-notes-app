@@ -79,6 +79,7 @@ struct View {
   Transform content_to_view;  // SVG matrix order; content = layout coordinates
   float pixel_ratio = 1;      // device pixels per view unit
   int width = 0, height = 0;  // device pixels
+  PageArrangement arrangement = PageArrangement::kVertical;
   bool operator==(const View &) const = default;
 };
 

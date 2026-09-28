@@ -15,6 +15,7 @@
 #include "editor/erase.h"
 #include "editor/history.h"
 #include "ink.h"
+#include "layout/layout.h"
 #include "render/renderer.h"
 #include "selection/selection.h"
 #include "ink/brush/brush.h"
@@ -71,7 +72,9 @@ struct Selection {
 
 class Editor {
  public:
-  explicit Editor(DocumentHistory &history) : history_(&history) {
+  // `arrangement` is the document's page layout (InkDocument::arrangement).
+  Editor(DocumentHistory &history, const PageArrangement &arrangement)
+      : history_(&history), arrangement_(&arrangement) {
     if (!history.current().notebook.layers.empty()) active_layer_id_ = history.current().notebook.layers.front().id;
   }
 
@@ -102,6 +105,9 @@ class Editor {
   void InputUpdate(const InkPenSample *samples, size_t count);
 
   const Document &document() const { return history_->current(); }
+  std::vector<PagePlacement> Layout(const Document &doc) const {
+    return LayoutPages(doc, *arrangement_);
+  }
   // The document as the canvas shows it: during an erase gesture, with the
   // erased strokes hidden or cut; while the selection is dragged, without it;
   // otherwise the document.
@@ -277,6 +283,7 @@ class Editor {
                      double t0, const std::vector<InkPenSample> &real) const;
 
   DocumentHistory *history_;
+  const PageArrangement *arrangement_;
   Transform view_;
   Pen pen_;
   double utc_offset_ms_ = 0;

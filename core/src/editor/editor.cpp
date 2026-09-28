@@ -330,8 +330,8 @@ void Editor::Input(const InkPenSample *samples, size_t count) {
     if (s.tool == INK_TOOL_TOUCH || s.phase == INK_PHASE_HOVER) continue;
     if (s.phase == INK_PHASE_BEGIN) {
       Point at = ToContent(view_, s.x, s.y);
-      const std::vector<PagePlacement> layout = LayoutPages(document());
-      const PagePlacement *placement = PageAt(layout, at.y);
+      const std::vector<PagePlacement> layout = Layout(document());
+      const PagePlacement *placement = PageAt(layout, at);
       if (!placement) continue;
       if (figure_capture_ && placement->page != figure_capture_->page) {
         figure_capture_->cross_page_input = true;
@@ -426,8 +426,8 @@ void Editor::EraseInput(const InkPenSample *samples, size_t count) {
     if (s.tool == INK_TOOL_TOUCH || s.phase == INK_PHASE_HOVER || s.predicted) continue;
     if (s.phase == INK_PHASE_BEGIN) {
       Point at = ToContent(view_, s.x, s.y);
-      const std::vector<PagePlacement> layout = LayoutPages(document());
-      const PagePlacement *placement = PageAt(layout, at.y);
+      const std::vector<PagePlacement> layout = Layout(document());
+      const PagePlacement *placement = PageAt(layout, at);
       if (!placement) continue;
       double scale = std::sqrt(std::abs(view_.a * view_.d - view_.b * view_.c));
       erase_.emplace(EraseGesture{.kind = eraser_kind_,

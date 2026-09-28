@@ -178,7 +178,7 @@ void Editor::LinkSelection(const std::string &href) {
 void Editor::AddBookmark(double x, double y) {
   if (!ResolveActiveLayer()) throw std::invalid_argument("choose an editable layer");
   Document next = document();
-  const auto layout = LayoutPages(next);
+  const auto layout = Layout(next);
   const Point point = ToContent(view_, x, y);
   const auto *placement = PageContaining(layout, point);
   if (!placement) throw std::invalid_argument("choose a point on a page");
@@ -257,8 +257,8 @@ void Editor::PushSelection(Document next, size_t page, std::vector<ElementRef> i
 // that clears it draws nothing (clearSelOnly, scribblearea.cpp:1428-1431).
 Editor::Route Editor::Begin(const InkPenSample &s) {
   Point at = ToContent(view_, s.x, s.y);
-  const std::vector<PagePlacement> layout = LayoutPages(document());
-  const PagePlacement *placement = PageAt(layout, at.y);
+  const std::vector<PagePlacement> layout = Layout(document());
+  const PagePlacement *placement = PageAt(layout, at);
   if (!placement) return Erases(s) ? Route::kErase : Route::kDraw;
   Point p{at.x - placement->x, at.y - placement->y};
   if (const Selection *selection = CurrentSelection()) {
@@ -477,7 +477,7 @@ void Editor::CommitTransform(Point content) {
   const Selection selection = *selection_;
   if (g.live.IsIdentity()) return;
   Document next = document();
-  const std::vector<PagePlacement> layout = LayoutPages(next);
+  const std::vector<PagePlacement> layout = Layout(next);
   size_t target = selection.page;
   if (g.hit.kind == HandleKind::kMove) {
     const PagePlacement *drop = PageContaining(layout, content);
@@ -573,9 +573,9 @@ bool Editor::Paste(std::string_view svg, double x, double y, double view_width, 
   if (!pasted) return false;
   if (pasted->empty()) return true;
   Document next = document();
-  const std::vector<PagePlacement> layout = LayoutPages(next);
+  const std::vector<PagePlacement> layout = Layout(next);
   Point at = ToContent(view_, x, y);
-  const PagePlacement *placement = PageAt(layout, at.y);
+  const PagePlacement *placement = PageAt(layout, at);
   if (!placement) return true;
   Page page = *next.pages[placement->page];
 
@@ -661,7 +661,7 @@ bool Editor::InsertText(std::string_view utf8, double x, double y, TextBoxStyle 
   if (!ResolveActiveLayer()) return false;
   if (utf8.empty()) return false;
   Document next = document();
-  const std::vector<PagePlacement> layout = LayoutPages(next);
+  const std::vector<PagePlacement> layout = Layout(next);
   Point at = ToContent(view_, x, y);
   const PagePlacement *placement = PageContaining(layout, at);
   if (!placement) return false;
@@ -683,7 +683,7 @@ bool Editor::InsertText(std::string_view utf8, double x, double y, TextBoxStyle 
 bool Editor::SelectTextAt(double x, double y) {
   const Document &doc = document();
   Point at = ToContent(view_, x, y);
-  const std::vector<PagePlacement> layout = LayoutPages(doc);
+  const std::vector<PagePlacement> layout = Layout(doc);
   const PagePlacement *placement = PageContaining(layout, at);
   if (!placement) {
     ClearSelection();

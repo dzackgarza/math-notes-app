@@ -115,8 +115,7 @@ class Notebook extends StatefulWidget {
     required this.destination,
     required this.onFollowLink,
     required this.onChooseNotebookLink,
-    required this.tabsHidden,
-    required this.onTabsHidden,
+    required this.workspaceMenu,
   });
   final native.OpenNote note;
   final native.Engine engine;
@@ -129,8 +128,8 @@ class Notebook extends StatefulWidget {
   final ValueNotifier<NoteDestination?> destination;
   final Future<void> Function(String href, int page) onFollowLink;
   final Future<String?> Function(int page) onChooseNotebookLink;
-  final bool tabsHidden;
-  final ValueChanged<bool> onTabsHidden;
+  // The View menu entries that the workspace owns: the tab bar and the split.
+  final List<PullDownMenuEntry> Function() workspaceMenu;
   @override
   State<Notebook> createState() => _NotebookState();
 }
@@ -188,8 +187,20 @@ class _NotebookState extends State<Notebook>
   bool pullReady = false;
   bool atEnd = false;
   static int nextView = 0;
+  // The View menu's page layout for every notebook: 0 is vertical scroll, 1
+  // is horizontal scroll, and 2 is two pages per row in vertical scroll.
+  static final arrangement = ValueNotifier<int>(
+    int.parse(web.window.localStorage.getItem('pageArrangement') ?? '0'),
+  );
 
-  double get fit => width / widget.note.document.contentSize().width;
+  bool get horizontal => arrangement.value == 1;
+  // Horizontal scroll fits the page height to the view; the others fit the
+  // content width.
+  double get fit {
+    final content = widget.note.document.contentSize();
+    return horizontal ? height / content.height : width / content.width;
+  }
+
   String get layerLabel {
     final index = canvas?.activeLayer() ?? -1;
     if (index < 0) return 'Choose a layer';
@@ -227,6 +238,8 @@ class _NotebookState extends State<Notebook>
       if (mounted) setState(() {});
     }).toJS;
     widget.note.saver.addEventListener('change', saveListener);
+    widget.note.document.setArrangement(arrangement.value);
+    arrangement.addListener(arrange);
     scroll.addListener(updateView);
     transform.addListener(updateView);
     widget.viewport.addListener(receiveViewport);
@@ -283,6 +296,27 @@ class _NotebookState extends State<Notebook>
     }
   }
 
+  // Lays the pages out again and returns to the top of the current page.
+  void arrange() {
+    widget.note.document.setArrangement(arrangement.value);
+    final current = page;
+    setState(() {});
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !scroll.hasClients) return;
+      transform.value = Matrix4.identity();
+      scroll.jumpTo(pageOffset(current));
+    });
+  }
+
+  // The scroll offset that puts the start of page `index` at the view's edge.
+  double pageOffset(int index) {
+    final rect = widget.note.document.pageRect(index);
+    return ((horizontal ? rect.x : rect.y) * fit).clamp(
+      0.0,
+      scroll.position.maxScrollExtent,
+    );
+  }
+
   void updateView() {
     final target = canvas;
     if (target == null) return;
@@ -310,8 +344,8 @@ class _NotebookState extends State<Notebook>
       0,
       0,
       fit * scale,
-      matrix.storage[12],
-      matrix.storage[13] - offset * scale,
+      matrix.storage[12] - (horizontal ? offset * scale : 0),
+      matrix.storage[13] - (horizontal ? 0 : offset * scale),
     );
     final current = target.pageAt(width / 2, height / 2);
     if (current >= 0 && current != page && mounted)
@@ -650,11 +684,18 @@ class _NotebookState extends State<Notebook>
   void fingerPan(ScaleUpdateDetails details) {
     if (details.pointerCount < 2 || details.scale != 1.0) return;
     final scale = transform.value.getMaxScaleOnAxis();
-    final x = (transform.value.getTranslation().x + details.focalPointDelta.dx)
-        .clamp(width * (1 - scale), 0.0);
-    transform.value = transform.value.clone()..setEntry(0, 3, x);
+    final delta = details.focalPointDelta;
+    final (across, along) = horizontal
+        ? (delta.dy, delta.dx)
+        : (delta.dx, delta.dy);
+    final axis = horizontal ? 1 : 0;
+    final shift = (transform.value.storage[12 + axis] + across).clamp(
+      (horizontal ? height : width) * (1 - scale),
+      0.0,
+    );
+    transform.value = transform.value.clone()..setEntry(axis, 3, shift);
     scroll.jumpTo(
-      (scroll.offset - details.focalPointDelta.dy / scale).clamp(
+      (scroll.offset - along / scale).clamp(
         0.0,
         scroll.position.maxScrollExtent,
       ),
@@ -710,7 +751,8 @@ class _NotebookState extends State<Notebook>
     final chosen = await showCupertinoModalPopup<Future<void> Function()>(
       context: context,
       builder: (context) => CupertinoActionSheet(
-        title: const Text('Paper'),
+        title: const Text('Paper for new pages'),
+        message: Text('Current: ${widget.note.template}'),
         actions: [
           for (final name in templates.toDart)
             CupertinoActionSheetAction(
@@ -719,10 +761,10 @@ class _NotebookState extends State<Notebook>
               child: Text(name.toDart),
             ),
           for (final (size, orientation, label) in const [
-            (0, 0, 'New pages: A4 portrait'),
-            (0, 1, 'New pages: A4 landscape'),
-            (1, 0, 'New pages: Letter portrait'),
-            (1, 1, 'New pages: Letter landscape'),
+            (0, 0, 'A4 portrait'),
+            (0, 1, 'A4 landscape'),
+            (1, 0, 'Letter portrait'),
+            (1, 1, 'Letter landscape'),
           ])
             CupertinoActionSheetAction(
               onPressed: () => Navigator.pop(
@@ -760,10 +802,11 @@ class _NotebookState extends State<Notebook>
     if (chosen != null) jump(chosen);
   }
 
-  // The popover beside a toolbar button, on the page side of the toolbar.
+  // The popover beside a toolbar button, on the page side of the toolbar. As
+  // in Noteful, it is a light card with a title, so ink samples read as paper.
   Future<void> popover(
     BuildContext anchor,
-    String label,
+    String title,
     double width,
     Widget Function(BuildContext context, StateSetter update) body,
   ) async {
@@ -771,67 +814,162 @@ class _NotebookState extends State<Notebook>
       context: anchor,
       direction: toolbarRight ? PopoverDirection.left : PopoverDirection.right,
       width: width,
-      backgroundColor: CupertinoColors.systemBackground.resolveFrom(context),
+      backgroundColor: CupertinoColors.white,
       barrierColor: const Color(0x00000000),
-      barrierLabel: 'Close $label',
-      bodyBuilder: (context) => StatefulBuilder(
-        builder: (context, update) => Padding(
-          padding: const EdgeInsets.all(16),
-          child: body(context, update),
+      barrierLabel: 'Close $title',
+      bodyBuilder: (context) => CupertinoTheme(
+        data: const CupertinoThemeData(
+          brightness: Brightness.light,
+          primaryColor: accent,
+        ),
+        child: Builder(
+          builder: (context) => DefaultTextStyle(
+            style: CupertinoTheme.of(context).textTheme.textStyle,
+            child: StatefulBuilder(
+              builder: (context, update) => Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      style: CupertinoTheme.of(context)
+                          .textTheme
+                          .navTitleTextStyle,
+                    ),
+                  ),
+                  Container(height: 1, color: CupertinoColors.systemGrey5),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: body(context, update),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
   }
 
+  // A round icon choice with a caption, as in Noteful's pen type row.
+  Widget choice(
+    String label,
+    IconData icon,
+    bool selected,
+    VoidCallback onPressed,
+  ) => Semantics(
+    label: label,
+    button: true,
+    selected: selected,
+    excludeSemantics: true,
+    child: CupertinoButton(
+      padding: EdgeInsets.zero,
+      minimumSize: const Size(64, 72),
+      onPressed: onPressed,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: selected ? accent : CupertinoColors.systemGrey6,
+            ),
+            child: Icon(
+              icon,
+              size: 22,
+              color: selected ? CupertinoColors.white : CupertinoColors.black,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: CupertinoColors.secondaryLabel,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget section(String label) => Padding(
+    padding: const EdgeInsets.only(top: 12, bottom: 4),
+    child: Text(
+      label,
+      style: const TextStyle(
+        fontSize: 14,
+        color: CupertinoColors.secondaryLabel,
+      ),
+    ),
+  );
+
   // The eraser, lasso, and insert space modes.
   Future<void> modePopover(String kind, BuildContext anchor) {
-    final (label, modes, current) = switch (kind) {
+    final (title, modes, current) = switch (kind) {
       'eraser' => (
         'Eraser',
-        const {0: 'Stroke', 1: 'Partial', 2: 'Ruled'},
+        const [
+          (0, 'Stroke', LucideIcons.spline),
+          (1, 'Partial', LucideIcons.eraser),
+          (2, 'Ruled', LucideIcons.ruler),
+        ],
         eraser,
       ),
       'lasso' => (
         'Lasso',
-        const {0: 'Freehand', 1: 'Rectangle', 7: 'Oval', 2: 'Ruled'},
+        const [
+          (0, 'Freehand', LucideIcons.lasso),
+          (1, 'Rectangle', LucideIcons.squareDashed),
+          (7, 'Oval', LucideIcons.circleDashed),
+          (2, 'Ruled', LucideIcons.ruler),
+        ],
         selector,
       ),
       _ => (
         'Insert space',
-        const {4: 'Vertical', 5: 'Horizontal', 6: 'Reflow'},
+        const [
+          (4, 'Vertical', LucideIcons.moveVertical),
+          (5, 'Horizontal', LucideIcons.moveHorizontal),
+          (6, 'Reflow', LucideIcons.wrapText),
+        ],
         spaceMode,
       ),
     };
     var value = current;
     return popover(
       anchor,
-      '$label modes',
-      340,
-      (context, update) => CupertinoSlidingSegmentedControl<int>(
-        groupValue: value,
-        children: {
-          for (final mode in modes.entries) mode.key: Text(mode.value),
-        },
-        onValueChanged: (next) {
-          if (next == null) return;
-          update(() => value = next);
-          switch (kind) {
-            case 'eraser':
-              eraser = next;
-            case 'lasso':
-              selector = next;
-            default:
-              spaceMode = next;
-          }
-          chooseTool(kind);
-        },
+      title,
+      modes.length * 72 + 32,
+      (context, update) => Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          for (final (mode, label, icon) in modes)
+            choice(label, icon, value == mode, () {
+              update(() => value = mode);
+              switch (kind) {
+                case 'eraser':
+                  eraser = mode;
+                case 'lasso':
+                  selector = mode;
+                default:
+                  spaceMode = mode;
+              }
+              chooseTool(kind);
+            }),
+        ],
       ),
     );
   }
 
-  // Noteful's pen popover: a sample stroke, the pen types, size presets and a
-  // slider, opacity on the Advanced tab, and Save. The selected kind changes
-  // once, when the popover closes.
+  // Noteful's pen popover: a stroke sample, the pen types, labeled size
+  // presets and a slider, opacity on the Advanced tab, and Save. The popover
+  // edits the selected kind only; the change applies when it closes.
   Future<void> configurePen(BuildContext anchor) async {
     if (pens == null) return;
     final highlighter = pen == 'highlighter';
@@ -849,13 +987,15 @@ class _NotebookState extends State<Notebook>
       size: size,
       opacity: opacity,
     );
-    await popover(anchor, '$pen settings', 320, (context, update) {
+    await popover(anchor, highlighter ? 'Highlighter' : 'Pen', 340, (
+      context,
+      update,
+    ) {
       final presets = highlighter
           ? const [4.8, 7.2, 9.6, 14.4, 19.2]
           : const [0.6, 1.2, 1.8, 2.4, 3.6];
       final opacityRow = Row(
         children: [
-          const Text('Opacity'),
           Expanded(
             child: CupertinoSlider(
               value: opacity,
@@ -865,75 +1005,106 @@ class _NotebookState extends State<Notebook>
               onChanged: (value) => update(() => opacity = value),
             ),
           ),
-          Text('${(opacity * 100).round()}%'),
+          SizedBox(
+            width: 56,
+            child: Text(
+              '${(opacity * 100).round()}%',
+              textAlign: TextAlign.end,
+            ),
+          ),
         ],
       );
       return Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            highlighter ? 'Highlighter' : 'Pen',
-            style: CupertinoTheme.of(context).textTheme.navTitleTextStyle,
-          ),
-          Image.memory(
-            native.host
-                .penPreview(
-                  widget.engine,
-                  settings(),
-                  (288 * ratio).round(),
-                  (64 * ratio).round(),
-                  1.5 * ratio,
-                )
-                .toDart,
-            width: 288,
-            height: 64,
-            gaplessPlayback: true,
-          ),
-          if (!highlighter)
-            CupertinoSlidingSegmentedControl<bool>(
-              groupValue: advanced,
-              children: const {false: Text('Settings'), true: Text('Advanced')},
-              onValueChanged: (value) => update(() => advanced = value!),
+          Container(
+            height: 72,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: CupertinoColors.systemGrey6,
+              borderRadius: BorderRadius.circular(8),
             ),
-          if (!highlighter && !advanced)
-            CupertinoSlidingSegmentedControl<int>(
-              groupValue: brush,
-              children: const {0: Text('Pen'), 1: Text('Marker')},
-              onValueChanged: (value) => update(() => brush = value!),
+            child: Image.memory(
+              native.host
+                  .penPreview(
+                    widget.engine,
+                    settings(),
+                    (288 * ratio).round(),
+                    (64 * ratio).round(),
+                    1.5 * ratio,
+                  )
+                  .toDart,
+              width: 288,
+              height: 64,
+              gaplessPlayback: true,
             ),
-          if (highlighter || !advanced) ...[
+          ),
+          if (!highlighter && !advanced) ...[
+            section('Pen type'),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                choice(
+                  'Pressure pen',
+                  LucideIcons.penTool,
+                  brush == 0,
+                  () => update(() => brush = 0),
+                ),
+                choice(
+                  'Marker',
+                  LucideIcons.brush,
+                  brush == 1,
+                  () => update(() => brush = 1),
+                ),
+              ],
+            ),
+          ],
+          if (highlighter || !advanced) ...[
+            section('Size'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 for (final (i, value) in presets.indexed)
                   Semantics(
                     label: '$value pt',
                     button: true,
+                    selected: (size - value).abs() < 0.05,
                     excludeSemantics: true,
                     child: CupertinoButton(
                       padding: EdgeInsets.zero,
-                      minimumSize: const Size(40, 40),
+                      minimumSize: const Size(56, 56),
                       onPressed: () => update(() => size = value),
                       child: Container(
-                        width: 36,
-                        height: 36,
-                        alignment: Alignment.center,
+                        width: 56,
+                        height: 56,
                         decoration: BoxDecoration(
-                          shape: BoxShape.circle,
+                          borderRadius: BorderRadius.circular(8),
                           border: Border.all(
                             color: (size - value).abs() < 0.05
-                                ? CupertinoColors.activeBlue
+                                ? accent
                                 : const Color(0x00000000),
                             width: 2,
                           ),
                         ),
-                        child: Container(
-                          width: 4.0 + 5 * i,
-                          height: 4.0 + 5 * i,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Color(0xFF000000 | rgb),
-                          ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            Container(
+                              width: 3.0 + 4 * i,
+                              height: 3.0 + 4 * i,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Color(0xFF000000 | rgb),
+                              ),
+                            ),
+                            Text(
+                              '$value pt',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: CupertinoColors.label,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -942,7 +1113,6 @@ class _NotebookState extends State<Notebook>
             ),
             Row(
               children: [
-                const Text('Size'),
                 Expanded(
                   child: CupertinoSlider(
                     value: size.clamp(0.2, 20),
@@ -952,17 +1122,47 @@ class _NotebookState extends State<Notebook>
                     onChanged: (value) => update(() => size = value),
                   ),
                 ),
-                Text('${size.toStringAsFixed(1)} pt'),
+                SizedBox(
+                  width: 56,
+                  child: Text(
+                    '${size.toStringAsFixed(1)} pt',
+                    textAlign: TextAlign.end,
+                  ),
+                ),
               ],
             ),
           ],
-          if (highlighter || advanced) opacityRow,
+          if (highlighter || advanced) ...[section('Opacity'), opacityRow],
+          if (!highlighter) ...[
+            const SizedBox(height: 12),
+            CupertinoSlidingSegmentedControl<bool>(
+              groupValue: advanced,
+              children: {
+                false: Semantics(
+                  label: 'Settings',
+                  child: const Icon(LucideIcons.pencil, size: 18),
+                ),
+                true: Semantics(
+                  label: 'Advanced',
+                  child: const Icon(LucideIcons.slidersHorizontal, size: 18),
+                ),
+              },
+              onValueChanged: (value) => update(() => advanced = value!),
+            ),
+          ],
           CupertinoButton(
             onPressed: () {
               save = true;
               Navigator.pop(context);
             },
-            child: const Text('Save pen'),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.bookmarkPlus, size: 18),
+                SizedBox(width: 6),
+                Text('Save pen'),
+              ],
+            ),
           ),
         ],
       );
@@ -1072,16 +1272,10 @@ class _NotebookState extends State<Notebook>
     var rgb = palette[index];
     await popover(
       anchor,
-      'color',
+      'Color',
       260,
-      (context, update) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(hex(rgb)),
-          const SizedBox(height: 8),
-          colorWheel(rgb, (next) => update(() => rgb = next)),
-        ],
-      ),
+      (context, update) =>
+          Center(child: colorWheel(rgb, (next) => update(() => rgb = next))),
     );
     if (rgb == palette[index]) return;
     await writePens(palette: [...palette]..[index] = rgb);
@@ -1093,7 +1287,7 @@ class _NotebookState extends State<Notebook>
     var rgb = penTool.rgb;
     await popover(
       anchor,
-      'color list',
+      'Colors',
       280,
       (context, update) => Column(
         mainAxisSize: MainAxisSize.min,
@@ -1561,10 +1755,24 @@ class _NotebookState extends State<Notebook>
 
   List<PullDownMenuEntry> viewMenu() => [
     PullDownMenuItem.selectable(
-      title: 'Fit width',
+      title: horizontal ? 'Fit height' : 'Fit width',
       selected: transform.value.getMaxScaleOnAxis() == 1,
       onTap: fitWidth,
     ),
+    const PullDownMenuDivider.large(),
+    for (final (value, title) in const [
+      (0, 'Vertical scroll'),
+      (1, 'Horizontal scroll'),
+      (2, 'Two pages'),
+    ])
+      PullDownMenuItem.selectable(
+        title: title,
+        selected: arrangement.value == value,
+        onTap: () {
+          web.window.localStorage.setItem('pageArrangement', '$value');
+          arrangement.value = value;
+        },
+      ),
     const PullDownMenuDivider.large(),
     for (final right in [false, true])
       PullDownMenuItem.selectable(
@@ -1578,22 +1786,32 @@ class _NotebookState extends State<Notebook>
           );
         },
       ),
-    PullDownMenuItem(
-      title: widget.tabsHidden ? 'Show tab bar' : 'Hide tab bar',
-      onTap: () => widget.onTabsHidden(!widget.tabsHidden),
-    ),
+    const PullDownMenuDivider.large(),
+    ...widget.workspaceMenu(),
   ];
 
   List<PullDownMenuEntry> moreMenu() => [
     PullDownMenuItem(
-      title: 'Paper',
+      title: widget.note.saver.state.status == 'error' ? 'Retry save' : 'Save',
+      enabled: !drawing,
+      onTap: () => run(() async {
+        await widget.note.saver.save().toDart;
+      }),
+    ),
+    PullDownMenuItem(
+      title: 'Paper for new pages',
       enabled: !drawing,
       onTap: () => run(paperMenu),
     ),
     PullDownMenuItem(
+      title: 'Share',
+      enabled: !drawing,
+      onTap: () => run(() => exportPdf(share: true)),
+    ),
+    PullDownMenuItem(
       title: 'Export PDF',
       enabled: !drawing,
-      onTap: () => run(exportPdf),
+      onTap: () => run(() => exportPdf(share: false)),
     ),
     PullDownMenuItem(
       title: 'Go to page',
@@ -1650,10 +1868,12 @@ class _NotebookState extends State<Notebook>
     ),
   ];
 
-  // Returns to the unzoomed page and keeps the line at the top of the view.
+  // Returns to the unzoomed page and keeps the line at the top of the view,
+  // or in horizontal scroll the column at its left edge.
   void fitWidth() {
     final scale = transform.value.getMaxScaleOnAxis();
-    final top = scroll.offset - transform.value.getTranslation().y / scale;
+    final top =
+        scroll.offset - transform.value.storage[horizontal ? 12 : 13] / scale;
     transform.value = Matrix4.identity();
     scroll.jumpTo(top.clamp(0.0, scroll.position.maxScrollExtent));
   }
@@ -1736,7 +1956,9 @@ class _NotebookState extends State<Notebook>
     ),
   );
 
-  Future<void> exportPdf() async {
+  // The page range and layers of a PDF, which goes to a download or to the
+  // system share sheet.
+  Future<void> exportPdf({required bool share}) async {
     final layers = widget.note.document.layers().toDart;
     final included = {
       for (final layer in layers)
@@ -1759,7 +1981,7 @@ class _NotebookState extends State<Notebook>
               to >= from &&
               to <= widget.note.document.pageCount();
           return CupertinoAlertDialog(
-            title: const Text('Export PDF'),
+            title: Text(share ? 'Share PDF' : 'Export PDF'),
             content: Column(
               children: [
                 const SizedBox(height: 16),
@@ -1807,7 +2029,7 @@ class _NotebookState extends State<Notebook>
               ),
               CupertinoDialogAction(
                 onPressed: valid ? () => Navigator.pop(context, true) : null,
-                child: const Text('Export'),
+                child: Text(share ? 'Share' : 'Export'),
               ),
             ],
           );
@@ -1817,12 +2039,15 @@ class _NotebookState extends State<Notebook>
     if (accepted == true) {
       await widget.note.saver.save().toDart;
       final from = int.parse(first.text) - 1;
-      native.host.exportPdf(
-        widget.note,
-        from,
-        int.parse(last.text) - from,
-        included.map((id) => id.toJS).toList().toJS,
-      );
+      final count = int.parse(last.text) - from;
+      final ids = included.map((id) => id.toJS).toList().toJS;
+      first.dispose();
+      last.dispose();
+      if (share)
+        await native.host.sharePdf(widget.note, from, count, ids).toDart;
+      else
+        native.host.exportPdf(widget.note, from, count, ids);
+      return;
     }
     first.dispose();
     last.dispose();
@@ -1830,9 +2055,8 @@ class _NotebookState extends State<Notebook>
 
   void jump(int index) {
     if (drawing) return;
-    final rect = widget.note.document.pageRect(index);
     scroll.animateTo(
-      (rect.y * fit).clamp(0.0, scroll.position.maxScrollExtent),
+      pageOffset(index),
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeOut,
     );
@@ -1842,7 +2066,7 @@ class _NotebookState extends State<Notebook>
     final rect = widget.note.document.pageRect(mark.page);
     transform.value = Matrix4.identity();
     scroll.animateTo(
-      ((rect.y + mark.y) * fit - 48).clamp(
+      ((horizontal ? rect.x + mark.x : rect.y + mark.y) * fit - 48).clamp(
         0.0,
         scroll.position.maxScrollExtent,
       ),
@@ -1946,9 +2170,13 @@ class _NotebookState extends State<Notebook>
     final rect = widget.note.document.pageRect(p);
     final matrix = transform.value;
     final scale = matrix.getMaxScaleOnAxis();
-    final x = (position.dx - matrix.storage[12]) / (fit * scale) - rect.x;
+    final along = scroll.offset * scale;
+    final x =
+        (position.dx - matrix.storage[12] + (horizontal ? along : 0)) /
+            (fit * scale) -
+        rect.x;
     final y =
-        (position.dy - matrix.storage[13] + scroll.offset * scale) /
+        (position.dy - matrix.storage[13] + (horizontal ? 0 : along)) /
             (fit * scale) -
         rect.y;
     for (final mark in widget.note.document.navigation().toDart.reversed) {
@@ -1968,6 +2196,7 @@ class _NotebookState extends State<Notebook>
   void dispose() {
     widget.destination.removeListener(receiveDestination);
     widget.viewport.removeListener(receiveViewport);
+    arrangement.removeListener(arrange);
     pullTimer?.cancel();
     focus.dispose();
     figureText.dispose();
@@ -2039,19 +2268,6 @@ class _NotebookState extends State<Notebook>
                 liveRegion: true,
                 label: 'Notebook save',
                 child: Text(saveLabel),
-              ),
-              CupertinoButton(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                onPressed: drawing
-                    ? null
-                    : () => run(() async {
-                        await widget.note.saver.save().toDart;
-                      }),
-                child: Text(
-                  widget.note.saver.state.status == 'error'
-                      ? 'Retry save'
-                      : 'Save',
-                ),
               ),
               menuButton('Pages', LucideIcons.layoutGrid, pagesMenu),
               menuButton('View', LucideIcons.layoutPanelLeft, viewMenu),
@@ -2202,18 +2418,27 @@ class _NotebookState extends State<Notebook>
                                               },
                                               child: SingleChildScrollView(
                                                 controller: scroll,
+                                                scrollDirection: horizontal
+                                                    ? Axis.horizontal
+                                                    : Axis.vertical,
                                                 physics:
                                                     const BouncingScrollPhysics(
                                                       parent:
                                                           AlwaysScrollableScrollPhysics(),
                                                     ),
                                                 child: SizedBox(
-                                                  width: width,
-                                                  height:
-                                                      widget.note.document
-                                                          .contentSize()
-                                                          .height *
-                                                      fit,
+                                                  width: horizontal
+                                                      ? widget.note.document
+                                                                .contentSize()
+                                                                .width *
+                                                            fit
+                                                      : width,
+                                                  height: horizontal
+                                                      ? height
+                                                      : widget.note.document
+                                                                .contentSize()
+                                                                .height *
+                                                            fit,
                                                 ),
                                               ),
                                             ),

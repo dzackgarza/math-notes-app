@@ -90,7 +90,7 @@ std::vector<std::vector<InkPenSample>> StrokeEvents(double x, double y, uint32_t
 
 TEST_CASE("Listed pages have a small desk gap and center on the widest") {
   Document doc = LoadNotebook(ink_test::ReadNotebookDir(kDocuments + "/full"));
-  std::vector<PagePlacement> layout = LayoutPages(doc);
+  std::vector<PagePlacement> layout = LayoutPages(doc, PageArrangement::kVertical);
   REQUIRE(layout.size() == 5);  // the unlisted page 0005.svg is not laid out
   double widest = 612;          // the Letter page 0003.svg
   CHECK(layout[0].x == (widest - 595.28) / 2);
@@ -99,17 +99,42 @@ TEST_CASE("Listed pages have a small desk gap and center on the widest") {
   CHECK(layout[2].x == 0);
   CHECK(layout[2].y == 2 * (841.89 + 6));
   CHECK(layout[3].y == 2 * (841.89 + 6) + 792 + 6);
-  CHECK(PageAt(layout, -50)->page == 0);
-  CHECK(PageAt(layout, 841.89 - 0.1)->page == 0);
-  CHECK(PageAt(layout, 841.89 + 0.1) == nullptr);
-  CHECK(PageAt(layout, 841.89 + 6.1)->page == 1);
-  CHECK(PageAt(layout, 1e6)->page == layout.back().page);
+  CHECK(PageAt(layout, {300, -50})->page == 0);
+  CHECK(PageAt(layout, {300, 841.89 - 0.1})->page == 0);
+  CHECK(PageAt(layout, {300, 841.89 + 0.1}) == nullptr);
+  CHECK(PageAt(layout, {300, 841.89 + 6.1})->page == 1);
+  CHECK(PageAt(layout, {300, 1e6})->page == layout.back().page);
+}
+
+TEST_CASE("Horizontal and two-page arrangements lay pages out in rows") {
+  Document doc = LoadNotebook(ink_test::ReadNotebookDir(kDocuments + "/full"));
+  std::vector<PagePlacement> row = LayoutPages(doc, PageArrangement::kHorizontal);
+  REQUIRE(row.size() == 5);
+  for (size_t i = 1; i < row.size(); ++i) {
+    CHECK(row[i].y == 0);
+    CHECK(row[i].x == row[i - 1].x + row[i - 1].width + kPageGap);
+  }
+  CHECK(PageAt(row, {row[1].x + 1, 10})->page == row[1].page);
+  CHECK(PageAt(row, {row[1].x - 1, 10}) == nullptr);
+  CHECK(PageAt(row, {-50, 10})->page == row[0].page);
+
+  std::vector<PagePlacement> spreads = LayoutPages(doc, PageArrangement::kTwoPage);
+  REQUIRE(spreads.size() == 5);
+  CHECK(spreads[0].y == spreads[1].y);
+  CHECK(spreads[1].x == spreads[0].x + spreads[0].width + kPageGap);
+  CHECK(spreads[2].y == spreads[3].y);
+  CHECK(spreads[2].y == std::max(spreads[0].height, spreads[1].height) + kPageGap);
+  CHECK(spreads[4].y > spreads[2].y);
+  double widest = 0;
+  for (const auto &p : spreads) widest = std::max(widest, p.x + p.width);
+  CHECK(spreads[4].x == (widest - spreads[4].width) / 2);
+  CHECK(PageAt(spreads, {spreads[3].x + 1, spreads[3].y + 1})->page == spreads[3].page);
 }
 
 TEST_CASE("A pen-down on the second page draws on it in its page coordinates") {
   Document doc = LoadNotebook(ink_test::ReadNotebookDir(kDocuments + "/full"));
   ink_test::Session canvas(doc, 7);
-  std::vector<PagePlacement> layout = LayoutPages(doc);
+  std::vector<PagePlacement> layout = LayoutPages(doc, PageArrangement::kVertical);
   size_t elements = doc.pages[1]->layers[0].elements.size();
   for (auto &event : StrokeEvents(layout[1].x + 200, layout[1].y + 50, 0)) {
     ink_input(canvas.get(), event.data(), event.size());
@@ -138,7 +163,7 @@ void CheckMatchesChromium(const std::string &dir, const std::string &goldens) {
     assets[path] = SkData::MakeWithCopy(bytes.data(), bytes.size());
   }
   Renderer renderer(nullptr, assets);
-  for (const PagePlacement &placement : LayoutPages(doc)) {
+  for (const PagePlacement &placement : LayoutPages(doc, PageArrangement::kVertical)) {
     const Page &page = *doc.pages[placement.page];
     if (page.error) continue;  // never written
     std::string stem = page.file.substr(page.file.rfind('/') + 1, 4);
@@ -177,7 +202,7 @@ TEST_CASE("Each built-in template's background renders as Chromium renders it") 
 
 TEST_CASE("A hidden layer is not drawn") {
   Document doc = LoadNotebook(ink_test::ReadNotebookDir(kDocuments + "/full"));
-  PagePlacement page2 = LayoutPages(doc)[1];
+  PagePlacement page2 = LayoutPages(doc, PageArrangement::kVertical)[1];
   Assets assets;
   Renderer renderer(nullptr, assets);
   // s-secondlayer1 on layer l-notesb covers (400..430, 700..703).

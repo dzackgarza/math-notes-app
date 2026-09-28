@@ -8,11 +8,10 @@ The [delivery order](web-daily-notes-handoff.md#delivery-order) is strict.
 Every L0 and L1 row of [core features](../specs/core-features.md) exists in
 the Flutter host, and the editor chrome follows the
 [tablet interface](../specs/tablet-ui.md#editor). Phase B, keep, find, and
-share notes, is the next work. Its open items are the phase B gaps below and
-#70: horizontal and two-page layouts, and Share. Earlier sessions built
-later-phase features (PDF import, split view, conflicts, layers, clippings,
-ruled editing, bookmarks, typed text, figures) before their phase. That code
-stays. It gets no further work until its phase starts.
+share notes, is the next work. Its open items are the phase B gaps below.
+Earlier sessions built later-phase features (PDF import, split view,
+conflicts, layers, clippings, ruled editing, bookmarks, typed text, figures)
+before their phase. That code stays. It gets no further work until its phase starts.
 
 The editor chrome lives in `hosts/web/flutter/lib/notebook.dart` and
 `main.dart`. Dependencies: `flex_color_picker` (HSV wheel),

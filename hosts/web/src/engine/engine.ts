@@ -653,6 +653,11 @@ export class InkDocument {
     });
   }
 
+  // 0 stacks the pages vertically, 1 puts them in one row, 2 puts two in each row.
+  setArrangement(arrangement: number): void {
+    this.engine.check(this.engine.module._ink_document_set_arrangement(this.pointer, arrangement));
+  }
+
   // The laid-out pages' extent in content coordinates (pt).
   contentSize(): { width: number; height: number } {
     const e = this.engine;

@@ -63,7 +63,7 @@ std::map<std::string, std::string> Written(InkDocument *document) {
 
 // View point at (x, y) pt on listed page `page` (identity view).
 std::pair<double, double> OnPage(const Document &document, size_t page, double x, double y) {
-  PagePlacement p = LayoutPages(document)[page];
+  PagePlacement p = LayoutPages(document, PageArrangement::kVertical)[page];
   return {p.x + x, p.y + y};
 }
 

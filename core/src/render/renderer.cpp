@@ -138,7 +138,7 @@ SkMatrix Renderer::ContentMatrix() const {
 }
 
 bool Renderer::Update(const Document &document, const View &view, bool live_changed) {
-  std::vector<PagePlacement> layout = LayoutPages(document);
+  std::vector<PagePlacement> layout = LayoutPages(document, view.arrangement);
   bool document_changed = !document_ || !(document_->pages == document.pages) ||
                           !(document_->notebook == document.notebook);
   bool full = !content_ || invalidated_ || !(view == view_) || layout != layout_ ||

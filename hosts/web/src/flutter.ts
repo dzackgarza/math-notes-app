@@ -143,6 +143,14 @@ function exportPdf(note: OpenNotebook, first: number, count: number, layers: str
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+// The share sheet with the exported pages as a PDF file (Web Share API level 2).
+async function sharePdf(note: OpenNotebook, first: number, count: number, layers: string[]): Promise<void> {
+  const bytes = note.document.exportPdf(note.name, first, count, layers);
+  const file = new File([bytes], `${note.name}.pdf`, { type: "application/pdf" });
+  if (!navigator.canShare?.({ files: [file] })) throw new Error("This browser cannot share files; use Export PDF");
+  await navigator.share({ files: [file], title: note.name });
+}
+
 async function insertImage(note: OpenNotebook, canvas: Canvas, page: number, x: number, y: number): Promise<boolean> {
   const file = await new Promise<File | null>((resolve) => {
     const input = document.createElement("input");
@@ -179,7 +187,7 @@ const api = {
   importPdf,
   applyTemplate, listTemplates, finishFigure, figureSource,
   thumbnail, tagColors: TAG_COLORS,
-  cacheApp, paperPreview, exportPdf, insertImage, loadEngine, startRoot, pickRoot, requestPermission, library,
+  cacheApp, paperPreview, exportPdf, sharePdf, insertImage, loadEngine, startRoot, pickRoot, requestPermission, library,
   createNotebook, openNotebook, createFolder, moveEntry, moveToTrash,
   emptyFolder, emptyNote, moveNotes, readMetadata, writeMetadata, readPens, writePens, penPreview, acceptPen, cancelStroke, mountCanvas,
 };
