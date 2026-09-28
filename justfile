@@ -35,7 +35,7 @@ _flutter-host: _flutter-sdk
     cp .ci/fonts/*.ttf hosts/web/flutter/generated_fonts/
     cd hosts/web && bunx tsc -b && bunx --bun vite build --config vite.flutter.config.ts
     cd hosts/web/flutter && '{{flutter}}/bin/flutter' pub get --enforce-lockfile && '{{flutter}}/bin/flutter' build web --base-href /math-notes/flutter/ --no-web-resources-cdn
-    cp -a hosts/web/flutter/build/bridge/. hosts/web/flutter/build/web/
+    rsync -a --delete hosts/web/flutter/build/bridge/ hosts/web/flutter/build/web/bridge/
     bun hosts/web/build-tikz.mjs
     cd hosts/web && bun flutter-cache.mjs
 
