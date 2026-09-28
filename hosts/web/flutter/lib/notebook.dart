@@ -36,6 +36,45 @@ class PalmRejection extends EagerGestureRecognizer {
       stroking() && super.isPointerAllowed(event);
 }
 
+/// Recognizes a tap of several fingers with the limits of UIKit's
+/// `UITapGestureRecognizer` and `numberOfTouchesRequired`: every finger
+/// lifts before Flutter's long-press timeout and none moves beyond its tap
+/// slop. A pen contact during the taps cancels the gesture.
+class FingerTap {
+  final origins = <int, Offset>{};
+  int fingers = 0;
+  Duration start = Duration.zero;
+  bool valid = false;
+
+  void cancel() => valid = false;
+
+  /// The finger count of the tap that the touch [event] completes, or 0.
+  int add(PointerEvent event) {
+    if (event is PointerDownEvent) {
+      if (origins.isEmpty) {
+        fingers = 0;
+        start = event.timeStamp;
+        valid = true;
+      }
+      origins[event.pointer] = event.position;
+      if (origins.length > fingers) fingers = origins.length;
+      return 0;
+    }
+    final origin = origins[event.pointer];
+    if (origin == null) return 0;
+    if ((event.position - origin).distance > kTouchSlop ||
+        event is PointerCancelEvent)
+      valid = false;
+    if (event is! PointerUpEvent && event is! PointerCancelEvent) return 0;
+    origins.remove(event.pointer);
+    if (origins.isNotEmpty ||
+        !valid ||
+        event.timeStamp - start > kLongPressTimeout)
+      return 0;
+    return fingers;
+  }
+}
+
 class Notebook extends StatefulWidget {
   const Notebook({
     super.key,
@@ -98,6 +137,7 @@ class _NotebookState extends State<Notebook>
   final touches = <int>{};
   final strokes = <int>{};
   final palms = <int>{};
+  final taps = FingerTap();
   Timer? pullTimer;
   bool pullReady = false;
   bool atEnd = false;
@@ -265,7 +305,10 @@ class _NotebookState extends State<Notebook>
     final ended = event is PointerUpEvent || event is PointerCancelEvent;
     if (event.kind == PointerDeviceKind.stylus ||
         event.kind == PointerDeviceKind.invertedStylus) {
-      if (event is PointerDownEvent) strokes.add(event.pointer);
+      if (event is PointerDownEvent) {
+        strokes.add(event.pointer);
+        taps.cancel();
+      }
       if (ended) strokes.remove(event.pointer);
     }
     if (event.kind == PointerDeviceKind.touch) {
@@ -274,6 +317,12 @@ class _NotebookState extends State<Notebook>
       if (palms.contains(event.pointer)) {
         if (ended) palms.remove(event.pointer);
         return;
+      }
+      switch (taps.add(event)) {
+        case 2:
+          history(false);
+        case 3:
+          history(true);
       }
       if (event is PointerDownEvent) touches.add(event.pointer);
       if (ended) {

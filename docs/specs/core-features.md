@@ -44,7 +44,7 @@ earlier layers exists and works in the deployed app.
 | Pen presets | Exists: Pen, Thick pen, Highlighter. |
 | Pen settings popover: preview, size presets, slider, full color picker | Missing. A centered alert with six colors. |
 | Partial eraser | Exists. |
-| Two-finger tap undo; three-finger tap redo | Missing. |
+| Two-finger tap undo; three-finger tap redo | Exists (`FingerTap` in `hosts/web/flutter/lib/notebook.dart`). |
 | Stylus eraser end or side button switches to the eraser | Eraser end exists. Side button missing. |
 | Finger-drawing toggle | Missing. |
 | Rectangle select | Exists. |
