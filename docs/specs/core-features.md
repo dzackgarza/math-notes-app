@@ -51,7 +51,6 @@ earlier layers exists and works in the deployed app.
 | Selection resize | Exists (handles). |
 | Selection recolor | Exists: a palette swatch recolors the selection (`ink_canvas_recolor_selection`). |
 | Selection duplicate | Exists. |
-| Hold at the end of a stroke to snap it to a line or shape | Missing. |
 | Page overview: thumbnail grid with drag reorder, duplicate, delete | Exists: **Pages** (`hosts/web/flutter/lib/pages_sheet.dart`, on `reorderable_grid`). |
 | Page size and orientation | Size exists (A4, Letter). Orientation missing. |
 | Rename, move, and trash notes | Exists. |
@@ -77,6 +76,5 @@ handwriting app covering L0 and most of L1. Its canvas is a fork of Flutter's
 `InteractiveViewer` whose gesture start decides between a stroke and a
 pan/zoom; a second pointer rejects the gesture and removes the stroke drawn so
 far (`lib/components/canvas/interactive_canvas.dart`,
-`lib/pages/editor/editor.dart` `isDrawGesture`). It snaps shapes with
-`one_dollar_unistroke_recognizer` after a 500 ms hold, and its page manager is
+`lib/pages/editor/editor.dart` `isDrawGesture`). Its page manager is
 a `ReorderableListView`.

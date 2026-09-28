@@ -18,6 +18,9 @@ figure typesetting take place in external authoring tools.
   copies the code into an external paper workflow or figure editor for refinement.
 - Diagram geometry interpretation does not authorize interpretation of
   handwriting. Ink reflow concerns spatial layout, not textual meaning.
+- Shape recognition belongs only to TikZ mode, where it encodes the precise
+  shape deterministically as TikZ. Notebook ink never snaps or beautifies
+  into shapes: a clean shape on the page must still be redrawn in TikZ.
 
 These are permanent product boundaries, not features deferred beyond v1.
 Dependency capabilities and agent-written surveys cannot expand them. Read
