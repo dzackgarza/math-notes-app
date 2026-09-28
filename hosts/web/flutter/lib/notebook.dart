@@ -143,6 +143,11 @@ class _NotebookState extends State<Notebook>
   final strokes = <int>{};
   final palms = <int>{};
   final taps = FingerTap();
+  // One finger draws and two fingers pan and zoom. The choice belongs to the
+  // device, so it lives in the browser's storage, not in the notes folder.
+  bool fingerDraws = web.window.localStorage.getItem('fingerDraws') == 'true';
+  // The touch that draws the stroke in progress.
+  int? fingerStroke;
   Timer? pullTimer;
   bool pullReady = false;
   bool atEnd = false;
@@ -319,6 +324,13 @@ class _NotebookState extends State<Notebook>
     if (event.kind == PointerDeviceKind.touch) {
       if (event is PointerDownEvent && strokes.isNotEmpty)
         palms.add(event.pointer);
+      if (fingerDraws &&
+          event is PointerDownEvent &&
+          !palms.contains(event.pointer)) {
+        if (fingerStroke != null && canvas != null)
+          native.host.cancelStroke(canvas!);
+        fingerStroke = touches.isEmpty ? event.pointer : null;
+      }
       if (palms.contains(event.pointer)) {
         if (ended) palms.remove(event.pointer);
         return;
@@ -339,15 +351,19 @@ class _NotebookState extends State<Notebook>
       updatePull();
     }
     final target = canvas;
+    final finger = event.pointer == fingerStroke;
+    if (finger && ended) fingerStroke = null;
     if (tool == 'navigate' || tool == 'bookmark' || tool == 'text') return;
     if (target == null ||
         (event.kind != PointerDeviceKind.stylus &&
-            event.kind != PointerDeviceKind.invertedStylus))
+            event.kind != PointerDeviceKind.invertedStylus &&
+            !finger))
       return;
     if (native.host.acceptPen(
       target,
       element,
       event.timeStamp.inMicroseconds.toDouble(),
+      fingerDraws,
     )) {
       if (drawing)
         setState(
@@ -582,6 +598,28 @@ class _NotebookState extends State<Notebook>
               .clippingSvg(widget.engine, widget.note.root, item.id)
               .toDart)
           .toDart;
+
+  void toggleFingerDrawing() {
+    setState(() => fingerDraws = !fingerDraws);
+    web.window.localStorage.setItem('fingerDraws', '$fingerDraws');
+  }
+
+  // With finger drawing the scroll view ignores touch and InteractiveViewer
+  // does not pan, so a one-finger stroke leaves the page still. Two fingers
+  // move the page here; a pinch still zooms through InteractiveViewer.
+  void fingerPan(ScaleUpdateDetails details) {
+    if (details.pointerCount < 2 || details.scale != 1.0) return;
+    final scale = transform.value.getMaxScaleOnAxis();
+    final x = (transform.value.getTranslation().x + details.focalPointDelta.dx)
+        .clamp(width * (1 - scale), 0.0);
+    transform.value = transform.value.clone()..setEntry(0, 3, x);
+    scroll.jumpTo(
+      (scroll.offset - details.focalPointDelta.dy / scale).clamp(
+        0.0,
+        scroll.position.maxScrollExtent,
+      ),
+    );
+  }
 
   void toggleDrawing() {
     if (canvas == null) return;
@@ -1076,6 +1114,10 @@ class _NotebookState extends State<Notebook>
   Future<void> moreTools() async {
     final actions = <(String, VoidCallback?)>[
       ('Pen settings', () => unawaited(run(configurePen))),
+      (
+        fingerDraws ? 'Stop drawing with finger' : 'Draw with finger',
+        toggleFingerDrawing,
+      ),
       ('Paste', () => unawaited(run(paste))),
       ('Select page', () => canvas?.selectAll(page)),
       (drawing ? 'Complete drawing' : 'Drawing mode', toggleDrawing),
@@ -1768,12 +1810,18 @@ class _NotebookState extends State<Notebook>
                                           transformationController: transform,
                                           minScale: 1,
                                           maxScale: 5,
+                                          panEnabled: !fingerDraws,
+                                          onInteractionUpdate: fingerDraws
+                                              ? fingerPan
+                                              : null,
                                           child: ScrollConfiguration(
                                             behavior:
                                                 const CupertinoScrollBehavior()
                                                     .copyWith(
                                                       dragDevices: {
-                                                        PointerDeviceKind.touch,
+                                                        if (!fingerDraws)
+                                                          PointerDeviceKind
+                                                              .touch,
                                                         PointerDeviceKind
                                                             .trackpad,
                                                       },

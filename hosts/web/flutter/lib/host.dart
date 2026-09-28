@@ -449,7 +449,9 @@ extension type Host(JSObject value) implements JSObject {
     Canvas canvas,
     web.HTMLCanvasElement element,
     double stamp,
+    bool fingerDraws,
   );
+  external void cancelStroke(Canvas canvas);
 }
 
 extension type FigureEditor(JSObject value) implements JSObject {

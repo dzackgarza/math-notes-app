@@ -45,8 +45,8 @@ earlier layers exists and works in the deployed app.
 | Pen settings popover: preview, size presets, slider, full color picker | Exists: a popover beside the rail with an engine-rendered stroke preview, brush, size presets, size and opacity sliders, the palette, and the browser color picker. |
 | Partial eraser | Exists. |
 | Two-finger tap undo; three-finger tap redo | Exists (`FingerTap` in `hosts/web/flutter/lib/notebook.dart`). |
-| Stylus eraser end or side button switches to the eraser | Eraser end exists. Side button missing. |
-| Finger-drawing toggle | Missing. |
+| Stylus eraser end or side button switches to the eraser | Exists. A stroke begun with the side button held erases until the pen lifts. |
+| Finger-drawing toggle | Exists. More > Draw with finger: one finger draws, two fingers pan and zoom, and a second finger cancels the stroke in progress. The choice persists. |
 | Rectangle select | Exists. |
 | Selection resize | Exists (handles). |
 | Selection recolor | Exists: a palette swatch recolors the selection (`ink_canvas_recolor_selection`). |

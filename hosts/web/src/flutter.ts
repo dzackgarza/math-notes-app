@@ -6,7 +6,7 @@ import { generateTikz } from "@dzackgarza/freetikz/tikz";
 import type { OpenNotebook } from "./editor/notebook.ts";
 import { loadEngine } from "./engine/load.ts";
 import type { Canvas, Engine, ToolSettings } from "./engine/engine.ts";
-import { PageSize } from "./engine/engine.ts";
+import { PageSize, Phase, Tool } from "./engine/engine.ts";
 import { capabilities, penSamples } from "./input/pointer.ts";
 import { ensureTemplates, hasPermission, listTemplates, pickRoot, readTemplatePage, requestPermission, savedRoot } from "./storage/folder.ts";
 import { createFolder, moveEntry, moveToTrash, scanLibrary, scanTrash, type Note } from "./storage/library.ts";
@@ -66,7 +66,7 @@ const consumed = new WeakSet<PointerEvent>();
 const sampleIds = { next: 0 };
 for (const type of ["pointerdown", "pointermove", "pointerup", "pointercancel"]) {
   window.addEventListener(type, (event) => {
-    if (!(event instanceof PointerEvent) || event.pointerType !== "pen") return;
+    if (!(event instanceof PointerEvent) || event.pointerType === "mouse") return;
     const events = event.getCoalescedEvents();
     for (const sample of [event, ...events]) rawEvents.set(Math.trunc(sample.timeStamp * 1000), event);
     // Only recent browser batches can be dispatched by Flutter. Entries for
@@ -74,6 +74,10 @@ for (const type of ["pointerdown", "pointermove", "pointerup", "pointercancel"])
     for (const [stamp] of rawEvents) if (stamp < event.timeStamp * 1000 - 5_000_000) rawEvents.delete(stamp);
   }, true);
 }
+// The pen's side button erases; the browser would also open its context menu.
+window.addEventListener("contextmenu", (event) => {
+  if (event instanceof PointerEvent && event.pointerType === "pen") event.preventDefault();
+}, true);
 
 async function startRoot() {
   if (new URLSearchParams(location.search).get("root") === "opfs") {
@@ -92,13 +96,23 @@ async function library(root: FileSystemDirectoryHandle, engine: Engine) {
   return { folders, trash, metadata, templates };
 }
 
-function acceptPen(canvas: Canvas, element: HTMLCanvasElement, stamp: number): boolean {
+// `fingerDraws` makes a touch draw with the selected tool.
+function acceptPen(canvas: Canvas, element: HTMLCanvasElement, stamp: number, fingerDraws: boolean): boolean {
   const event = rawEvents.get(stamp);
   if (!event || consumed.has(event)) return false;
   consumed.add(event);
   const bounds = element.getBoundingClientRect();
-  canvas.input(penSamples(event, bounds, capabilities(event.pointerType), sampleIds));
+  canvas.input(penSamples(event, bounds, capabilities(event.pointerType), sampleIds, fingerDraws));
   return event.type === "pointerup" || event.type === "pointercancel";
+}
+
+// Discards the stroke in progress: a finger stroke becomes a two-finger
+// pan or zoom when a second finger lands.
+function cancelStroke(canvas: Canvas): void {
+  canvas.input([{
+    x: 0, y: 0, time: performance.now(), pressure: 0, altitude: 0, azimuth: 0, roll: 0, hoverHeight: 0,
+    buttons: 0, has: 0, id: sampleIds.next++, tool: Tool.pen, phase: Phase.cancel, predicted: false,
+  }]);
 }
 
 let nextCanvas = 0;
@@ -169,7 +183,7 @@ const api = {
   thumbnail, tagColors: TAG_COLORS,
   cacheApp, paperPreview, exportPdf, insertImage, loadEngine, startRoot, pickRoot, requestPermission, library,
   createNotebook, openNotebook, createFolder, moveEntry, moveToTrash,
-  emptyFolder, emptyNote, moveNotes, readMetadata, writeMetadata, readPens, writePens, penPreview, acceptPen, mountCanvas,
+  emptyFolder, emptyNote, moveNotes, readMetadata, writeMetadata, readPens, writePens, penPreview, acceptPen, cancelStroke, mountCanvas,
 };
 
 declare global {

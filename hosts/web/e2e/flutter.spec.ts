@@ -260,6 +260,65 @@ test("Flutter undoes on a two-finger tap and redoes on a three-finger tap", asyn
   expect(await strokes()).toBe(1);
 });
 
+test("Flutter erases with the pen side button and draws with a finger on request", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto("flutter/?root=opfs");
+  await page.getByRole("button", { name: "New Note", exact: true }).click();
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Fingers");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  const canvas = page.locator('canvas[id^="ink-canvas-"]');
+  await canvas.waitFor({ timeout: 30_000 });
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Notebook canvas has no bounds");
+  const cdp = await page.context().newCDPSession(page);
+  const strokes = async () => {
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+    return page.evaluate(async () => {
+      const root = await navigator.storage.getDirectory();
+      const pages = await (await root.getDirectoryHandle("Fingers")).getDirectoryHandle("pages");
+      const svg = await (await (await pages.getFileHandle("0001.svg")).getFile()).text();
+      return svg.match(/<path id="s-/g)?.length ?? 0;
+    });
+  };
+  const penDrag = async (button: "left" | "right", from: [number, number], to: [number, number]) => {
+    const pen = { pointerType: "pen" as const, force: 0.6, button, buttons: button === "left" ? 1 : 2 };
+    await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", clickCount: 1, x: box.x + from[0], y: box.y + from[1], ...pen });
+    await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: box.x + (from[0] + to[0]) / 2, y: box.y + (from[1] + to[1]) / 2, ...pen });
+    await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: box.x + to[0], y: box.y + to[1], ...pen });
+    await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", clickCount: 1, x: box.x + to[0], y: box.y + to[1], ...pen, buttons: 0 });
+  };
+  await penDrag("left", [160, 150], [300, 150]);
+  expect(await strokes()).toBe(1);
+  await penDrag("right", [230, 100], [230, 200]);
+  expect(await strokes()).toBe(0);
+
+  await page.getByRole("button", { name: "More", exact: true }).click();
+  await page.getByRole("button", { name: "Draw with finger", exact: true }).click();
+  const finger = (id: number, x: number, y: number) => ({ id, x: box.x + x, y: box.y + y });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [finger(1, 160, 250)] });
+  for (const x of [200, 260, 320]) {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [finger(1, x, 250)] });
+  }
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  expect(await strokes()).toBe(1);
+  // A second finger turns the stroke in progress into a pan.
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [finger(1, 160, 350)] });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [finger(1, 200, 350)] });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [finger(1, 200, 350), finger(2, 260, 350)] });
+  for (const y of [320, 290, 260]) {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [finger(1, 200, y), finger(2, 260, y)] });
+  }
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  expect(await strokes()).toBe(1);
+
+  await page.reload();
+  await page.getByRole("button", { name: "Fingers", exact: true }).click();
+  await canvas.waitFor({ timeout: 30_000 });
+  await page.getByRole("button", { name: "More", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Stop drawing with finger", exact: true })).toBeVisible();
+});
+
 test("Flutter page overview duplicates, deletes, reorders, and opens pages", async ({ page }, info) => {
   test.setTimeout(90_000);
   await page.goto("flutter/?root=opfs");
