@@ -185,6 +185,44 @@ test("Flutter creation resumes a draft and applies saved note settings", async (
   expect(JSON.parse(stored.metadata).draft).toBeUndefined();
 });
 
+test("Flutter ignores a palm that drags during a pen stroke", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto("flutter/?root=opfs");
+  await page.getByRole("button", { name: "New Note", exact: true }).click();
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Palm");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  const canvas = page.locator('canvas[id^="ink-canvas-"]');
+  await canvas.waitFor();
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Notebook canvas has no bounds");
+  const cdp = await page.context().newCDPSession(page);
+  const pen = { pointerType: "pen" as const, force: 0.6 };
+  const palm = { id: 1, x: box.x + box.width - 80, y: box.y + box.height - 60 };
+  await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, x: box.x + 160, y: box.y + 150, ...pen });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [palm] });
+  for (const distance of [40, 150, 300]) {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ ...palm, y: palm.y - distance }] });
+    await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", button: "left", buttons: 1, x: box.x + 160 + distance / 4, y: box.y + 150 + distance / 8, ...pen });
+  }
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, x: box.x + 235, y: box.y + 187, ...pen });
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  const trace = await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    const pages = await (await root.getDirectoryHandle("Palm")).getDirectoryHandle("pages");
+    const svg = await (await (await pages.getFileHandle("0001.svg")).getFile()).text();
+    const text = new DOMParser().parseFromString(svg, "image/svg+xml").getElementsByTagName("inkml:trace")[0]?.textContent;
+    if (!text) throw new Error("Saved page has no stroke trace");
+    return text.split(",").map((sample) => sample.trim().split(" ").slice(0, 2).map(Number));
+  });
+  const xs = trace.map(([x]) => x);
+  const ys = trace.map(([, y]) => y);
+  // The pen moved 75 px right and 37 px down. A page that scrolled with the
+  // palm would stretch the stroke 300 px vertically.
+  expect(Math.max(...ys) - Math.min(...ys)).toBeLessThan(Math.max(...xs) - Math.min(...xs));
+});
+
 test("Flutter notebook retains pen input and pages after save and reopen", async ({ page }, info) => {
   test.setTimeout(120_000);
   await page.goto("favicon.svg");
