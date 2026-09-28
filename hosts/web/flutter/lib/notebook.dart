@@ -22,6 +22,20 @@ class SelectionTransfer {
   final FutureOr<String> Function() read;
 }
 
+/// Claims each touch that lands during a pen stroke, so a resting palm
+/// neither pans nor zooms the page. Saber gives every pointer of a gesture
+/// that began as a stroke to the stroke the same way
+/// (`isCurrentGestureADrawGesture` in its `InteractiveCanvas`).
+class PalmRejection extends EagerGestureRecognizer {
+  PalmRejection(this.stroking)
+    : super(supportedDevices: {PointerDeviceKind.touch});
+  final bool Function() stroking;
+
+  @override
+  bool isPointerAllowed(PointerDownEvent event) =>
+      stroking() && super.isPointerAllowed(event);
+}
+
 class Notebook extends StatefulWidget {
   const Notebook({
     super.key,
@@ -82,6 +96,8 @@ class _NotebookState extends State<Notebook>
   double pixelRatio = 0;
   int page = 0;
   final touches = <int>{};
+  final strokes = <int>{};
+  final palms = <int>{};
   Timer? pullTimer;
   bool pullReady = false;
   bool atEnd = false;
@@ -246,9 +262,21 @@ class _NotebookState extends State<Notebook>
 
   void input(PointerEvent event) {
     if (event is PointerDownEvent) focus.requestFocus();
+    final ended = event is PointerUpEvent || event is PointerCancelEvent;
+    if (event.kind == PointerDeviceKind.stylus ||
+        event.kind == PointerDeviceKind.invertedStylus) {
+      if (event is PointerDownEvent) strokes.add(event.pointer);
+      if (ended) strokes.remove(event.pointer);
+    }
     if (event.kind == PointerDeviceKind.touch) {
+      if (event is PointerDownEvent && strokes.isNotEmpty)
+        palms.add(event.pointer);
+      if (palms.contains(event.pointer)) {
+        if (ended) palms.remove(event.pointer);
+        return;
+      }
       if (event is PointerDownEvent) touches.add(event.pointer);
-      if (event is PointerUpEvent || event is PointerCancelEvent) {
+      if (ended) {
         final add = event is PointerUpEvent && touches.length == 1 && pullReady;
         touches.remove(event.pointer);
         cancelPull();
@@ -1546,6 +1574,19 @@ class _NotebookState extends State<Notebook>
                                                             PointerDeviceKind
                                                                 .invertedStylus,
                                                           },
+                                                        ),
+                                                        (instance) {},
+                                                      ),
+                                                if (tool != 'navigate' &&
+                                                    tool != 'text' &&
+                                                    tool != 'bookmark')
+                                                  PalmRejection:
+                                                      GestureRecognizerFactoryWithHandlers<
+                                                        PalmRejection
+                                                      >(
+                                                        () => PalmRejection(
+                                                          () => strokes
+                                                              .isNotEmpty,
                                                         ),
                                                         (instance) {},
                                                       ),

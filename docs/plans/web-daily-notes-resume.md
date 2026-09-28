@@ -22,22 +22,20 @@ They are the reference for the pen tool popover:
 Phase A is every L0 and L1 feature of [core features](../specs/core-features.md).
 The missing ones, in order:
 
-1. **Palm rejection (L0).** A touch that arrives during a pen stroke must not
-   pan or zoom the page. Saber's `isDrawGesture` is the reference.
-2. **Two-finger tap undo, three-finger tap redo (L1).**
-3. **Page overview (L1).** Thumbnail grid of the notebook's pages with drag
+1. **Two-finger tap undo, three-finger tap redo (L1).**
+2. **Page overview (L1).** Thumbnail grid of the notebook's pages with drag
    reorder, duplicate, and delete. Saber's page manager uses
    `ReorderableListView`.
-4. **Selection recolor (L1).**
-5. **Hold to snap (L1).** Holding the pen still at the end of a stroke turns
+3. **Selection recolor (L1).**
+4. **Hold to snap (L1).** Holding the pen still at the end of a stroke turns
    it into a line or shape. Saber uses `one_dollar_unistroke_recognizer`
    with a 500 ms hold.
-6. **Pen settings popover (L1).** Stroke preview, brush, size presets with a
+5. **Pen settings popover (L1).** Stroke preview, brush, size presets with a
    slider, and a full color picker, anchored to the rail, as in the Noteful
    reference images.
-7. **Stylus side button and finger-drawing toggle (L1).**
-8. **Page orientation (L1).**
-9. **Remove the superseded TeX compiler integration.** Compiler, preamble,
+6. **Stylus side button and finger-drawing toggle (L1).**
+7. **Page orientation (L1).**
+8. **Remove the superseded TeX compiler integration.** Compiler, preamble,
    compiled-page view, their build recipes, and cache entries.
 
 ## Current application

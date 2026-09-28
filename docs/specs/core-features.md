@@ -28,7 +28,7 @@ earlier layers exists and works in the deployed app.
 | Freehand lasso: move, delete, cut, copy, paste | Exists. |
 | Undo and redo: buttons and Ctrl+Z | Exists. |
 | Pen draws; one finger pans | Exists. |
-| Palm rejection: a resting hand neither draws nor moves the page during a stroke | Missing. Touch never draws, but no code stops a touch from panning the page during a pen stroke. |
+| Palm rejection: a resting hand neither draws nor moves the page during a stroke | Exists (`PalmRejection` in `hosts/web/flutter/lib/notebook.dart`). |
 | Pinch zoom | Exists. |
 | Multi-page document, vertical page stack | Exists. |
 | Add and delete a page | Exists: **Add page**, held pull at the end, **Page** menu. |
