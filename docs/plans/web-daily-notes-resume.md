@@ -22,12 +22,8 @@ They are the reference for the pen tool popover:
 Phase A is every L0 and L1 feature of [core features](../specs/core-features.md).
 The missing ones, in order:
 
-1. **Pen settings popover (L1).** Stroke preview, brush, size presets with a
-   slider, and a full color picker, anchored to the rail, as in the Noteful
-   reference images.
-2. **Stylus side button and finger-drawing toggle (L1).**
-3. **Page orientation (L1).**
-4. **Remove the superseded TeX compiler integration.** Compiler, preamble,
+1. **Page orientation (L1).**
+2. **Remove the superseded TeX compiler integration.** Compiler, preamble,
    compiled-page view, their build recipes, and cache entries.
 
 ## Current application
@@ -37,9 +33,6 @@ The missing ones, in order:
 | `http://localhost/math-notes/` | Existing Solid host; primary transition remains required. |
 | `http://localhost/math-notes/flutter/` | Flutter preview, with the saved folder connection. |
 | `http://localhost/math-notes/flutter/?root=opfs` | Flutter preview using browser storage. |
-
-`just web-deploy` can delete the Flutter preview directory; adapt the entry
-points when completing the primary deployment transition.
 
 ## Implemented paths and ownership
 
