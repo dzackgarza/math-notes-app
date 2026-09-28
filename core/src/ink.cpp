@@ -900,7 +900,7 @@ InkStatus ink_canvas_set_eraser(InkCanvas *canvas, InkEraser kind, int32_t activ
 InkStatus ink_canvas_set_selector(InkCanvas *canvas, InkSelector kind, int32_t active) {
   return Call([&] {
     if (!canvas) return NullArgument("canvas");
-    if (kind < INK_SELECTOR_LASSO || kind > INK_SELECTOR_SPACE_RULED) {
+    if (kind < INK_SELECTOR_LASSO || kind > INK_SELECTOR_OVAL) {
       return Fail(INK_ERROR_ARGUMENT, "unknown selector");
     }
     canvas->editor.SetSelector(kind, active != 0);

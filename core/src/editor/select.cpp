@@ -97,6 +97,21 @@ std::vector<std::string> TextLines(std::string_view utf8) {
   return lines;
 }
 
+// The oval selector's loop: the ellipse inscribed in the rectangle from `a`
+// to `b`, as SkPath::addOval defines it, sampled at 64 points of the
+// parametric form (x0 + rx cos t, y0 + ry sin t).
+std::vector<Point> OvalPoints(Point a, Point b) {
+  constexpr int kSegments = 64;
+  const Point center{(a.x + b.x) / 2, (a.y + b.y) / 2};
+  const double rx = std::abs(b.x - a.x) / 2, ry = std::abs(b.y - a.y) / 2;
+  std::vector<Point> points;
+  for (int i = 0; i < kSegments; ++i) {
+    const double t = 2 * M_PI * i / kSegments;
+    points.push_back({center.x + rx * std::cos(t), center.y + ry * std::sin(t)});
+  }
+  return points;
+}
+
 }  // namespace
 
 double Editor::ViewScale() const { return std::sqrt(std::abs(view_.a * view_.d - view_.b * view_.c)); }
@@ -369,10 +384,10 @@ void Editor::FinishSelect() {
   Rect area{std::min(g.start.x, g.last.x), std::min(g.start.y, g.last.y),
             std::max(g.start.x, g.last.x), std::max(g.start.y, g.last.y)};
   std::optional<ink::PartitionedMesh> lasso;
-  if (g.kind == INK_SELECTOR_LASSO) {
+  if (g.kind == INK_SELECTOR_LASSO || g.kind == INK_SELECTOR_OVAL) {
     std::vector<ink::Point> points;
     area = {1, 1, 0, 0};
-    for (Point p : g.lasso.points()) {
+    for (Point p : g.kind == INK_SELECTOR_OVAL ? OvalPoints(g.start, g.last) : g.lasso.points()) {
       points.push_back({float(p.x), float(p.y)});
       area = IsEmpty(area) ? Rect{p.x, p.y, p.x, p.y} : Union(area, {p.x, p.y, p.x, p.y});
     }
@@ -740,6 +755,8 @@ std::optional<SelectionOverlay> Editor::Overlay() {
     SelectionOverlay overlay{.page = select_->page, .view_scale = scale};
     if (select_->kind == INK_SELECTOR_LASSO) {
       overlay.lasso = select_->lasso.points();
+    } else if (select_->kind == INK_SELECTOR_OVAL) {
+      overlay.lasso = OvalPoints(select_->start, select_->last);
     } else {
       overlay.band = Rect{select_->start.x, select_->start.y, select_->last.x, select_->last.y};
     }

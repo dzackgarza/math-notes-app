@@ -270,7 +270,8 @@ typedef enum InkSelector {
   INK_SELECTOR_RULED_ERASE = 3,
   INK_SELECTOR_SPACE_VERTICAL = 4,
   INK_SELECTOR_SPACE_HORIZONTAL = 5,
-  INK_SELECTOR_SPACE_RULED = 6
+  INK_SELECTOR_SPACE_RULED = 6,
+  INK_SELECTOR_OVAL = 7 /* selects what the ellipse in a dragged rectangle covers */
 } InkSelector;
 
 /* The selection tool. With `active` 1, pen and mouse input select, and

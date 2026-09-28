@@ -21,7 +21,7 @@ export const Phase = { hover: 0, begin: 1, move: 2, end: 3, cancel: 4 } as const
 export const Has = { pressure: 1, altitude: 2, azimuth: 4, roll: 8, hoverHeight: 16 } as const;
 export const Brush = { pressurePen: 0, marker: 1, highlighter: 2 } as const;
 export const Eraser = { stroke: 0, free: 1 } as const;
-export const Selector = { lasso: 0, rect: 1, ruled: 2, ruledErase: 3, spaceVertical: 4, spaceHorizontal: 5, spaceRuled: 6 } as const;
+export const Selector = { lasso: 0, rect: 1, ruled: 2, ruledErase: 3, spaceVertical: 4, spaceHorizontal: 5, spaceRuled: 6, oval: 7 } as const;
 
 // Struct layouts, wasm32: byteLength, then each field's offset (ink.h).
 export const PEN_SAMPLE = {

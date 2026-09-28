@@ -182,6 +182,16 @@ TEST_CASE("The lasso selects a stroke more than 90% inside it") {
   CHECK_FALSE(lasso(250));  // 75%
 }
 
+TEST_CASE("The oval selects what the ellipse in the dragged rectangle covers") {
+  ink_test::Session canvas;
+  ink_test::SetTool(canvas.get(), INK_BRUSH_MARKER, 0x1A1A1A, 2);
+  Gesture(canvas.get(), Line({150, 200}, {250, 200}, 10), 0);  // across the center
+  Gesture(canvas.get(), Line({105, 105}, {115, 105}, 5), 500);  // in the corner, outside the ellipse
+  ink_canvas_set_selector(canvas.get(), INK_SELECTOR_OVAL, 1);
+  Gesture(canvas.get(), Line({100, 100}, {300, 300}, 10), 1000);
+  CHECK(SelectedIndices(canvas.get()) == std::set<int>{0});
+}
+
 TEST_CASE("A selection dragged from page 2 onto page 3 moves there; one undo restores both files") {
   ink_test::Session canvas;
   REQUIRE(ink_document_insert_page(canvas.document, 1) == INK_OK);
