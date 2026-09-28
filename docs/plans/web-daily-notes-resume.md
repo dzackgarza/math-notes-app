@@ -1,27 +1,60 @@
 # Web daily-use implementation handoff
 
-Date: 2026-09-27. Branch: `write-core-integration`.
-Implementation checkpoint: `890c083`.
+Date: 2026-09-28. Branch: `write-core-integration`.
 
-## Scope and stopping point
+## Next work: the core note-taking loop
 
-Continue the complete [daily-use milestone](web-daily-notes-handoff.md).
-The milestone remains incomplete. The current pause is a requested session
-handoff. The corrected [TikZ mode contract](../specs/tikz-drawing-mode.md)
-owns figure scope: drawing interpretation, source editing, and copying code
-into a separate typeset document.
+The [delivery order](web-daily-notes-handoff.md#delivery-order) is strict.
+Phase A, the core note-taking loop in #56, is the only active work. Earlier
+sessions built later-phase features (PDF import, split view, conflicts,
+layers, clippings, ruled editing, bookmarks, typed text, figures, a TeX
+compiler) before phase A passed. That code stays. It gets no further work
+until its phase starts.
 
-Prioritize the usable product and complete user workflows. Defer broad test
-expansion and release administration until the working v1 warrants them.
-There is no restriction to execution on this machine. Use standard platform
-pen and touch interfaces. Browser automation provides synthetic input evidence;
-it does not establish physical-input acceptance.
-
-The source tree contains committed implementation work. Preserve these
-pre-existing user files with their current untracked status:
+Preserve these pre-existing user files with their current untracked status.
+They are the reference for the pen tool popover:
 
 - `noteful-customize-pencil.webp`
 - `noteful-pen-tool.webp`
+
+### Core-loop state on 2026-09-28
+
+Measured in the deployed Flutter preview with synthetic CDP pen and touch
+input in headless Chromium (software rendering, no GPU).
+
+| Capability | State |
+| --- | --- |
+| Create a note, write with the pen | Works. |
+| Change pen preset, color | Works through fixed presets; no color palette. |
+| Stroke eraser, undo, redo | Works. |
+| Lasso select and move | Works. |
+| Continuous page stack with gaps, finger pan | Works. |
+| Pinch zoom | Works. |
+| Ctrl+wheel zoom | No effect. |
+| Autosave | Saves about 3 s after an edit. |
+| Reload and reopen | Strokes and pages retained. |
+| Writing on a full page | 240 short strokes on one page: 976 main-thread long tasks, longest 518 ms, 57 s blocked in total. One new stroke on that page blocks for 116 ms. |
+| Tool rail | 22 labeled rows; overflows at 1024 px height; core tools share the rail with later-phase tools. |
+| Physical pen and touch | Not verified. |
+
+### Phase A work, in order
+
+1. **Writing latency on full pages.** Profile one stroke on a dense page
+   and remove the per-stroke cost that grows with page content. Confirm on
+   GPU-backed Chrome. Ink must follow the pen with no visible lag on a full
+   page and in a 10-page notebook.
+2. **Compact tool rail.** Match the tablet spec rail: pen, thick pen, and
+   highlighter with sizes; eraser; lasso; a color palette with **+**; undo
+   and redo. A pen tool popover follows the Noteful reference images.
+   Later-phase tools move to a secondary menu.
+3. **Lasso completion.** Resize, delete, copy, and paste of a selection.
+4. **Zoom.** Ctrl+wheel, trackpad pinch, and keyboard zoom.
+5. **Remove the superseded TeX compiler integration.** Compiler, preamble,
+   compiled-page view, their build recipes, and cache entries. Figure capture
+   and source storage stay for phase F.
+6. **Physical input.** Pen, palm, one-finger pan, and pinch on the target
+   Chrome machine through standard Wayland and Chrome pointer events.
+7. **#56 acceptance list** in the deployed app.
 
 ## Current application
 
@@ -31,30 +64,8 @@ pre-existing user files with their current untracked status:
 | `http://localhost/math-notes/flutter/` | Flutter preview, with the saved folder connection. |
 | `http://localhost/math-notes/flutter/?root=opfs` | Flutter preview using browser storage. |
 
-The preview includes the implementation through `890c083`. Its figure
-compiler controls and compiled-view path still reflect superseded scope.
-The compiler service is stopped. Generated inputs remain under
-`.ci/busytex-build`.
-
-## Resume the corrected figure workflow
-
-The governing [product boundary](../../AGENTS.md#product-boundary-handwritten-drafts)
-is permanent. Notes are handwritten drafts. Extract diagram geometry as a
-TikZ skeleton for external refinement. Handwritten text, formulas, and labels
-remain ink. LaTeX notebook export/rendering, handwriting recognition, LaTeX
-labels, and in-app paper typesetting are outside scope at every milestone.
-
-Implement diagram-skeleton extraction and a clear Copy TikZ
-action. Preserve notebook ink and saved source. Remove the compiler,
-preamble, and compiled-page-view integration added for the superseded
-typesetting workflow, including its build and cache dependencies. Align the
-embedded controls with the same boundary; LaTeX label tools must not become
-notebook features merely because the dependency provides them. Existing
-figure capture, source editing, and durable storage remain useful.
-
-The primary deployment transition still remains. `just web-deploy` can
-delete the Flutter preview directory; adapt the entry points when completing
-that transition.
+`just web-deploy` can delete the Flutter preview directory; adapt the entry
+points when completing the primary deployment transition.
 
 ## Implemented paths and ownership
 
@@ -85,42 +96,20 @@ embedded SVG view, and preserved original ink in one history edit. The scene's
 `editor` record keeps source and preamble. Its original FreeTikZ geometry is
 still the capture geometry; it is not a complete semantic mapping of edits.
 
-## Remaining required work
+## Later-phase gaps
 
-### Figures: issue #10
+Record only. These wait for their phase.
 
-- Connect captured diagram geometry to a reusable TikZ skeleton.
-- Provide selection and Copy TikZ, preserving source through save and reopen.
-- Demonstrate copying the skeleton into an external figure-editing workflow.
-- Complete the compiler integration removal described above.
-
-### Durability, conflicts, and transfers
-
-- Multiple pending browser recovery records currently cause `pendingRecovery`
-  in `editor/notebook.ts` to throw. Provide a usable recovery path preserving
-  each version.
-- Conflict comparison uses static previews. Editable comparison and selective
-  stroke transfer remain required.
-- Pending local deletions that conflict with external edits lack a selectable
-  deletion version. Unlisted pages whose original is removed from the index
-  and malformed lone pages need complete discovery/recovery behavior.
-- Split-view drag transfers currently copy. Complete the specified move and
-  undo behavior across documents, with durable assets and source identity.
-- Exercise actual write failures, permission recovery, interrupted saves,
-  external edits, and offline restart in the finished user workflows.
-
-### Editing and host completion
-
-- Complete ruled/reflow behavior on mixed pages and columns, including
-  negative space changes. The current implementation lacks a live translated
-  preview and Write's timestamp-grouped stroke center calculation.
-- Resolve #50's fixture reproducibility problem before treating that fixture
-  as evidence for reflow.
-- Finish remaining tablet-spec details, including creation preview details,
-  user-facing paper names, singular note counts, and Settings placement.
-  Survey actual behavior before replacing an existing path.
-- Finish the primary Flutter deployment and the complete daily-use sessions
-  in the milestone. Native iPad obligations remain separate.
+- Phase B: primary Flutter deployment; tablet-spec creation details, paper
+  names, singular note counts, Settings placement.
+- Phase D: multiple pending browser recovery records make `pendingRecovery`
+  in `editor/notebook.ts` throw; conflict comparison uses static previews
+  without selective stroke transfer; deletion conflicts lack a selectable
+  version; split-view drag copies instead of moving; ruled reflow on mixed
+  pages and columns, negative space, live preview, and Write's
+  timestamp-grouped stroke centers; #50 fixture reproducibility.
+- Phase F: diagram-skeleton extraction and Copy TikZ per the
+  [TikZ contract](../specs/tikz-drawing-mode.md).
 
 ## Evidence and practical limits
 

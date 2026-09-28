@@ -82,25 +82,29 @@ product acceptance.
 
 ## Delivery order
 
-These phases describe product outcomes, not PR boundaries. Continue through
-the complete milestone. Resolve implementation details within each existing
-work unit; do not restart the framework survey.
+These phases describe product outcomes, not PR boundaries. Resolve
+implementation details within each existing work unit; do not restart the
+framework survey.
+
+**The order is strict.** A phase starts only after every acceptance item of
+the earlier phases passes in the deployed app. Code that already exists for a
+later phase gets no further work until its phase starts. Its controls stay
+off the primary tool rail until then.
 
 | Phase | Existing owners | Result and acceptance |
 | --- | --- | --- |
-| A. Complete host and safe notebook | [#56](https://github.com/dzackgarza/math-notes-app/issues/56), under #14 | A deployed Flutter library and editor support create, write, navigate, edit, save, reopen, and offline use. All current working notebook flows survive the GUI transition. |
-| B. Daily workspace | [#62](https://github.com/dzackgarza/math-notes-app/issues/62), [#58](https://github.com/dzackgarza/math-notes-app/issues/58), [#49](https://github.com/dzackgarza/math-notes-app/issues/49), [#63](https://github.com/dzackgarza/math-notes-app/issues/63), [#60](https://github.com/dzackgarza/math-notes-app/issues/60), [#61](https://github.com/dzackgarza/math-notes-app/issues/61) | Tabs and note picker; usable library search, recent, favorites, tags, sort, and trash; metadata; reusable creation settings and drafts; editable images and text. Every tablet-spec control completes its intended action. |
-| C. Reference work and safe sharing | [#28](https://github.com/dzackgarza/math-notes-app/issues/28), [#29](https://github.com/dzackgarza/math-notes-app/issues/29), [#8](https://github.com/dzackgarza/math-notes-app/issues/8) | Split view and cross-note transfers; conflict resolution; PDF export and import/annotation. Imported mixed-size pages retain their dimensions and backgrounds. |
-| D. Revise and reuse mathematics | [#30](https://github.com/dzackgarza/math-notes-app/issues/30), [#31](https://github.com/dzackgarza/math-notes-app/issues/31), [#32](https://github.com/dzackgarza/math-notes-app/issues/32), [#33](https://github.com/dzackgarza/math-notes-app/issues/33) | Ruled selection/erase, space insertion and reflow, bookmarks/links, and clippings work on saved mixed-content notes. Undo restores grouped edits across affected pages. |
-| E. Layers and editable figures | [#9](https://github.com/dzackgarza/math-notes-app/issues/9), [#10](https://github.com/dzackgarza/math-notes-app/issues/10) | Layer operations and export selection; complete capture, finish, save, reopen, and edit figure workflow, including interpreted drawing geometry, editable source, and Copy TikZ as defined in the TikZ mode contract. |
-| F. Daily-use acceptance | #56 and the web obligations above | The deployed release passes the real-work sessions below. Every blocker has a fix and evidence in its owning issue. |
+| A. Core note-taking loop | [#56](https://github.com/dzackgarza/math-notes-app/issues/56), under #14 | Open a note and write for an hour. Pen ink follows the pen without visible lag on a full page and in a long notebook. Pen, highlighter, eraser, lasso (move, resize, delete, copy, paste), colors, sizes, undo, and redo are on a compact rail. Pages scroll as one continuous stack; pinch, trackpad, and keyboard zoom work. Edits save without user action and survive reload, close, and offline restart. Physical pen and touch work on the target Chrome machine. |
+| B. Keep, find, and share notes | [#56](https://github.com/dzackgarza/math-notes-app/issues/56), [#62](https://github.com/dzackgarza/math-notes-app/issues/62), [#29](https://github.com/dzackgarza/math-notes-app/issues/29) | Library create, open, rename, move, delete, and trash; search and recent; tabs; paper choice at creation; PDF export of a 10-page notebook. |
+| C. Annotate papers | [#8](https://github.com/dzackgarza/math-notes-app/issues/8) | Import a mixed-page-size PDF, annotate it, insert blank pages, export it. |
+| D. Revise and reuse mathematics | [#30](https://github.com/dzackgarza/math-notes-app/issues/30), [#31](https://github.com/dzackgarza/math-notes-app/issues/31), [#28](https://github.com/dzackgarza/math-notes-app/issues/28), [#32](https://github.com/dzackgarza/math-notes-app/issues/32), [#33](https://github.com/dzackgarza/math-notes-app/issues/33) | Ruled selection/erase, space insertion and reflow, split view and conflict resolution, bookmarks/links, and clippings on saved mixed-content notes. Undo restores grouped edits across affected pages. |
+| E. Additional content and organization | [#58](https://github.com/dzackgarza/math-notes-app/issues/58), [#49](https://github.com/dzackgarza/math-notes-app/issues/49), [#63](https://github.com/dzackgarza/math-notes-app/issues/63), [#60](https://github.com/dzackgarza/math-notes-app/issues/60), [#61](https://github.com/dzackgarza/math-notes-app/issues/61), [#9](https://github.com/dzackgarza/math-notes-app/issues/9) | Metadata, favorites, tags, saved creation settings and drafts, images, typed text, layers. |
+| F. Diagram extraction | [#10](https://github.com/dzackgarza/math-notes-app/issues/10) | Capture doodled geometry and copy a TikZ skeleton, as defined in the TikZ mode contract. |
+| G. Daily-use acceptance | #56 and the web obligations above | The deployed release passes the real-work sessions below. Every blocker has a fix and evidence in its owning issue. |
 
-A establishes the Flutter host and stable input/storage boundaries. B uses
-those boundaries. #28 and #29 follow A acceptance. PDF import and export must
-meet in the same annotation workflow. #30 precedes #31; bookmarks and
-clippings can progress independently once shared selection/storage work.
-Figure and layer work uses the same document/save boundary. Final export
-acceptance includes links, layers, text, images, and figures after they land.
+A is the product. Every later phase is an addition to a notes app that
+already works for writing. #30 precedes #31. PDF import and export meet in
+the same annotation workflow. Final export acceptance includes links,
+layers, text, images, and figures after they land.
 
 Complex work already has owners: #56 for the host, #28 for conflict handling,
 #30–#31 for ruled editing, and #10 plus `PLAN-TIKZ-DRAWING-MODE` for figures.
