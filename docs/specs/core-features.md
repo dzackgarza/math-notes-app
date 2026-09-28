@@ -49,7 +49,7 @@ earlier layers exists and works in the deployed app.
 | Finger-drawing toggle | Missing. |
 | Rectangle select | Exists. |
 | Selection resize | Exists (handles). |
-| Selection recolor | Missing. |
+| Selection recolor | Exists: a palette swatch recolors the selection (`ink_canvas_recolor_selection`). |
 | Selection duplicate | Exists. |
 | Hold at the end of a stroke to snap it to a line or shape | Missing. |
 | Page overview: thumbnail grid with drag reorder, duplicate, delete | Exists: **Pages** (`hosts/web/flutter/lib/pages_sheet.dart`, on `reorderable_grid`). |

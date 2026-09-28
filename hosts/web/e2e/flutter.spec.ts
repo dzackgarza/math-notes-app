@@ -311,6 +311,46 @@ test("Flutter page overview duplicates, deletes, reorders, and opens pages", asy
   ]);
 });
 
+test("Flutter recolors a lasso selection from the palette and keeps the pen color", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto("flutter/?root=opfs");
+  await page.getByRole("button", { name: "New Note", exact: true }).click();
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Recolor");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  const canvas = page.locator('canvas[id^="ink-canvas-"]');
+  await canvas.waitFor();
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Notebook canvas has no bounds");
+  const cdp = await page.context().newCDPSession(page);
+  const pen = { pointerType: "pen" as const, force: 0.6 };
+  const gesture = async (points: [number, number][]) => {
+    const [[x0, y0], ...rest] = points;
+    await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, x: box.x + x0, y: box.y + y0, ...pen });
+    for (const [x, y] of rest) await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", button: "left", buttons: 1, x: box.x + x, y: box.y + y, ...pen });
+    const [x, y] = points[points.length - 1];
+    await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, x: box.x + x, y: box.y + y, ...pen });
+  };
+  await gesture([[160, 150], [200, 170], [240, 190]]);
+  await page.getByRole("button", { name: "Lasso", exact: true }).click();
+  await gesture([[130, 120], [200, 115], [270, 120], [275, 170], [270, 220], [200, 225], [130, 220], [125, 170], [130, 120]]);
+  await expect(page.getByRole("button", { name: "Delete selection", exact: true })).toBeAttached();
+  await page.getByRole("button", { name: "Color #d92d39", exact: true }).click();
+  await page.getByRole("button", { name: "Pen 1.2 pt", exact: true }).click();
+  // A pen-down away from a selection only clears it (Write, clearSelOnly).
+  await gesture([[600, 500], [600, 500]]);
+  await expect(page.getByRole("button", { name: "Delete selection", exact: true })).toHaveCount(0);
+  await gesture([[160, 350], [200, 370], [240, 390]]);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  const fills = await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    const pages = await (await root.getDirectoryHandle("Recolor")).getDirectoryHandle("pages");
+    const svg = await (await (await pages.getFileHandle("0001.svg")).getFile()).text();
+    return [...svg.matchAll(/<path id="s-[^"]*"[^>]* fill="(#[0-9A-F]{6})"/g)].map((match) => match[1]);
+  });
+  expect(fills).toEqual(["#D92D39", "#1A1A1A"]);
+});
+
 test("Flutter notebook retains pen input and pages after save and reopen", async ({ page }, info) => {
   test.setTimeout(120_000);
   await page.goto("favicon.svg");

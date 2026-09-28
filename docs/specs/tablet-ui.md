@@ -60,7 +60,8 @@ are the reference for look and interaction.
   per open note with close buttons, and **+**; share and **⋯** at the right.
 - **Tool rail** on the left: Pen, Thick Pen and Highlighter, each with its
   size; Eraser; Lasso; Drawing mode; then a color palette of 15
-  swatches and **+**.
+  swatches and **+**. A swatch recolors the lasso selection when there is
+  one, and the selected pen preset otherwise.
 - **Page** fills the rest: dot paper, a handwritten title, tag chips with
   **+**, and ink with highlighter boxes, color and drawings.
 - **Bottom bar**: undo and redo; a zoom menu ("100%"); a paper menu ("Dot

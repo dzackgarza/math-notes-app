@@ -244,6 +244,7 @@ extension type Canvas(JSObject value) implements JSObject {
   external String copySelection(bool cut);
   external void paste(String svg, double x, double y, [bool placeAtPointer]);
   external void duplicateSelection();
+  external void recolorSelection(int rgb);
   external void insertText(String value, double x, double y);
   external bool selectTextAt(double x, double y);
   external String selectedText();

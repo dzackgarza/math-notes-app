@@ -843,8 +843,8 @@ class _NotebookState extends State<Notebook>
     chooseTool('pen');
   }
 
-  // The rail's swatches (docs/specs/tablet-ui.md, Editor): a color applies
-  // to the selected pen preset.
+  // The rail's swatches (docs/specs/tablet-ui.md, Editor): a color recolors
+  // the selection when there is one, and the selected pen preset otherwise.
   static const palette = [
     0x1A1A1A, 0x8E8E93, 0xFFFFFF, //
     0x1F4FB5, 0xD92D39, 0xF2842B, //
@@ -881,7 +881,9 @@ class _NotebookState extends State<Notebook>
               child: CupertinoButton(
                 padding: EdgeInsets.zero,
                 minimumSize: const Size(36, 36),
-                onPressed: () => run(() => choosePenColor(color)),
+                onPressed: selection != null
+                    ? () => edit(() => canvas!.recolorSelection(color))
+                    : () => run(() => choosePenColor(color)),
                 child: Container(
                   width: 34,
                   height: 34,
