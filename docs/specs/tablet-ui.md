@@ -63,15 +63,16 @@ toolbar and the tool popovers; `noteful-pen-tool.webp` shows its pen popover.
   close buttons, and **+**. Three pull-down menus at the right:
   - **Pages**: page overview, bookmarks, and layers.
   - **View**: vertical scroll, horizontal scroll, or two-page layout;
-    toolbar position (left or right); tab bar position (top or hidden).
+    toolbar position (top or bottom); tab bar position (top or hidden).
   - **⋯**: paper for new pages (style, size, orientation); share and export
     PDF; go to page; clear page; delete page; gestures (finger drawing);
     customize the toolbar.
-- **Toolbar**: one floating vertical bar of icons without text labels, one
-  icon per tool kind: pen, marker, highlighter, eraser, lasso, text, image, insert
-  space, drawing mode. Below a divider: undo, redo, saved pens, the color
-  swatches, and **+**. The bar scrolls when its content is longer than the
-  screen.
+- **Toolbar**: a rounded ribbon with a shadow that floats over the top or
+  bottom edge of the page, centered. It has icons without text labels, one
+  icon per tool kind: pen, marker, highlighter, eraser, lasso, text, image,
+  insert space, drawing mode. After a divider: undo, redo, saved pens, the
+  color swatches, and **+**. The ribbon scrolls sideways when its content is
+  wider than the page.
 - **Tool popover**: a tap on the selected tool opens its popover. The
   popover edits the settings of that tool only and never changes the tool.
   - Pen, marker, and highlighter: a stroke sample drawn by the engine; five
@@ -91,7 +92,7 @@ toolbar and the tool popovers; `noteful-pen-tool.webp` shows its pen popover.
   button turns a rewind dial around the button, as in Write
   (`ButtonDragDial` in `syncscribble/touchwidgets.cpp`): each dial step
   undoes or redoes one edit.
-- **Page** fills the rest. Fit width keeps the current scroll position.
+- **Page** fills the area under the top bar; the ribbon floats over it. Fit width keeps the current scroll position.
 
 ## Pages in the editor
 

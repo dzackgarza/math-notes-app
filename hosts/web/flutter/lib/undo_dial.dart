@@ -11,13 +11,13 @@ class UndoDial extends StatefulWidget {
   const UndoDial({
     super.key,
     required this.enabled,
-    required this.pageOnLeft,
+    required this.pageAbove,
     required this.onStep,
     required this.child,
   });
   final bool enabled;
-  // The dial opens on the page side of a vertical toolbar.
-  final bool pageOnLeft;
+  // The dial opens on the page side of the ribbon.
+  final bool pageAbove;
   // Undoes (-1) or redoes (1) one step and tells whether a step happened.
   final bool Function(int direction) onStep;
   final Widget child;
@@ -50,15 +50,15 @@ class _UndoDialState extends State<UndoDial> {
 
   void down(PointerDownEvent event) {
     if (!widget.enabled) return;
-    // Write's dial is five button heights square, 130% of the button width
-    // beside the button and centered on it.
+    // Write's dial is five button heights square, 130% of the button size
+    // away from the button and centered on it.
     final box = context.findRenderObject()! as RenderBox;
     final button = box.localToGlobal(Offset.zero) & box.size;
     final side = 5 * button.height;
-    final left = widget.pageOnLeft
-        ? button.left - 0.3 * button.width - side
-        : button.left + 1.3 * button.width;
-    dial = Rect.fromLTWH(left, button.center.dy - side / 2, side, side);
+    final top = widget.pageAbove
+        ? button.top - 0.3 * button.height - side
+        : button.top + 1.3 * button.height;
+    dial = Rect.fromLTWH(button.center.dx - side / 2, top, side, side);
     moved = false;
     indCount = 0;
     prevAngle = angle(event.position);
@@ -100,7 +100,7 @@ class _UndoDialState extends State<UndoDial> {
         ),
       ),
     ),
-    // The button claims its pointer so the toolbar does not scroll while
+    // The button claims its pointer so the ribbon does not scroll while
     // the dial turns.
     child: RawGestureDetector(
       gestures: {

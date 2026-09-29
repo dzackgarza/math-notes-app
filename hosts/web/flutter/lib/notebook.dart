@@ -185,7 +185,7 @@ class _NotebookState extends State<Notebook>
   // device, so it lives in the browser's storage, not in the notes folder.
   // So do the toolbar side and the tool kinds that the toolbar hides.
   bool fingerDraws = web.window.localStorage.getItem('fingerDraws') == 'true';
-  bool toolbarRight = web.window.localStorage.getItem('toolbarSide') == 'right';
+  bool ribbonBottom = web.window.localStorage.getItem('ribbonEdge') == 'bottom';
   Set<String> hiddenTools = {
     ...?web.window.localStorage.getItem('hiddenTools')?.split(','),
   }..remove('');
@@ -809,7 +809,7 @@ class _NotebookState extends State<Notebook>
     if (chosen != null) jump(chosen);
   }
 
-  // The popover beside a toolbar button, on the page side of the toolbar. As
+  // The popover under a ribbon button, on the page side of the ribbon. As
   // in Noteful, it is a light card with a title, so ink samples read as paper.
   Future<void> popover(
     BuildContext anchor,
@@ -819,7 +819,7 @@ class _NotebookState extends State<Notebook>
   ) async {
     await showPopover<void>(
       context: anchor,
-      direction: toolbarRight ? PopoverDirection.left : PopoverDirection.right,
+      direction: ribbonBottom ? PopoverDirection.top : PopoverDirection.bottom,
       width: width,
       backgroundColor: CupertinoColors.white,
       barrierColor: const Color(0x00000000),
@@ -1155,8 +1155,7 @@ class _NotebookState extends State<Notebook>
         ],
       );
     });
-    if (size != original.size ||
-        opacity != original.opacity) {
+    if (size != original.size || opacity != original.opacity) {
       await updatePen(settings());
     }
     if (save) await writePens(saved: [...savedPens, settings()]);
@@ -1394,7 +1393,7 @@ class _NotebookState extends State<Notebook>
         excludeSemantics: true,
         child: CupertinoButton(
           padding: EdgeInsets.zero,
-          minimumSize: const Size(44, 36),
+          minimumSize: const Size(36, 44),
           onPressed: () => run(() => tapSwatch(anchor, index)),
           child: Container(
             width: 26,
@@ -1415,18 +1414,34 @@ class _NotebookState extends State<Notebook>
     );
   }
 
-  // The floating toolbar (docs/specs/tablet-ui.md, Editor): the tools, a
-  // divider, then undo, redo, saved pens, swatches, and the color list.
-  Widget toolbar() => Container(
-    width: 52,
-    margin: const EdgeInsets.all(8),
+  // The ribbon (docs/specs/tablet-ui.md, Editor): a rounded bar that floats
+  // over the top or bottom edge of the page. It holds the tools, a divider,
+  // then undo, redo, saved pens, swatches, and the color list.
+  static const ribbonHeight = 52.0;
+  static const ribbonMargin = 12.0;
+  // The page height that the ribbon covers at each edge.
+  double get ribbonTopInset => ribbonBottom ? 0 : ribbonHeight + ribbonMargin;
+  double get ribbonBottomInset =>
+      ribbonBottom ? ribbonHeight + ribbonMargin : 0;
+
+  Widget ribbon() => Container(
+    height: ribbonHeight,
     decoration: BoxDecoration(
       color: chromeBar,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(ribbonHeight / 2),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x40000000),
+          blurRadius: 12,
+          offset: Offset(0, 4),
+        ),
+      ],
     ),
     child: SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Column(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           for (final (kind, label, icon) in toolKinds)
             if (!hiddenTools.contains(kind))
@@ -1439,14 +1454,14 @@ class _NotebookState extends State<Notebook>
                     : (anchor) => tapTool(kind, anchor),
               ),
           Container(
-            width: 28,
-            height: 1,
-            margin: const EdgeInsets.symmetric(vertical: 6),
+            width: 1,
+            height: 28,
+            margin: const EdgeInsets.symmetric(horizontal: 6),
             color: const Color(0x33FFFFFF),
           ),
           UndoDial(
             enabled: !drawing,
-            pageOnLeft: toolbarRight,
+            pageAbove: ribbonBottom,
             onStep: (direction) => history(direction > 0),
             child: Semantics(
               label: 'Undo',
@@ -1507,9 +1522,16 @@ class _NotebookState extends State<Notebook>
     final area = selection;
     const white = TextStyle(color: CupertinoColors.white);
     return [
+      Positioned(
+        top: ribbonBottom ? null : ribbonMargin,
+        bottom: ribbonBottom ? ribbonMargin : null,
+        left: ribbonMargin,
+        right: ribbonMargin,
+        child: Center(child: ribbon()),
+      ),
       if (mode != null)
         Positioned(
-          top: 8,
+          top: ribbonTopInset + 8,
           left: 0,
           right: 0,
           child: Center(
@@ -1557,13 +1579,16 @@ class _NotebookState extends State<Notebook>
         Positioned(
           top: area.y + area.height + 60 < height
               ? area.y + area.height + 8
-              : (area.y - 60).clamp(8.0, height - 60),
+              : (area.y - 60).clamp(
+                  ribbonTopInset + 8,
+                  height - ribbonBottomInset - 60,
+                ),
           left: 0,
           right: 0,
           child: Center(child: selectionMenu()),
         ),
       Positioned(
-        bottom: 12,
+        bottom: ribbonBottomInset + 12,
         right: 12,
         child: IgnorePointer(
           child: Container(
@@ -1764,15 +1789,15 @@ class _NotebookState extends State<Notebook>
         },
       ),
     const PullDownMenuDivider.large(),
-    for (final right in [false, true])
+    for (final bottom in [false, true])
       PullDownMenuItem.selectable(
-        title: right ? 'Toolbar on right' : 'Toolbar on left',
-        selected: toolbarRight == right,
+        title: bottom ? 'Toolbar at bottom' : 'Toolbar at top',
+        selected: ribbonBottom == bottom,
         onTap: () {
-          setState(() => toolbarRight = right);
+          setState(() => ribbonBottom = bottom);
           web.window.localStorage.setItem(
-            'toolbarSide',
-            right ? 'right' : 'left',
+            'ribbonEdge',
+            bottom ? 'bottom' : 'top',
           );
         },
       ),
@@ -2284,7 +2309,6 @@ class _NotebookState extends State<Notebook>
               Expanded(
                 child: Row(
                   children: [
-                    if (!toolbarRight) Center(child: toolbar()),
                     Expanded(
                       child: LayoutBuilder(
                         builder: (context, constraints) {
@@ -2439,7 +2463,7 @@ class _NotebookState extends State<Notebook>
                                   ),
                                   if (atEnd)
                                     Positioned(
-                                      bottom: 12,
+                                      bottom: ribbonBottomInset + 12,
                                       left: 0,
                                       right: 0,
                                       child: IgnorePointer(
@@ -2465,7 +2489,6 @@ class _NotebookState extends State<Notebook>
                         },
                       ),
                     ),
-                    if (toolbarRight) Center(child: toolbar()),
                     if (clippingsOpen)
                       SizedBox(
                         width: 240,

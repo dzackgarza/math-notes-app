@@ -128,7 +128,10 @@ class _WorkspaceState extends State<Workspace> {
     });
   }
 
-  Future<void> showLibrary() => run(() async {
+  // Creation waits for this read, so a new note or notebook starts from the
+  // metadata that the open notes last saved.
+  Future<void> libraryRead = Future.value();
+  Future<void> showLibrary() => libraryRead = run(() async {
     if (captures.isNotEmpty)
       throw StateError('Complete the drawing before returning to the library.');
     setState(() => inLibrary = true);
@@ -160,7 +163,8 @@ class _WorkspaceState extends State<Workspace> {
   // The open notebook; null shows the Notebooks view.
   JSArray<JSString>? folder;
   bool reconnect = false;
-  bool busy = true;
+  // The number of actions in progress; the navigation bar shows a spinner.
+  int tasks = 0;
   String? confirmation;
   String filter = 'all';
   String sort = 'name';
@@ -202,20 +206,24 @@ class _WorkspaceState extends State<Workspace> {
   }
 
   Future<void> run(Future<void> Function() action) async {
-    setState(() => busy = true);
+    setState(() => tasks++);
     try {
       await action();
     } catch (error, stack) {
       showError(error, stack);
     } finally {
-      if (mounted) setState(() => busy = false);
+      if (mounted) setState(() => tasks--);
     }
   }
 
   // Saves every open note. The list is read before the first await, so a
   // note that opens while the saves run cannot invalidate the iteration.
   Future<void> saveOpened() async {
-    await Future.wait([for (final note in opened) note.saver.save().toDart]);
+    await deadline(
+      'Saving the open notes',
+      const Duration(seconds: 30),
+      Future.wait([for (final note in opened) note.saver.save().toDart]),
+    );
   }
 
   // Reads overlap when the user acts during a read. Only the newest read
@@ -685,7 +693,12 @@ class _WorkspaceState extends State<Workspace> {
   Future<void> open(JSArray<JSString> path) async {
     if (captures.isNotEmpty)
       throw StateError('Complete the drawing before switching notes.');
-    if (active != null) await active!.saver.save().toDart;
+    if (active != null)
+      await deadline(
+        'Saving ${active!.name}',
+        const Duration(seconds: 30),
+        active!.saver.save().toDart,
+      );
     final index = opened.indexWhere(
       (item) => native.pathKey(item.path) == native.pathKey(path),
     );
@@ -696,7 +709,11 @@ class _WorkspaceState extends State<Workspace> {
       });
       return;
     }
-    final note = await native.host.openNotebook(engine!, root!, path).toDart;
+    final note = await deadline(
+      'Opening ${path.toDart.last.toDart}',
+      const Duration(seconds: 30),
+      native.host.openNotebook(engine!, root!, path).toDart,
+    );
     setState(() => active = note);
   }
 
@@ -861,6 +878,7 @@ class _WorkspaceState extends State<Workspace> {
 
   Future<void> create(bool isFolder) async {
     setState(() => confirmation = null);
+    await libraryRead;
     final metadata = library!.metadata;
     final defaults =
         metadata.folders[native.pathKey(folder ?? <JSString>[].toJS)] ??
@@ -1969,7 +1987,7 @@ class _WorkspaceState extends State<Workspace> {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (busy) const CupertinoActivityIndicator(),
+            if (tasks > 0) const CupertinoActivityIndicator(),
             if (connected && notebook != null)
               actionsButton(
                 '${notebook.name} notebook actions',
@@ -2034,16 +2052,16 @@ class _WorkspaceState extends State<Workspace> {
                               const SizedBox(width: 8),
                               if (notebook == null)
                                 CupertinoButton.filled(
-                                  onPressed: busy ? null : () => create(true),
+                                  onPressed: () => create(true),
                                   child: const Text('New Notebook'),
                                 )
                               else ...[
                                 CupertinoButton(
-                                  onPressed: busy ? null : importPdf,
+                                  onPressed: importPdf,
                                   child: const Text('Import PDF'),
                                 ),
                                 CupertinoButton.filled(
-                                  onPressed: busy ? null : () => create(false),
+                                  onPressed: () => create(false),
                                   child: const Text('New Note'),
                                 ),
                               ],
