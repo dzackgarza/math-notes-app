@@ -142,6 +142,27 @@ test("Flutter moves, finds, trashes, and restores a note with its metadata", asy
   expect(metadata.notes[".trash/Movable"]).toBeUndefined();
 });
 
+test("Flutter connects an empty notes folder and shows the empty library", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto("version.json");
+  await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    for await (const name of root.keys()) await root.removeEntry(name, { recursive: true });
+  });
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "showDirectoryPicker", {
+      configurable: true,
+      value: async () => navigator.storage.getDirectory(),
+    });
+  });
+  await page.goto("");
+  const choose = page.getByRole("button", { name: "Choose notes folder", exact: true });
+  await expect(choose).toBeVisible();
+  await choose.click();
+  await expect(page.getByRole("button", { name: "New Notebook", exact: true })).toBeVisible();
+  await expect(page.getByText("No notebooks. Tap New Notebook to make one.", { exact: true })).toBeVisible();
+});
+
 test("Flutter opens a library note on the first tap without a delayed canvas", async ({ page }) => {
   test.setTimeout(60_000);
   await page.goto("?root=opfs");
