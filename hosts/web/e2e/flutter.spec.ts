@@ -82,6 +82,66 @@ test("Flutter notebook cards retain their notes and metadata after rename", asyn
   expect(metadata.notes["Algebra/Rings"]).toBeUndefined();
 });
 
+test("Flutter moves, finds, trashes, and restores a note with its metadata", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto("?root=opfs");
+
+  await createTestNotebook(page, "Inbox");
+  await page.getByRole("button", { name: "New Note", exact: true }).click();
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Movable");
+  await addTag(page, "algebra");
+  await page.getByRole("button", { name: "Create Note", exact: true }).click();
+  await page.getByRole("button", { name: "Close Movable", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Inbox", exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Notebooks", exact: true }).click();
+  await createTestNotebook(page, "Archive");
+  await page.getByRole("button", { name: "Notebooks", exact: true }).click();
+  await openTestNotebook(page, "Inbox");
+
+  await page.getByRole("button", { name: "Movable actions", exact: true }).click();
+  await page.getByRole("button", { name: "Move", exact: true }).click();
+  await page.getByRole("button", { name: "Archive", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Movable actions", exact: true })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Notebooks", exact: true }).click();
+  await openTestNotebook(page, "Archive");
+  await expect(page.getByRole("button", { name: "Open Movable", exact: false })).toBeVisible();
+
+  await page.getByRole("button", { name: "Notebooks", exact: true }).click();
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await enterText(
+    page.getByRole("textbox", { name: "Search notebooks and notes", exact: true }),
+    "Movable",
+  );
+  await expect(page.getByRole("button", { name: "Open Movable", exact: false })).toBeVisible();
+
+  await page.getByRole("button", { name: "Recent", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Open Movable", exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "Movable actions", exact: true }).click();
+  await page.getByRole("button", { name: "Move to trash", exact: true }).click();
+
+  await page.getByRole("button", { name: "Trash", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Movable actions", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Movable actions", exact: true }).click();
+  await page.getByRole("button", { name: "Restore", exact: true }).click();
+  await page.getByRole("button", { name: "Archive", exact: true }).click();
+
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await openTestNotebook(page, "Archive");
+  await expect(page.getByRole("button", { name: "Open Movable", exact: false })).toBeVisible();
+
+  const metadata = JSON.parse(
+    await page.evaluate(async () => {
+      const root = await navigator.storage.getDirectory();
+      return (await (await root.getFileHandle(".library.json")).getFile()).text();
+    }),
+  );
+  expect(metadata.notes["Archive/Movable"].tags).toEqual(["algebra"]);
+  expect(metadata.notes["Inbox/Movable"]).toBeUndefined();
+  expect(metadata.notes[".trash/Movable"]).toBeUndefined();
+});
+
 test("Flutter opens another note from the tab plus and preserves each tab state", async ({ page }) => {
   test.setTimeout(120_000);
   await page.goto("?root=opfs");
