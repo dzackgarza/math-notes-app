@@ -132,10 +132,11 @@ ink_engine::Pen ToPen(const InkToolSettings &tool) {
   return {.brush = InkBrush(tool.brush), .color = UnpackRgb(tool.rgb), .size = tool.size, .opacity = tool.opacity};
 }
 
-// The pen and the highlighter each have their own brush kind (InkPenFile).
+// Each drawing tool has the brush of its name (InkPenFile).
 std::optional<std::string> CheckKinds(const InkPenFile &file) {
-  if (file.pen.brush == INK_BRUSH_HIGHLIGHTER) return "the pen has the highlighter brush";
-  if (file.highlighter.brush != INK_BRUSH_HIGHLIGHTER) return "the highlighter has a pen brush";
+  if (file.pen.brush != INK_BRUSH_PRESSURE_PEN) return "the pen does not have the pressure-pen brush";
+  if (file.marker.brush != INK_BRUSH_MARKER) return "the marker does not have the marker brush";
+  if (file.highlighter.brush != INK_BRUSH_HIGHLIGHTER) return "the highlighter does not have the highlighter brush";
   return std::nullopt;
 }
 
@@ -821,6 +822,7 @@ InkStatus ink_pens_read(const uint8_t *json, size_t size, const InkPenFile **fil
     gPenFile.saved.clear();
     for (const ink_engine::PenPreset &p : pens.saved) gPenFile.saved.push_back(tool(p));
     gPenFile.file = {.pen = tool(pens.pen),
+                     .marker = tool(pens.marker),
                      .highlighter = tool(pens.highlighter),
                      .palette = gPenFile.palette.data(),
                      .palette_count = gPenFile.palette.size(),
@@ -845,7 +847,8 @@ InkStatus ink_pens_write(const InkPenFile *file, const uint8_t **json, size_t *s
       return ink_engine::PenPreset{.brush = ink_engine::BrushName(pen.brush), .color = pen.color,
                                    .opacity = pen.opacity, .size = pen.size};
     };
-    ink_engine::PenFile pens{.pen = preset(file->pen), .highlighter = preset(file->highlighter)};
+    ink_engine::PenFile pens{
+        .pen = preset(file->pen), .marker = preset(file->marker), .highlighter = preset(file->highlighter)};
     for (size_t i = 0; i < file->palette_count; ++i) pens.palette.push_back(UnpackRgb(file->palette[i]));
     for (size_t i = 0; i < file->saved_count; ++i) pens.saved.push_back(preset(file->saved[i]));
     if (error) return Fail(INK_ERROR_ARGUMENT, *error);
@@ -1457,6 +1460,7 @@ InkStatus ink_struct_layout(InkStruct which, uint32_t *out, size_t capacity, siz
       case INK_STRUCT_PEN_FILE:
         layout = {sizeof(InkPenFile),
                   offsetof(InkPenFile, pen),
+                  offsetof(InkPenFile, marker),
                   offsetof(InkPenFile, highlighter),
                   offsetof(InkPenFile, palette),
                   offsetof(InkPenFile, palette_count),

@@ -32,9 +32,14 @@ typedef NoteDestination = ({String noteKey, String file, String id});
 
 String hex(int rgb) => '#${rgb.toRadixString(16).padLeft(6, '0')}';
 
-// The toolbar's tool kinds: key, label, and icon.
+// The drawing tools, indexed by InkBrush (core/include/ink.h).
+const drawingTools = ['pen', 'marker', 'highlighter'];
+
+// The toolbar's tool kinds: key, label, and icon. The drawing tools come
+// first, in InkBrush order.
 const toolKinds = [
   ('pen', 'Pen', LucideIcons.penTool),
+  ('marker', 'Marker', LucideIcons.brush),
   ('highlighter', 'Highlighter', LucideIcons.highlighter),
   ('eraser', 'Eraser', LucideIcons.eraser),
   ('lasso', 'Lasso', LucideIcons.lasso),
@@ -147,10 +152,13 @@ class _NotebookState extends State<Notebook>
   late final String viewType;
   native.Canvas? canvas;
   native.PenFile? pens;
-  // The pen kind the palette and the pen settings change: pen or highlighter.
+  // The drawing tool the palette and the pen settings change.
   String pen = 'pen';
-  native.ToolSettings get penTool =>
-      pen == 'highlighter' ? pens!.highlighter : pens!.pen;
+  native.ToolSettings get penTool => switch (pen) {
+    'marker' => pens!.marker,
+    'highlighter' => pens!.highlighter,
+    _ => pens!.pen,
+  };
   List<int> get palette => [
     for (final color in pens?.palette.toDart ?? <JSNumber>[]) color.toDartInt,
   ];
@@ -653,7 +661,7 @@ class _NotebookState extends State<Notebook>
           : selector,
       value == 'lasso' || value == 'space' || ruledErase,
     );
-    if (value == 'pen' || value == 'highlighter') {
+    if (drawingTools.contains(value)) {
       pen = value;
       canvas?.setTool(penTool);
     }
@@ -966,14 +974,14 @@ class _NotebookState extends State<Notebook>
     );
   }
 
-  // Noteful's pen popover: a stroke sample, the pen types, labeled size
-  // presets and a slider, opacity on the Advanced tab, and Save. The popover
-  // edits the selected kind only; the change applies when it closes.
+  // Noteful's pen popover: a stroke sample, labeled size presets and a
+  // slider, opacity on the Advanced tab, and Save. The popover edits the
+  // selected drawing tool only; the change applies when it closes.
   Future<void> configurePen(BuildContext anchor) async {
     if (pens == null) return;
     final highlighter = pen == 'highlighter';
     final original = penTool;
-    var brush = original.brush;
+    final brush = original.brush;
     var size = original.size;
     var opacity = original.opacity;
     final rgb = original.rgb;
@@ -986,13 +994,13 @@ class _NotebookState extends State<Notebook>
       size: size,
       opacity: opacity,
     );
-    await popover(anchor, highlighter ? 'Highlighter' : 'Pen', 340, (
-      context,
-      update,
-    ) {
-      final presets = highlighter
-          ? const [4.8, 7.2, 9.6, 14.4, 19.2]
-          : const [0.6, 1.2, 1.8, 2.4, 3.6];
+    final label = toolKinds.firstWhere((kind) => kind.$1 == pen).$2;
+    await popover(anchor, label, 340, (context, update) {
+      final presets = switch (pen) {
+        'highlighter' => const [4.8, 7.2, 9.6, 14.4, 19.2],
+        'marker' => const [1.2, 1.8, 2.4, 3.6, 4.8],
+        _ => const [0.6, 1.2, 1.8, 2.4, 3.6],
+      };
       final opacityRow = Row(
         children: [
           Expanded(
@@ -1039,25 +1047,6 @@ class _NotebookState extends State<Notebook>
               gaplessPlayback: true,
             ),
           ),
-          if (!highlighter && !advanced) ...[
-            section('Pen type'),
-            Row(
-              children: [
-                choice(
-                  'Pressure pen',
-                  LucideIcons.penTool,
-                  brush == 0,
-                  () => update(() => brush = 0),
-                ),
-                choice(
-                  'Marker',
-                  LucideIcons.brush,
-                  brush == 1,
-                  () => update(() => brush = 1),
-                ),
-              ],
-            ),
-          ],
           if (highlighter || !advanced) ...[
             section('Size'),
             Row(
@@ -1166,8 +1155,7 @@ class _NotebookState extends State<Notebook>
         ],
       );
     });
-    if (brush != original.brush ||
-        size != original.size ||
+    if (size != original.size ||
         opacity != original.opacity) {
       await updatePen(settings());
     }
@@ -1177,12 +1165,14 @@ class _NotebookState extends State<Notebook>
   // Writes .pens.json with the given parts replaced.
   Future<void> writePens({
     native.ToolSettings? pen,
+    native.ToolSettings? marker,
     native.ToolSettings? highlighter,
     List<int>? palette,
     List<native.ToolSettings>? saved,
   }) async {
     final next = native.PenFile.create(
       pen: pen ?? pens!.pen,
+      marker: marker ?? pens!.marker,
       highlighter: highlighter ?? pens!.highlighter,
       palette: [for (final color in palette ?? this.palette) color.toJS].toJS,
       saved: saved?.toJS ?? pens!.saved,
@@ -1193,10 +1183,11 @@ class _NotebookState extends State<Notebook>
 
   List<native.ToolSettings> get savedPens => pens?.saved.toDart ?? [];
 
-  // Replaces the selected kind's settings; later strokes use them.
+  // Replaces the selected drawing tool's settings; later strokes use them.
   Future<void> updatePen(native.ToolSettings settings) async {
     await writePens(
       pen: pen == 'pen' ? settings : null,
+      marker: pen == 'marker' ? settings : null,
       highlighter: pen == 'highlighter' ? settings : null,
     );
     chooseTool(pen);
@@ -1215,9 +1206,9 @@ class _NotebookState extends State<Notebook>
     );
   }
 
-  // A saved pen is a shortcut to the pen or highlighter settings it holds.
+  // A saved pen is a shortcut to the settings of the drawing tool of its brush.
   Future<void> applySaved(native.ToolSettings settings) async {
-    pen = settings.brush == 2 ? 'highlighter' : 'pen';
+    pen = drawingTools[settings.brush];
     await updatePen(settings);
   }
 
@@ -1242,14 +1233,14 @@ class _NotebookState extends State<Notebook>
   }
 
   // A swatch recolors the selection when there is one. Otherwise it sets the
-  // pen or highlighter color, and a tap on the current color edits it.
+  // drawing tool's color, and a tap on the current color edits it.
   Future<void> tapSwatch(BuildContext anchor, int index) async {
     final color = palette[index];
     if (selection != null) {
       edit(() => canvas!.recolorSelection(color));
       return;
     }
-    if ((tool == 'pen' || tool == 'highlighter') && penTool.rgb == color) {
+    if (drawingTools.contains(tool) && penTool.rgb == color) {
       await editSwatch(anchor, index);
       return;
     }
@@ -1386,7 +1377,7 @@ class _NotebookState extends State<Notebook>
         unawaited(textAt(Offset(width / 2, height / 2)));
       case _ when tool != kind:
         chooseTool(kind);
-      case 'pen' || 'highlighter':
+      case 'pen' || 'marker' || 'highlighter':
         unawaited(run(() => configurePen(anchor)));
       default:
         unawaited(run(() => modePopover(kind, anchor)));
@@ -1483,7 +1474,7 @@ class _NotebookState extends State<Notebook>
           for (final (i, saved) in savedPens.indexed)
             toolButton(
               'Saved pen ${saved.size.toStringAsFixed(1)} pt ${hex(saved.rgb)}',
-              saved.brush == 2 ? LucideIcons.highlighter : LucideIcons.penTool,
+              toolKinds[saved.brush].$3,
               color: Color(0xFF000000 | saved.rgb),
               onPressed: (_) => run(() => applySaved(saved)),
               onLongPress: () => run(() => savedPenMenu(i)),

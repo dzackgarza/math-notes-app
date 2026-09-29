@@ -153,11 +153,13 @@ extension type ToolSettings(JSObject value) implements JSObject {
 extension type PenFile(JSObject value) implements JSObject {
   external factory PenFile.create({
     ToolSettings pen,
+    ToolSettings marker,
     ToolSettings highlighter,
     JSArray<JSNumber> palette,
     JSArray<ToolSettings> saved,
   });
   external ToolSettings get pen;
+  external ToolSettings get marker;
   external ToolSettings get highlighter;
   external JSArray<JSNumber> get palette;
   external JSArray<ToolSettings> get saved;

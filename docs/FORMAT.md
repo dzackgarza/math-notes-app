@@ -250,19 +250,18 @@ a notebook directory (send, archive, download).
 ## Other files
 
 - `Notes/.pens.json`: the tool settings, shared by all devices. An object
-  with the keys `pen`, `highlighter`, `palette`, `saved`, in this order,
-  two-space indent and one trailing newline:
-  - `pen` and `highlighter`: the current settings of the two drawing tools,
-    each `{ "brush", "brushVersion", "color", "opacity", "size" }` with the
-    keys in this order. `brush` and `brushVersion` are as `mn:brush` and
-    `mn:brush-version`; the pen's brush is `pressure-pen` or `marker`, the
-    highlighter's is `highlighter`. `color` is `#RRGGBB`; `opacity` (0 to 1,
+  with the keys `pen`, `marker`, `highlighter`, `palette`, `saved`, in this
+  order, two-space indent and one trailing newline:
+  - `pen`, `marker` and `highlighter`: the current settings of the three
+    drawing tools, each `{ "brush", "brushVersion", "color", "opacity",
+    "size" }` with the keys in this order. `brush` and `brushVersion` are as
+    `mn:brush` and `mn:brush-version`; the pen's brush is `pressure-pen`, the
+    marker's is `marker`, the highlighter's is `highlighter`. `color` is `#RRGGBB`; `opacity` (0 to 1,
     3 decimals) becomes the strokes' `fill-opacity`; `size` is in points
     (2 decimals). Numbers have no trailing zeros.
   - `palette`: the visible color swatches, `#RRGGBB`, in toolbar order.
   - `saved`: the saved pens, in toolbar order, each in the form of `pen`.
-    A saved pen with the `highlighter` brush restores the highlighter; any
-    other restores the pen.
+    A saved pen restores the tool of its brush.
 
   The app writes this file on first use:
 
@@ -270,6 +269,13 @@ a notebook directory (send, archive, download).
   {
     "pen": {
       "brush": "pressure-pen",
+      "brushVersion": 1,
+      "color": "#1A1A1A",
+      "opacity": 1,
+      "size": 1.2
+    },
+    "marker": {
+      "brush": "marker",
       "brushVersion": 1,
       "color": "#1A1A1A",
       "opacity": 1,

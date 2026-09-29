@@ -43,7 +43,7 @@ export const PEN_SAMPLE = {
   reserved: 59,
 } as const;
 export const TOOL_SETTINGS = { byteLength: 16, brush: 0, rgb: 4, size: 8, opacity: 12 } as const;
-export const INK_PEN_FILE = { byteLength: 48, pen: 0, highlighter: 16, palette: 32, paletteCount: 36, saved: 40, savedCount: 44 } as const;
+export const INK_PEN_FILE = { byteLength: 64, pen: 0, marker: 16, highlighter: 32, palette: 48, paletteCount: 52, saved: 56, savedCount: 60 } as const;
 export const INK_FILE = { byteLength: 16, path: 0, bytes: 4, size: 8, kind: 12 } as const;
 export const SELECTION_INFO = { byteLength: 40, count: 0, page: 4, x: 8, y: 16, width: 24, height: 32 } as const;
 export const PDF_EXPORT_SPEC = { byteLength: 16, firstPage: 0, pageCount: 4, includeLinks: 8, includeHiddenLayers: 12 } as const;
@@ -91,10 +91,11 @@ export interface ToolSettings {
   opacity: number;
 }
 
-// Notes/.pens.json (docs/FORMAT.md, Other files): the pen and highlighter
+// Notes/.pens.json (docs/FORMAT.md, Other files): the pen, marker and highlighter
 // settings, the palette as 0xRRGGBB values, and the saved pens.
 export interface PenFile {
   pen: ToolSettings;
+  marker: ToolSettings;
   highlighter: ToolSettings;
   palette: number[];
   saved: ToolSettings[];
@@ -310,6 +311,7 @@ export class Engine {
         const saved = view.getUint32(at + INK_PEN_FILE.saved, true);
         return {
           pen: readTool(view, at + INK_PEN_FILE.pen),
+          marker: readTool(view, at + INK_PEN_FILE.marker),
           highlighter: readTool(view, at + INK_PEN_FILE.highlighter),
           palette: Array.from({ length: view.getUint32(at + INK_PEN_FILE.paletteCount, true) }, (_, i) =>
             view.getUint32(palette + 4 * i, true),
@@ -332,6 +334,7 @@ export class Engine {
     try {
       const view = this.view();
       writeTool(view, file + INK_PEN_FILE.pen, pens.pen);
+      writeTool(view, file + INK_PEN_FILE.marker, pens.marker);
       writeTool(view, file + INK_PEN_FILE.highlighter, pens.highlighter);
       pens.palette.forEach((rgb, i) => view.setUint32(palette + 4 * i, rgb, true));
       pens.saved.forEach((tool, i) => writeTool(view, saved + i * TOOL_SETTINGS.byteLength, tool));

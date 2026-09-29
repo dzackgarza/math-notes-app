@@ -68,17 +68,16 @@ toolbar and the tool popovers; `noteful-pen-tool.webp` shows its pen popover.
     PDF; go to page; clear page; delete page; gestures (finger drawing);
     customize the toolbar.
 - **Toolbar**: one floating vertical bar of icons without text labels, one
-  icon per tool kind: pen, highlighter, eraser, lasso, text, image, insert
+  icon per tool kind: pen, marker, highlighter, eraser, lasso, text, image, insert
   space, drawing mode. Below a divider: undo, redo, saved pens, the color
   swatches, and **+**. The bar scrolls when its content is longer than the
   screen.
 - **Tool popover**: a tap on the selected tool opens its popover. The
   popover edits the settings of that tool only and never changes the tool.
-  - Pen: a stroke sample drawn by the engine; the pen types (pressure pen,
-    marker); five size presets and a size slider; an **Advanced** tab with
-    opacity; **Save** keeps the current settings as a saved pen.
-  - Highlighter: the stroke sample, size presets and slider, opacity, and
-    **Save**.
+  - Pen, marker, and highlighter: a stroke sample drawn by the engine; five
+    size presets and a size slider; an **Advanced** tab with opacity;
+    **Save** keeps the current settings as a saved pen. Each tool has one
+    brush: the pen draws with pressure, the marker with a constant width.
   - Eraser: stroke, partial, or ruled.
   - Lasso: freehand, rectangle, oval, or ruled.
 - **Colors**: a swatch sets the color of the current pen or highlighter, or
@@ -86,8 +85,8 @@ toolbar and the tool popovers; `noteful-pen-tool.webp` shows its pen popover.
   swatch opens a touch color picker (an HSV wheel) that edits that swatch.
   **+** edits the list of visible swatches.
 - **Saved pens**: as in Write, a saved pen is a toolbar shortcut that
-  restores the pen type, size, color, and opacity of the pen or the
-  highlighter. It is not a new tool kind.
+  restores its tool (pen, marker, or highlighter) with its size, color, and
+  opacity. It is not a new tool kind.
 - **Undo and redo**: a tap undoes or redoes one step. A drag from the undo
   button turns a rewind dial around the button, as in Write
   (`ButtonDragDial` in `syncscribble/touchwidgets.cpp`): each dial step

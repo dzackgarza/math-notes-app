@@ -514,7 +514,7 @@ test("Flutter notebook retains pen input and pages after save and reopen", async
   await expect(page.getByRole("group", { name: "Lecture", exact: true })).toBeVisible();
 });
 
-test("Flutter pen popover changes the brush and size of the pen", async ({ page }, info) => {
+test("Flutter marker popover changes the size of the marker only", async ({ page }, info) => {
   test.setTimeout(120_000);
   await page.goto("version.json");
   await page.evaluate(async () => {
@@ -522,22 +522,27 @@ test("Flutter pen popover changes the brush and size of the pen", async ({ page 
     for await (const name of root.keys()) await root.removeEntry(name, { recursive: true });
   });
   await page.goto("?root=opfs");
+  await page.getByRole("button", { name: "New Notebook", exact: true }).click();
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Tools");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.getByRole("button", { name: /^Open Tools/ }).click();
   await page.getByRole("button", { name: "New Note", exact: true }).click();
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Pens");
   await page.getByRole("button", { name: "Create", exact: true }).click();
   await page.locator('canvas[id^="ink-canvas-"]').waitFor();
-  // A tap on the selected pen opens its settings beside the toolbar.
-  await page.getByRole("button", { name: "Pen", exact: true }).click();
+  // The first tap selects the marker; a tap on the selected marker opens its settings.
+  await page.getByRole("button", { name: "Marker", exact: true }).click();
   await page.getByRole("button", { name: "Marker", exact: true }).click();
   await page.getByRole("button", { name: "3.6 pt", exact: true }).click();
-  await page.screenshot({ path: info.outputPath("pen-popover.png") });
+  await page.screenshot({ path: info.outputPath("marker-popover.png") });
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("Page has no viewport");
   await page.mouse.click(viewport.width - 20, viewport.height - 20);
   await expect.poll(() => page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
-    return JSON.parse(await (await (await root.getFileHandle(".pens.json")).getFile()).text()).pen;
-  })).toMatchObject({ brush: "marker", size: 3.6 });
+    const pens = JSON.parse(await (await (await root.getFileHandle(".pens.json")).getFile()).text());
+    return { pen: pens.pen, marker: pens.marker };
+  })).toMatchObject({ pen: { brush: "pressure-pen", size: 1.2 }, marker: { brush: "marker", size: 3.6 } });
 });
 
 test("Flutter two-page layout puts pen input on the right page and shares a PDF", async ({ page }) => {

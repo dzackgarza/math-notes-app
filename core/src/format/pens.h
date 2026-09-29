@@ -1,5 +1,5 @@
 // The tool settings file Notes/.pens.json (docs/FORMAT.md, Other files): the
-// pen and highlighter settings, the color palette, and the saved pens.
+// pen, marker and highlighter settings, the color palette, and the saved pens.
 #pragma once
 
 #include <string>
@@ -21,6 +21,7 @@ struct PenPreset {
 
 struct PenFile {
   PenPreset pen;
+  PenPreset marker;
   PenPreset highlighter;
   std::vector<Rgb> palette;
   std::vector<PenPreset> saved;

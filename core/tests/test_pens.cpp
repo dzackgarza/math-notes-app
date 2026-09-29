@@ -17,6 +17,7 @@ std::string Text(const uint8_t *bytes, size_t size) {
 // A read file, copied out of the engine's buffers.
 struct Pens {
   InkToolSettings pen;
+  InkToolSettings marker;
   InkToolSettings highlighter;
   std::vector<uint32_t> palette;
   std::vector<InkToolSettings> saved;
@@ -25,12 +26,13 @@ struct Pens {
 Pens Read(const std::string &json) {
   const InkPenFile *file = nullptr;
   REQUIRE(ink_pens_read(reinterpret_cast<const uint8_t *>(json.data()), json.size(), &file) == INK_OK);
-  return {file->pen, file->highlighter, {file->palette, file->palette + file->palette_count},
+  return {file->pen, file->marker, file->highlighter, {file->palette, file->palette + file->palette_count},
           {file->saved, file->saved + file->saved_count}};
 }
 
 std::string Write(const Pens &pens) {
-  InkPenFile file{pens.pen,           pens.highlighter,    pens.palette.data(),
+  InkPenFile file{pens.pen,           pens.marker,       pens.highlighter,
+                  pens.palette.data(),
                   pens.palette.size(), pens.saved.data(), pens.saved.size()};
   const uint8_t *json = nullptr;
   size_t size = 0;
@@ -88,6 +90,13 @@ TEST_CASE("The default tool settings file has the FORMAT.md form") {
     "opacity": 1,
     "size": 1.2
   },
+  "marker": {
+    "brush": "marker",
+    "brushVersion": 1,
+    "color": "#1A1A1A",
+    "opacity": 1,
+    "size": 1.2
+  },
   "highlighter": {
     "brush": "highlighter",
     "brushVersion": 1,
@@ -110,31 +119,40 @@ TEST_CASE("The default tool settings file has the FORMAT.md form") {
 
 TEST_CASE("Edited settings, palette and saved pens read back unchanged") {
   Pens pens = Read(Default());
-  pens.pen = {INK_BRUSH_MARKER, 0x2F6FEB, 3.25f, 1};
+  pens.pen = {INK_BRUSH_PRESSURE_PEN, 0x2F6FEB, 0.6f, 1};
+  pens.marker = {INK_BRUSH_MARKER, 0xD92D39, 3.25f, 1};
   pens.highlighter.opacity = 0.5f;
   pens.palette = {0x2F6FEB, 0xFFFFFF};
-  pens.saved = {{INK_BRUSH_PRESSURE_PEN, 0xD92D39, 0.6f, 1}, {INK_BRUSH_HIGHLIGHTER, 0x3CBFAE, 12, 0.35f}};
+  pens.saved = {{INK_BRUSH_PRESSURE_PEN, 0xD92D39, 0.6f, 1}, {INK_BRUSH_HIGHLIGHTER, 0x3CBFAE, 12, 0.35f},
+                {INK_BRUSH_MARKER, 0x29955B, 2, 1}};
 
   Pens back = Read(Write(pens));
-  CHECK(back.pen.brush == INK_BRUSH_MARKER);
   CHECK(back.pen.rgb == 0x2F6FEB);
-  CHECK(back.pen.size == 3.25f);
+  CHECK(back.pen.size == 0.6f);
+  CHECK(back.marker.rgb == 0xD92D39);
+  CHECK(back.marker.size == 3.25f);
   CHECK(back.highlighter.opacity == 0.5f);
   CHECK(back.palette == std::vector<uint32_t>{0x2F6FEB, 0xFFFFFF});
-  REQUIRE(back.saved.size() == 2);
+  REQUIRE(back.saved.size() == 3);
   CHECK(back.saved[0].rgb == 0xD92D39);
   CHECK(back.saved[1].brush == INK_BRUSH_HIGHLIGHTER);
   CHECK(back.saved[1].size == 12);
+  CHECK(back.saved[2].brush == INK_BRUSH_MARKER);
 }
 
 TEST_CASE("A file without the FORMAT.md form gives a parse error") {
-  std::string highlighter = R"("highlighter": {"brush": "highlighter", "brushVersion": 1, "color": "#FFE066", "opacity": 0.35, "size": 9.6})";
-  for (std::string bad : {
-           std::string(R"([{"id": "pen", "name": "Pen"}])"),
-           R"({"pen": {"brush": "highlighter", "brushVersion": 1, "color": "#1A1A1A", "opacity": 1, "size": 1}, )" +
-               highlighter + R"(, "palette": [], "saved": []})",
-           R"({"pen": {"brush": "chalk", "brushVersion": 1, "color": "#1A1A1A", "opacity": 1, "size": 1}, )" +
-               highlighter + R"(, "palette": [], "saved": []})"}) {
+  auto tool = [](const std::string &name, const std::string &brush) {
+    return R"(")" + name + R"(": {"brush": ")" + brush + R"(", "brushVersion": 1, "color": "#1A1A1A", "opacity": 1, "size": 1})";
+  };
+  auto file = [&](const std::string &pen, const std::string &marker) {
+    return "{" + tool("pen", pen) + ", " + tool("marker", marker) + ", " + tool("highlighter", "highlighter") +
+           R"(, "palette": [], "saved": []})";
+  };
+  for (std::string bad : {std::string(R"([{"id": "pen", "name": "Pen"}])"),
+                          file("highlighter", "marker"), file("chalk", "marker"), file("marker", "marker"),
+                          file("pressure-pen", "pressure-pen"),
+                          "{" + tool("pen", "pressure-pen") + ", " + tool("highlighter", "highlighter") +
+                              R"(, "palette": [], "saved": []})"}) {
     const InkPenFile *file = nullptr;
     CHECK(ink_pens_read(reinterpret_cast<const uint8_t *>(bad.data()), bad.size(), &file) == INK_ERROR_PARSE);
   }
@@ -153,11 +171,13 @@ TEST_CASE("Strokes keep their own brush, color and size after the settings chang
   std::string before = SavedPage(session.document);
   REQUIRE(ink_document_mark_saved(session.document) == INK_OK);
 
-  // The user edits both presets; the next stroke uses the edited pen.
+  // The user edits the presets; the next stroke uses the edited marker.
   highlighter.rgb = 0x3FA35B;
   highlighter.size = 4;
-  pen = {INK_BRUSH_MARKER, 0xD6455D, 2, 1};
-  REQUIRE(ink_canvas_set_tool(session.get(), &pen) == INK_OK);
+  InkToolSettings marker = pens.marker;
+  marker.rgb = 0xD6455D;
+  marker.size = 2;
+  REQUIRE(ink_canvas_set_tool(session.get(), &marker) == INK_OK);
   Draw(session.get(), 300, 2000);
   std::string after = SavedPage(session.document);
 

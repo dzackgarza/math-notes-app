@@ -40,12 +40,13 @@ PenPreset Preset(const Json &pen) {
 
 }  // namespace
 
-// The pen and highlighter on two stock brushes of Google Cahier
-// app/src/main/java/com/example/cahier/features/drawing/DrawingToolbox.kt:483-505
+// The pen, marker and highlighter on three stock brushes of Google Cahier
+// app/src/main/java/com/example/cahier/features/drawing/DrawingToolbox.kt:475-503
 // (android/cahier 209db71); the palette is the first swatches of the editor
 // mockup (docs/specs/tablet-ui.md, Editor).
 PenFile DefaultPens() {
   return {.pen = {"pressure-pen", 1, {0x1A, 0x1A, 0x1A}, 1, 1.2},
+          .marker = {"marker", 1, {0x1A, 0x1A, 0x1A}, 1, 1.2},
           .highlighter = {"highlighter", 1, {0xFF, 0xE0, 0x66}, 0.35, 9.6},
           .palette = {{0x1A, 0x1A, 0x1A},
                       {0x1F, 0x4F, 0xB5},
@@ -57,7 +58,9 @@ PenFile DefaultPens() {
 
 PenFile ReadPens(std::string_view bytes) {
   Json json = Json::parse(bytes);
-  PenFile pens{.pen = Preset(json.at("pen")), .highlighter = Preset(json.at("highlighter"))};
+  PenFile pens{.pen = Preset(json.at("pen")),
+               .marker = Preset(json.at("marker")),
+               .highlighter = Preset(json.at("highlighter"))};
   for (const Json &color : json.at("palette")) pens.palette.push_back(ReadColor(color.get<std::string>()));
   for (const Json &pen : json.at("saved")) pens.saved.push_back(Preset(pen));
   return pens;
@@ -69,6 +72,7 @@ std::string WritePens(const PenFile &pens) {
   Json saved = Json::array();
   for (const PenPreset &pen : pens.saved) saved.push_back(Preset(pen));
   Json json = {{"pen", Preset(pens.pen)},
+               {"marker", Preset(pens.marker)},
                {"highlighter", Preset(pens.highlighter)},
                {"palette", palette},
                {"saved", saved}};

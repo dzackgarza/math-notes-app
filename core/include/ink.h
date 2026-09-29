@@ -198,12 +198,12 @@ typedef struct InkToolSettings {
 
 /* ---- Pen presets ------------------------------------------------------ */
 
-/* The tool settings of Notes/.pens.json (docs/FORMAT.md, Other files). The
-   pen's brush is the pressure pen or the marker; the highlighter's is the
-   highlighter. A saved pen restores the highlighter when its brush is the
-   highlighter, else the pen. */
+/* The tool settings of Notes/.pens.json (docs/FORMAT.md, Other files). Each
+   drawing tool has the brush of its name. A saved pen restores the tool of
+   its brush. */
 typedef struct InkPenFile {
   InkToolSettings pen;
+  InkToolSettings marker;
   InkToolSettings highlighter;
   const uint32_t *palette; /* 0xRRGGBB, in toolbar order */
   size_t palette_count;
@@ -459,12 +459,13 @@ static_assert(offsetof(InkFile, kind) == 3 * sizeof(void *));
 static_assert(sizeof(InkFile) == 4 * sizeof(void *));
 
 static_assert(offsetof(InkPenFile, pen) == 0);
-static_assert(offsetof(InkPenFile, highlighter) == 16);
-static_assert(offsetof(InkPenFile, palette) == 32);
-static_assert(offsetof(InkPenFile, palette_count) == 32 + sizeof(void *));
-static_assert(offsetof(InkPenFile, saved) == 32 + 2 * sizeof(void *));
-static_assert(offsetof(InkPenFile, saved_count) == 32 + 3 * sizeof(void *));
-static_assert(sizeof(InkPenFile) == 32 + 4 * sizeof(void *));
+static_assert(offsetof(InkPenFile, marker) == 16);
+static_assert(offsetof(InkPenFile, highlighter) == 32);
+static_assert(offsetof(InkPenFile, palette) == 48);
+static_assert(offsetof(InkPenFile, palette_count) == 48 + sizeof(void *));
+static_assert(offsetof(InkPenFile, saved) == 48 + 2 * sizeof(void *));
+static_assert(offsetof(InkPenFile, saved_count) == 48 + 3 * sizeof(void *));
+static_assert(sizeof(InkPenFile) == 48 + 4 * sizeof(void *));
 
 static_assert(offsetof(InkSelectionInfo, count) == 0);
 static_assert(offsetof(InkSelectionInfo, page) == 4);
