@@ -247,6 +247,17 @@ The Flutter web app is the only web GUI. `hosts/web/flutter/lib` holds the
 Cupertino chrome; `hosts/web/src/flutter.ts` is the bridge to the engine and
 the folder services.
 
+The Flutter host follows MVVM ownership at the application boundary. One
+app-wide `ToolsViewModel` owns tool configuration that must follow the user
+between notes: pen/marker/highlighter settings and palette, eraser/lasso/space
+modes, finger-drawing behavior, ribbon placement, and toolbar visibility. Each
+open editor owns an `EditorViewModel` for note-local canvas, page, drawing
+capture, selection, clippings, figure preview, and save-state observation.
+`OpenNotes` remains the session repository for tabs, split panes, linked
+viewports, and link destinations. Editor presentation is split under
+`hosts/web/flutter/lib/ui/editor/`; screens and panels consume those models
+through Provider rather than owning durable tool or document state themselves.
+
 | Concern | Library | Introduced in |
 | --- | --- | --- |
 | UI chrome (toolbars, library, panels) | Flutter Cupertino widgets; pull_down_button, popover, flex_color_picker, lucide_icons_flutter | [#56](https://github.com/dzackgarza/math-notes-app/issues/56) |
