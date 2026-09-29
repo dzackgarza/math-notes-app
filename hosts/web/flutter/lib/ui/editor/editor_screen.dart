@@ -225,13 +225,13 @@ class _EditorScreenState extends State<EditorScreen>
     })..start();
     unawaited(
       run(() async {
+        canvas = await native.host.mountCanvas(widget.note, element).toDart;
+        updateView();
+        receiveDestination();
         pens = await native.host
             .readPens(widget.note.root, widget.engine)
             .toDart;
-        canvas = await native.host.mountCanvas(widget.note, element).toDart;
         canvas!.setTool(penTool);
-        updateView();
-        receiveDestination();
       }),
     );
   }

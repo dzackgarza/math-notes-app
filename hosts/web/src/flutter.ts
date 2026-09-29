@@ -12,7 +12,7 @@ import { ensureTemplates, files, hasPermission, listTemplates, pickRoot, readTem
 import { createFolder, moveEntry, moveToTrash, scanLibrary, scanTrash, type Note } from "./storage/library.ts";
 import { emptyFolder, emptyNote, moveNotes, readMetadata, writeMetadata, TAG_COLORS } from "./storage/metadata.ts";
 import { noteThumbnail } from "./storage/thumbnails.ts";
-import { readPens, writePens } from "./storage/pens.ts";
+import { ensurePens, readPens, writePens } from "./storage/pens.ts";
 import { importPdf } from "./editor/pdf.ts";
 import { noteConflicts, resolveConflict } from "./storage/conflicts.ts";
 import { listClippings, saveClipping, clippingSvg, changeClipping } from "./editor/clippings.ts";
@@ -98,10 +98,13 @@ async function startRoot() {
   return { root: root ?? null, needsGesture: root ? !(await hasPermission(root)) : false };
 }
 
-// Creates the missing built-in templates once, when the app connects to a
-// notes folder.
+// Creates the root-owned defaults once, when the app connects to a notes
+// folder. This keeps first-use writes out of the editor's critical path.
 function prepareRoot(root: FileSystemDirectoryHandle, engine: Engine): Promise<void> {
-  return files(() => ensureTemplates(root, engine));
+  return files(async () => {
+    await ensureTemplates(root, engine);
+    await ensurePens(root, engine);
+  });
 }
 
 function library(root: FileSystemDirectoryHandle) {
@@ -223,7 +226,7 @@ const api = {
   createFolder: writing(createFolder), moveEntry: writing(moveEntry), moveToTrash: writing(moveToTrash),
   emptyFolder, emptyNote, moveNotes,
   readMetadata: reading(readMetadata), writeMetadata: writing(writeMetadata),
-  readPens: writing(readPens), writePens: writing(writePens),
+  readPens: reading(readPens), writePens: writing(writePens),
   penPreview, acceptPen, cancelStroke, mountCanvas,
 };
 
