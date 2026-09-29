@@ -1,6 +1,6 @@
 import type { Engine, FileChange, InkDocument } from "../engine/engine.ts";
 import { EngineError, Status } from "../engine/engine.ts";
-import { readNotebook, writeFiles, type NotebookFiles } from "./folder.ts";
+import { files, readNotebook, writeFiles, type NotebookFiles } from "./folder.ts";
 
 interface NotebookIndex {
   pages: { id: string; file: string }[];
@@ -135,7 +135,7 @@ function same(a: Uint8Array | null, b: Uint8Array | null): boolean {
 }
 
 export async function resolveConflict(engine: Engine, dir: FileSystemDirectoryHandle, conflict: NoteConflict, choice: "original" | "copy" | "both"): Promise<void> {
-  await navigator.locks.request("math-notes-files", async () => {
+  await files(async () => {
     if (!same(await readCurrentFile(dir, conflict.original), conflict.originalBytes) || !same(await readFile(dir, conflict.copy), conflict.copyBytes)) {
       throw new Error("A version changed during comparison. Reopen the conflict before choosing.");
     }

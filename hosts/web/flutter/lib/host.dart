@@ -404,7 +404,8 @@ extension type Host(JSObject value) implements JSObject {
     Directory root,
     JSFunction changed,
   );
-  external JSPromise<Library> library(Directory root, Engine engine);
+  external JSPromise<VoidResult> prepareRoot(Directory root, Engine engine);
+  external JSPromise<Library> library(Directory root);
   external NoteMetadata emptyNote();
   external FolderMetadata emptyFolder();
   external JSPromise<LibraryMetadata> readMetadata(Directory root);

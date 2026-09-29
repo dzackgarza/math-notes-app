@@ -3,7 +3,7 @@
 import { createStore, del, entries, set } from "idb-keyval";
 import type { Engine, FileChange, InkDocument, NotebookFile } from "../engine/engine.ts";
 import { EngineError, Orientation, PageSize, Status } from "../engine/engine.ts";
-import { ensureTemplates, readNotebook, readTemplatePage, writeFiles, type NotebookFiles } from "../storage/folder.ts";
+import { files as fileTask, readNotebook, readTemplatePage, writeFiles, type NotebookFiles } from "../storage/folder.ts";
 import { directoryAt, entryNames, nameError } from "../storage/library.ts";
 import type { OrientationSetting, PageSizeSetting } from "../storage/metadata.ts";
 
@@ -213,7 +213,7 @@ export class Saver extends EventTarget {
     };
     // A new save is an explicit retry after failure. Both promise outcomes
     // serialize it behind the previous attempt; its own failure still rejects.
-    const coordinated = async () => { await navigator.locks.request("math-notes-files", writePending); };
+    const coordinated = () => fileTask(writePending);
     this.writing = this.writing.then(coordinated, coordinated);
     return this.writing;
   }
@@ -240,11 +240,12 @@ export async function createNotebook(
   orientation: OrientationSetting,
 ): Promise<OpenNotebook> {
   const title = name.trim();
-  const error = nameError(title, await entryNames(root, parent));
-  if (error) throw new Error(error);
-  await ensureTemplates(root, engine);
-  const dir = await (await directoryAt(root, parent)).getDirectoryHandle(title, { create: true });
-  const page1 = await readTemplatePage(root, template);
+  const { dir, page1 } = await fileTask(async () => {
+    const error = nameError(title, await entryNames(root, parent));
+    if (error) throw new Error(error);
+    const dir = await (await directoryAt(root, parent)).getDirectoryHandle(title, { create: true });
+    return { dir, page1: await readTemplatePage(root, template) };
+  });
   if (!page1) throw new Error(`template ${template} has no pages/0001.svg`);
   const document = engine.createDocumentFromTemplate(randomSeed(), template, page1, PageSize[pageSize], Orientation[orientation]);
   const saver = new Saver(document, dir, []);
@@ -252,8 +253,11 @@ export async function createNotebook(
   return { engine, document, root, dir, template, path: [...parent, title], name: title, saver };
 }
 
-export async function openNotebook(engine: Engine, root: FileSystemDirectoryHandle, path: readonly string[]): Promise<OpenNotebook> {
-  await ensureTemplates(root, engine);
+export function openNotebook(engine: Engine, root: FileSystemDirectoryHandle, path: readonly string[]): Promise<OpenNotebook> {
+  return fileTask(() => readOpenNotebook(engine, root, path), "shared");
+}
+
+async function readOpenNotebook(engine: Engine, root: FileSystemDirectoryHandle, path: readonly string[]): Promise<OpenNotebook> {
   const dir = await directoryAt(root, path);
   const name = path[path.length - 1];
   const recovery = await pendingRecovery(dir);

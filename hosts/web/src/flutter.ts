@@ -8,7 +8,7 @@ import { loadEngine } from "./engine/load.ts";
 import type { Canvas, Engine, ToolSettings } from "./engine/engine.ts";
 import { Orientation, PageSize, Phase, Tool } from "./engine/engine.ts";
 import { capabilities, penSamples } from "./input/pointer.ts";
-import { ensureTemplates, hasPermission, listTemplates, pickRoot, readTemplatePage, requestPermission, savedRoot, watchRoot } from "./storage/folder.ts";
+import { ensureTemplates, files, hasPermission, listTemplates, pickRoot, readTemplatePage, requestPermission, savedRoot, watchRoot } from "./storage/folder.ts";
 import { createFolder, moveEntry, moveToTrash, scanLibrary, scanTrash, type Note } from "./storage/library.ts";
 import { emptyFolder, emptyNote, moveNotes, readMetadata, writeMetadata, TAG_COLORS } from "./storage/metadata.ts";
 import { noteThumbnail } from "./storage/thumbnails.ts";
@@ -98,12 +98,31 @@ async function startRoot() {
   return { root: root ?? null, needsGesture: root ? !(await hasPermission(root)) : false };
 }
 
-async function library(root: FileSystemDirectoryHandle, engine: Engine) {
-  await ensureTemplates(root, engine);
-  const [folders, trash, metadata, templates] = await Promise.all([
-    scanLibrary(root), scanTrash(root), readMetadata(root), listTemplates(root),
-  ]);
-  return { folders, trash, metadata, templates };
+// Creates the missing built-in templates once, when the app connects to a
+// notes folder.
+function prepareRoot(root: FileSystemDirectoryHandle, engine: Engine): Promise<void> {
+  return files(() => ensureTemplates(root, engine));
+}
+
+function library(root: FileSystemDirectoryHandle) {
+  return files(async () => {
+    const [folders, trash, metadata, templates] = await Promise.all([
+      scanLibrary(root), scanTrash(root), readMetadata(root), listTemplates(root),
+    ]);
+    return { folders, trash, metadata, templates };
+  }, "shared");
+}
+
+// Any argument list; the lock wrappers pass it on unchanged.
+type Arguments = unknown[];
+
+// The same function under the shared lock for reads or the exclusive lock
+// for writes.
+function reading<A extends Arguments, R>(task: (...args: A) => Promise<R>): (...args: A) => Promise<R> {
+  return (...args) => files(() => task(...args), "shared");
+}
+function writing<A extends Arguments, R>(task: (...args: A) => Promise<R>): (...args: A) => Promise<R> {
+  return (...args) => files(() => task(...args));
 }
 
 // `fingerDraws` makes a touch draw with the selected tool.
@@ -194,13 +213,18 @@ async function insertImage(note: OpenNotebook, canvas: Canvas, page: number, x: 
 const api = {
   mountFigureEditor,
   listClippings, saveClipping, clippingSvg, changeClipping,
-  noteConflicts, resolveConflict,
+  noteConflicts: reading(noteConflicts), resolveConflict,
   importPdf,
-  applyTemplate, listTemplates, finishFigure, figureSource,
-  thumbnail, tagColors: TAG_COLORS,
-  cacheApp, paperPreview, exportPdf, sharePdf, insertImage, loadEngine, startRoot, pickRoot, requestPermission, watchRoot, library,
-  createNotebook, openNotebook, createFolder, moveEntry, moveToTrash,
-  emptyFolder, emptyNote, moveNotes, readMetadata, writeMetadata, readPens, writePens, penPreview, acceptPen, cancelStroke, mountCanvas,
+  applyTemplate: reading(applyTemplate), listTemplates: reading(listTemplates), finishFigure, figureSource,
+  thumbnail: reading(thumbnail), tagColors: TAG_COLORS,
+  cacheApp, paperPreview: reading(paperPreview), exportPdf, sharePdf, insertImage, loadEngine, startRoot, pickRoot, requestPermission, watchRoot,
+  prepareRoot, library,
+  createNotebook, openNotebook,
+  createFolder: writing(createFolder), moveEntry: writing(moveEntry), moveToTrash: writing(moveToTrash),
+  emptyFolder, emptyNote, moveNotes,
+  readMetadata: reading(readMetadata), writeMetadata: writing(writeMetadata),
+  readPens: writing(readPens), writePens: writing(writePens),
+  penPreview, acceptPen, cancelStroke, mountCanvas,
 };
 
 declare global {

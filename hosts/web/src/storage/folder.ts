@@ -9,6 +9,15 @@ import type { Engine, FileChange, NotebookFile } from "../engine/engine.ts";
 
 const ROOT_KEY = "notes-root";
 
+// Every read and write of the notes folder goes through this Web Locks
+// queue (https://w3c.github.io/web-locks/). A writer runs alone; readers
+// share the lock with each other, so no reader sees a file that a writer has
+// created but not yet closed. Web Locks are not reentrant: `task` must not
+// call `files` again.
+export async function files<T>(task: () => Promise<T>, mode: LockMode = "exclusive"): Promise<T> {
+  return await navigator.locks.request("math-notes-files", { mode }, task);
+}
+
 export async function pickRoot(): Promise<FileSystemDirectoryHandle> {
   const root = await window.showDirectoryPicker({ id: "notes", mode: "readwrite" });
   await set(ROOT_KEY, root);
