@@ -151,7 +151,11 @@ class _WorkspaceState extends State<Workspace> {
     super.initState();
     // The offline cache fills in the background; the app does not wait for it.
     unawaited(
-      native.host.cacheApp().toDart.then(
+      deadline(
+        'Saving the app for offline use',
+        const Duration(minutes: 2),
+        native.host.cacheApp().toDart,
+      ).then(
         (_) {},
         onError: (Object error) {
           if (mounted) setState(() => failure = error.toString());
@@ -160,8 +164,17 @@ class _WorkspaceState extends State<Workspace> {
     );
     unawaited(
       run(() async {
-        engine = await native.host.loadEngine().toDart;
-        final start = await native.host.startRoot().toDart;
+        engine = await deadline(
+          'Loading the engine',
+          const Duration(seconds: 30),
+          native.host.loadEngine().toDart,
+        );
+        if (mounted) setState(() {});
+        final start = await deadline(
+          'Opening the saved notes folder',
+          const Duration(seconds: 30),
+          native.host.startRoot().toDart,
+        );
         root = start.root;
         reconnect = start.needsGesture;
         if (root != null && !reconnect) await refresh();
@@ -204,8 +217,22 @@ class _WorkspaceState extends State<Workspace> {
   }
 
   Future<void> refresh() async {
-    library = await native.host.library(root!, engine!).toDart;
+    library = await deadline(
+      'Reading the notes folder',
+      const Duration(seconds: 60),
+      native.host.library(root!, engine!).toDart,
+    );
   }
+
+  // A step that neither finishes nor throws is a failure: it fails with a
+  // message that names the step.
+  Future<T> deadline<T>(String step, Duration limit, Future<T> future) =>
+      future.timeout(
+        limit,
+        onTimeout: () => throw TimeoutException(
+          '$step did not finish in ${limit.inSeconds} s.',
+        ),
+      );
 
   Future<void> chooseRoot() async {
     final chosen = await native.host.pickRoot().toDart;
