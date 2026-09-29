@@ -163,6 +163,86 @@ test("Flutter connects an empty notes folder and shows the empty library", async
   await expect(page.getByText("No notebooks. Tap New Notebook to make one.", { exact: true })).toBeVisible();
 });
 
+test("Flutter reconnects a saved folder and retains edits on every page", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto("version.json");
+  await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    for await (const name of root.keys()) await root.removeEntry(name, { recursive: true });
+  });
+  await page.goto("?root=opfs");
+  await createTestNotebook(page, "Reconnect");
+  await page.getByRole("button", { name: "New Note", exact: true }).click();
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Persistent");
+  await page.getByRole("button", { name: "Create Note", exact: true }).click();
+  const canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
+  await canvas.waitFor({ timeout: 30_000 });
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Notebook canvas has no bounds");
+  const cdp = await page.context().newCDPSession(page);
+  const draw = async (y: number) => {
+    const pen = { pointerType: "pen" as const, force: 0.6 };
+    await cdp.send("Input.dispatchMouseEvent", {
+      type: "mousePressed", button: "left", clickCount: 1, x: box.x + 150, y, ...pen,
+    });
+    await cdp.send("Input.dispatchMouseEvent", {
+      type: "mouseMoved", button: "left", buttons: 1, x: box.x + 250, y, ...pen,
+    });
+    await cdp.send("Input.dispatchMouseEvent", {
+      type: "mouseReleased", button: "left", clickCount: 1, x: box.x + 250, y, ...pen,
+    });
+  };
+  await draw(box.y + 180);
+  await page.getByRole("button", { name: "Pages", exact: true }).click();
+  await page.getByRole("button", { name: "Add page", exact: true }).click();
+  await page.getByRole("button", { name: "Pages", exact: true }).click();
+  await page.getByRole("button", { name: "Next page", exact: true }).click();
+  await draw(box.y + 260);
+  await save(page);
+  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "mathNotes", {
+      configurable: true,
+      set(value) {
+        Object.assign(value, {
+          startRoot: async () => ({
+            root: await navigator.storage.getDirectory(),
+            needsGesture: true,
+          }),
+          requestPermission: async () => true,
+        });
+        Object.defineProperty(window, "mathNotes", {
+          configurable: true,
+          writable: true,
+          value,
+        });
+      },
+    });
+  });
+  await page.goto("");
+  await expect(page.getByRole("button", { name: "Reconnect folder", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Reconnect folder", exact: true }).click();
+  await openTestNotebook(page, "Reconnect");
+  await page.getByRole("button", { name: "Open Persistent", exact: false }).click();
+  await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
+
+  const strokeCounts = await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    const notebook = await root.getDirectoryHandle("Reconnect");
+    const dir = await notebook.getDirectoryHandle("Persistent");
+    const manifest = JSON.parse(await (await (await dir.getFileHandle("notebook.json")).getFile()).text());
+    const pages = await dir.getDirectoryHandle("pages");
+    const counts = [];
+    for (const entry of manifest.pages as { file: string }[]) {
+      const svg = await (await (await pages.getFileHandle(entry.file.replace("pages/", ""))).getFile()).text();
+      counts.push(svg.match(/<path id="s-/g)?.length ?? 0);
+    }
+    return counts;
+  });
+  expect(strokeCounts).toEqual([1, 1]);
+});
+
 test("Flutter opens a library note on the first tap without a delayed canvas", async ({ page }) => {
   test.setTimeout(60_000);
   await page.goto("?root=opfs");
@@ -909,7 +989,7 @@ test("Chrome opens a saved page SVG directly with the same stroke", async ({ pag
 });
 
 test("Flutter notebook retains pen input and pages after save and reopen", async ({ page }, info) => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
   await page.goto("version.json");
   await page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
@@ -981,6 +1061,11 @@ test("Flutter notebook retains pen input and pages after save and reopen", async
   await page.getByText("Favorites", { exact: true }).click();
   await expect(page.getByRole("button", { name: "Open Lecture", exact: false })).toBeVisible();
   await expect(page.getByRole("button", { name: "Open Exercises", exact: false })).not.toBeVisible();
+  await expect.poll(() => page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    const metadata = JSON.parse(await (await (await root.getFileHandle(".library.json")).getFile()).text());
+    return metadata.notes["Test Notebook/Lecture"]?.favorite;
+  })).toBe(true);
   await page.context().setOffline(true);
   await page.reload();
   await openTestNotebook(page);
