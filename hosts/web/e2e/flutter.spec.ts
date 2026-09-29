@@ -142,6 +142,35 @@ test("Flutter moves, finds, trashes, and restores a note with its metadata", asy
   expect(metadata.notes[".trash/Movable"]).toBeUndefined();
 });
 
+test("Flutter opens a library note on the first tap without a delayed canvas", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto("?root=opfs");
+  await createTestNotebook(page, "Open timing");
+  await page.getByRole("button", { name: "New Note", exact: true }).click();
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Immediate");
+  await page.getByRole("button", { name: "Create Note", exact: true }).click();
+  await page.getByRole("button", { name: "Close Immediate", exact: true }).click();
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const card = page.getByRole("button", { name: "Open Immediate", exact: false });
+    const box = await card.boundingBox();
+    if (!box) throw new Error("Immediate note card has no bounds");
+    const started = Date.now();
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(
+      page.getByRole("heading", { name: "Immediate", exact: true }),
+    ).toBeVisible({ timeout: 2_000 });
+    await expect(page.locator('canvas[id^="ink-canvas-"]:visible')).toBeVisible({
+      timeout: 2_000,
+    });
+    expect(Date.now() - started).toBeLessThan(2_000);
+    await page.getByRole("button", { name: "Close Immediate", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "Open timing", exact: true }),
+    ).toBeVisible();
+  }
+});
+
 test("Flutter opens another note from the tab plus and preserves each tab state", async ({ page }) => {
   test.setTimeout(120_000);
   await page.goto("?root=opfs");
