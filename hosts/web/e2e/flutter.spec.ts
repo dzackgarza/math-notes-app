@@ -598,6 +598,63 @@ test("Flutter page overview duplicates, deletes, reorders, and opens pages", asy
   ]);
 });
 
+test("Flutter writes on three pages and returns to page one", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.goto("?root=opfs");
+  await beginTestNote(page, "Three pages");
+  await page.getByRole("button", { name: "Create Note", exact: true }).click();
+  const canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
+  await canvas.waitFor({ timeout: 30_000 });
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Notebook canvas has no bounds");
+  const cdp = await page.context().newCDPSession(page);
+  const draw = async (offset: number) => {
+    const pen = { pointerType: "pen" as const, force: 0.6 };
+    const y = box.y + 180 + offset;
+    await cdp.send("Input.dispatchMouseEvent", {
+      type: "mousePressed", button: "left", clickCount: 1, x: box.x + 150, y, ...pen,
+    });
+    await cdp.send("Input.dispatchMouseEvent", {
+      type: "mouseMoved", button: "left", buttons: 1, x: box.x + 230, y, ...pen,
+    });
+    await cdp.send("Input.dispatchMouseEvent", {
+      type: "mouseReleased", button: "left", clickCount: 1, x: box.x + 230, y, ...pen,
+    });
+  };
+
+  await draw(0);
+  for (let pageNumber = 2; pageNumber <= 3; pageNumber++) {
+    await page.getByRole("button", { name: "Pages", exact: true }).click();
+    await page.getByRole("button", { name: "Add page", exact: true }).click();
+    await expect(page.getByText(`${pageNumber - 1} / ${pageNumber}`, { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Pages", exact: true }).click();
+    await page.getByRole("button", { name: "Next page", exact: true }).click();
+    await expect(page.getByText(`${pageNumber} / ${pageNumber}`, { exact: true })).toBeVisible();
+    await draw((pageNumber - 1) * 30);
+  }
+  await page.getByRole("button", { name: "Pages", exact: true }).click();
+  await page.getByRole("button", { name: "Page overview", exact: true }).click();
+  await page.getByRole("button", { name: "Page 1", exact: true }).click();
+  await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
+  await save(page);
+  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+
+  const strokeCounts = await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    const notebook = await root.getDirectoryHandle("Test Notebook");
+    const dir = await notebook.getDirectoryHandle("Three pages");
+    const manifest = JSON.parse(await (await (await dir.getFileHandle("notebook.json")).getFile()).text());
+    const pages = await dir.getDirectoryHandle("pages");
+    const counts = [];
+    for (const entry of manifest.pages as { file: string }[]) {
+      const svg = await (await (await pages.getFileHandle(entry.file.replace("pages/", ""))).getFile()).text();
+      counts.push(svg.match(/<path id="s-/g)?.length ?? 0);
+    }
+    return counts;
+  });
+  expect(strokeCounts).toEqual([1, 1, 1]);
+});
+
 test("Flutter recolors a lasso selection from the palette and keeps the pen color", async ({ page }) => {
   test.setTimeout(60_000);
   await page.goto("?root=opfs");
