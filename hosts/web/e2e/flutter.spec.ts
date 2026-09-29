@@ -641,6 +641,35 @@ test("Flutter notebook retains pen input and pages after save and reopen", async
   await expect(page.getByRole("button", { name: "Open Lecture", exact: false })).toBeVisible();
 });
 
+test("Flutter exports a ten-page notebook as a ten-page PDF", async ({ page }, info) => {
+  test.setTimeout(120_000);
+  await page.goto("?root=opfs");
+  await beginTestNote(page, "Ten pages");
+  await page.getByRole("button", { name: "Create Note", exact: true }).click();
+  await page.locator('canvas[id^="ink-canvas-"]').waitFor({ timeout: 30_000 });
+
+  for (let pageNumber = 2; pageNumber <= 10; pageNumber++) {
+    await page.getByRole("button", { name: "Pages", exact: true }).click();
+    await page.getByRole("button", { name: "Add page", exact: true }).click();
+  }
+  await expect(page.getByText(/^[0-9]+ \/ 10$/)).toBeVisible();
+
+  await page.getByRole("button", { name: "More", exact: true }).click();
+  await page.getByRole("button", { name: "Export PDF", exact: true }).click();
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  const pdf = await download;
+  const pdfPath = info.outputPath("ten-pages.pdf");
+  await pdf.saveAs(pdfPath);
+
+  expect(execFileSync("qpdf", ["--check", pdfPath], { encoding: "utf8" })).toContain(
+    "No syntax or stream encoding errors found",
+  );
+  const infoText = execFileSync("pdfinfo", [pdfPath], { encoding: "utf8" });
+  expect(infoText).toMatch(/Pages:\s+10/);
+  expect(infoText).toMatch(/Page size:\s+595 x 842 pts \(A4\)/);
+});
+
 test("Flutter marker popover changes the size of the marker only", async ({ page }, info) => {
   test.setTimeout(120_000);
   await page.goto("version.json");
