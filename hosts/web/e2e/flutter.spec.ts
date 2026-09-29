@@ -853,6 +853,61 @@ test("Flutter pen color and width changes affect only later strokes", async ({ p
   ]);
 });
 
+test("Chrome opens a saved page SVG directly with the same stroke", async ({ page, context }) => {
+  test.setTimeout(60_000);
+  await page.goto("?root=opfs");
+  await beginTestNote(page, "Standalone page");
+  await page.getByRole("button", { name: "Create Note", exact: true }).click();
+  const canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
+  await canvas.waitFor({ timeout: 30_000 });
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Notebook canvas has no bounds");
+  const cdp = await context.newCDPSession(page);
+  const pen = { pointerType: "pen" as const, force: 0.6, tiltX: 20, tiltY: -10 };
+  await cdp.send("Input.dispatchMouseEvent", {
+    type: "mousePressed", button: "left", clickCount: 1, x: box.x + 150, y: box.y + 180, ...pen,
+  });
+  await cdp.send("Input.dispatchMouseEvent", {
+    type: "mouseMoved", button: "left", buttons: 1, x: box.x + 250, y: box.y + 220, ...pen,
+  });
+  await cdp.send("Input.dispatchMouseEvent", {
+    type: "mouseReleased", button: "left", clickCount: 1, x: box.x + 250, y: box.y + 220, ...pen,
+  });
+  await save(page);
+  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+
+  const saved = await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    const notebook = await root.getDirectoryHandle("Test Notebook");
+    const pages = await (await notebook.getDirectoryHandle("Standalone page")).getDirectoryHandle("pages");
+    const file = await (await pages.getFileHandle("0001.svg")).getFile();
+    const svg = await file.text();
+    const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
+    const stroke = doc.querySelector('path[id^="s-"]');
+    if (!stroke) throw new Error("Saved page has no stroke");
+    return {
+      url: URL.createObjectURL(file),
+      type: file.type,
+      stroke: {
+        d: stroke.getAttribute("d"),
+        fill: stroke.getAttribute("fill"),
+        size: stroke.getAttribute("mn:size"),
+      },
+    };
+  });
+  expect(saved.type).toBe("image/svg+xml");
+
+  const standalone = await context.newPage();
+  await standalone.goto(saved.url);
+  const direct = await standalone.locator('path[id^="s-"]').evaluate((stroke) => ({
+    d: stroke.getAttribute("d"),
+    fill: stroke.getAttribute("fill"),
+    size: stroke.getAttribute("mn:size"),
+  }));
+  expect(direct).toEqual(saved.stroke);
+  await standalone.close();
+});
+
 test("Flutter notebook retains pen input and pages after save and reopen", async ({ page }, info) => {
   test.setTimeout(120_000);
   await page.goto("version.json");
