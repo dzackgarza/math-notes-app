@@ -149,10 +149,18 @@ class _WorkspaceState extends State<Workspace> {
   @override
   void initState() {
     super.initState();
+    // The offline cache fills in the background; the app does not wait for it.
+    unawaited(
+      native.host.cacheApp().toDart.then(
+        (_) {},
+        onError: (Object error) {
+          if (mounted) setState(() => failure = error.toString());
+        },
+      ),
+    );
     unawaited(
       run(() async {
         engine = await native.host.loadEngine().toDart;
-        await native.host.cacheApp().toDart;
         final start = await native.host.startRoot().toDart;
         root = start.root;
         reconnect = start.needsGesture;

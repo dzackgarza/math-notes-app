@@ -49,11 +49,19 @@ function figureSource(note: OpenNotebook, canvas: Canvas, capturing: boolean): s
   return id ? note.document.figureSource(id) : "";
 }
 
-// `ready` resolves once the scope has an active worker, also when a hard
-// reload leaves the page uncontrolled and sw.js has not changed.
+// Resolves when the offline cache is current. A worker that installs goes to
+// `activated`, or to `redundant` when its precache fails
+// (https://w3c.github.io/ServiceWorker/#installation-algorithm).
 async function cacheApp(): Promise<void> {
-  await navigator.serviceWorker.register(new URL("sw.js", document.baseURI).pathname);
-  await navigator.serviceWorker.ready;
+  const registration = await navigator.serviceWorker.register(new URL("sw.js", document.baseURI).pathname);
+  const worker = registration.installing;
+  if (!worker) return;
+  await new Promise<void>((resolve, reject) => {
+    worker.addEventListener("statechange", () => {
+      if (worker.state === "activated") resolve();
+      if (worker.state === "redundant") reject(new Error("The offline cache did not install; the app will not open offline."));
+    });
+  });
 }
 
 // Flutter 3.47 expands coalesced samples and uses microsecond timestamps:
