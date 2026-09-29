@@ -14,6 +14,7 @@ import 'package:popover/popover.dart';
 import 'package:pull_down_button/pull_down_button.dart';
 import 'package:web/web.dart' as web;
 
+import 'errors.dart';
 import 'host.dart' as native;
 import 'layers_sheet.dart';
 import 'pages_sheet.dart';
@@ -163,7 +164,6 @@ class _NotebookState extends State<Notebook>
   set figureSource(String value) => figureText.text = value;
   int selector = 0;
   int spaceMode = 6;
-  String? failure;
   native.Selection? selection;
   double width = 1;
   double height = 1;
@@ -290,9 +290,8 @@ class _NotebookState extends State<Notebook>
   Future<void> run(Future<void> Function() action) async {
     try {
       await action();
-      if (mounted) setState(() => failure = null);
-    } catch (error) {
-      if (mounted) setState(() => failure = error.toString());
+    } catch (error, stack) {
+      showError(error, stack);
     }
   }
 
@@ -2091,7 +2090,7 @@ class _NotebookState extends State<Notebook>
           return;
         }
       }
-      setState(() => failure = 'The link destination is not in this notebook.');
+      showError('The link destination is not in this notebook.');
     });
   }
 
@@ -2278,13 +2277,13 @@ class _NotebookState extends State<Notebook>
         child: SafeArea(
           child: Column(
             children: [
-              if (failure != null || widget.note.saver.state.message != null)
+              if (widget.note.saver.state.message != null)
                 Padding(
                   padding: const EdgeInsets.all(12),
                   child: Semantics(
                     liveRegion: true,
                     child: Text(
-                      failure ?? widget.note.saver.state.message!,
+                      widget.note.saver.state.message!,
                       style: const TextStyle(
                         color: CupertinoColors.destructiveRed,
                       ),

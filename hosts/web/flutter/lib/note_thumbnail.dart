@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
 
+import 'errors.dart';
 import 'host.dart' as native;
 
 class NoteThumbnail extends StatefulWidget {
@@ -27,7 +28,11 @@ class _NoteThumbnailState extends State<NoteThumbnail> {
     image = native.host
         .thumbnail(widget.engine, widget.root, widget.note)
         .toDart
-        .then((bytes) => bytes?.toDart);
+        .then((bytes) => bytes?.toDart)
+        .onError<Object>((error, stack) {
+          showError(error, stack);
+          Error.throwWithStackTrace(error, stack);
+        });
   }
 
   @override

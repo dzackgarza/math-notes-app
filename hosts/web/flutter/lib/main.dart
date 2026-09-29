@@ -1,14 +1,17 @@
 import 'dart:async';
 import 'dart:js_interop';
+import 'dart:ui' show PlatformDispatcher;
 
 import 'package:web/web.dart' as web;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/semantics.dart';
+import 'package:toastification/toastification.dart';
 import 'package:multi_split_view/multi_split_view.dart';
 import 'package:pull_down_button/pull_down_button.dart';
 import 'package:path/path.dart' as paths;
 
+import 'errors.dart';
 import 'host.dart' as native;
 import 'notebook.dart';
 import 'creation_sheet.dart';
@@ -18,6 +21,24 @@ import 'bookmarks_sheet.dart';
 import 'tag_editor.dart';
 
 void main() {
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    showError(details.exception, details.stack);
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    showError(error, stack);
+    return true;
+  };
+  web.window.addEventListener(
+    'unhandledrejection',
+    ((web.PromiseRejectionEvent event) => showError(
+      event.reason.dartify() ?? 'A promise failed.',
+    )).toJS,
+  );
+  web.window.addEventListener(
+    'error',
+    ((web.ErrorEvent event) => showError(event.message)).toJS,
+  );
   runApp(const MathNotes());
   SemanticsBinding.instance.ensureSemantics();
 }
@@ -25,15 +46,17 @@ void main() {
 class MathNotes extends StatelessWidget {
   const MathNotes({super.key});
   @override
-  Widget build(BuildContext context) => const CupertinoApp(
-    title: 'Math Notes',
-    theme: CupertinoThemeData(
-      brightness: Brightness.dark,
-      primaryColor: accent,
-      scaffoldBackgroundColor: chrome,
-      barBackgroundColor: chromeBar,
+  Widget build(BuildContext context) => const ToastificationWrapper(
+    child: CupertinoApp(
+      title: 'Math Notes',
+      theme: CupertinoThemeData(
+        brightness: Brightness.dark,
+        primaryColor: accent,
+        scaffoldBackgroundColor: chrome,
+        barBackgroundColor: chromeBar,
+      ),
+      home: Workspace(),
     ),
-    home: Workspace(),
   );
 }
 
@@ -108,9 +131,9 @@ class _WorkspaceState extends State<Workspace> {
   Future<void> showLibrary() => run(() async {
     if (captures.isNotEmpty)
       throw StateError('Complete the drawing before returning to the library.');
+    setState(() => inLibrary = true);
     await saveOpened();
     await refresh();
-    setState(() => inLibrary = true);
   });
   int tab = 0;
   bool inLibrary = true;
@@ -134,15 +157,14 @@ class _WorkspaceState extends State<Workspace> {
   }
 
   final search = TextEditingController();
-  final detailSearch = TextEditingController();
-  String detailTab = 'notes';
-  JSArray<JSString> folder = <JSString>[].toJS;
+  // The open notebook; null shows the Notebooks view.
+  JSArray<JSString>? folder;
   bool reconnect = false;
   bool busy = true;
-  String? failure;
   String? confirmation;
-  String section = 'library';
+  String filter = 'all';
   String sort = 'name';
+  bool ascending = true;
   String? selectedTag;
   bool grid = true;
 
@@ -155,12 +177,7 @@ class _WorkspaceState extends State<Workspace> {
         'Saving the app for offline use',
         const Duration(minutes: 2),
         native.host.cacheApp().toDart,
-      ).then(
-        (_) {},
-        onError: (Object error) {
-          if (mounted) setState(() => failure = error.toString());
-        },
-      ),
+      ).then((_) {}, onError: showError),
     );
     unawaited(
       run(() async {
@@ -177,34 +194,19 @@ class _WorkspaceState extends State<Workspace> {
         );
         root = start.root;
         reconnect = start.needsGesture;
-        if (root != null && !reconnect) await refresh();
+        if (root == null || reconnect) return;
+        await watch();
+        await refresh();
       }),
     );
   }
 
   Future<void> run(Future<void> Function() action) async {
-    setState(() {
-      busy = true;
-      failure = null;
-    });
+    setState(() => busy = true);
     try {
       await action();
-    } catch (error) {
-      if (mounted) setState(() => failure = error.toString());
-      if (mounted && !inLibrary)
-        await showCupertinoDialog<void>(
-          context: context,
-          builder: (context) => CupertinoAlertDialog(
-            title: const Text('Cannot complete this action'),
-            content: Text(error.toString()),
-            actions: [
-              CupertinoDialogAction(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
+    } catch (error, stack) {
+      showError(error, stack);
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -216,12 +218,37 @@ class _WorkspaceState extends State<Workspace> {
     await Future.wait([for (final note in opened) note.saver.save().toDart]);
   }
 
+  // Reads overlap when the user acts during a read. Only the newest read
+  // replaces the library, so an older read cannot show stale notes.
+  int reads = 0;
   Future<void> refresh() async {
-    library = await deadline(
+    final read = ++reads;
+    final result = await deadline(
       'Reading the notes folder',
       const Duration(seconds: 60),
       native.host.library(root!, engine!).toDart,
     );
+    if (read == reads && mounted) setState(() => library = result);
+  }
+
+  // The library follows the notes folder. A change from this app or from
+  // another program (for example a sync client) reads the folder again.
+  // An open note does not need the library; showLibrary reads it on return.
+  native.RootObserver? observer;
+  Timer? changes;
+  Future<void> watch() async {
+    observer?.disconnect();
+    observer = await native.host
+        .watchRoot(
+          root!,
+          (() {
+            changes?.cancel();
+            changes = Timer(const Duration(milliseconds: 500), () {
+              if (inLibrary) refresh().then((_) {}, onError: showError);
+            });
+          }).toJS,
+        )
+        .toDart;
   }
 
   // A step that neither finishes nor throws is a failure: it fails with a
@@ -242,11 +269,11 @@ class _WorkspaceState extends State<Workspace> {
       opened.clear();
       tab = 0;
       root = chosen;
-      folder = <JSString>[].toJS;
-      section = 'folder';
+      folder = null;
       reconnect = false;
       inLibrary = true;
     });
+    await watch();
     await refresh();
   }
 
@@ -470,11 +497,13 @@ class _WorkspaceState extends State<Workspace> {
     await native.host
         .writeMetadata(root!, native.host.moveNotes(metadata, path, to))
         .toDart;
-    if (native.pathKey(folder) == prefix ||
-        native.pathKey(folder).startsWith('$prefix/')) {
+    final current = folder;
+    if (current != null &&
+        (native.pathKey(current) == prefix ||
+            native.pathKey(current).startsWith('$prefix/'))) {
       folder = action == 'trash'
-          ? <JSString>[].toJS
-          : [...to.toDart, ...folder.toDart.skip(path.length)].toJS;
+          ? null
+          : [...to.toDart, ...current.toDart.skip(path.length)].toJS;
     }
     await refresh();
   }
@@ -485,7 +514,7 @@ class _WorkspaceState extends State<Workspace> {
       builder: (context) => CupertinoActionSheet(
         title: Text(note.name),
         actions: [
-          if (section == 'trash')
+          if (filter == 'trash')
             CupertinoActionSheetAction(
               onPressed: () => Navigator.pop(context, 'restore'),
               child: const Text('Restore'),
@@ -650,135 +679,8 @@ class _WorkspaceState extends State<Workspace> {
       await relocate(item.path, action);
   }
 
-  Widget folderCover(native.Folder item) {
-    final first = item.notes.toDart.firstOrNull;
-    if (first != null)
-      return NoteThumbnail(engine: engine!, root: root!, note: first);
-    final metadata =
-        library!.metadata.folders[native.pathKey(item.path)] ??
-        native.host.emptyFolder();
-    return PaperPreview(
-      engine: engine!,
-      root: root!,
-      paper: metadata.paper,
-      size: 'a4',
-      orientation: 'portrait',
-    );
-  }
-
-  String modifiedLabel(double milliseconds) => milliseconds == 0
-      ? 'Empty notebook'
-      : 'Modified ${DateTime.fromMillisecondsSinceEpoch(milliseconds.toInt()).toLocal().toString().split('.').first}';
-
-  Widget folderPane(native.Folder item) {
-    final metadata =
-        library!.metadata.folders[native.pathKey(item.path)] ??
-        native.host.emptyFolder();
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SizedBox(height: 140, child: folderCover(item)),
-          const SizedBox(height: 12),
-          Text(
-            item.name,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
-          ),
-          Text('${item.notes.length} notes'),
-          Text(
-            modifiedLabel(item.modified),
-            style: const TextStyle(
-              fontSize: 12,
-              color: CupertinoColors.secondaryLabel,
-            ),
-          ),
-          CupertinoButton(
-            onPressed: () => run(() => folderDetails(item)),
-            child: Text(
-              metadata.tags.toDart.isEmpty
-                  ? 'Add tags'
-                  : metadata.tags.toDart.map((tag) => tag.toDart).join(' · '),
-            ),
-          ),
-          CupertinoSlidingSegmentedControl<String>(
-            groupValue: detailTab,
-            children: const {'notes': Text('Notes'), 'info': Text('Info')},
-            onValueChanged: (value) {
-              if (value != null) setState(() => detailTab = value);
-            },
-          ),
-          const SizedBox(height: 12),
-          if (detailTab == 'info')
-            Expanded(
-              child: ListView(
-                children: [
-                  Text(
-                    metadata.description.isEmpty
-                        ? 'Add a notebook description.'
-                        : metadata.description,
-                  ),
-                  const SizedBox(height: 12),
-                  Text('Paper: ${metadata.paper}'),
-                  Text(
-                    'Location: ${native.pathKey(item.path).isEmpty ? 'My Notes' : native.pathKey(item.path)}',
-                  ),
-                  CupertinoButton(
-                    onPressed: () => run(() => folderDetails(item)),
-                    child: const Text('Edit notebook details'),
-                  ),
-                ],
-              ),
-            )
-          else ...[
-            CupertinoSearchTextField(
-              controller: detailSearch,
-              placeholder: 'Search this notebook',
-              onChanged: (_) => setState(() {}),
-            ),
-            Expanded(
-              child: ListView(
-                children: [
-                  for (final note in item.notes.toDart.where(
-                    (note) => note.name.toLowerCase().contains(
-                      detailSearch.text.toLowerCase(),
-                    ),
-                  ))
-                    CupertinoListTile(
-                      title: CupertinoButton(
-                        padding: EdgeInsets.zero,
-                        alignment: Alignment.centerLeft,
-                        onPressed: () => run(() => open(note.path)),
-                        child: Text(note.name),
-                      ),
-                      subtitle: Text(noteMetadata(note).description),
-                      leadingSize: 48,
-                      leading: NoteThumbnail(
-                        engine: engine!,
-                        root: root!,
-                        note: note,
-                      ),
-                      trailing: CupertinoButton(
-                        padding: EdgeInsets.zero,
-                        onPressed: () => run(() => noteActions(note)),
-                        child: Semantics(
-                          label: '${note.name} actions',
-                          child: const Icon(CupertinoIcons.ellipsis),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ],
-          CupertinoButton.filled(
-            onPressed: () => create(false),
-            child: Text('New Note in ${item.name}'),
-          ),
-        ],
-      ),
-    );
-  }
+  String modifiedLabel(double milliseconds) =>
+      'Modified ${DateTime.fromMillisecondsSinceEpoch(milliseconds.toInt()).toLocal().toString().substring(0, 16)}';
 
   Future<void> open(JSArray<JSString> path) async {
     if (captures.isNotEmpty)
@@ -926,7 +828,7 @@ class _WorkspaceState extends State<Workspace> {
           .importPdf(
             engine!,
             root!,
-            folder,
+            folder!,
             ((JSNumber completed, JSNumber total) {
               if (mounted)
                 setState(
@@ -961,7 +863,8 @@ class _WorkspaceState extends State<Workspace> {
     setState(() => confirmation = null);
     final metadata = library!.metadata;
     final defaults =
-        metadata.folders[native.pathKey(folder)] ?? native.host.emptyFolder();
+        metadata.folders[native.pathKey(folder ?? <JSString>[].toJS)] ??
+        native.host.emptyFolder();
     final draft = isFolder ? null : metadata.draft;
     final title = TextEditingController(text: draft?.title ?? '');
     final description = TextEditingController();
@@ -969,7 +872,7 @@ class _WorkspaceState extends State<Workspace> {
       (draft?.tags ?? defaults.tags).toDart.map((tag) => tag.toDart).toList(),
     );
     final templateName = TextEditingController();
-    var target = draft?.folder ?? folder;
+    var target = draft?.folder ?? folder ?? <JSString>[].toJS;
     var paper = draft?.template ?? defaults.paper;
     var size = draft?.pageSize ?? 'a4';
     var orientation = draft?.orientation ?? 'portrait';
@@ -1199,14 +1102,17 @@ class _WorkspaceState extends State<Workspace> {
         return;
       }
       if (isFolder) {
-        folder = await native.host.createFolder(root!, target, name).toDart;
+        final created = await native.host
+            .createFolder(root!, target, name)
+            .toDart;
+        folder = created;
         final values = native.host.emptyFolder();
         values.description = descriptionText;
         values.paper = paper;
         values.coverColor = coverColor;
         values.coverStyle = coverStyle;
         values.tags = chosenTags;
-        current.folders[native.pathKey(folder)] = values;
+        current.folders[native.pathKey(created)] = values;
       } else {
         active = await native.host
             .createNotebook(
@@ -1236,7 +1142,8 @@ class _WorkspaceState extends State<Workspace> {
     viewport.dispose();
     destination.dispose();
     search.dispose();
-    detailSearch.dispose();
+    observer?.disconnect();
+    changes?.cancel();
     super.dispose();
   }
 
@@ -1520,39 +1427,568 @@ class _WorkspaceState extends State<Workspace> {
     return picked;
   }
 
+  String count(int number, String noun) =>
+      '$number $noun${number == 1 ? '' : 's'}';
+
+  Color hexColor(String value) =>
+      Color(int.parse(value.substring(1), radix: 16) | 0xFF000000);
+
+  // Sorts by the chosen field and direction. Ascending is A to Z for names
+  // and oldest first for modification times.
+  List<T> ordered<T>(
+    Iterable<T> items,
+    String Function(T) name,
+    double Function(T) modified,
+  ) => items.toList()
+    ..sort((a, b) {
+      final order = sort == 'name'
+          ? name(a).toLowerCase().compareTo(name(b).toLowerCase())
+          : modified(a).compareTo(modified(b));
+      return ascending ? order : -order;
+    });
+
+  native.FolderMetadata folderMetadata(native.Folder item) =>
+      library!.metadata.folders[native.pathKey(item.path)] ??
+      native.host.emptyFolder();
+
+  Widget tagList(Iterable<String> names) {
+    final tags = library!.metadata.tags.toDart;
+    return Wrap(
+      spacing: 8,
+      children: [
+        for (final name in names)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                CupertinoIcons.circle_fill,
+                size: 8,
+                color: hexColor(
+                  tags.where((tag) => tag.name == name).firstOrNull?.color ??
+                      '#8E8E93',
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(name, style: const TextStyle(fontSize: 12)),
+            ],
+          ),
+      ],
+    );
+  }
+
+  Widget actionsButton(String label, Future<void> Function() actions) =>
+      CupertinoButton(
+        padding: EdgeInsets.zero,
+        minimumSize: const Size(32, 32),
+        onPressed: () => run(actions),
+        child: Semantics(
+          label: label,
+          child: const Icon(CupertinoIcons.ellipsis_circle),
+        ),
+      );
+
+  // The whole card or row is one tap target.
+  Widget tappable(String label, VoidCallback onTap, Widget child) => Semantics(
+    label: label,
+    button: true,
+    child: MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: child,
+      ),
+    ),
+  );
+
+  Widget cover(native.Folder item, {bool titled = true}) {
+    final metadata = folderMetadata(item);
+    final color = hexColor(metadata.coverColor);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(10),
+        border: metadata.coverStyle == 'spine'
+            ? Border(
+                left: BorderSide(
+                  color: Color.lerp(color, const Color(0xFF000000), 0.3)!,
+                  width: 10,
+                ),
+              )
+            : null,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: titled
+              ? Text(
+                  item.name,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF1C1C1E),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                )
+              : null,
+        ),
+      ),
+    );
+  }
+
+  String notebookSummary(native.Folder item) => item.notes.length == 0
+      ? 'No notes'
+      : '${count(item.notes.length, 'note')} · ${modifiedLabel(item.modified)}';
+
+  Widget notebookCard(native.Folder item) {
+    final secondary = CupertinoColors.secondaryLabel.resolveFrom(context);
+    return tappable(
+      'Open ${item.name}',
+      () => setState(() => folder = item.path),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: cover(item)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  item.notes.length == 0
+                      ? 'No notes'
+                      : count(item.notes.length, 'note'),
+                ),
+              ),
+              actionsButton(
+                '${item.name} notebook actions',
+                () => folderActions(item),
+              ),
+            ],
+          ),
+          if (item.notes.length > 0)
+            Text(
+              modifiedLabel(item.modified),
+              style: TextStyle(fontSize: 12, color: secondary),
+            ),
+          tagList(folderMetadata(item).tags.toDart.map((tag) => tag.toDart)),
+        ],
+      ),
+    );
+  }
+
+  Widget notebookRow(native.Folder item) => tappable(
+    'Open ${item.name}',
+    () => setState(() => folder = item.path),
+    Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          SizedBox(width: 48, height: 64, child: cover(item, titled: false)),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.name,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  notebookSummary(item),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: CupertinoColors.secondaryLabel.resolveFrom(context),
+                  ),
+                ),
+                tagList(
+                  folderMetadata(item).tags.toDart.map((tag) => tag.toDart),
+                ),
+              ],
+            ),
+          ),
+          actionsButton(
+            '${item.name} notebook actions',
+            () => folderActions(item),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  // `place` names the notebook when the list mixes notes from many notebooks.
+  Widget noteCard(native.Note item, String? place) {
+    final secondary = CupertinoColors.secondaryLabel.resolveFrom(context);
+    return tappable(
+      'Open ${item.name}',
+      () => run(() => filter == 'trash' ? noteActions(item) : open(item.path)),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: NoteThumbnail(engine: engine!, root: root!, note: item),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  noteTitle(item),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              actionsButton('${item.name} actions', () => noteActions(item)),
+            ],
+          ),
+          Text(
+            [?place, modifiedLabel(item.modified)].join(' · '),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 12, color: secondary),
+          ),
+          tagList(noteMetadata(item).tags.toDart.map((tag) => tag.toDart)),
+        ],
+      ),
+    );
+  }
+
+  Widget noteRow(native.Note item, String? place) => tappable(
+    'Open ${item.name}',
+    () => run(() => filter == 'trash' ? noteActions(item) : open(item.path)),
+    Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 48,
+            height: 64,
+            child: NoteThumbnail(engine: engine!, root: root!, note: item),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  noteTitle(item),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  [?place, modifiedLabel(item.modified)].join(' · '),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: CupertinoColors.secondaryLabel.resolveFrom(context),
+                  ),
+                ),
+                tagList(
+                  noteMetadata(item).tags.toDart.map((tag) => tag.toDart),
+                ),
+              ],
+            ),
+          ),
+          actionsButton('${item.name} actions', () => noteActions(item)),
+        ],
+      ),
+    ),
+  );
+
+  List<Widget> section(String heading, List<Widget> items, double aspect) => [
+    SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.only(top: 8, bottom: 12),
+        child: Text(
+          heading,
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+        ),
+      ),
+    ),
+    if (grid)
+      SliverGrid.extent(
+        maxCrossAxisExtent: 220,
+        mainAxisSpacing: 24,
+        crossAxisSpacing: 20,
+        childAspectRatio: aspect,
+        children: items,
+      )
+    else
+      SliverList.list(children: items),
+    const SliverToBoxAdapter(child: SizedBox(height: 24)),
+  ];
+
+  Widget menu(
+    String label,
+    IconData icon,
+    List<PullDownMenuEntry> Function() items,
+  ) => PullDownButton(
+    itemBuilder: (_) => items(),
+    buttonBuilder: (context, showMenu) => CupertinoButton(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      onPressed: showMenu,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [Icon(icon), const SizedBox(width: 6), Text(label)],
+      ),
+    ),
+  );
+
+  List<PullDownMenuEntry> sortMenu() => [
+    for (final (value, title) in const [
+      ('name', 'Name'),
+      ('modified', 'Date modified'),
+    ])
+      PullDownMenuItem.selectable(
+        title: title,
+        selected: sort == value,
+        onTap: () => setState(() {
+          sort = value;
+          ascending = value == 'name';
+        }),
+      ),
+    const PullDownMenuDivider.large(),
+    for (final (value, title)
+        in sort == 'name'
+            ? const [(true, 'A to Z'), (false, 'Z to A')]
+            : const [(false, 'Newest first'), (true, 'Oldest first')])
+      PullDownMenuItem.selectable(
+        title: title,
+        selected: ascending == value,
+        onTap: () => setState(() => ascending = value),
+      ),
+    const PullDownMenuDivider.large(),
+    for (final (value, title) in const [(true, 'Grid'), (false, 'List')])
+      PullDownMenuItem.selectable(
+        title: title,
+        selected: grid == value,
+        onTap: () => setState(() => grid = value),
+      ),
+  ];
+
+  String get filterLabel => switch (filter) {
+    'favorites' => 'Favorites',
+    'trash' => 'Trash',
+    'tag' => selectedTag!,
+    _ => 'All',
+  };
+
+  List<PullDownMenuEntry> filterMenu() => [
+    for (final (value, title) in const [
+      ('all', 'All'),
+      ('favorites', 'Favorites'),
+      ('trash', 'Trash'),
+    ])
+      PullDownMenuItem.selectable(
+        title: title,
+        selected: filter == value,
+        onTap: () => setState(() => filter = value),
+      ),
+    if (library!.metadata.tags.length > 0) ...[
+      const PullDownMenuDivider.large(),
+      const PullDownMenuTitle(title: Text('Tags')),
+      for (final tag in library!.metadata.tags.toDart)
+        PullDownMenuItem.selectable(
+          title: tag.name,
+          iconWidget: Icon(
+            CupertinoIcons.circle_fill,
+            size: 12,
+            color: hexColor(tag.color),
+          ),
+          selected: filter == 'tag' && selectedTag == tag.name,
+          onTap: () => setState(() {
+            filter = 'tag';
+            selectedTag = tag.name;
+          }),
+        ),
+    ],
+  ];
+
+  List<PullDownMenuEntry> settingsMenu() => [
+    PullDownMenuItem(title: 'New tag', onTap: () => run(addTag)),
+    PullDownMenuItem(
+      title: 'Choose notes folder',
+      onTap: () => run(chooseRoot),
+    ),
+  ];
+
+  bool hasTag(JSArray<JSString> tags) =>
+      tags.toDart.any((tag) => tag.toDart == selectedTag);
+
+  bool matches(Iterable<String> texts, String query) =>
+      texts.any((text) => text.toLowerCase().contains(query));
+
+  // The Notebooks view. The filter picks which notebooks and notes show,
+  // the search narrows them, and the sort orders them.
+  List<Widget> notebooksContent() {
+    final query = search.text.trim().toLowerCase();
+    String tagText(JSArray<JSString> tags) =>
+        tags.toDart.map((tag) => tag.toDart).join(' ');
+    final places = {
+      for (final item in library!.folders.toDart)
+        for (final note in item.notes.toDart)
+          native.pathKey(note.path): item.name,
+    };
+    final notebooks = filter == 'all' || filter == 'tag'
+        ? library!.folders.toDart.where((item) {
+            if (item.path.length == 0 && item.notes.length == 0) return false;
+            final metadata = folderMetadata(item);
+            if (filter == 'tag' && !hasTag(metadata.tags)) return false;
+            return matches([
+              item.name,
+              metadata.description,
+              tagText(metadata.tags),
+              ...item.notes.toDart.map((note) => note.name),
+            ], query);
+          })
+        : <native.Folder>[];
+    final notes =
+        switch (filter) {
+          'trash' => library!.trash.toDart,
+          'all' when query.isEmpty => <native.Note>[],
+          _ => library!.folders.toDart.expand((item) => item.notes.toDart),
+        }.where((note) {
+          final metadata = noteMetadata(note);
+          if (filter == 'favorites' && !metadata.favorite) return false;
+          if (filter == 'tag' && !hasTag(metadata.tags)) return false;
+          return matches([
+            note.name,
+            metadata.description,
+            tagText(metadata.tags),
+          ], query);
+        });
+    final shownNotebooks = ordered(
+      notebooks,
+      (item) => item.name,
+      (item) => item.modified,
+    );
+    final shownNotes = ordered(
+      notes,
+      (item) => item.name,
+      (item) => item.modified,
+    );
+    if (shownNotebooks.isEmpty && shownNotes.isEmpty)
+      return [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(
+            child: Text(
+              query.isNotEmpty
+                  ? 'Nothing matches "${search.text.trim()}".'
+                  : switch (filter) {
+                      'favorites' => 'No favorite notes.',
+                      'trash' => 'The trash is empty.',
+                      'tag' => 'Nothing has the tag $selectedTag.',
+                      _ => 'No notebooks. Tap New Notebook to make one.',
+                    },
+            ),
+          ),
+        ),
+      ];
+    return [
+      if (shownNotebooks.isNotEmpty)
+        ...section(count(shownNotebooks.length, 'notebook'), [
+          for (final item in shownNotebooks)
+            grid ? notebookCard(item) : notebookRow(item),
+        ], 0.62),
+      if (shownNotes.isNotEmpty)
+        ...section(count(shownNotes.length, 'note'), [
+          for (final item in shownNotes)
+            grid
+                ? noteCard(item, places[native.pathKey(item.path)])
+                : noteRow(item, places[native.pathKey(item.path)]),
+        ], 0.6),
+    ];
+  }
+
+  List<Widget> notebookContent(native.Folder item) {
+    final metadata = folderMetadata(item);
+    final notes = ordered(
+      item.notes.toDart,
+      (note) => note.name,
+      (note) => note.modified,
+    );
+    return [
+      if (metadata.description.isNotEmpty || metadata.tags.length > 0)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (metadata.description.isNotEmpty) Text(metadata.description),
+                const SizedBox(height: 8),
+                tagList(metadata.tags.toDart.map((tag) => tag.toDart)),
+              ],
+            ),
+          ),
+        ),
+      if (notes.isEmpty)
+        const SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(
+            child: Text('No notes. Tap New Note to write the first one.'),
+          ),
+        )
+      else
+        ...section(count(notes.length, 'note'), [
+          for (final note in notes)
+            grid ? noteCard(note, null) : noteRow(note, null),
+        ], 0.6),
+    ];
+  }
+
   Widget buildLibrary(BuildContext context) {
     final connected = root != null && !reconnect && library != null;
-    final selected = library?.folders.toDart
-        .where((item) => native.pathKey(item.path) == native.pathKey(folder))
-        .firstOrNull;
-    final all =
-        library?.folders.toDart.expand((item) => item.notes.toDart).toList() ??
-        <native.Note>[];
-    final candidates = section == 'trash'
-        ? library!.trash.toDart
-        : section == 'folder' && search.text.isEmpty
-        ? selected?.notes.toDart ?? <native.Note>[]
-        : all;
-    final notes = candidates.where((note) {
-      final metadata = noteMetadata(note);
-      if (section == 'favorites' && !metadata.favorite) return false;
-      if (section == 'tag' &&
-          !metadata.tags.toDart.any((tag) => tag.toDart == selectedTag))
-        return false;
-      final text =
-          '${note.name} ${metadata.description} ${metadata.tags.toDart.map((tag) => tag.toDart).join(' ')}'
-              .toLowerCase();
-      return text.contains(search.text.toLowerCase());
-    }).toList();
-    notes.sort(
-      (a, b) => section == 'recent' || sort == 'modified'
-          ? b.modified.compareTo(a.modified)
-          : a.name.compareTo(b.name),
-    );
+    final notebook = connected && folder != null
+        ? library!.folders.toDart
+              .where(
+                (item) => native.pathKey(item.path) == native.pathKey(folder!),
+              )
+              .firstOrNull
+        : null;
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
-        middle: const Text('Math Notes'),
-        trailing: busy ? const CupertinoActivityIndicator() : null,
+        leading: notebook == null
+            ? null
+            : CupertinoButton(
+                padding: EdgeInsets.zero,
+                onPressed: () => setState(() => folder = null),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(CupertinoIcons.chevron_left),
+                    Text('Notebooks'),
+                  ],
+                ),
+              ),
+        middle: Text(notebook?.name ?? 'Notebooks'),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (busy) const CupertinoActivityIndicator(),
+            if (connected && notebook != null)
+              actionsButton(
+                '${notebook.name} notebook actions',
+                () => folderActions(notebook),
+              ),
+            if (connected && notebook == null)
+              PullDownButton(
+                itemBuilder: (_) => settingsMenu(),
+                buttonBuilder: (context, showMenu) => CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: showMenu,
+                  child: Semantics(
+                    label: 'Settings',
+                    child: const Icon(CupertinoIcons.settings),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
       child: SafeArea(
         child: Column(
@@ -1566,493 +2002,63 @@ class _WorkspaceState extends State<Workspace> {
                   child: Text(confirmation!),
                 ),
               ),
-            if (failure != null)
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Semantics(
-                  liveRegion: true,
-                  child: Text(
-                    failure!,
-                    style: const TextStyle(
-                      color: CupertinoColors.destructiveRed,
-                    ),
-                  ),
-                ),
-              ),
             Expanded(
               child: connected
-                  ? Row(
-                      children: [
-                        SizedBox(
-                          width: 240,
-                          child: ListView(
+                  ? Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
                             children: [
-                              CupertinoListSection(
-                                header: const Text('NOTEBOOKS'),
-                                children: [
-                                  for (final item in const {
-                                    'library': 'Library',
-                                    'search': 'Search',
-                                    'recent': 'Recent',
-                                    'favorites': 'Favorites',
-                                    'trash': 'Trash',
-                                  }.entries)
-                                    CupertinoListTile(
-                                      title: Text(item.value),
-                                      backgroundColor: section == item.key
-                                          ? selectedFill
-                                          : null,
-                                      onTap: () =>
-                                          setState(() => section = item.key),
-                                    ),
-                                  for (final item in library!.folders.toDart)
-                                    CupertinoListTile(
-                                      title: Text(item.name),
-                                      leading: const Icon(
-                                        CupertinoIcons.folder,
-                                      ),
-                                      backgroundColor:
-                                          section == 'folder' &&
-                                              native.pathKey(item.path) ==
-                                                  native.pathKey(folder)
-                                          ? selectedFill
-                                          : null,
-                                      onTap: () => setState(() {
-                                        folder = item.path;
-                                        section = 'folder';
-                                      }),
-                                    ),
-                                  CupertinoListTile(
-                                    title: const Text('Choose notes folder'),
-                                    leading: const Icon(
-                                      CupertinoIcons.folder_open,
-                                    ),
-                                    onTap: () => run(chooseRoot),
-                                  ),
-                                ],
-                              ),
-                              CupertinoListSection(
-                                header: const Text('TAGS'),
-                                children: [
-                                  for (final tag
-                                      in library!.metadata.tags.toDart)
-                                    CupertinoListTile(
-                                      title: Text(tag.name),
-                                      backgroundColor:
-                                          section == 'tag' &&
-                                              selectedTag == tag.name
-                                          ? selectedFill
-                                          : null,
-                                      leading: Icon(
-                                        CupertinoIcons.circle_fill,
-                                        color: Color(
-                                          int.parse(
-                                                tag.color.substring(1),
-                                                radix: 16,
-                                              ) |
-                                              0xFF000000,
-                                        ),
-                                      ),
-                                      trailing: Text(
-                                        '${all.where((note) => noteMetadata(note).tags.toDart.any((name) => name.toDart == tag.name)).length}',
-                                      ),
-                                      onTap: () => setState(() {
-                                        selectedTag = tag.name;
-                                        section = 'tag';
-                                      }),
-                                    ),
-                                  CupertinoListTile(
-                                    title: const Text('Add tag'),
-                                    leading: const Icon(CupertinoIcons.add),
-                                    onTap: () => run(addTag),
-                                  ),
-                                ],
-                              ),
-                              CupertinoListTile(
-                                title: const Text('Settings'),
-                                leading: const Icon(CupertinoIcons.settings),
-                                onTap: () => showCupertinoModalPopup<void>(
-                                  context: context,
-                                  builder: (context) => CupertinoActionSheet(
-                                    title: const Text('Settings'),
-                                    actions: [
-                                      CupertinoActionSheetAction(
-                                        onPressed: () {
-                                          Navigator.pop(context);
-                                          unawaited(run(chooseRoot));
-                                        },
-                                        child: const Text(
-                                          'Choose notes folder',
-                                        ),
-                                      ),
-                                      CupertinoActionSheetAction(
-                                        onPressed: () {
-                                          Navigator.pop(context);
-                                          unawaited(run(refresh));
-                                        },
-                                        child: const Text('Refresh library'),
-                                      ),
-                                    ],
-                                    cancelButton: CupertinoActionSheetAction(
-                                      onPressed: () => Navigator.pop(context),
-                                      child: const Text('Cancel'),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        switch (section) {
-                                          'recent' => 'Recent',
-                                          'favorites' => 'Favorites',
-                                          'trash' => 'Trash',
-                                          'tag' => selectedTag!,
-                                          'library' => 'Library',
-                                          'search' => 'Search',
-                                          _ => selected?.name ?? 'Library',
-                                        },
-                                        style: const TextStyle(
-                                          fontSize: 28,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                    CupertinoButton(
-                                      onPressed: busy
-                                          ? null
-                                          : () => create(true),
-                                      child: const Text('New Notebook'),
-                                    ),
-                                    CupertinoButton(
-                                      onPressed: busy ? null : importPdf,
-                                      child: const Text('Import PDF'),
-                                    ),
-                                    CupertinoButton.filled(
-                                      onPressed: busy
-                                          ? null
-                                          : () => create(false),
-                                      child: const Text('New Note'),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
-                                CupertinoSearchTextField(
-                                  controller: search,
-                                  placeholder: 'Search notes',
-                                  onChanged: (_) => setState(() {}),
-                                ),
-                                const SizedBox(height: 16),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child:
-                                          CupertinoSlidingSegmentedControl<
-                                            String
-                                          >(
-                                            groupValue: sort,
-                                            children: const {
-                                              'name': Text('Name'),
-                                              'modified': Text('Last modified'),
-                                            },
-                                            onValueChanged: (value) {
-                                              if (value != null)
-                                                setState(() => sort = value);
-                                            },
-                                          ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    CupertinoSlidingSegmentedControl<bool>(
-                                      groupValue: grid,
-                                      children: const {
-                                        false: Text('List'),
-                                        true: Text('Grid'),
-                                      },
-                                      onValueChanged: (value) {
-                                        if (value != null)
-                                          setState(() => grid = value);
-                                      },
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 16),
+                              if (notebook == null) ...[
                                 Expanded(
-                                  child: section == 'library'
-                                      ? GridView.extent(
-                                          maxCrossAxisExtent: grid ? 260 : 1000,
-                                          mainAxisSpacing: 16,
-                                          crossAxisSpacing: 16,
-                                          childAspectRatio: grid ? 0.65 : 3,
-                                          children: [
-                                            for (final item
-                                                in library!.folders.toDart
-                                                    .where(
-                                                      (item) => item.name
-                                                          .toLowerCase()
-                                                          .contains(
-                                                            search.text
-                                                                .toLowerCase(),
-                                                          ),
-                                                    )
-                                                    .toList()
-                                                  ..sort(
-                                                    (a, b) => sort == 'modified'
-                                                        ? b.modified.compareTo(
-                                                            a.modified,
-                                                          )
-                                                        : a.name.compareTo(
-                                                            b.name,
-                                                          ),
-                                                  ))
-                                              DecoratedBox(
-                                                decoration: BoxDecoration(
-                                                  color: CupertinoColors.white,
-                                                  border: Border.all(
-                                                    color:
-                                                        native.pathKey(
-                                                              item.path,
-                                                            ) ==
-                                                            native.pathKey(
-                                                              folder,
-                                                            )
-                                                        ? CupertinoTheme.of(
-                                                            context,
-                                                          ).primaryColor
-                                                        : CupertinoColors
-                                                              .separator,
-                                                    width: 2,
-                                                  ),
-                                                  borderRadius:
-                                                      BorderRadius.circular(12),
-                                                ),
-                                                child: Column(
-                                                  children: [
-                                                    Expanded(
-                                                      child: CupertinoButton(
-                                                        onPressed: () => setState(() {
-                                                          folder = item.path;
-                                                          detailSearch.clear();
-                                                          if (MediaQuery.sizeOf(
-                                                                context,
-                                                              ).width <
-                                                              1000)
-                                                            section = 'folder';
-                                                        }),
-                                                        child: Semantics(
-                                                          label:
-                                                              'Select ${item.name}',
-                                                          excludeSemantics:
-                                                              true,
-                                                          child: folderCover(
-                                                            item,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    Row(
-                                                      children: [
-                                                        Expanded(
-                                                          child: Padding(
-                                                            padding:
-                                                                const EdgeInsets.only(
-                                                                  left: 12,
-                                                                ),
-                                                            child: Text(
-                                                              item.name,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                        CupertinoButton(
-                                                          onPressed: () => run(
-                                                            () => folderActions(
-                                                              item,
-                                                            ),
-                                                          ),
-                                                          child: Semantics(
-                                                            label:
-                                                                '${item.name} notebook actions',
-                                                            child: const Icon(
-                                                              CupertinoIcons
-                                                                  .ellipsis,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    Text(
-                                                      '${item.notes.length} notes',
-                                                    ),
-                                                    Padding(
-                                                      padding:
-                                                          const EdgeInsets.all(
-                                                            8,
-                                                          ),
-                                                      child: Text(
-                                                        modifiedLabel(
-                                                          item.modified,
-                                                        ),
-                                                        style: const TextStyle(
-                                                          fontSize: 12,
-                                                          color: CupertinoColors
-                                                              .secondaryLabel,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                          ],
-                                        )
-                                      : grid
-                                      ? GridView.extent(
-                                          maxCrossAxisExtent: 260,
-                                          mainAxisSpacing: 16,
-                                          crossAxisSpacing: 16,
-                                          childAspectRatio: 0.72,
-                                          children: [
-                                            for (final item in notes)
-                                              DecoratedBox(
-                                                decoration: BoxDecoration(
-                                                  color: CupertinoColors.white,
-                                                  border: Border.all(
-                                                    color: CupertinoColors
-                                                        .separator,
-                                                  ),
-                                                  borderRadius:
-                                                      BorderRadius.circular(12),
-                                                ),
-                                                child: Column(
-                                                  children: [
-                                                    Expanded(
-                                                      child: CupertinoButton(
-                                                        onPressed: () => run(
-                                                          () =>
-                                                              section == 'trash'
-                                                              ? noteActions(
-                                                                  item,
-                                                                )
-                                                              : open(item.path),
-                                                        ),
-                                                        child: NoteThumbnail(
-                                                          engine: engine!,
-                                                          root: root!,
-                                                          note: item,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    Row(
-                                                      children: [
-                                                        Expanded(
-                                                          child: Padding(
-                                                            padding:
-                                                                const EdgeInsets.only(
-                                                                  left: 12,
-                                                                ),
-                                                            child: Text(
-                                                              item.name,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                        CupertinoButton(
-                                                          onPressed: () => run(
-                                                            () => noteActions(
-                                                              item,
-                                                            ),
-                                                          ),
-                                                          child: Semantics(
-                                                            label:
-                                                                '${item.name} actions',
-                                                            child: const Icon(
-                                                              CupertinoIcons
-                                                                  .ellipsis,
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    Padding(
-                                                      padding:
-                                                          const EdgeInsets.all(
-                                                            12,
-                                                          ),
-                                                      child: Text(
-                                                        noteMetadata(item)
-                                                            .description,
-                                                        maxLines: 2,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                          ],
-                                        )
-                                      : ListView(
-                                          children: [
-                                            for (final item in notes)
-                                              CupertinoListTile.notched(
-                                                leadingSize: 48,
-                                                title: CupertinoButton(
-                                                  padding: EdgeInsets.zero,
-                                                  alignment:
-                                                      Alignment.centerLeft,
-                                                  onPressed: section == 'trash'
-                                                      ? () => run(
-                                                          () =>
-                                                              noteActions(item),
-                                                        )
-                                                      : () => run(
-                                                          () => open(item.path),
-                                                        ),
-                                                  child: Text(noteTitle(item)),
-                                                ),
-                                                subtitle: Text(
-                                                  noteMetadata(item).tags.toDart
-                                                      .map((tag) => tag.toDart)
-                                                      .join(' · '),
-                                                ),
-                                                leading: NoteThumbnail(
-                                                  engine: engine!,
-                                                  root: root!,
-                                                  note: item,
-                                                ),
-                                                trailing: CupertinoButton(
-                                                  padding: EdgeInsets.zero,
-                                                  onPressed: () => run(
-                                                    () => noteActions(item),
-                                                  ),
-                                                  child: Semantics(
-                                                    label:
-                                                        '${item.name} actions',
-                                                    child: const Icon(
-                                                      CupertinoIcons.ellipsis,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                          ],
-                                        ),
+                                  child: CupertinoSearchTextField(
+                                    controller: search,
+                                    placeholder: 'Search notebooks and notes',
+                                    onChanged: (_) => setState(() {}),
+                                  ),
+                                ),
+                                menu(
+                                  filterLabel,
+                                  CupertinoIcons.line_horizontal_3_decrease,
+                                  filterMenu,
+                                ),
+                              ] else
+                                const Spacer(),
+                              menu(
+                                'Sort',
+                                CupertinoIcons.arrow_up_arrow_down,
+                                sortMenu,
+                              ),
+                              const SizedBox(width: 8),
+                              if (notebook == null)
+                                CupertinoButton.filled(
+                                  onPressed: busy ? null : () => create(true),
+                                  child: const Text('New Notebook'),
+                                )
+                              else ...[
+                                CupertinoButton(
+                                  onPressed: busy ? null : importPdf,
+                                  child: const Text('Import PDF'),
+                                ),
+                                CupertinoButton.filled(
+                                  onPressed: busy ? null : () => create(false),
+                                  child: const Text('New Note'),
                                 ),
                               ],
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Expanded(
+                            child: CustomScrollView(
+                              slivers: notebook == null
+                                  ? notebooksContent()
+                                  : notebookContent(notebook),
                             ),
                           ),
-                        ),
-                        if (section == 'library' &&
-                            selected != null &&
-                            MediaQuery.sizeOf(context).width >= 1000)
-                          SizedBox(width: 300, child: folderPane(selected)),
-                      ],
+                        ],
+                      ),
                     )
                   : Center(
                       child: Column(
@@ -2075,6 +2081,7 @@ class _WorkspaceState extends State<Workspace> {
                                     'Folder permission was denied. Reconnect to open your notes.',
                                   );
                                 reconnect = false;
+                                await watch();
                                 await refresh();
                               }),
                               child: const Text('Reconnect folder'),

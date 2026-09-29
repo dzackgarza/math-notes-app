@@ -8,7 +8,7 @@ import { loadEngine } from "./engine/load.ts";
 import type { Canvas, Engine, ToolSettings } from "./engine/engine.ts";
 import { Orientation, PageSize, Phase, Tool } from "./engine/engine.ts";
 import { capabilities, penSamples } from "./input/pointer.ts";
-import { ensureTemplates, hasPermission, listTemplates, pickRoot, readTemplatePage, requestPermission, savedRoot } from "./storage/folder.ts";
+import { ensureTemplates, hasPermission, listTemplates, pickRoot, readTemplatePage, requestPermission, savedRoot, watchRoot } from "./storage/folder.ts";
 import { createFolder, moveEntry, moveToTrash, scanLibrary, scanTrash, type Note } from "./storage/library.ts";
 import { emptyFolder, emptyNote, moveNotes, readMetadata, writeMetadata, TAG_COLORS } from "./storage/metadata.ts";
 import { noteThumbnail } from "./storage/thumbnails.ts";
@@ -52,7 +52,10 @@ function figureSource(note: OpenNotebook, canvas: Canvas, capturing: boolean): s
 // Resolves when the offline cache is current. A worker that installs goes to
 // `activated`, or to `redundant` when its precache fails
 // (https://w3c.github.io/ServiceWorker/#installation-algorithm).
+// A new worker that replaces an old one reloads the page, so the page runs the
+// deployed build (https://web.dev/articles/service-worker-lifecycle#skip_the_waiting_phase).
 async function cacheApp(): Promise<void> {
+  if (navigator.serviceWorker.controller) navigator.serviceWorker.addEventListener("controllerchange", () => location.reload());
   const registration = await navigator.serviceWorker.register(new URL("sw.js", document.baseURI).pathname);
   const worker = registration.installing;
   if (!worker) return;
@@ -195,7 +198,7 @@ const api = {
   importPdf,
   applyTemplate, listTemplates, finishFigure, figureSource,
   thumbnail, tagColors: TAG_COLORS,
-  cacheApp, paperPreview, exportPdf, sharePdf, insertImage, loadEngine, startRoot, pickRoot, requestPermission, library,
+  cacheApp, paperPreview, exportPdf, sharePdf, insertImage, loadEngine, startRoot, pickRoot, requestPermission, watchRoot, library,
   createNotebook, openNotebook, createFolder, moveEntry, moveToTrash,
   emptyFolder, emptyNote, moveNotes, readMetadata, writeMetadata, readPens, writePens, penPreview, acceptPen, cancelStroke, mountCanvas,
 };

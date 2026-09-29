@@ -2,6 +2,7 @@ import 'dart:js_interop';
 
 import 'package:flutter/cupertino.dart';
 
+import 'errors.dart';
 import 'host.dart' as native;
 
 Future<void> manageLayers(
@@ -10,7 +11,6 @@ Future<void> manageLayers(
   native.Canvas canvas,
   void Function(void Function()) edit,
 ) async {
-  String? failure;
   await showCupertinoModalPopup<void>(
     context: context,
     builder: (context) => StatefulBuilder(
@@ -20,9 +20,9 @@ Future<void> manageLayers(
         void change(void Function() action) {
           try {
             edit(action);
-            update(() => failure = null);
-          } catch (error) {
-            update(() => failure = error.toString());
+            update(() {});
+          } catch (error, stack) {
+            showError(error, stack);
           }
         }
 
@@ -98,16 +98,6 @@ Future<void> manageLayers(
                         ),
                       ],
                     ),
-                    if (failure != null)
-                      Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Text(
-                          failure!,
-                          style: const TextStyle(
-                            color: CupertinoColors.destructiveRed,
-                          ),
-                        ),
-                      ),
                     Expanded(
                       child: ListView(
                         children: [

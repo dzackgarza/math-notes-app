@@ -4,6 +4,7 @@ import 'dart:ui' show SemanticsRole;
 
 import 'package:flutter/cupertino.dart';
 
+import 'errors.dart';
 import 'host.dart' as native;
 
 class CreationSheet extends StatelessWidget {
@@ -129,7 +130,11 @@ class _PaperPreviewState extends State<PaperPreview> {
           widget.orientation,
         )
         .toDart
-        .then((bytes) => bytes.toDart);
+        .then((bytes) => bytes.toDart)
+        .onError<Object>((error, stack) {
+          showError(error, stack);
+          Error.throwWithStackTrace(error, stack);
+        });
   }
 
   @override

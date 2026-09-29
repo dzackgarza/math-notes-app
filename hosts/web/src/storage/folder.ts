@@ -29,6 +29,14 @@ export async function requestPermission(root: FileSystemDirectoryHandle): Promis
   return (await root.requestPermission({ mode: "readwrite" })) === "granted";
 }
 
+// Calls `changed` when a file under the notes folder changes, whether this app
+// or another program (for example a sync client) changed it.
+export async function watchRoot(root: FileSystemDirectoryHandle, changed: () => void): Promise<FileSystemObserver> {
+  const observer = new FileSystemObserver(changed);
+  await observer.observe(root, { recursive: true });
+  return observer;
+}
+
 export async function listNotebooks(root: FileSystemDirectoryHandle): Promise<string[]> {
   const names: string[] = [];
   for await (const [name, handle] of root.entries()) {

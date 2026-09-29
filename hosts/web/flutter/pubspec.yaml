@@ -16,25 +16,26 @@ dependencies:
   flex_color_picker: 4.0.0
   pull_down_button: 0.10.2
   lucide_icons_flutter: ^3.1.20
+  toastification: 3.2.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
 flutter:
   fonts:
-  - family: NoteText
-    fonts:
-    - asset: fonts/NotoSans-Regular.ttf
-  - family: Noto Sans Arabic
-    fonts:
-    - asset: generated_fonts/NotoSansArabic-Regular.ttf
-  - family: Noto Sans Hebrew
-    fonts:
-    - asset: generated_fonts/NotoSansHebrew-Regular.ttf
-  - family: Noto Sans Devanagari
-    fonts:
-    - asset: generated_fonts/NotoSansDevanagari-Regular.ttf
-  - family: Noto Sans Symbols2
-    fonts:
-    - asset: generated_fonts/NotoSansSymbols2-Regular.ttf
+    - family: NoteText
+      fonts:
+        - asset: fonts/NotoSans-Regular.ttf
+    - family: Noto Sans Arabic
+      fonts:
+        - asset: generated_fonts/NotoSansArabic-Regular.ttf
+    - family: Noto Sans Hebrew
+      fonts:
+        - asset: generated_fonts/NotoSansHebrew-Regular.ttf
+    - family: Noto Sans Devanagari
+      fonts:
+        - asset: generated_fonts/NotoSansDevanagari-Regular.ttf
+    - family: Noto Sans Symbols2
+      fonts:
+        - asset: generated_fonts/NotoSansSymbols2-Regular.ttf
   assets:
-  - fonts/OFL.txt
+    - fonts/OFL.txt

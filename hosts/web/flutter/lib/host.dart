@@ -19,6 +19,10 @@ extension type StartRoot(JSObject value) implements JSObject {
   external bool get needsGesture;
 }
 
+extension type RootObserver(JSObject value) implements JSObject {
+  external void disconnect();
+}
+
 extension type Note(JSObject value) implements JSObject {
   external String get name;
   external JSArray<JSString> get path;
@@ -394,6 +398,10 @@ extension type Host(JSObject value) implements JSObject {
   external JSPromise<StartRoot> startRoot();
   external JSPromise<Directory> pickRoot();
   external JSPromise<JSBoolean> requestPermission(Directory root);
+  external JSPromise<RootObserver> watchRoot(
+    Directory root,
+    JSFunction changed,
+  );
   external JSPromise<Library> library(Directory root, Engine engine);
   external NoteMetadata emptyNote();
   external FolderMetadata emptyFolder();

@@ -5,6 +5,7 @@ import 'dart:ui_web' as ui_web;
 import 'package:flutter/cupertino.dart';
 import 'package:web/web.dart' as web;
 
+import 'errors.dart';
 import 'host.dart' as native;
 
 class FigureEditor extends StatefulWidget {
@@ -23,7 +24,6 @@ class _FigureEditorState extends State<FigureEditor> {
   late final JSFunction listener;
   bool closing = false;
   bool allowPop = false;
-  String? failure;
 
   @override
   void initState() {
@@ -42,10 +42,7 @@ class _FigureEditorState extends State<FigureEditor> {
 
   Future<void> close() async {
     if (closing) return;
-    setState(() {
-      closing = true;
-      failure = null;
-    });
+    setState(() => closing = true);
     try {
       if (editor.ready) await editor.save().toDart;
       if (!mounted) return;
@@ -53,12 +50,9 @@ class _FigureEditorState extends State<FigureEditor> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) Navigator.pop(context);
       });
-    } catch (error) {
-      if (mounted)
-        setState(() {
-          failure = error.toString();
-          closing = false;
-        });
+    } catch (error, stack) {
+      showError(error, stack);
+      if (mounted) setState(() => closing = false);
     }
   }
 
@@ -88,11 +82,11 @@ class _FigureEditorState extends State<FigureEditor> {
       child: SafeArea(
         child: Column(
           children: [
-            if (failure != null || editor.error.isNotEmpty)
+            if (editor.error.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: Text(
-                  failure ?? editor.error,
+                  editor.error,
                   style: const TextStyle(color: CupertinoColors.systemRed),
                 ),
               ),
