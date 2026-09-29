@@ -317,7 +317,7 @@ test("Flutter finds an image note through persistent tags and its page thumbnail
   await page.getByRole("button", { name: /^topology/ }).click();
   await expect(page.getByRole("img", { name: "Diagram first page", exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath("tagged-image-card.png") });
-  await page.getByRole("button", { name: "Diagram first page", exact: true }).click();
+  await page.getByRole("button", { name: "Open Diagram", exact: false }).click();
   await page.getByRole("button", { name: "More", exact: true }).waitFor();
   const saved = await page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
