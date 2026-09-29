@@ -29,6 +29,7 @@ async function createTestNotebook(page: Page, name = "Test Notebook"): Promise<v
 
 async function openTestNotebook(page: Page, name = "Test Notebook"): Promise<void> {
   await page.getByRole("button", { name: `Open ${name}`, exact: false }).click();
+  await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
 }
 
 async function beginTestNote(page: Page, title: string, notebook = "Test Notebook"): Promise<void> {
@@ -79,6 +80,113 @@ test("Flutter notebook cards retain their notes and metadata after rename", asyn
   expect(metadata.notes["Field theory/Rings"].tags).toEqual(["groups"]);
   expect(metadata.folders.Algebra).toBeUndefined();
   expect(metadata.notes["Algebra/Rings"]).toBeUndefined();
+});
+
+test("Flutter opens another note from the tab plus and preserves each tab state", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto("?root=opfs");
+  await createTestNotebook(page);
+  await page.getByRole("button", { name: "New Note", exact: true }).click();
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Second");
+  await page.getByRole("button", { name: "Create Note", exact: true }).click();
+  await page.getByRole("button", { name: "Close Second", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Test Notebook", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "New Note", exact: true }).click();
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "First");
+  await page.getByRole("button", { name: "Create Note", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "First", exact: true })).toBeVisible();
+
+  let canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
+  await canvas.waitFor({ timeout: 30_000 });
+  let box = await canvas.boundingBox();
+  if (!box) throw new Error("First note canvas has no bounds");
+  const cdp = await page.context().newCDPSession(page);
+  const pen = { pointerType: "pen" as const, force: 0.6 };
+  await cdp.send("Input.dispatchMouseEvent", {
+    type: "mousePressed",
+    button: "left",
+    clickCount: 1,
+    x: box.x + 160,
+    y: box.y + 150,
+    ...pen,
+  });
+  await cdp.send("Input.dispatchMouseEvent", {
+    type: "mouseMoved",
+    button: "left",
+    buttons: 1,
+    x: box.x + 240,
+    y: box.y + 190,
+    ...pen,
+  });
+  await cdp.send("Input.dispatchMouseEvent", {
+    type: "mouseReleased",
+    button: "left",
+    clickCount: 1,
+    x: box.x + 240,
+    y: box.y + 190,
+    ...pen,
+  });
+  await page.getByRole("button", { name: "Pages", exact: true }).click();
+  await page.getByRole("button", { name: "Add page", exact: true }).click();
+  await page.getByRole("button", { name: "Pages", exact: true }).click();
+  await page.getByRole("button", { name: "Next page", exact: true }).click();
+  await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Open note", exact: true }).click();
+  await page.getByRole("group", { name: "Second Test Notebook", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Second", exact: true }),
+  ).toBeVisible();
+  canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
+  await canvas.waitFor({ timeout: 30_000 });
+  box = await canvas.boundingBox();
+  if (!box) throw new Error("Second note canvas has no bounds");
+  await cdp.send("Input.dispatchMouseEvent", {
+    type: "mousePressed",
+    button: "left",
+    clickCount: 1,
+    x: box.x + 180,
+    y: box.y + 220,
+    ...pen,
+  });
+  await cdp.send("Input.dispatchMouseEvent", {
+    type: "mouseMoved",
+    button: "left",
+    buttons: 1,
+    x: box.x + 260,
+    y: box.y + 260,
+    ...pen,
+  });
+  await cdp.send("Input.dispatchMouseEvent", {
+    type: "mouseReleased",
+    button: "left",
+    clickCount: 1,
+    x: box.x + 260,
+    y: box.y + 260,
+    ...pen,
+  });
+  await expect(page.getByText("1 / 1", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "First", exact: true }).click();
+  await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
+  await save(page);
+  await page.getByRole("button", { name: "Second", exact: true }).click();
+  await expect(page.getByText("1 / 1", { exact: true })).toBeVisible();
+  await save(page);
+
+  const strokes = await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    const notebook = await root.getDirectoryHandle("Test Notebook");
+    const count = async (noteName: string) => {
+      const note = await notebook.getDirectoryHandle(noteName);
+      const pages = await note.getDirectoryHandle("pages");
+      const svg = await (await (await pages.getFileHandle("0001.svg")).getFile()).text();
+      return svg.match(/<path id="s-/g)?.length ?? 0;
+    };
+    return { first: await count("First"), second: await count("Second") };
+  });
+  expect(strokes).toEqual({ first: 1, second: 1 });
 });
 
 test("Flutter finds an image note through persistent tags and its page thumbnail", async ({ page }, info) => {
