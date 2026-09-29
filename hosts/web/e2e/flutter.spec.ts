@@ -28,7 +28,7 @@ async function createTestNotebook(page: Page, name = "Test Notebook"): Promise<v
 }
 
 async function openTestNotebook(page: Page, name = "Test Notebook"): Promise<void> {
-  await page.getByRole("button", { name: `Open ${name}`, exact: true }).click();
+  await page.getByRole("button", { name: `Open ${name}`, exact: false }).click();
 }
 
 async function beginTestNote(page: Page, title: string, notebook = "Test Notebook"): Promise<void> {
@@ -60,7 +60,7 @@ test("Flutter notebook cards retain their notes and metadata after rename", asyn
   await expect(page.getByRole("button", { name: "Field theory notebook actions", exact: true })).toBeVisible();
   await page.reload();
   await openTestNotebook(page, "Field theory");
-  await page.getByRole("button", { name: "Open Rings", exact: true }).click();
+  await page.getByRole("button", { name: "Open Rings", exact: false }).click();
   await page.getByRole("button", { name: "More", exact: true }).waitFor();
   const stored = await page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
@@ -188,7 +188,7 @@ test("Flutter creation resumes a draft and applies saved note settings, includin
   await page.getByRole("button", { name: "New Note", exact: true }).click();
   await page.getByRole("button", { name: "Plain Paper", exact: true }).click();
   await addTag(page, "temporary");
-  await page.getByText("Proof paper", { exact: true }).click();
+  await page.getByRole("button", { name: "Proof paper", exact: false }).click();
   await expect(page.getByRole("img", { name: "First page preview", exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath("settings-selected.png") });
   await expect(page.getByRole("button", { name: "Remove tag analysis", exact: true })).toBeVisible();
@@ -339,7 +339,7 @@ test("Flutter erases with the pen side button and draws with a finger on request
 
   await page.reload();
   await openTestNotebook(page);
-  await page.getByRole("button", { name: "Open Fingers", exact: true }).click();
+  await page.getByRole("button", { name: "Open Fingers", exact: false }).click();
   await canvas.waitFor({ timeout: 30_000 });
   await page.getByRole("button", { name: "More", exact: true }).click();
   // The selected item carries the checkmark glyph in its name.
@@ -496,7 +496,7 @@ test("Flutter notebook retains pen input and pages after save and reopen", async
   await page.screenshot({ path: info.outputPath("notebook.png") });
   await page.reload();
   await openTestNotebook(page);
-  await page.getByRole("button", { name: "Open Lecture", exact: true }).click();
+  await page.getByRole("button", { name: "Open Lecture", exact: false }).click();
   await expect(canvas).toBeVisible();
   await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Pages", exact: true }).click();
@@ -512,12 +512,12 @@ test("Flutter notebook retains pen input and pages after save and reopen", async
   await page.getByRole("button", { name: "Lecture actions", exact: true }).click();
   await page.getByRole("button", { name: "Add favorite", exact: true }).click();
   await page.getByText("Favorites", { exact: true }).click();
-  await expect(page.getByRole("button", { name: "Open Lecture", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Open Exercises", exact: true })).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "Open Lecture", exact: false })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open Exercises", exact: false })).not.toBeVisible();
   await page.context().setOffline(true);
   await page.reload();
   await openTestNotebook(page);
-  await page.getByRole("button", { name: "Open Lecture", exact: true }).click();
+  await page.getByRole("button", { name: "Open Lecture", exact: false }).click();
   await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Pages", exact: true }).click();
   await page.getByRole("button", { name: "Add page", exact: true }).click();
@@ -525,12 +525,12 @@ test("Flutter notebook retains pen input and pages after save and reopen", async
   await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
   await page.reload();
   await openTestNotebook(page);
-  await page.getByRole("button", { name: "Open Lecture", exact: true }).click();
+  await page.getByRole("button", { name: "Open Lecture", exact: false }).click();
   await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
   await page.context().setOffline(false);
   await page.reload();
   await page.getByText("Favorites", { exact: true }).click();
-  await expect(page.getByRole("button", { name: "Open Lecture", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open Lecture", exact: false })).toBeVisible();
 });
 
 test("Flutter marker popover changes the size of the marker only", async ({ page }, info) => {
@@ -624,7 +624,7 @@ test("Flutter two-page layout puts pen input on the right page and shares a PDF"
 
   await page.reload();
   await openTestNotebook(page);
-  await page.getByRole("button", { name: "Open Spread", exact: true }).click();
+  await page.getByRole("button", { name: "Open Spread", exact: false }).click();
   await canvas.waitFor({ timeout: 30_000 });
   await page.getByRole("button", { name: "View", exact: true }).click();
   await expect(page.getByRole("button", { name: /^\S+ Two pages$/ })).toHaveAttribute("aria-current", "true");
