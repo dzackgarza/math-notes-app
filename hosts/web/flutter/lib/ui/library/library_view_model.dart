@@ -60,6 +60,10 @@ class LibraryViewModel extends ChangeNotifier {
   void setFilter(String value, [String? tag]) {
     filter = value;
     selectedTag = tag;
+    if (value == 'recent') {
+      sort = 'modified';
+      ascending = false;
+    }
     notifyListeners();
   }
 
@@ -139,6 +143,7 @@ class LibraryViewModel extends ChangeNotifier {
   List<native.Note> get shownNotes => ordered(
     switch (filter) {
       'trash' => library.trash.toDart,
+      'recent' => library.folders.toDart.expand((item) => item.notes.toDart),
       'all' when query.isEmpty => <native.Note>[],
       _ => library.folders.toDart.expand((item) => item.notes.toDart),
     }.where((note) {

@@ -11,10 +11,11 @@ Color hexColor(String value) =>
     Color(int.parse(value.substring(1), radix: 16) | 0xFF000000);
 
 const papers = {
-  'blank': Text('Plain'),
-  'dotted': Text('Dot'),
-  'grid-medium': Text('Grid'),
-  'lined-medium': Text('Ruled'),
+  'dotted': 'Dot Paper',
+  'grid-medium': 'Grid Paper',
+  'lined-medium': 'Lined Paper',
+  'blank': 'Plain Paper',
+  'grid-fine': 'Graph Paper',
 };
 
 CupertinoActionSheetAction sheetAction(
@@ -172,7 +173,12 @@ Future<bool> editFolderDetails(
             const SizedBox(height: 12),
             CupertinoSlidingSegmentedControl<String>(
               groupValue: paper,
-              children: papers,
+              children: const {
+                'dotted': Text('Dot'),
+                'grid-medium': Text('Graph'),
+                'blank': Text('Blank'),
+                'lined-medium': Text('Ruled'),
+              },
               onValueChanged: (value) {
                 if (value != null) update(() => paper = value);
               },
@@ -331,25 +337,68 @@ Future<CreationForm?> askCreation(
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, update) => CreationSheet(
-        title: isFolder ? 'New Notebook' : 'New Note',
-        preview: PaperPreview(
-          engine: engine,
-          root: root,
-          paper: paper,
-          size: size,
-          orientation: orientation,
+        title: isFolder
+            ? 'New Notebook'
+            : 'New Note in ${folders.where((item) => native.pathKey(item.path) == native.pathKey(target)).firstOrNull?.name ?? locationLabel(target)}',
+        preview: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Preview',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: PaperPreview(
+                engine: engine,
+                root: root,
+                paper: paper,
+                size: size,
+                orientation: orientation,
+              ),
+            ),
+            if (isFolder) ...[
+              const SizedBox(height: 16),
+              const Text(
+                'Notebook Details',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Paper: ${paper == 'grid-medium' ? 'Graph Paper' : papers[paper] ?? paper}',
+              ),
+              Text('Location: ${locationLabel(target)}'),
+              ValueListenableBuilder<List<String>>(
+                valueListenable: tags,
+                builder: (context, values, _) => Text(
+                  '${values.length} tag${values.length == 1 ? '' : 's'}',
+                ),
+              ),
+            ],
+          ],
         ),
         content: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 16),
+            Text(
+              isFolder ? 'Notebook Title' : 'Title',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
             CupertinoTextField(
               controller: title,
-              placeholder: 'Title',
+              placeholder: isFolder ? 'Notebook Title' : 'Title',
               autofocus: true,
               onChanged: (_) => update(() {}),
             ),
             if (isFolder) ...[
               const SizedBox(height: 12),
+              const Text(
+                'Description (optional)',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 6),
               CupertinoTextField(
                 controller: description,
                 placeholder: 'Description',
@@ -391,15 +440,37 @@ Future<CreationForm?> askCreation(
               ),
             ],
             const SizedBox(height: 16),
+            const Text(
+              'Paper Style',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
             CupertinoSlidingSegmentedControl<String>(
               groupValue: paper,
-              children: papers,
+              children: isFolder
+                  ? const {
+                      'dotted': Text('Dot'),
+                      'grid-medium': Text('Graph'),
+                      'blank': Text('Blank'),
+                      'lined-medium': Text('Ruled'),
+                    }
+                  : {
+                      for (final entry in papers.entries)
+                        entry.key: Text(entry.value),
+                    },
               onValueChanged: (value) {
                 if (value != null) update(() => paper = value);
               },
             ),
             const SizedBox(height: 12),
+            const Text('Tags', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
             TagEditor(controller: tags),
+            const SizedBox(height: 12),
+            Text(
+              isFolder ? 'Location' : 'Notebook',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
             CupertinoButton(
               onPressed: () async {
                 final selected = await chooseFolder(
@@ -411,11 +482,26 @@ Future<CreationForm?> askCreation(
                 if (selected != null) update(() => target = selected.path);
               },
               child: Text(
-                '${isFolder ? 'Location' : 'Notebook'}: ${locationLabel(target)}',
+                isFolder
+                    ? locationLabel(target)
+                    : 'Change Notebook · ${folders.where((item) => native.pathKey(item.path) == native.pathKey(target)).firstOrNull?.name ?? locationLabel(target)}',
               ),
             ),
+            if (isFolder)
+              const Text(
+                'You can move this notebook later.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: CupertinoColors.secondaryLabel,
+                ),
+              ),
             if (!isFolder) ...[
               const SizedBox(height: 12),
+              const Text(
+                'Page Size',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 6),
               CupertinoSlidingSegmentedControl<String>(
                 groupValue: size,
                 children: const {'a4': Text('A4'), 'letter': Text('Letter')},
@@ -424,6 +510,11 @@ Future<CreationForm?> askCreation(
                 },
               ),
               const SizedBox(height: 12),
+              const Text(
+                'Orientation',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 6),
               CupertinoSlidingSegmentedControl<String>(
                 groupValue: orientation,
                 children: const {
@@ -434,19 +525,41 @@ Future<CreationForm?> askCreation(
                   if (value != null) update(() => orientation = value);
                 },
               ),
-              for (final settings in metadata.startingTemplates.toDart)
-                CupertinoButton(
-                  onPressed: () => update(() {
-                    target = settings.folder;
-                    paper = settings.paper;
-                    size = settings.pageSize;
-                    orientation = settings.orientation ?? 'portrait';
-                    tags.replace(
-                      settings.tags.toDart.map((tag) => tag.toDart).toList(),
-                    );
-                  }),
-                  child: Text(settings.name),
+              if (metadata.startingTemplates.length > 0) ...[
+                const SizedBox(height: 16),
+                const Text(
+                  'Starting Template',
+                  style: TextStyle(fontWeight: FontWeight.w600),
                 ),
+                const SizedBox(height: 6),
+                for (final settings in metadata.startingTemplates.toDart)
+                  CupertinoButton(
+                    alignment: Alignment.centerLeft,
+                    onPressed: () => update(() {
+                      target = settings.folder;
+                      paper = settings.paper;
+                      size = settings.pageSize;
+                      orientation = settings.orientation ?? 'portrait';
+                      tags.replace(
+                        settings.tags.toDart.map((tag) => tag.toDart).toList(),
+                      );
+                    }),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(settings.name),
+                        Text(
+                          '${papers[settings.paper] ?? settings.paper} · ${settings.pageSize.toUpperCase()} · ${settings.tags.length} tag${settings.tags.length == 1 ? '' : 's'}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: CupertinoColors.secondaryLabel,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+              const SizedBox(height: 12),
               CupertinoTextField(
                 controller: templateName,
                 placeholder: 'Settings name',
@@ -475,7 +588,7 @@ Future<CreationForm?> askCreation(
             onPressed: title.text.trim().isEmpty
                 ? null
                 : () => Navigator.pop(context, 'create'),
-            child: const Text('Create'),
+            child: Text(isFolder ? 'Create Notebook' : 'Create Note'),
           ),
         ],
       ),

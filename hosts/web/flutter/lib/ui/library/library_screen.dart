@@ -27,6 +27,7 @@ class LibraryScreen extends StatefulWidget {
 
 class _LibraryScreenState extends State<LibraryScreen> {
   final search = TextEditingController();
+  final searchFocus = FocusNode();
 
   LibraryViewModel get vm => context.read<LibraryViewModel>();
   NotesFolder get folder => context.read<NotesFolder>();
@@ -37,6 +38,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   @override
   void dispose() {
     search.dispose();
+    searchFocus.dispose();
     super.dispose();
   }
 
@@ -436,6 +438,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   String get filterLabel => switch (vm.filter) {
     'favorites' => 'Favorites',
+    'recent' => 'Recent',
     'trash' => 'Trash',
     'tag' => vm.selectedTag!,
     _ => 'All',
@@ -444,6 +447,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   List<PullDownMenuEntry> filterMenu() => [
     for (final (value, title) in const [
       ('all', 'All'),
+      ('recent', 'Recent'),
       ('favorites', 'Favorites'),
       ('trash', 'Trash'),
     ])
@@ -490,6 +494,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   ? 'Nothing matches "${vm.query}".'
                   : switch (vm.filter) {
                       'favorites' => 'No favorite notes.',
+                      'recent' => 'No recent notes.',
                       'trash' => 'The trash is empty.',
                       'tag' => 'Nothing has the tag ${vm.selectedTag}.',
                       _ => 'No notebooks. Tap New Notebook to make one.',
@@ -558,6 +563,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         Expanded(
           child: CupertinoSearchTextField(
             controller: search,
+            focusNode: searchFocus,
             placeholder: 'Search notebooks and notes',
             onChanged: vm.setQuery,
           ),
@@ -610,6 +616,191 @@ class _LibraryScreenState extends State<LibraryScreen> {
     ),
   );
 
+  Widget sidebar() {
+    final tags = vm.library.metadata.tags.toDart;
+    final items = [
+      (
+        label: 'Library',
+        icon: CupertinoIcons.book,
+        selected: vm.filter == 'all' && vm.query.isEmpty,
+        action: () {
+          vm.showNotebook(null);
+          vm.setFilter('all');
+          search.clear();
+          vm.setQuery('');
+        },
+      ),
+      (
+        label: 'Search',
+        icon: CupertinoIcons.search,
+        selected: vm.filter == 'all' && vm.query.isNotEmpty,
+        action: () {
+          vm.showNotebook(null);
+          vm.setFilter('all');
+          searchFocus.requestFocus();
+        },
+      ),
+      (
+        label: 'Recent',
+        icon: CupertinoIcons.clock,
+        selected: vm.filter == 'recent',
+        action: () {
+          vm.showNotebook(null);
+          search.clear();
+          vm.setQuery('');
+          vm.setFilter('recent');
+        },
+      ),
+      (
+        label: 'Favorites',
+        icon: CupertinoIcons.star,
+        selected: vm.filter == 'favorites',
+        action: () {
+          vm.showNotebook(null);
+          search.clear();
+          vm.setQuery('');
+          vm.setFilter('favorites');
+        },
+      ),
+      (
+        label: 'Trash',
+        icon: CupertinoIcons.trash,
+        selected: vm.filter == 'trash',
+        action: () {
+          vm.showNotebook(null);
+          search.clear();
+          vm.setQuery('');
+          vm.setFilter('trash');
+        },
+      ),
+    ];
+    return SizedBox(
+      width: 210,
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          color: CupertinoColors.systemGroupedBackground,
+          border: Border(right: BorderSide(color: CupertinoColors.separator)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(12, 4, 12, 12),
+                child: Text(
+                  'Math Notes',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                ),
+              ),
+              for (final item in items)
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: item.selected
+                        ? CupertinoColors.systemFill.resolveFrom(context)
+                        : null,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: CupertinoButton(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    onPressed: item.action,
+                    child: Row(
+                      children: [
+                        Icon(item.icon, size: 20),
+                        const SizedBox(width: 10),
+                        Text(item.label),
+                      ],
+                    ),
+                  ),
+                ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(12, 20, 12, 6),
+                child: Text(
+                  'Tags',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: CupertinoColors.secondaryLabel,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      for (final tag in tags)
+                        CupertinoButton(
+                          alignment: Alignment.centerLeft,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          onPressed: () {
+                            vm.showNotebook(null);
+                            search.clear();
+                            vm.setQuery('');
+                            vm.setFilter('tag', tag.name);
+                          },
+                          child: Row(
+                            children: [
+                              Icon(
+                                CupertinoIcons.circle_fill,
+                                size: 9,
+                                color: hexColor(tag.color),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(child: Text(tag.name)),
+                              Text(
+                                '${vm.library.folders.toDart.expand((item) => item.notes.toDart).where((note) => folder.noteMetadata(note).tags.toDart.any((value) => value.toDart == tag.name)).length}',
+                                style: const TextStyle(
+                                  color: CupertinoColors.secondaryLabel,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      CupertinoButton(
+                        alignment: Alignment.centerLeft,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        onPressed: () => run(addTag),
+                        child: const Row(
+                          children: [
+                            Icon(CupertinoIcons.add, size: 18),
+                            SizedBox(width: 8),
+                            Text('New tag'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              PullDownButton(
+                itemBuilder: (_) => settingsMenu(),
+                buttonBuilder: (context, showMenu) => CupertinoButton(
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  onPressed: showMenu,
+                  child: const Row(
+                    children: [
+                      Icon(CupertinoIcons.settings, size: 20),
+                      SizedBox(width: 10),
+                      Text('Settings'),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     context.watch<LibraryViewModel>();
@@ -641,53 +832,48 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 '${notebook.name} notebook actions',
                 () => folderActions(notebook),
               ),
-            if (connected && notebook == null)
-              PullDownButton(
-                itemBuilder: (_) => settingsMenu(),
-                buttonBuilder: (context, showMenu) => CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: showMenu,
-                  child: Semantics(
-                    label: 'Settings',
-                    child: const Icon(CupertinoIcons.settings),
-                  ),
-                ),
-              ),
           ],
         ),
       ),
       child: SafeArea(
-        child: Column(
+        child: Row(
           children: [
-            if (vm.confirmation != null)
-              Semantics(
-                role: SemanticsRole.status,
-                liveRegion: true,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(vm.confirmation!),
-                ),
-              ),
+            if (connected) sidebar(),
             Expanded(
-              child: connected
-                  ? Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          toolbar(notebook),
-                          const SizedBox(height: 16),
-                          Expanded(
-                            child: CustomScrollView(
-                              slivers: notebook == null
-                                  ? notebooksContent()
-                                  : notebookContent(notebook),
-                            ),
-                          ),
-                        ],
+              child: Column(
+                children: [
+                  if (vm.confirmation != null)
+                    Semantics(
+                      role: SemanticsRole.status,
+                      liveRegion: true,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(vm.confirmation!),
                       ),
-                    )
-                  : disconnected(),
+                    ),
+                  Expanded(
+                    child: connected
+                        ? Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                toolbar(notebook),
+                                const SizedBox(height: 16),
+                                Expanded(
+                                  child: CustomScrollView(
+                                    slivers: notebook == null
+                                        ? notebooksContent()
+                                        : notebookContent(notebook),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : disconnected(),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
