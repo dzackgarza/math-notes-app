@@ -543,6 +543,82 @@ test("Flutter erases with the pen side button and draws with a finger on request
   await expect(page.getByRole("button", { name: /^\S+ Draw with finger$/ })).toHaveAttribute("aria-current", "true");
 });
 
+test("Flutter partial and whole-stroke erases each undo and redo", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto("?root=opfs");
+  await beginTestNote(page, "Erase history");
+  await page.getByRole("button", { name: "Create Note", exact: true }).click();
+  const canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
+  await canvas.waitFor({ timeout: 30_000 });
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Notebook canvas has no bounds");
+  const cdp = await page.context().newCDPSession(page);
+  const drag = async (from: [number, number], to: [number, number]) => {
+    const pen = { pointerType: "pen" as const, force: 0.6 };
+    await cdp.send("Input.dispatchMouseEvent", {
+      type: "mousePressed", button: "left", clickCount: 1,
+      x: box.x + from[0], y: box.y + from[1], ...pen,
+    });
+    await cdp.send("Input.dispatchMouseEvent", {
+      type: "mouseMoved", button: "left", buttons: 1,
+      x: box.x + (from[0] + to[0]) / 2, y: box.y + (from[1] + to[1]) / 2, ...pen,
+    });
+    await cdp.send("Input.dispatchMouseEvent", {
+      type: "mouseMoved", button: "left", buttons: 1,
+      x: box.x + to[0], y: box.y + to[1], ...pen,
+    });
+    await cdp.send("Input.dispatchMouseEvent", {
+      type: "mouseReleased", button: "left", clickCount: 1,
+      x: box.x + to[0], y: box.y + to[1], ...pen,
+    });
+  };
+  const savedStrokeCount = () => page.evaluate(async () => {
+    try {
+      const root = await navigator.storage.getDirectory();
+      const notebook = await root.getDirectoryHandle("Test Notebook");
+      const pages = await (await notebook.getDirectoryHandle("Erase history")).getDirectoryHandle("pages");
+      const svg = await (await (await pages.getFileHandle("0001.svg")).getFile()).text();
+      return svg.match(/<path id="s-/g)?.length ?? 0;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "NotFoundError") return -1;
+      throw error;
+    }
+  });
+  const expectStrokes = async (count: number) => {
+    await expect.poll(savedStrokeCount, { timeout: 8_000 }).toBe(count);
+  };
+  const dismissPopover = async () => {
+    const viewport = page.viewportSize();
+    if (!viewport) throw new Error("Page has no viewport");
+    await page.mouse.click(viewport.width - 20, viewport.height - 20);
+  };
+
+  await drag([150, 220], [350, 220]);
+  await expectStrokes(1);
+  await page.getByRole("button", { name: "Eraser", exact: true }).click();
+  await page.getByRole("button", { name: "Eraser", exact: true }).click();
+  await page.getByRole("button", { name: "Partial", exact: true }).click();
+  await dismissPopover();
+  await drag([250, 170], [250, 270]);
+  await expectStrokes(2);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expectStrokes(1);
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
+  await expectStrokes(2);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expectStrokes(1);
+
+  await page.getByRole("button", { name: "Eraser", exact: true }).click();
+  await page.getByRole("button", { name: "Stroke", exact: true }).click();
+  await dismissPopover();
+  await drag([250, 170], [250, 270]);
+  await expectStrokes(0);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expectStrokes(1);
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
+  await expectStrokes(0);
+});
+
 test("Flutter page overview duplicates, deletes, reorders, and opens pages", async ({ page }, info) => {
   test.setTimeout(90_000);
   await page.goto("?root=opfs");
