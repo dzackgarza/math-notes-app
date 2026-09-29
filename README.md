@@ -27,17 +27,14 @@ iPad: SideStore source ◄── releases/latest/download/source.json
 
 ## Web app on this machine
 
-`just web-deploy` builds the Solid site and the Flutter host and copies them to `/var/www/math-notes` and `/var/www/math-notes/flutter`. nginx serves it at `http://localhost/math-notes/` with `include <repo>/hosts/web/deploy/nginx-math-notes.conf;` inside the `server` block for `localhost`, then `sudo nginx -s reload`. Only `assets/` gets a long cache lifetime. Use `localhost`, not a LAN address: the folder picker and coalesced pen events need a secure context.
+`just web-deploy` builds the Flutter web app with the pinned Flutter SDK and copies it to `/var/www/math-notes`. nginx serves it at `http://localhost/math-notes/` with `include <repo>/hosts/web/deploy/nginx-math-notes.conf;` inside the `server` block for `localhost`, then `sudo nginx -s reload`. Use `localhost`, not a LAN address: the folder picker and coalesced pen events need a secure context.
 
 In Chrome, choose the notes folder once; after a restart, **Reconnect folder** grants access again (it needs a click).
 
 `just web-test` runs the Vitest Browser Mode tests and the Playwright tests against the deployment.
 
-`just web-flutter-build` builds the Cupertino host with the pinned Flutter SDK.
-The web test deployment serves it at `http://localhost/math-notes/flutter/`.
-The host transition is owned by [#56](https://github.com/dzackgarza/math-notes-app/issues/56).
-Workbox caches its application, engine, renderer, and font assets for offline
-restart. An updated worker waits until open app pages close before activation.
+Workbox caches the application, engine, renderer, and font assets for offline
+restart. A new deployment activates at once; a reload shows it.
 
 ## Releasing
 

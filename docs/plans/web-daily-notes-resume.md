@@ -28,9 +28,8 @@ They are the reference for the pen tool popover:
 
 | Address | State |
 | --- | --- |
-| `http://localhost/math-notes/` | Existing Solid host; primary transition remains required. |
-| `http://localhost/math-notes/flutter/` | Flutter preview, with the saved folder connection. |
-| `http://localhost/math-notes/flutter/?root=opfs` | Flutter preview using browser storage. |
+| `http://localhost/math-notes/` | The app, with the saved folder connection. |
+| `http://localhost/math-notes/?root=opfs` | The app, using browser storage. |
 
 ## Implemented paths and ownership
 
@@ -57,7 +56,7 @@ upstream workspaces are under `.ci`; preserve the vendor boundary.
 
 Record only. These wait for their phase.
 
-- Phase B: primary Flutter deployment; tablet-spec creation details, paper
+- Phase B: tablet-spec creation details, paper
   names, singular note counts, Settings placement.
 - Phase D: multiple pending browser recovery records make `pendingRecovery`
   in `editor/notebook.ts` throw; conflict comparison uses static previews
@@ -76,7 +75,7 @@ Native engine targets, the Flutter/TypeScript host build, and the Dart
 analyzer succeeded for the tag form. These are implementation checks, not
 full product acceptance.
 
-A headless Chromium session rendered the preview library and creation form.
+A headless Chromium session rendered the library and creation form.
 The form exposed the new location picker and removable tag control. Creating
 `Lecture notes` with the `algebra` tag produced the corresponding folder and
 tag controls in the library. This used an isolated browser-storage context.
@@ -92,8 +91,7 @@ bunx --package chrome-devtools-mcp chrome-devtools start \
 ```
 
 CLI page commands require the page ID as the first positional argument.
-Use a fresh isolated context for a new deployment inspection; existing
-Workbox-controlled pages retain the active version until its pages close.
+Use a fresh isolated context for a new deployment inspection.
 The browser daemon was stopped for this handoff.
 
 Build log: `/tmp/math-notes-final-host-build.log`. Generated sources and

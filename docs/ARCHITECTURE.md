@@ -243,20 +243,19 @@ needs no COOP/COEP headers.
 
 ### Current web host
 
-This inventory describes the implemented Solid/Ionic host. #56 replaces its
-GUI with the selected Flutter host while preserving working notebook features,
-folder access, offline operation, and the shared engine. The current build and
-test tools below describe the existing implementation.
+The Flutter web app is the only web GUI. `hosts/web/flutter/lib` holds the
+Cupertino chrome; `hosts/web/src/flutter.ts` is the bridge to the engine and
+the folder services.
 
 | Concern | Library | Introduced in |
 | --- | --- | --- |
-| UI chrome (toolbars, library, panels) | SolidJS 1.9, [Ionic](https://ionicframework.com/docs/components) 8 web components in iOS mode, through the Solid components of [@ionic-solidjs/core](https://github.com/ionic-solidjs/ionic-solidjs); tool icons from lucide-solid | [#57](https://github.com/dzackgarza/math-notes-app/issues/57) |
-| Build, dev server, PWA | Vite 8 (run with `bunx --bun vite`), vite-plugin-pwa 1.3 | [#5](https://github.com/dzackgarza/math-notes-app/issues/5) |
+| UI chrome (toolbars, library, panels) | Flutter Cupertino widgets; pull_down_button, popover, flex_color_picker, lucide_icons_flutter | [#56](https://github.com/dzackgarza/math-notes-app/issues/56) |
+| Bridge build, offline cache | Vite 8 (run with `bunx --bun vite`) for the bridge; workbox-build | [#56](https://github.com/dzackgarza/math-notes-app/issues/56) |
 | Folder handle persistence (Chromium) | idb-keyval 6.3 | [#5](https://github.com/dzackgarza/math-notes-app/issues/5) |
 | PDF page rasterizer (planned) | [mupdf](https://www.npmjs.com/package/mupdf) (Artifex's WASM build), in a Web Worker, loaded only at import | [#8](https://github.com/dzackgarza/math-notes-app/issues/8) |
 | Tests | Vitest 5 Browser Mode with the Playwright 1.63 provider (Chromium) | [#5](https://github.com/dzackgarza/math-notes-app/issues/5) |
 
-Pen samples go straight to the engine; no pen sample passes through Solid
+Pen samples go straight to the engine; no pen sample passes through Flutter
 state. Platform navigation stays with the host's interaction components.
 
 ### Current iPad host and selected platform APIs

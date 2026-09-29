@@ -23,7 +23,7 @@ async function addTag(page: Page, tag: string): Promise<void> {
 
 test("Flutter notebook cards retain their notes and metadata after rename", async ({ page }, info) => {
   test.setTimeout(90_000);
-  await page.goto("flutter/?root=opfs");
+  await page.goto("?root=opfs");
   await page.getByRole("button", { name: "New Notebook", exact: true }).click();
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Algebra");
   await enterText(page.getByRole("textbox", { name: "Description", exact: true }), "Lecture notes");
@@ -70,7 +70,7 @@ test("Flutter notebook cards retain their notes and metadata after rename", asyn
 
 test("Flutter finds an image note through persistent tags and its page thumbnail", async ({ page }, info) => {
   test.setTimeout(90_000);
-  await page.goto("flutter/?root=opfs");
+  await page.goto("?root=opfs");
   await page.getByRole("button", { name: "New Note", exact: true }).click();
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Diagram");
   await addTag(page, "topology");
@@ -111,7 +111,7 @@ test("Flutter finds an image note through persistent tags and its page thumbnail
 
 test("Flutter adds a page only after a held edge pull and preserves keyboard history", async ({ page }) => {
   test.setTimeout(60_000);
-  await page.goto("flutter/?root=opfs");
+  await page.goto("?root=opfs");
   await page.getByRole("button", { name: "New Note", exact: true }).click();
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Navigation");
   await page.getByRole("button", { name: "Create", exact: true }).click();
@@ -156,7 +156,7 @@ test("Flutter creation resumes a draft and applies saved note settings, includin
   test.setTimeout(120_000);
   page.on("pageerror", error => console.error(error.stack));
   page.on("console", message => { if (message.type() === "error") console.error(message.text()); });
-  await page.goto("flutter/?root=opfs");
+  await page.goto("?root=opfs");
   await page.getByRole("button", { name: "New Note", exact: true }).click();
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Seminar");
   await page.getByRole("button", { name: "Ruled", exact: true }).click();
@@ -198,7 +198,7 @@ test("Flutter creation resumes a draft and applies saved note settings, includin
 
 test("Flutter ignores a palm that drags during a pen stroke", async ({ page }) => {
   test.setTimeout(60_000);
-  await page.goto("flutter/?root=opfs");
+  await page.goto("?root=opfs");
   await page.getByRole("button", { name: "New Note", exact: true }).click();
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Palm");
   await page.getByRole("button", { name: "Create", exact: true }).click();
@@ -236,7 +236,7 @@ test("Flutter ignores a palm that drags during a pen stroke", async ({ page }) =
 
 test("Flutter undoes on a two-finger tap and redoes on a three-finger tap", async ({ page }) => {
   test.setTimeout(60_000);
-  await page.goto("flutter/?root=opfs");
+  await page.goto("?root=opfs");
   await page.getByRole("button", { name: "New Note", exact: true }).click();
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Taps");
   await page.getByRole("button", { name: "Create", exact: true }).click();
@@ -273,7 +273,7 @@ test("Flutter undoes on a two-finger tap and redoes on a three-finger tap", asyn
 
 test("Flutter erases with the pen side button and draws with a finger on request", async ({ page }) => {
   test.setTimeout(120_000);
-  await page.goto("flutter/?root=opfs");
+  await page.goto("?root=opfs");
   await page.getByRole("button", { name: "New Note", exact: true }).click();
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Fingers");
   await page.getByRole("button", { name: "Create", exact: true }).click();
@@ -333,7 +333,7 @@ test("Flutter erases with the pen side button and draws with a finger on request
 
 test("Flutter page overview duplicates, deletes, reorders, and opens pages", async ({ page }, info) => {
   test.setTimeout(90_000);
-  await page.goto("flutter/?root=opfs");
+  await page.goto("?root=opfs");
   await page.getByRole("button", { name: "New Note", exact: true }).click();
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Overview");
   await page.getByRole("button", { name: "Create", exact: true }).click();
@@ -388,7 +388,7 @@ test("Flutter page overview duplicates, deletes, reorders, and opens pages", asy
 
 test("Flutter recolors a lasso selection from the palette and keeps the pen color", async ({ page }) => {
   test.setTimeout(60_000);
-  await page.goto("flutter/?root=opfs");
+  await page.goto("?root=opfs");
   await page.getByRole("button", { name: "New Note", exact: true }).click();
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Recolor");
   await page.getByRole("button", { name: "Create", exact: true }).click();
@@ -428,12 +428,12 @@ test("Flutter recolors a lasso selection from the palette and keeps the pen colo
 
 test("Flutter notebook retains pen input and pages after save and reopen", async ({ page }, info) => {
   test.setTimeout(120_000);
-  await page.goto("favicon.svg");
+  await page.goto("version.json");
   await page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
     for await (const name of root.keys()) await root.removeEntry(name, { recursive: true });
   });
-  await page.goto("flutter/?root=opfs");
+  await page.goto("?root=opfs");
   await page.getByRole("button", { name: "New Note", exact: true }).click();
   await enterText(page.getByRole("textbox", { name: "Title" }), "Lecture");
   await page.getByRole("button", { name: "Create", exact: true }).click();
@@ -516,12 +516,12 @@ test("Flutter notebook retains pen input and pages after save and reopen", async
 
 test("Flutter pen popover changes the brush and size of the pen", async ({ page }, info) => {
   test.setTimeout(120_000);
-  await page.goto("favicon.svg");
+  await page.goto("version.json");
   await page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
     for await (const name of root.keys()) await root.removeEntry(name, { recursive: true });
   });
-  await page.goto("flutter/?root=opfs");
+  await page.goto("?root=opfs");
   await page.getByRole("button", { name: "New Note", exact: true }).click();
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Pens");
   await page.getByRole("button", { name: "Create", exact: true }).click();
@@ -542,7 +542,7 @@ test("Flutter pen popover changes the brush and size of the pen", async ({ page 
 
 test("Flutter two-page layout puts pen input on the right page and shares a PDF", async ({ page }) => {
   test.setTimeout(120_000);
-  await page.goto("flutter/?root=opfs");
+  await page.goto("?root=opfs");
   await page.evaluate(() => localStorage.removeItem("pageArrangement"));
   await page.getByRole("button", { name: "New Note", exact: true }).click();
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Spread");

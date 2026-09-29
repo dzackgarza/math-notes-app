@@ -11,6 +11,6 @@ const result = await generateSW({
   navigateFallback: "index.html",
   cleanupOutdatedCaches: true,
   clientsClaim: true,
-  skipWaiting: false,
+  skipWaiting: true,
 });
 if (result.warnings.length) throw new Error(result.warnings.join("\n"));

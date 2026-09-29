@@ -45,10 +45,10 @@ Read:
 - The live issue bodies linked below. Source requirements take precedence over
   screenshots with sample content.
 
-The current web GUI is Solid/Ionic. The shared engine, folder services,
+The web GUI is the Flutter app. The shared engine, folder services,
 metadata, and editing flows already contain working behavior. Open issues
 are not proof that their implementation is absent: inspect and exercise each
-feature before replacing it. Port working product behavior into Flutter.
+feature before replacing it.
 
 Inspect `hosts/web/src/editor/notebook.ts`, storage services, engine bindings,
 and the existing editor. TRAPS documents pending-save loss on rapid reload.
@@ -135,10 +135,8 @@ new subsystem is introduced.
 
 ## Final acceptance: actual work in deployed Chrome
 
-Use `http://localhost/math-notes/` on the target machine. Preserve
-`just web-build` and `just web-deploy` as entry points while adapting their
-implementation to Flutter. Rewire the existing web verification entry point
-to the real Flutter application.
+Use `http://localhost/math-notes/` on the target machine. `just web-build`,
+`just web-deploy`, and `just web-test` build, deploy, and test the Flutter app.
 
 | Session | Required observation |
 | --- | --- |

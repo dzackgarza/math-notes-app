@@ -13,7 +13,6 @@ import { createFolder, moveEntry, moveToTrash, scanLibrary, scanTrash, type Note
 import { emptyFolder, emptyNote, moveNotes, readMetadata, writeMetadata, TAG_COLORS } from "./storage/metadata.ts";
 import { noteThumbnail } from "./storage/thumbnails.ts";
 import { readPens, writePens } from "./storage/pens.ts";
-import { Workbox } from "workbox-window";
 import { importPdf } from "./editor/pdf.ts";
 import { noteConflicts, resolveConflict } from "./storage/conflicts.ts";
 import { listClippings, saveClipping, clippingSvg, changeClipping } from "./editor/clippings.ts";
@@ -50,10 +49,11 @@ function figureSource(note: OpenNotebook, canvas: Canvas, capturing: boolean): s
   return id ? note.document.figureSource(id) : "";
 }
 
+// `ready` resolves once the scope has an active worker, also when a hard
+// reload leaves the page uncontrolled and sw.js has not changed.
 async function cacheApp(): Promise<void> {
-  const worker = new Workbox(new URL("sw.js", document.baseURI).pathname);
-  await worker.register();
-  await worker.active;
+  await navigator.serviceWorker.register(new URL("sw.js", document.baseURI).pathname);
+  await navigator.serviceWorker.ready;
 }
 
 // Flutter 3.47 expands coalesced samples and uses microsecond timestamps:

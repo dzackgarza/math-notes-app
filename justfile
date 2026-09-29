@@ -21,8 +21,8 @@ _flutter-sdk:
     test "$(git -C '{{flutter}}' rev-parse HEAD)" = '{{flutter_rev}}'
     '{{flutter}}/bin/flutter' precache --web
 
-# Builds the Cupertino host against the existing engine and storage services.
-web-flutter-build: engine-module
+# Builds the Flutter web app against the engine and storage services.
+web-build: engine-module
     mkdir -p hosts/web/src/engine/wasm
     cp {{build}}/web/engine.* {{build}}/web/engine_test.* hosts/web/src/engine/wasm/
     just _flutter-host
@@ -34,7 +34,7 @@ _flutter-host: _flutter-sdk
     mkdir -p hosts/web/flutter/generated_fonts
     cp .ci/fonts/*.ttf hosts/web/flutter/generated_fonts/
     cd hosts/web && bunx tsc -b && bunx --bun vite build --config vite.flutter.config.ts
-    cd hosts/web/flutter && '{{flutter}}/bin/flutter' pub get --enforce-lockfile && '{{flutter}}/bin/flutter' build web --base-href /math-notes/flutter/ --no-web-resources-cdn
+    cd hosts/web/flutter && '{{flutter}}/bin/flutter' pub get --enforce-lockfile && '{{flutter}}/bin/flutter' build web --base-href /math-notes/ --no-web-resources-cdn
     rsync -a --delete hosts/web/flutter/build/bridge/ hosts/web/flutter/build/web/bridge/
     bun hosts/web/build-tikz.mjs
     cd hosts/web && bun flutter-cache.mjs
@@ -103,17 +103,9 @@ web-engine-test: engine-module
     cp {{build}}/web/engine.* {{build}}/web/engine_test.* hosts/web/src/engine/wasm/
     cd hosts/web && bunx tsc -b && node --test src/engine/engine.test.ts
 
-# The web app in hosts/web/dist, with the engine module.
-web-build: engine-module
-    mkdir -p hosts/web/src/engine/wasm
-    cp {{build}}/web/engine.* {{build}}/web/engine_test.* hosts/web/src/engine/wasm/
-    cd hosts/web && bunx tsc -b && bunx --bun vite build
-
-# Builds both web hosts and copies them to /var/www/math-notes (served at http://localhost/math-notes/, README).
-web-deploy: web-build web-flutter-build
-    rsync -a --delete --exclude /flutter/ hosts/web/dist/ /var/www/math-notes/
-    mkdir -p /var/www/math-notes/flutter
-    rsync -a --delete hosts/web/flutter/build/web/ /var/www/math-notes/flutter/
+# Builds the web app and copies it to /var/www/math-notes (served at http://localhost/math-notes/, README).
+web-deploy: web-build
+    rsync -a --delete hosts/web/flutter/build/web/ /var/www/math-notes/
 
 # Vitest Browser Mode in Chromium, then Playwright against the deployment.
 web-test: web-deploy
@@ -159,8 +151,3 @@ write-fixtures:
     done
     # replay every case; upstream-test<N> cases are also compared with Write's test<N>_ref.html
     (cd "$W/syncscribble" && WRITE_REPLAY_DIR="$F" WRITE_REPLAY_TMP="$tmp/replay" run --replaytest)
-
-# Rewrites docs/specs/ui/screenshots: the library, New Notebook, New Note and editor
-# screens of the deployment at 1366 × 1024, for review against the mockups.
-screenshots: web-deploy
-    cd hosts/web && bun e2e/screenshots.ts
