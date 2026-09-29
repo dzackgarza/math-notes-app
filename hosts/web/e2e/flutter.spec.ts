@@ -638,6 +638,67 @@ test("Flutter recolors a lasso selection from the palette and keeps the pen colo
   expect(fills).toEqual(["#D92D39", "#1A1A1A"]);
 });
 
+test("Flutter pen color and width changes affect only later strokes", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.goto("?root=opfs");
+  await beginTestNote(page, "Pen settings");
+  await page.getByRole("button", { name: "Create Note", exact: true }).click();
+  const canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
+  await canvas.waitFor({ timeout: 30_000 });
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Notebook canvas has no bounds");
+  const cdp = await page.context().newCDPSession(page);
+  const draw = async (y: number) => {
+    const pen = { pointerType: "pen" as const, force: 0.6, tiltX: 20, tiltY: -10 };
+    await cdp.send("Input.dispatchMouseEvent", {
+      type: "mousePressed", button: "left", clickCount: 1, x: box.x + 140, y, ...pen,
+    });
+    await cdp.send("Input.dispatchMouseEvent", {
+      type: "mouseMoved", button: "left", buttons: 1, x: box.x + 240, y, ...pen,
+    });
+    await cdp.send("Input.dispatchMouseEvent", {
+      type: "mouseReleased", button: "left", clickCount: 1, x: box.x + 240, y, ...pen,
+    });
+  };
+
+  await draw(box.y + 180);
+  await page.getByRole("button", { name: "Pen", exact: true }).click();
+  await page.getByRole("button", { name: "3.6 pt", exact: true }).click();
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("Page has no viewport");
+  await page.mouse.click(viewport.width - 20, viewport.height - 20);
+  await page.getByRole("button", { name: "Color #d92d39", exact: true }).click();
+  await expect.poll(() => page.evaluate(async () => {
+    try {
+      const root = await navigator.storage.getDirectory();
+      const pens = JSON.parse(await (await (await root.getFileHandle(".pens.json")).getFile()).text());
+      return { size: pens.pen.size, color: pens.pen.color };
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "NotFoundError") return null;
+      throw error;
+    }
+  })).toEqual({ size: 3.6, color: "#D92D39" });
+
+  await draw(box.y + 260);
+  await save(page);
+  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  const strokes = await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    const notebook = await root.getDirectoryHandle("Test Notebook");
+    const pages = await (await notebook.getDirectoryHandle("Pen settings")).getDirectoryHandle("pages");
+    const svg = await (await (await pages.getFileHandle("0001.svg")).getFile()).text();
+    const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
+    return [...doc.querySelectorAll('path[id^="s-"]')].map((path) => ({
+      fill: path.getAttribute("fill"),
+      size: Number(path.getAttribute("mn:size")),
+    }));
+  });
+  expect(strokes).toEqual([
+    { fill: "#1A1A1A", size: 1.2 },
+    { fill: "#D92D39", size: 3.6 },
+  ]);
+});
+
 test("Flutter notebook retains pen input and pages after save and reopen", async ({ page }, info) => {
   test.setTimeout(120_000);
   await page.goto("version.json");
