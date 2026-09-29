@@ -13,9 +13,10 @@ import 'data/notes_folder.dart';
 import 'data/open_notes.dart';
 import 'errors.dart';
 import 'host.dart' as native;
-import 'notebook.dart';
 import 'ui/library/library_screen.dart';
 import 'ui/library/library_view_model.dart';
+import 'ui/editor/tools_view_model.dart';
+import 'ui/theme.dart';
 import 'ui/workspace/workspace_screen.dart';
 
 void main() {
@@ -49,6 +50,7 @@ class MathNotes extends StatelessWidget {
     providers: [
       ChangeNotifierProvider(create: (_) => Activity()),
       ChangeNotifierProvider(create: (_) => NotesFolder()),
+      ChangeNotifierProvider(create: (_) => ToolsViewModel()),
       ChangeNotifierProvider(
         create: (context) => OpenNotes(context.read<NotesFolder>()),
       ),

@@ -11,7 +11,9 @@ import '../../bookmarks_sheet.dart';
 import '../../data/notes_folder.dart';
 import '../../data/open_notes.dart';
 import '../../host.dart' as native;
-import '../../notebook.dart';
+import '../editor/editor_screen.dart';
+import '../editor/editor_view_model.dart';
+import '../theme.dart';
 import '../notes_ui.dart';
 
 // The editing workspace: the tab bar and one or two panes of open notes.
@@ -93,22 +95,26 @@ class WorkspaceScreen extends StatelessWidget {
       Key? key,
       required bool linked,
       required bool active,
-    }) => Notebook(
+    }) => ChangeNotifierProvider(
       key: key,
-      note: note,
-      destination: session.destination,
-      workspaceMenu: workspaceMenu,
-      onFollowLink: (href, page) => session.followLink(note, href, page),
-      onChooseNotebookLink: (page) => chooseNotebookLink(note, page),
-      viewport: session.viewport,
-      linked: linked,
-      engine: folder.engine!,
-      active: active,
-      onCaptureChanged: (value) =>
-          session.setCapture(native.pathKey(note.path), value),
-      onLibrary: () => run(session.showLibrary),
-      onConflicts: () =>
-          run(() => reviewConflicts(context, folder, session, note)),
+      create: (_) => EditorViewModel(note),
+      child: EditorScreen(
+        key: key,
+        note: note,
+        destination: session.destination,
+        workspaceMenu: workspaceMenu,
+        onFollowLink: (href, page) => session.followLink(note, href, page),
+        onChooseNotebookLink: (page) => chooseNotebookLink(note, page),
+        viewport: session.viewport,
+        linked: linked,
+        engine: folder.engine!,
+        active: active,
+        onCaptureChanged: (value) =>
+            session.setCapture(native.pathKey(note.path), value),
+        onLibrary: () => run(session.showLibrary),
+        onConflicts: () =>
+            run(() => reviewConflicts(context, folder, session, note)),
+      ),
     );
 
     final opened = session.opened;

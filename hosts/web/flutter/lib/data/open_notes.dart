@@ -6,8 +6,10 @@ import 'package:web/web.dart' as web;
 
 import '../activity.dart';
 import '../host.dart' as native;
-import '../notebook.dart';
 import 'notes_folder.dart';
+
+typedef NotebookViewport = ({double scale, double x, double y, double scroll});
+typedef NoteDestination = ({String noteKey, String file, String id});
 
 // The repository for the editing session: the open notes as tabs, the split
 // view, and the notes with a drawing capture in progress. Each open note owns
