@@ -17,6 +17,21 @@ async function save(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Save", exact: true }).click();
 }
 
+// A read of a saved file while the app may be saving it again. `getFile()`
+// snapshots the file, and Chromium refuses the snapshot with NotReadableError
+// once the app's writable stream has swapped a new file in (storage/browser/
+// blob/blob_reader.cc compares the modification time). The next read opens
+// the new file.
+async function whenSaved<T>(read: () => Promise<T>): Promise<T> {
+  for (;;) {
+    try {
+      return await read();
+    } catch (error) {
+      if (!(error instanceof Error && error.message.includes("NotReadableError"))) throw error;
+    }
+  }
+}
+
 async function addTag(page: Page, tag: string): Promise<void> {
   await enterText(page.getByRole("textbox", { name: "Add a tag…", exact: true }), tag);
   await page.getByRole("button", { name: "Add tag", exact: true }).click();
@@ -772,7 +787,7 @@ test("Flutter partial and whole-stroke erases each undo and redo", async ({ page
       x: box.x + to[0], y: box.y + to[1], ...pen,
     });
   };
-  const savedStrokeCount = () => page.evaluate(async () => {
+  const savedStrokeCount = () => whenSaved(() => page.evaluate(async () => {
     try {
       const root = await navigator.storage.getDirectory();
       const notebook = await root.getDirectoryHandle("Test Notebook");
@@ -783,7 +798,7 @@ test("Flutter partial and whole-stroke erases each undo and redo", async ({ page
       if (error instanceof DOMException && error.name === "NotFoundError") return -1;
       throw error;
     }
-  });
+  }));
   const expectStrokes = async (count: number) => {
     await expect.poll(savedStrokeCount, { timeout: 8_000 }).toBe(count);
   };
@@ -2172,7 +2187,7 @@ test("Flutter pen color and width changes affect only later strokes", async ({ p
   if (!viewport) throw new Error("Page has no viewport");
   await page.mouse.click(viewport.width - 20, viewport.height - 20);
   await page.getByRole("button", { name: "Color #d92d39", exact: true }).click();
-  await expect.poll(() => page.evaluate(async () => {
+  await expect.poll(() => whenSaved(() => page.evaluate(async () => {
     try {
       const root = await navigator.storage.getDirectory();
       const pens = JSON.parse(await (await (await root.getFileHandle(".pens.json")).getFile()).text());
@@ -2181,7 +2196,7 @@ test("Flutter pen color and width changes affect only later strokes", async ({ p
       if (error instanceof DOMException && error.name === "NotFoundError") return null;
       throw error;
     }
-  })).toEqual({ size: 3.6, color: "#D92D39" });
+  }))).toEqual({ size: 3.6, color: "#D92D39" });
 
   await draw(box.y + 260);
   await save(page);
@@ -2294,13 +2309,13 @@ test("Flutter notebook retains pen input and pages after save and reopen", async
   await enterText(page.getByRole("textbox", { name: "Text", exact: true }), "Lemma\nEvery basis spans the space.");
   await page.getByRole("button", { name: "Done", exact: true }).click();
   await save(page);
-  await expect.poll(() => page.evaluate(async () => {
+  await expect.poll(() => whenSaved(() => page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
     const notebook = await root.getDirectoryHandle("Test Notebook");
     const dir = await notebook.getDirectoryHandle("Lecture");
     const pages = await dir.getDirectoryHandle("pages");
     return (await (await pages.getFileHandle("0001.svg")).getFile()).text();
-  })).toContain("Every basis spans the space.");
+  }))).toContain("Every basis spans the space.");
   await page.getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("button", { name: "Export PDF", exact: true }).click();
   const exported = page.waitForEvent("download");
@@ -2331,11 +2346,11 @@ test("Flutter notebook retains pen input and pages after save and reopen", async
   await page.getByText("Favorites", { exact: true }).click();
   await expect(page.getByRole("button", { name: "Open Lecture", exact: false })).toBeVisible();
   await expect(page.getByRole("button", { name: "Open Exercises", exact: false })).not.toBeVisible();
-  await expect.poll(() => page.evaluate(async () => {
+  await expect.poll(() => whenSaved(() => page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
     const metadata = JSON.parse(await (await (await root.getFileHandle(".library.json")).getFile()).text());
     return metadata.notes["Test Notebook/Lecture"]?.favorite;
-  })).toBe(true);
+  }))).toBe(true);
   await page.context().setOffline(true);
   await page.reload();
   await openTestNotebook(page);
@@ -2485,7 +2500,7 @@ test("Flutter two-page layout puts pen input on the right page and shares a PDF"
 // The pages in the files of a note, in document order: the file of each page,
 // its SVG size, and its stroke count.
 function storedPages(page: Page, title: string, notebook = "Test Notebook") {
-  return page.evaluate(async ({ title, notebook }) => {
+  return whenSaved(() => page.evaluate(async ({ title, notebook }) => {
     const root = await navigator.storage.getDirectory();
     const dir = await (await root.getDirectoryHandle(notebook)).getDirectoryHandle(title);
     const manifest = JSON.parse(await (await (await dir.getFileHandle("notebook.json")).getFile()).text());
@@ -2503,7 +2518,7 @@ function storedPages(page: Page, title: string, notebook = "Test Notebook") {
       });
     }
     return saved;
-  }, { title, notebook });
+  }, { title, notebook }));
 }
 
 async function savedPages(page: Page, title: string, notebook = "Test Notebook") {
