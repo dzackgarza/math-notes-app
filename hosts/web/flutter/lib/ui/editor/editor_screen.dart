@@ -73,7 +73,7 @@ class _EditorScreenState extends State<EditorScreen>
   final scroll = ScrollController();
   final focus = FocusNode();
   bool applyingViewport = false;
-  final transform = TransformationController();
+  final transform = PageTransform();
   final element = web.HTMLCanvasElement();
   late final Ticker ticker;
   late final String viewType;
@@ -1185,6 +1185,11 @@ class _EditorScreenState extends State<EditorScreen>
                                         onPointerMove: input,
                                         onPointerUp: input,
                                         onPointerCancel: input,
+                                        // A signal reaches the listener in
+                                        // the viewer, then the viewer, then
+                                        // this listener.
+                                        onPointerSignal: (event) =>
+                                            transform.held = false,
                                         child: GestureDetector(
                                           onTapUp: tool == 'navigate'
                                               ? (details) => run(
@@ -1214,74 +1219,80 @@ class _EditorScreenState extends State<EditorScreen>
                                             onInteractionUpdate: fingerDraws
                                                 ? fingerPan
                                                 : null,
-                                            child: ScrollConfiguration(
-                                              behavior:
-                                                  const CupertinoScrollBehavior()
-                                                      .copyWith(
-                                                        dragDevices: {
-                                                          if (!fingerDraws)
+                                            child: Listener(
+                                              onPointerSignal: (event) =>
+                                                  transform.held =
+                                                      event
+                                                          is PointerScrollEvent,
+                                              child: ScrollConfiguration(
+                                                behavior:
+                                                    const CupertinoScrollBehavior()
+                                                        .copyWith(
+                                                          dragDevices: {
+                                                            if (!fingerDraws)
+                                                              PointerDeviceKind
+                                                                  .touch,
                                                             PointerDeviceKind
-                                                                .touch,
-                                                          PointerDeviceKind
-                                                              .trackpad,
-                                                        },
-                                                      ),
-                                              child: RawGestureDetector(
-                                                gestures: {
-                                                  if (tool != 'navigate' &&
-                                                      tool != 'text' &&
-                                                      tool != 'bookmark')
-                                                    EagerGestureRecognizer:
-                                                        GestureRecognizerFactoryWithHandlers<
-                                                          EagerGestureRecognizer
-                                                        >(
-                                                          () => EagerGestureRecognizer(
-                                                            supportedDevices: {
-                                                              PointerDeviceKind
-                                                                  .stylus,
-                                                              PointerDeviceKind
-                                                                  .invertedStylus,
-                                                            },
-                                                          ),
-                                                          (instance) {},
+                                                                .trackpad,
+                                                          },
                                                         ),
-                                                  if (tool != 'navigate' &&
-                                                      tool != 'text' &&
-                                                      tool != 'bookmark')
-                                                    PalmRejection:
-                                                        GestureRecognizerFactoryWithHandlers<
-                                                          PalmRejection
-                                                        >(
-                                                          () => PalmRejection(
-                                                            () => strokes
-                                                                .isNotEmpty,
+                                                child: RawGestureDetector(
+                                                  gestures: {
+                                                    if (tool != 'navigate' &&
+                                                        tool != 'text' &&
+                                                        tool != 'bookmark')
+                                                      EagerGestureRecognizer:
+                                                          GestureRecognizerFactoryWithHandlers<
+                                                            EagerGestureRecognizer
+                                                          >(
+                                                            () => EagerGestureRecognizer(
+                                                              supportedDevices: {
+                                                                PointerDeviceKind
+                                                                    .stylus,
+                                                                PointerDeviceKind
+                                                                    .invertedStylus,
+                                                              },
+                                                            ),
+                                                            (instance) {},
                                                           ),
-                                                          (instance) {},
+                                                    if (tool != 'navigate' &&
+                                                        tool != 'text' &&
+                                                        tool != 'bookmark')
+                                                      PalmRejection:
+                                                          GestureRecognizerFactoryWithHandlers<
+                                                            PalmRejection
+                                                          >(
+                                                            () => PalmRejection(
+                                                              () => strokes
+                                                                  .isNotEmpty,
+                                                            ),
+                                                            (instance) {},
+                                                          ),
+                                                  },
+                                                  child: SingleChildScrollView(
+                                                    controller: scroll,
+                                                    scrollDirection: horizontal
+                                                        ? Axis.horizontal
+                                                        : Axis.vertical,
+                                                    physics:
+                                                        const BouncingScrollPhysics(
+                                                          parent:
+                                                              AlwaysScrollableScrollPhysics(),
                                                         ),
-                                                },
-                                                child: SingleChildScrollView(
-                                                  controller: scroll,
-                                                  scrollDirection: horizontal
-                                                      ? Axis.horizontal
-                                                      : Axis.vertical,
-                                                  physics:
-                                                      const BouncingScrollPhysics(
-                                                        parent:
-                                                            AlwaysScrollableScrollPhysics(),
-                                                      ),
-                                                  child: SizedBox(
-                                                    width: horizontal
-                                                        ? widget.note.document
-                                                                  .contentSize()
-                                                                  .width *
-                                                              fit
-                                                        : width,
-                                                    height: horizontal
-                                                        ? height
-                                                        : widget.note.document
-                                                                  .contentSize()
-                                                                  .height *
-                                                              fit,
+                                                    child: SizedBox(
+                                                      width: horizontal
+                                                          ? widget.note.document
+                                                                    .contentSize()
+                                                                    .width *
+                                                                fit
+                                                          : width,
+                                                      height: horizontal
+                                                          ? height
+                                                          : widget.note.document
+                                                                    .contentSize()
+                                                                    .height *
+                                                                fit,
+                                                    ),
                                                   ),
                                                 ),
                                               ),

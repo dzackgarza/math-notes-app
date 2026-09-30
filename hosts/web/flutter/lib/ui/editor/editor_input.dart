@@ -1,6 +1,24 @@
 import 'dart:async';
 
 import 'package:flutter/gestures.dart';
+import 'package:flutter/widgets.dart';
+
+/// The page transform of an InteractiveViewer that the mouse wheel does not
+/// scale. InteractiveViewer scales on each PointerScrollEvent and has no
+/// parameter for it, while the scroll view under it scrolls on the same
+/// event. The editor sets [held] while such an event passes the viewer, so
+/// the wheel scrolls only. Ctrl with the wheel arrives as a
+/// PointerScaleEvent on web and zooms. The rule is that of Saber's
+/// InteractiveViewer fork (`_receivedPointerSignal` in
+/// lib/components/canvas/interactive_canvas.dart).
+class PageTransform extends TransformationController {
+  bool held = false;
+
+  @override
+  set value(Matrix4 next) {
+    if (!held) super.value = next;
+  }
+}
 
 class SelectionTransfer {
   const SelectionTransfer(this.read);
