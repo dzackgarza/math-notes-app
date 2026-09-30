@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type CDPSession, type Locator, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 
@@ -911,6 +911,92 @@ test("Flutter recolors a lasso selection from the palette and keeps the pen colo
     return [...svg.matchAll(/<path id="s-[^"]*"[^>]* fill="(#[0-9A-F]{6})"/g)].map((match) => match[1]);
   });
   expect(fills).toEqual(["#D92D39", "#1A1A1A"]);
+});
+
+type Box = { x: number; y: number; width: number; height: number };
+type PenPoint = { x: number; y: number };
+
+// One CDP pen stroke through the points, at one pressure.
+async function penStroke(cdp: CDPSession, points: PenPoint[], force: number): Promise<void> {
+  const pen = { pointerType: "pen" as const, force, tiltX: 20, tiltY: -10 };
+  const [first, ...rest] = points;
+  const last = points[points.length - 1];
+  await cdp.send("Input.dispatchMouseEvent", {
+    type: "mousePressed", button: "left", clickCount: 1, ...first, ...pen,
+  });
+  for (const point of rest) {
+    await cdp.send("Input.dispatchMouseEvent", {
+      type: "mouseMoved", button: "left", buttons: 1, ...point, ...pen,
+    });
+  }
+  await cdp.send("Input.dispatchMouseEvent", {
+    type: "mouseReleased", button: "left", clickCount: 1, ...last, ...pen,
+  });
+}
+
+function line(x0: number, x1: number, y: number, steps = 10): PenPoint[] {
+  return Array.from({ length: steps + 1 }, (_, i) => ({ x: x0 + ((x1 - x0) * i) / steps, y }));
+}
+
+type Rgb = [number, number, number];
+
+// The on-screen pixels of the 9 × 9 square around a point, row by row, from a
+// clipped capture: a full-viewport capture can show the WebGL canvas
+// displaced (TRAPS.md).
+async function screenPixels(page: Page, center: PenPoint): Promise<Rgb[]> {
+  const png = await page.screenshot({ clip: { x: center.x - 4, y: center.y - 4, width: 9, height: 9 } });
+  return page.evaluate(async (base64) => {
+    const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    const bitmap = await createImageBitmap(new Blob([bytes], { type: "image/png" }));
+    const context = new OffscreenCanvas(bitmap.width, bitmap.height).getContext("2d");
+    if (!context) throw new Error("No 2D context");
+    context.drawImage(bitmap, 0, 0);
+    const data = context.getImageData(0, 0, bitmap.width, bitmap.height).data;
+    return Array.from({ length: data.length / 4 }, (_, i): [number, number, number] =>
+      [data[4 * i], data[4 * i + 1], data[4 * i + 2]]);
+  }, png.toString("base64"));
+}
+
+const brightness = (rgb: Rgb) => rgb[0] + rgb[1] + rgb[2];
+
+async function darkestPixel(page: Page, center: PenPoint): Promise<Rgb> {
+  const pixels = await screenPixels(page, center);
+  return pixels.reduce((darkest, rgb) => (brightness(rgb) < brightness(darkest) ? rgb : darkest));
+}
+
+async function centerPixel(page: Page, center: PenPoint): Promise<Rgb> {
+  return (await screenPixels(page, center))[40];
+}
+
+async function openNewNote(page: Page, title: string): Promise<{ box: Box; cdp: CDPSession }> {
+  await page.goto("?root=opfs");
+  await beginTestNote(page, title);
+  await page.getByRole("button", { name: "Create Note", exact: true }).click();
+  const canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
+  await canvas.waitFor({ timeout: 30_000 });
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Notebook canvas has no bounds");
+  return { box, cdp: await page.context().newCDPSession(page) };
+}
+
+test("Flutter highlighting handwriting leaves the handwriting dark", async ({ page }, info) => {
+  test.setTimeout(60_000);
+  const { box, cdp } = await openNewNote(page, "Highlight");
+  const y = box.y + 200;
+  await penStroke(cdp, line(box.x + 140, box.x + 340, y), 0.6);
+  const plainInk = await darkestPixel(page, { x: box.x + 180, y });
+  const x = box.x + 280;
+  const paper = await centerPixel(page, { x, y: y - 25 });
+
+  await page.getByRole("button", { name: "Highlighter", exact: true }).click();
+  await penStroke(cdp, [{ x, y: y - 40 }, { x, y: y - 20 }, { x, y }, { x, y: y + 20 }, { x, y: y + 40 }], 0.6);
+  await page.screenshot({ path: info.outputPath("highlighted.png") });
+
+  // The highlight tints the bare paper, and the handwriting it crosses keeps its own color.
+  const highlight = await centerPixel(page, { x, y: y - 25 });
+  expect(brightness(paper) - brightness(highlight)).toBeGreaterThan(30);
+  const crossing = await darkestPixel(page, { x, y });
+  for (const channel of [0, 1, 2]) expect(Math.abs(crossing[channel] - plainInk[channel])).toBeLessThan(24);
 });
 
 test("Flutter pen color and width changes affect only later strokes", async ({ page }) => {
