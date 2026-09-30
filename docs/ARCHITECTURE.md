@@ -10,7 +10,8 @@ ink, and rendering core. The [adopted framework decision](reports/Web%20interfac
 records alternatives and integration evidence. [#56](https://github.com/dzackgarza/math-notes-app/issues/56)
 owns the web host transition and deployed acceptance.
 The [Write assessment](ink-reflow-owners.md) is input to a post-v1 refactoring
-decision, after the product works on both hosts.
+decision. [Targets and versions](../AGENTS.md#targets-and-versions) gives the
+order: v1 is the web app, v2 is the iPad port.
 
 Earlier architecture sketches listed candidate libraries for ink, text, SVG,
 PDF, indexing, sync, and recognition. They were options to test, not required
@@ -40,8 +41,8 @@ Work order and milestones: the GitHub issue tree rooted at
 
 | Host | Role |
 | --- | --- |
-| Web (WASM, PWA) | Built first. The product on Linux, Windows, and macOS, in desktop Chrome. |
-| iPadOS (UIKit) | Built second. Native notebook canvas and navigation. A bounded `WKWebView` hosts only the shared TikZ figure editor. UIKit owns Pencil double tap, Pencil Pro squeeze and barrel roll, hover pose, haptics, and the input-to-display path for note ink. |
+| Web (WASM, PWA) | v1. The product in Chrome on Linux. |
+| iPadOS (UIKit) | v2. A port of the finished web app on the same core. Native notebook canvas and navigation. A bounded `WKWebView` hosts only the shared TikZ figure editor. UIKit owns Pencil double tap, Pencil Pro squeeze and barrel roll, hover pose, haptics, and the input-to-display path for note ink. |
 
 ## Engine integration
 

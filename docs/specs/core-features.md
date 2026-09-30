@@ -68,8 +68,8 @@ split view, conflict comparison, insert space, ruled select and erase and
 cross-page reflow (Write), and TikZ skeleton extraction. They receive no work
 until L0 and L1 are complete.
 
-Absent L2 features: zoom window, double-tap zoom, shape tool, return to the
-previous tool after erasing, erase highlighter only, page rotate, image export.
+Absent L2 features: double-tap zoom, shape tool, return to the previous tool
+after erasing, erase highlighter only, page rotate, image export.
 
 ## Reference implementation
 

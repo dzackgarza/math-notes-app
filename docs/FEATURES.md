@@ -67,5 +67,6 @@ These define the app. New features must not break them.
 
 ## Out of scope
 
-Managed cloud sync, account libraries, AI summarization and chat, flashcards,
-sticker and template stores, real-time collaboration.
+Sync between devices by the app, managed cloud sync, account libraries, a
+zoom window (the magnified writing strip of Noteful), AI summarization and
+chat, flashcards, sticker and template stores, real-time collaboration.

@@ -26,6 +26,26 @@ These are permanent product boundaries, not features deferred beyond v1.
 Dependency capabilities and agent-written surveys cannot expand them. Read
 the [TikZ contract](docs/specs/tikz-drawing-mode.md) before figure work.
 
+## Targets and versions
+
+Math Notes has two targets: the web app in Chrome on Linux, and the iPad app.
+On the iPad the user runs the iPad app, not the web app. No other browser,
+operating system, or device is a requirement.
+
+| Version | Product | Rule |
+| --- | --- | --- |
+| v1 | The polished web app | Each feature reaches its final form in the shared core and the web host. A defect or a missing feature in the web app is v1-critical work. |
+| v2 | The iPad app | A faithful port of the v1 web app that shares as much of the core as possible. It starts after v1. |
+
+The iPad host gets no work during v1: while features still change, a second
+host makes each repair two repairs. An acceptance item that names the iPad
+host is v2 work and does not keep a v1 work unit open.
+
+Tests are E2E workflows that simulate pen and touch input as closely as the
+browser permits. Use with a real stylus is user testing: the user does it as
+a v1 gate, and no test or agent report stands in for it. It is never a gap,
+an unproven part, or remaining work in an agent's report.
+
 Priority: the MVP. [Core features](docs/specs/core-features.md) layers the standard feature set of handwriting apps. The MVP is complete when end-to-end workflows that exercise the full range of each L0 and L1 feature pass in the deployed app. The range of a feature includes each screen, sheet, and menu that the [tablet interface](docs/specs/tablet-ui.md) gives it. "Exists" in the feature table is a claim; the workflow is the proof. The MVP precedes L2 and L3 features, handoff phases B to G, tests of internals, and release administration.
 
 MVP work is the open checklist items on #56: a feature row with no workflow, or a part of a feature that its workflow does not reach. A workflow that fails means a feature fix in the same work unit.
@@ -34,7 +54,7 @@ Work plan: the GitHub issue tree rooted at #11, one milestone per sub-issue. `uv
 
 Implementation ownership: read [docs/ARCHITECTURE.md#component-ownership](docs/ARCHITECTURE.md#component-ownership) before changing a plan or implementation. Standard application behavior belongs to a mature framework or platform API, including scroll physics and edge motion; a missing standard detail is evidence to check the owner, not a custom feature request. Writing and editing notebook ink are reasonable app responsibilities. For a new domain capability, first seek a dependency that owns the whole problem, then a reference implementation. Only necessary residue with neither may use new ungrounded code. A new subsystem or expanded core boundary needs a linked decision with actual dependency searches, candidate evidence, the exact integration gap, and explicit user approval. Evaluate complete frameworks, SDKs, and forks, including large dependencies. An existing working domain capability does not require replacement merely because a broader dependency exists.
 
-The v1 plan in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) uses the current Math Notes document and editing engine, Google Ink, Skia, Flutter with Cupertino for the complete web GUI, UIKit for the independent iPad GUI, and the TikZ drawing interpretation and source-copy workflow defined in [docs/specs/tikz-drawing-mode.md](docs/specs/tikz-drawing-mode.md). The hosts share the existing C++ core. Issue #56 owns the Flutter web host transition; the adopted decision is [docs/reports/Web interface framework selection.md](docs/reports/Web%20interface%20framework%20selection.md). Assessing Write as a possible ink-engine owner is a post-v1 refactoring task. Write source and fixtures remain reference material for specific behavior.
+The v1 plan in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) uses the current Math Notes document and editing engine, Google Ink, Skia, Flutter with Cupertino for the complete web GUI, and the TikZ drawing interpretation and source-copy workflow defined in [docs/specs/tikz-drawing-mode.md](docs/specs/tikz-drawing-mode.md). The v2 iPad host uses UIKit on the same C++ core. Issue #56 owns the Flutter web host transition; the adopted decision is [docs/reports/Web interface framework selection.md](docs/reports/Web%20interface%20framework%20selection.md). Assessing Write as a possible ink-engine owner is a post-v1 refactoring task. Write source and fixtures remain reference material for specific behavior.
 
 Invariants:
 - The IPA's `CFBundleShortVersionString`, `CFBundleVersion`, `CFBundleIdentifier`, and byte size must equal the `source.json` entry. The workflow checks all of these before and after publishing; keep those checks when editing it.
