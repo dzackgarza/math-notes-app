@@ -42,14 +42,48 @@ class _LibraryScreenState extends State<LibraryScreen> {
     super.dispose();
   }
 
-  Future<void> noteActions(native.Note note) async {
-    final action = await chooseNoteAction(
-      context,
-      note,
-      inTrash: vm.filter == 'trash',
-      favorite: folder.noteMetadata(note).favorite,
-    );
-    if (action == null || !mounted) return;
+  List<PullDownMenuEntry> actionItems(
+    List<(String, String)> actions,
+    Future<void> Function(String) act,
+  ) => [
+    for (final (action, title) in actions)
+      PullDownMenuItem(
+        title: title,
+        isDestructive: action == 'trash',
+        onTap: () => run(() => act(action)),
+      ),
+  ];
+
+  List<PullDownMenuEntry> noteMenu(native.Note note) => actionItems(
+    vm.filter == 'trash'
+        ? const [('restore', 'Restore')]
+        : [
+            if (note.conflicts > 0)
+              ('conflicts', 'Compare conflicting versions'),
+            (
+              'favorite',
+              folder.noteMetadata(note).favorite
+                  ? 'Remove favorite'
+                  : 'Add favorite',
+            ),
+            ('details', 'Details and tags'),
+            ('rename', 'Rename'),
+            ('move', 'Move'),
+            ('trash', 'Move to trash'),
+          ],
+    (action) => noteAction(note, action),
+  );
+
+  List<PullDownMenuEntry> folderMenu(native.Folder item) => actionItems([
+    ('details', 'Details and tags'),
+    if (item.path.length > 0) ...const [
+      ('rename', 'Rename'),
+      ('move', 'Move'),
+      ('trash', 'Move to trash'),
+    ],
+  ], (action) => folderAction(item, action));
+
+  Future<void> noteAction(native.Note note, String action) async {
     switch (action) {
       case 'favorite':
         await vm.toggleFavorite(note);
@@ -66,9 +100,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
   }
 
-  Future<void> folderActions(native.Folder item) async {
-    final action = await chooseFolderAction(context, item);
-    if (action == null || !mounted) return;
+  Future<void> folderAction(native.Folder item, String action) async {
     if (action != 'details') return relocate(item.path, action);
     final values = folder.folderMetadata(item.path);
     if (await editFolderDetails(context, '${item.name} details', values))
@@ -146,27 +178,38 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Iterable<String> tagNames(JSArray<JSString> tags) =>
       tags.toDart.map((tag) => tag.toDart);
 
-  Widget actionsButton(String label, Future<void> Function() actions) =>
-      CupertinoButton(
-        padding: EdgeInsets.zero,
-        minimumSize: const Size(32, 32),
-        onPressed: () => run(actions),
-        child: Semantics(
-          label: label,
-          child: const Icon(CupertinoIcons.ellipsis_circle),
-        ),
-      );
+  Widget actionsButton(
+    String label,
+    List<PullDownMenuEntry> Function() items,
+  ) => PullDownButton(
+    itemBuilder: (_) => items(),
+    buttonBuilder: (context, showMenu) => CupertinoButton(
+      padding: EdgeInsets.zero,
+      minimumSize: const Size(32, 32),
+      onPressed: showMenu,
+      child: Semantics(
+        label: label,
+        child: const Icon(CupertinoIcons.ellipsis_circle),
+      ),
+    ),
+  );
 
-  // The whole card or row is one tap target.
-  Widget tappable(String label, VoidCallback onTap, Widget child) => Semantics(
+  // The whole card or row is one tap target. `onTap` receives its context.
+  Widget tappable(
+    String label,
+    void Function(BuildContext) onTap,
+    Widget child,
+  ) => Semantics(
     label: label,
     button: true,
     child: MouseRegion(
       cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: child,
+      child: Builder(
+        builder: (context) => GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => onTap(context),
+          child: child,
+        ),
       ),
     ),
   );
@@ -216,7 +259,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     final secondary = CupertinoColors.secondaryLabel.resolveFrom(context);
     return tappable(
       'Open ${item.name}',
-      () => vm.showNotebook(item.path),
+      (_) => vm.showNotebook(item.path),
       Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -233,7 +276,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               ),
               actionsButton(
                 '${item.name} notebook actions',
-                () => folderActions(item),
+                () => folderMenu(item),
               ),
             ],
           ),
@@ -250,7 +293,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   Widget notebookRow(native.Folder item) => tappable(
     'Open ${item.name}',
-    () => vm.showNotebook(item.path),
+    (_) => vm.showNotebook(item.path),
     Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -278,17 +321,26 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ),
           actionsButton(
             '${item.name} notebook actions',
-            () => folderActions(item),
+            () => folderMenu(item),
           ),
         ],
       ),
     ),
   );
 
-  // A note in the trash opens its actions; any other note opens.
-  void tapNote(native.Note item) => run(
-    () => vm.filter == 'trash' ? noteActions(item) : session.open(item.path),
-  );
+  // A note in the trash shows its menu at the card; any other note opens.
+  void tapNote(BuildContext card, native.Note item) {
+    if (vm.filter != 'trash') {
+      run(() => session.open(item.path));
+      return;
+    }
+    final box = card.findRenderObject()! as RenderBox;
+    showPullDownMenu(
+      context: card,
+      items: noteMenu(item),
+      position: box.localToGlobal(Offset.zero) & box.size,
+    );
+  }
 
   Widget thumbnail(native.Note item) =>
       NoteThumbnail(engine: folder.engine!, root: folder.root!, note: item);
@@ -298,7 +350,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     final secondary = CupertinoColors.secondaryLabel.resolveFrom(context);
     return tappable(
       'Open ${item.name}',
-      () => tapNote(item),
+      (card) => tapNote(card, item),
       Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -319,7 +371,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),
-              actionsButton('${item.name} actions', () => noteActions(item)),
+              actionsButton('${item.name} actions', () => noteMenu(item)),
             ],
           ),
           Text(
@@ -336,7 +388,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   Widget noteRow(native.Note item, String? place) => tappable(
     'Open ${item.name}',
-    () => tapNote(item),
+    (card) => tapNote(card, item),
     Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -362,7 +414,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               ],
             ),
           ),
-          actionsButton('${item.name} actions', () => noteActions(item)),
+          actionsButton('${item.name} actions', () => noteMenu(item)),
         ],
       ),
     ),
@@ -618,6 +670,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   Widget sidebar() {
     final tags = vm.library.metadata.tags.toDart;
+    final secondary = CupertinoColors.secondaryLabel.resolveFrom(context);
     final items = [
       (
         label: 'Library',
@@ -677,9 +730,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
     return SizedBox(
       width: 210,
       child: DecoratedBox(
-        decoration: const BoxDecoration(
-          color: CupertinoColors.systemGroupedBackground,
-          border: Border(right: BorderSide(color: CupertinoColors.separator)),
+        decoration: BoxDecoration(
+          color: CupertinoTheme.of(context).barBackgroundColor,
+          border: Border(
+            right: BorderSide(
+              color: CupertinoColors.separator.resolveFrom(context),
+            ),
+          ),
         ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
@@ -717,14 +774,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     ),
                   ),
                 ),
-              const Padding(
-                padding: EdgeInsets.fromLTRB(12, 20, 12, 6),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 20, 12, 6),
                 child: Text(
                   'Tags',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: CupertinoColors.secondaryLabel,
+                    color: secondary,
                   ),
                 ),
               ),
@@ -756,9 +813,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                               Expanded(child: Text(tag.name)),
                               Text(
                                 '${vm.library.folders.toDart.expand((item) => item.notes.toDart).where((note) => folder.noteMetadata(note).tags.toDart.any((value) => value.toDart == tag.name)).length}',
-                                style: const TextStyle(
-                                  color: CupertinoColors.secondaryLabel,
-                                ),
+                                style: TextStyle(color: secondary),
                               ),
                             ],
                           ),
@@ -830,7 +885,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             if (connected && notebook != null)
               actionsButton(
                 '${notebook.name} notebook actions',
-                () => folderActions(notebook),
+                () => folderMenu(notebook),
               ),
           ],
         ),

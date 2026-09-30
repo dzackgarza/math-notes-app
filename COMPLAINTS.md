@@ -33,8 +33,3 @@ below a "Starting Template" heading.
 The **⋯** button of a notebook card or a note card opens an action sheet
 across the bottom of the screen. **Sort** and **Settings** open pull-down
 menus at their buttons. Required: **⋯** opens a pull-down menu at the button.
-
-## The toolbar shows through the page overview
-
-The editor toolbar is visible through the top of the **Pages** sheet.
-Required: the sheet hides the toolbar.
