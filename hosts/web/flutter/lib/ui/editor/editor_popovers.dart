@@ -353,7 +353,8 @@ extension _EditorPopovers on _EditorScreenState {
     if (save) await writePens(saved: [...savedPens, settings()]);
   }
 
-  // Writes .pens.json with the given parts replaced.
+  // Writes .pens.json with the given parts replaced. The editor takes the new
+  // settings before the write: the host writes files in call order.
   Future<void> writePens({
     native.ToolSettings? pen,
     native.ToolSettings? marker,
@@ -368,20 +369,22 @@ extension _EditorPopovers on _EditorScreenState {
       palette: [for (final color in palette ?? this.palette) color.toJS].toJS,
       saved: saved?.toJS ?? pens!.saved,
     );
-    await native.host.writePens(widget.note.root, widget.engine, next).toDart;
     pens = next;
+    await native.host.writePens(widget.note.root, widget.engine, next).toDart;
   }
 
   List<native.ToolSettings> get savedPens => pens?.saved.toDart ?? [];
 
-  // Replaces the selected drawing tool's settings; later strokes use them.
+  // Replaces the selected drawing tool's settings; the next stroke uses them,
+  // also while the file write is still in progress.
   Future<void> updatePen(native.ToolSettings settings) async {
-    await writePens(
+    final write = writePens(
       pen: pen == 'pen' ? settings : null,
       marker: pen == 'marker' ? settings : null,
       highlighter: pen == 'highlighter' ? settings : null,
     );
     chooseTool(pen);
+    await write;
   }
 
   Future<void> choosePenColor(int rgb) async {
