@@ -979,6 +979,30 @@ async function inkLength(page: Page, y: number, left: number, right: number): Pr
   return (await capture(page, { x: left, y, width: right - left, height: 1 })).filter(isInk).length;
 }
 
+type Bounds = { left: number; right: number; top: number; bottom: number };
+
+// The screen bounds of the pixels in a region that pass a test.
+async function pixelBounds(page: Page, region: Box, test: (rgb: Rgb) => boolean): Promise<Bounds> {
+  const pixels = await capture(page, region);
+  const bounds = { left: Infinity, right: -Infinity, top: Infinity, bottom: -Infinity };
+  pixels.forEach((rgb, i) => {
+    if (!test(rgb)) return;
+    const x = region.x + (i % region.width);
+    const y = region.y + Math.floor(i / region.width);
+    bounds.left = Math.min(bounds.left, x);
+    bounds.right = Math.max(bounds.right, x);
+    bounds.top = Math.min(bounds.top, y);
+    bounds.bottom = Math.max(bounds.bottom, y);
+  });
+  expect(bounds.left, "the region shows the pixels").toBeLessThanOrEqual(bounds.right);
+  return bounds;
+}
+
+const size = (bounds: Bounds) => ({ width: bounds.right - bounds.left, height: bounds.bottom - bounds.top });
+
+// The blue outline and round handles of a selection.
+const isOutline = ([red, , blue]: Rgb) => blue - red > 60;
+
 async function darkestPixel(page: Page, center: PenPoint): Promise<Rgb> {
   const pixels = await screenPixels(page, center);
   return pixels.reduce((darkest, rgb) => (brightness(rgb) < brightness(darkest) ? rgb : darkest));
@@ -1154,6 +1178,80 @@ test("Flutter rectangle and oval selections take the handwriting inside their sh
   await remove();
   await page.screenshot({ path: info.outputPath("oval.png") });
   expect(await inked()).toEqual([false, false, true, true]);
+});
+
+test("Flutter resizes a selection by its corner handles and duplicates it", async ({ page }, info) => {
+  test.setTimeout(150_000);
+  const { box, cdp } = await openNewNote(page, "Resize");
+  const region = { x: Math.round(box.x) + 150, y: Math.round(box.y) + 130, width: 600, height: 450 };
+  const ink = () => pixelBounds(page, region, isInk);
+  const lassoAround = (b: Bounds) =>
+    penStroke(cdp, [
+      { x: b.left - 30, y: b.top - 30 }, { x: b.right + 30, y: b.top - 30 },
+      { x: b.right + 30, y: b.bottom + 30 }, { x: b.left - 30, y: b.bottom + 30 },
+      { x: b.left - 30, y: b.top - 30 },
+    ], 0.6);
+  const drag = (from: PenPoint, dx: number, dy: number) =>
+    penStroke(cdp, [0, 0.25, 0.5, 0.75, 1].map((t) => ({ x: from.x + dx * t, y: from.y + dy * t })), 0.6);
+  // The selection rectangle around the handwriting `b`. The outline's
+  // bottom-right corner is 5 px inside its handle's edge; the rotate handle
+  // above the rectangle hides the outline's top.
+  const selectionRect = async (b: Bounds): Promise<Bounds> => {
+    const outline = await pixelBounds(page, region, isOutline);
+    const pad = outline.bottom - 5 - b.bottom;
+    return { left: b.left - pad, right: outline.right - 5, top: b.top - pad, bottom: outline.bottom - 5 };
+  };
+  const clear = () => page.getByRole("button", { name: "Clear selection", exact: true }).click();
+
+  // A slanted stroke, 80 px wide and 60 px high.
+  await drag({ x: box.x + 260, y: box.y + 230 }, 80, 60);
+  const written = await ink();
+  await page.getByRole("button", { name: "Lasso", exact: true }).click();
+
+  // The bottom-right handle keeps the aspect ratio.
+  await lassoAround(written);
+  const first = await selectionRect(written);
+  await drag({ x: first.right, y: first.bottom }, size(first).width, size(first).height);
+  await clear();
+  await page.screenshot({ path: info.outputPath("doubled.png") });
+  const doubled = await ink();
+  expect(size(doubled).width / size(written).width, "the handwriting is twice as wide").toBeCloseTo(2, 0);
+  expect(size(doubled).height / size(written).height, "the handwriting is twice as high").toBeCloseTo(2, 0);
+  expect(Math.abs(doubled.left - written.left), "the opposite corner stays in place").toBeLessThan(6);
+  expect(Math.abs(doubled.top - written.top), "the opposite corner stays in place").toBeLessThan(6);
+
+  // The other handles scale each direction on its own: a level drag of the
+  // top-right handle widens the handwriting at the same height.
+  await lassoAround(doubled);
+  const second = await selectionRect(doubled);
+  await drag({ x: second.right, y: second.top }, size(second).width / 2, 0);
+  await clear();
+  await page.screenshot({ path: info.outputPath("widened.png") });
+  const widened = await ink();
+  expect(size(widened).width / size(doubled).width, "the handwriting is half as wide again").toBeCloseTo(1.5, 1);
+  expect(size(widened).height / size(doubled).height, "the height stays").toBeCloseTo(1, 1);
+  expect(Math.abs(widened.left - doubled.left), "the opposite corner stays in place").toBeLessThan(6);
+  expect(Math.abs(widened.bottom - doubled.bottom), "the opposite corner stays in place").toBeLessThan(6);
+
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  expect(await ink(), "undo restores the size before the drag").toEqual(doubled);
+
+  // The copy appears selected, the same distance right of and below the
+  // original. A drag moves it 150 px farther down.
+  await lassoAround(doubled);
+  await page.getByRole("button", { name: "Duplicate", exact: true }).click();
+  const middle = { x: (doubled.left + doubled.right) / 2, y: (doubled.top + doubled.bottom) / 2 };
+  await drag(middle, 0, 150);
+  await clear();
+  await page.screenshot({ path: info.outputPath("duplicated.png") });
+  const both = await ink();
+  const offset = both.right - doubled.right;
+  expect(offset, "the copy is offset from the original").toBeGreaterThan(5);
+  expect(Math.abs(both.bottom - doubled.bottom - 150 - offset), "the copy is offset the same way down").toBeLessThan(3);
+  expect({ left: both.left, top: both.top }, "the original stays in place").toEqual({ left: doubled.left, top: doubled.top });
+  const column = await capture(page, { x: Math.round(middle.x), y: region.y, width: 1, height: region.height });
+  const runs = column.filter((rgb, i) => isInk(rgb) && !isInk(column[i - 1] ?? [255, 255, 255])).length;
+  expect(runs, "a column crosses the original and the copy").toBe(2);
 });
 
 test("Flutter pans the page with one finger and zooms it with a pinch", async ({ page }, info) => {
