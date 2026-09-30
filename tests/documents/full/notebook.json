@@ -12,7 +12,6 @@
     { "id": "p-lined1", "file": "pages/0001.svg" },
     { "id": "p-grid22", "file": "pages/0002.svg" },
     { "id": "p-dots33", "file": "pages/0003.svg" },
-    { "id": "p-blank4", "file": "pages/0004.svg" },
-    { "id": "p-merge6", "file": "pages/0006.svg" }
+    { "id": "p-blank4", "file": "pages/0004.svg" }
   ]
 }
