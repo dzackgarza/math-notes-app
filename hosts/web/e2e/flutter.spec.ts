@@ -2935,7 +2935,7 @@ test("Flutter insert space moves the handwriting with the pen in each mode, and 
   await shows(foot, [220], "a word near the foot of the page");
   await button("Insert space").click();
   await spaceMode("Vertical");
-  from = { x: margin + 400, y: rules[foot] + 2 };
+  from = { x: margin + 400, y: rules[foot - 3] + 2 };
   to = { x: from.x, y: box.y + box.height - 6 };
   await hold(from, to);
   await page.screenshot({ path: info.outputPath("overflow.png") });
@@ -2946,4 +2946,24 @@ test("Flutter insert space moves the handwriting with the pen in each mode, and 
   await button("Undo").click();
   await expect(page.getByText("1 / 1", { exact: true })).toBeVisible();
   expect(await strokes()).toEqual([5]);
+
+  // The saved note reopens with the word on the new page.
+  await button("Redo").click();
+  expect(await strokes()).toEqual([4, 1]);
+  await page.reload();
+  await openTestNotebook(page, "Space notes");
+  await page.getByRole("button", { name: "Open Space", exact: false }).click();
+  await canvas.waitFor({ timeout: 30_000 });
+  await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
+  rules = await rulesBelow(Math.round(box.y + 120));
+  await shows(3, [60, 440, 600], "the first page reopens with its words in place");
+  await button("Pages").click();
+  await button("Next page").click();
+  await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
+  await page.screenshot({ path: info.outputPath("reopened.png") });
+  // The push put the word three lines below the top of the page, below the tool bar.
+  const carried = await pixelBounds(page, {
+    x: Math.round(margin + 200), y: Math.round(box.y + 70), width: 120, height: Math.round(3 * spacing),
+  }, isInk);
+  expect(Math.round((carried.left - margin) / 10) * 10, "the word reopens on the new page in its column").toBe(220);
 });
