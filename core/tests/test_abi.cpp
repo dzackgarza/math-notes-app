@@ -194,7 +194,7 @@ TEST_CASE("Loading a malformed page reports its parse error") {
   const std::string page = ink_test::ReadFile(INK_FIXTURE_DIR "/errors/conflict-page.svg");
   CHECK(ink_document_load_page(session.document, "pages/0006.svg", Data(page), page.size()) ==
         INK_ERROR_PARSE);
-  CHECK(std::string(ink_last_error()) == "Could not determine tag type at offset 237");
+  CHECK(std::string(ink_last_error()) == "pages/0006.svg: Could not determine tag type at offset 237");
 }
 
 TEST_CASE("Dirty files are the changed pages until the host marks them saved") {

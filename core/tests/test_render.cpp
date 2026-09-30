@@ -16,6 +16,7 @@
 #include "include/core/SkData.h"
 #include "include/core/SkSurface.h"
 #include "layout/layout.h"
+#include "document/pages.h"
 #include "document/templates.h"
 #include "render/renderer.h"
 #include "support/notebook_dir.h"
@@ -91,7 +92,7 @@ std::vector<std::vector<InkPenSample>> StrokeEvents(double x, double y, uint32_t
 TEST_CASE("Listed pages have a small desk gap and center on the widest") {
   Document doc = LoadNotebook(ink_test::ReadNotebookDir(kDocuments + "/full"));
   std::vector<PagePlacement> layout = LayoutPages(doc, PageArrangement::kVertical);
-  REQUIRE(layout.size() == 5);  // the unlisted page 0005.svg is not laid out
+  REQUIRE(layout.size() == 4);  // the unlisted page 0005.svg is not laid out
   double widest = 612;          // the Letter page 0003.svg
   CHECK(layout[0].x == (widest - 595.28) / 2);
   CHECK(layout[0].y == 0);
@@ -107,7 +108,10 @@ TEST_CASE("Listed pages have a small desk gap and center on the widest") {
 }
 
 TEST_CASE("Horizontal and two-page arrangements lay pages out in rows") {
-  Document doc = LoadNotebook(ink_test::ReadNotebookDir(kDocuments + "/full"));
+  // The notebook has four pages; with a fifth, the last page has no partner.
+  IdGenerator ids(1);
+  Document doc =
+      InsertPage(LoadNotebook(ink_test::ReadNotebookDir(kDocuments + "/full")), 4, ids, std::nullopt);
   std::vector<PagePlacement> row = LayoutPages(doc, PageArrangement::kHorizontal);
   REQUIRE(row.size() == 5);
   for (size_t i = 1; i < row.size(); ++i) {
