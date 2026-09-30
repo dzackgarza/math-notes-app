@@ -91,7 +91,11 @@ record candidates for specific gaps. They do not change the engine owner.
   printed sheet. A4 by default; the size is a notebook setting, and an
   imported PDF page keeps its own size. There is no infinite canvas. Reflow
   and insert space that push ink past the bottom of a page move it onto the
-  next page and add a page when needed.
+  next page and add a page when needed. The ink of that page moves down by
+  the depth that the arriving ink takes, and its own overflow goes on in the
+  same way; empty space at the bottom of a page takes the push, so a page
+  with room changes no later page. The rules are in
+  `core/src/document/reflow.h`.
 - Storage and file format: [FORMAT.md](FORMAT.md).
 - The current document model keeps fixed-size pages as standalone SVG files.
   Immer values and `DocumentHistory` own undo/redo and changed-page identity.

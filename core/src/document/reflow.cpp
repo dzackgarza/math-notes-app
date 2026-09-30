@@ -1,276 +1,332 @@
-// Adapted from Write 401b65d5 selection.cpp:452-585 and
-// scribblearea.cpp:1609-1640,1833-1890 (AGPL-3.0).
-// Fixed-page overflow is the Math Notes rule in the v1 ruled-editing decision.
 #include "document/reflow.h"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <map>
+#include <set>
 #include <stdexcept>
 #include <tuple>
 
 #include "geometry/affine.h"
-#include "selection/ruled.h"
 
 namespace ink_engine {
 namespace {
-struct Item {
-  size_t page, layer, index, target;
-  Element element;
-  Rect bounds;
+constexpr double kInfinity = std::numeric_limits<double>::infinity();
+// Write minWordSep (scribblearea.cpp:47): the least gap between two words,
+// in lines.
+constexpr double kWordGap = 0.3;
+// Write selects to MAX_LINE_NUM: all lines after the pen-down.
+constexpr int kLastLine = 1 << 20;
+
+using Place = std::pair<size_t, size_t>;  // an element's layer and index on its page
+
+struct Shift {
   double dx = 0, dy = 0;
-  int line = 0;
-  double within_line = 0;
+  int lines = 0;  // ruled: dy in lines
 };
+
+// Ink that leaves the bottom of a page. Its y is measured from the first
+// line (ruled) or the top edge of the next page, and `line` counts from that
+// first line.
+struct Carried {
+  std::string layer_id;
+  Element element;
+  int line = 0;
+};
+
 bool Editable(const Document &doc, const std::string &id) {
   auto layer = std::find_if(doc.notebook.layers.begin(), doc.notebook.layers.end(),
                             [&](const Layer &value) { return value.id == id; });
   return layer == doc.notebook.layers.end() || (!layer->hidden && !layer->locked);
 }
-int LineCount(const Page &page, const RuledGrid &grid) {
+
+// The page with only the ink that the tool can change.
+Page EditablePage(const Document &document, size_t index) {
+  Page page = *document.pages[index];
+  for (auto &layer : page.layers)
+    if (!Editable(document, layer.layer_id)) layer.elements = {};
+  return page;
+}
+
+// The first line that does not end on the page.
+int BottomLine(const Page &page, const RuledGrid &grid) {
   return std::max(1, static_cast<int>(std::floor((page.height - grid.offset) / grid.spacing)));
+}
+
+// Write Selection::reflowStrokes (selection.cpp:482-570): the rest of the
+// first line moves by `dx` and all lines by `dline`; then each line gives the
+// words that pass its right limit to the next line.
+std::vector<Shift> Reflow(const SpaceGesture &g, const Page &page, double dx, int dline) {
+  const auto &items = g.items;
+  const size_t end = items.size();
+  std::vector<Shift> shifts(end);
+  for (size_t i = 0; i < end; ++i) {
+    shifts[i].lines = dline;
+    if (items[i].line == items.front().line) shifts[i].dx = dx;
+  }
+  auto line = [&](size_t i) { return items[i].line + shifts[i].lines; };
+  auto left = [&](size_t i) { return items[i].bounds.left + shifts[i].dx; };
+  auto right = [&](size_t i) { return items[i].bounds.right + shifts[i].dx; };
+
+  const double gap = kWordGap * g.grid.spacing;
+  const double margin = page.background.margin_left;
+  size_t curr = 0, wordbreak = 0;
+  double curr_right = 0;
+  int currline = line(0);
+  double line_left = margin, line_right = page.width - 0.5 * gap;
+  while (true) {
+    if (currline >= 0 && static_cast<size_t>(currline) + 1 < g.stops.left.size()) {
+      line_left = std::max(margin, g.stops.left[currline + 1]);
+      line_right = g.stops.right[currline] - 0.5 * gap;
+    }
+    // Step 1: the last word break before the right limit.
+    while (true) {
+      curr_right = std::max(curr_right, right(curr));
+      if (curr_right >= line_right) break;
+      ++curr;
+      // Nothing passes the limit on this line: the reflow is complete.
+      if (curr == end || line(curr) != currline) return shifts;
+      if (left(curr) - curr_right >= gap) wordbreak = curr;
+    }
+    // One word fills the line: it stays.
+    if (wordbreak == end) return shifts;
+    // Step 1.5: the moved words start where the next line starts, or at the
+    // left limit when the next line is empty.
+    double target = line_left + gap;
+    while (++curr != end) {
+      if (line(curr) == currline) continue;
+      if (line(curr) == currline + 1) target = left(curr);
+      break;
+    }
+    // Step 2: the words from the break go down one line.
+    const double move = target - left(wordbreak);
+    double next_dx = 0;
+    bool blank = false;
+    for (curr = wordbreak; curr != end && line(curr) == currline; ++curr) {
+      shifts[curr].dx += move;
+      ++shifts[curr].lines;
+      next_dx = std::max(next_dx, right(curr));
+      blank = true;
+    }
+    // Step 3: the ink of the next line moves right, after the moved words.
+    ++currline;
+    for (; curr != end && line(curr) == currline; ++curr) {
+      if (blank) next_dx += 1.25 * gap - left(curr);
+      shifts[curr].dx += next_dx;
+      blank = false;
+    }
+    // The words went to an empty line: a new empty line follows it.
+    if (blank)
+      for (size_t rest = curr; rest != end; ++rest) ++shifts[rest].lines;
+    curr = wordbreak;
+    curr_right = -kInfinity;
+    wordbreak = end;
+  }
+}
+
+// Write scribblearea.cpp:1876-1881: a ruled drag up or to the left selects
+// the ink between the pen and the pen-down that does not move; the release
+// deletes it.
+std::set<Place> Swept(const Document &document, SpaceGesture &g, Point at) {
+  const Page page = EditablePage(document, g.page);
+  if (g.erase_stops.left.empty() && g.grid.Line(at.y) != g.grid.Line(g.start.y))
+    g.erase_stops = FindStops(page, g.grid, at);
+  const RuledRange range = MakeRuledRange(g.grid, at, g.start, g.erase_stops);
+  std::set<Place> moving, swept;
+  for (const auto &item : g.items) moving.insert({item.layer, item.index});
+  for (size_t l = 0; l < page.layers.size(); ++l) {
+    const auto &elements = page.layers[l].elements;
+    for (size_t i = 0; i < elements.size(); ++i)
+      if (!moving.contains({l, i}) && InRuledRange(*elements[i], range, g.grouped))
+        swept.insert({l, i});
+  }
+  return swept;
+}
+
+// Puts the ink that left the gesture's page on the pages after it.
+Document Carry(Document document, const SpaceGesture &g, std::vector<Carried> carried,
+               IdGenerator &ids, const std::optional<Page> &template_page) {
+  const bool ruled = g.mode == SpaceMode::kRuled;
+  for (size_t p = g.page + 1; !carried.empty(); ++p) {
+    if (p == ListedPageCount(document) || document.pages[p]->error)
+      document = InsertPage(std::move(document), p, ids, template_page);
+    Page page = *document.pages[p];
+    // A blank page continues the lines of the gesture's page.
+    const RuledGrid grid = WorkingGrid(page, g.grid.offset + g.grid.spacing / 2);
+    const int bottom = BottomLine(page, grid);
+    const double edge = ruled ? grid.Top(bottom) : page.height;
+
+    // The arriving ink goes lower when its top is above the page. `depth` is
+    // the room that it takes from the ink of this page.
+    double top = 0, low = 0;
+    int last = 0;
+    for (const Carried &c : carried) {
+      const Rect bounds = ElementBounds(c.element);
+      last = std::max(last, c.line);
+      low = std::max(low, bounds.bottom);
+      // Ruled ink for a later page does not lower the ink for this one.
+      if (!ruled || c.line < bottom) top = std::min(top, bounds.top + (ruled ? grid.Top(0) : 0));
+    }
+    const int raise = ruled ? static_cast<int>(std::ceil(-top / grid.spacing)) : 0;
+    const double arrive = ruled ? grid.Top(0) + raise * grid.spacing : -top;
+    const int lines = last + raise + 1;
+    const double depth = ruled ? lines * grid.spacing : low + arrive;
+
+    const GroupedCenters grouped = ruled ? GroupStrokes(page, grid.spacing) : GroupedCenters{};
+    std::vector<Carried> onward;
+    size_t placed = 0;
+    for (LayerContent &layer : page.layers) {
+      if (!Editable(document, layer.layer_id)) continue;
+      Elements elements;
+      auto put = [&](const Element &element, double dy, bool leaves, int line) {
+        if (leaves)
+          onward.push_back({layer.layer_id, Transformed(element, Translation(0, dy - edge)), line});
+        else
+          elements = std::move(elements).push_back(
+              immer::box<Element>(Transformed(element, Translation(0, dy))));
+      };
+      for (const auto &element : layer.elements) {
+        if (ruled) {
+          const int line = grid.Line(RuledCenter(*element, grouped).y) + lines;
+          put(*element, depth, line >= bottom, line - bottom);
+        } else {
+          const Rect bounds = ElementBounds(*element);
+          put(*element, depth, bounds.bottom + depth > page.height && bounds.top + depth > 0, 0);
+        }
+      }
+      for (const Carried &c : carried) {
+        if (c.layer_id != layer.layer_id) continue;
+        ++placed;
+        if (ruled) {
+          const bool leaves = c.line >= bottom;
+          put(c.element, leaves ? grid.Top(0) : arrive, leaves, c.line - bottom);
+        } else {
+          // An element that starts at the top of a page stays on it.
+          const Rect bounds = ElementBounds(c.element);
+          put(c.element, arrive, bounds.bottom + arrive > page.height && bounds.top + arrive > 0, 0);
+        }
+      }
+      layer.elements = std::move(elements);
+    }
+    if (placed != carried.size())
+      throw std::logic_error("page " + page.id + " does not have the layer of the ink it receives");
+    document.pages = document.pages.set(p, immer::box<Page>(std::move(page)));
+    carried = std::move(onward);
+  }
+  return document;
 }
 }  // namespace
 
-Document InsertSpace(Document document, size_t first_page, Point start, Point end, SpaceMode mode,
-                     IdGenerator &ids, const std::optional<Page> &template_page) {
-  if (first_page >= ListedPageCount(document)) throw std::out_of_range("page index out of range");
-  const Document original = document;
-  const auto first_grid = WorkingGrid(*document.pages[first_page], start.y);
-  const double dx = end.x - start.x, dy = end.y - start.y;
-  if ((mode == SpaceMode::kVertical && dy == 0) || (mode == SpaceMode::kHorizontal && dx == 0))
-    return document;
-  const int dline = first_grid.Line(end.y) - first_grid.Line(start.y);
-  std::vector<Item> items;
-  int line_base = 0;
-  for (size_t p = first_page; p < ListedPageCount(original); ++p) {
-    const auto &page = *original.pages[p];
-    if (page.error) throw std::runtime_error("repair error pages before inserting space");
-    const auto grid = p == first_page
-                          ? first_grid
-                          : WorkingGrid(page, first_grid.offset + first_grid.spacing / 2);
-    Page working = page;
-    working.background.ruling = Ruling::kLined;
-    working.background.y_ruling = grid.spacing;
-    working.background.y_offset = grid.offset;
-    for (auto &layer : working.layers)
-      if (!Editable(original, layer.layer_id)) layer.elements = {};
-    const auto range = MakeRuledRange(working, start, {page.width, page.height});
-    for (size_t l = 0; l < page.layers.size(); ++l) {
-      if (!Editable(original, page.layers[l].layer_id)) continue;
-      for (size_t i = 0; i < page.layers[l].elements.size(); ++i) {
-        const auto &element = *page.layers[l].elements[i];
-        const auto bounds = ElementBounds(element);
-        const bool select =
-            p != first_page || (mode == SpaceMode::kVertical     ? bounds.top >= start.y
-                                : mode == SpaceMode::kHorizontal ? bounds.left >= start.x
-                                                                 : InRuledRange(element, range));
-        if (!select) continue;
-        const double center = RuledCenter(element).y;
-        const int line = grid.Line(center);
-        items.push_back(
-            {p, l, i, p, element, bounds, 0, 0, line_base + line, center - grid.Top(line)});
-      }
-    }
-    line_base += LineCount(page, grid);
+SpaceGesture BeginInsertSpace(const Document &document, size_t index, Point start, SpaceMode mode) {
+  if (index >= ListedPageCount(document)) throw std::out_of_range("page index out of range");
+  const Page page = EditablePage(document, index);
+  SpaceGesture g{.mode = mode, .page = index, .start = start, .grid = WorkingGrid(page, start.y)};
+  const bool ruled = mode == SpaceMode::kRuled;
+  RuledRange range{};
+  if (ruled) {
+    g.grouped = GroupStrokes(page, g.grid.spacing);
+    g.stops = FindStops(page, g.grid, start);
+    range = MakeRuledRange(g.grid, start, {kInfinity, g.grid.Top(kLastLine)}, g.stops);
   }
-  if (items.empty()) return document;
-  auto appendPage = [&] {
-    const size_t count = ListedPageCount(document);
-    document = ink_engine::InsertPage(std::move(document), count, ids, template_page);
-  };
-  auto gridAt = [&](size_t p) {
-    return p == first_page
-               ? first_grid
-               : WorkingGrid(*document.pages[p], first_grid.offset + first_grid.spacing / 2);
-  };
-  auto locateLine = [&](int line) {
-    if (line < 0)
-      throw std::invalid_argument("inserted space moves content before the first editable page");
-    size_t p = first_page;
-    while (true) {
-      if (p == ListedPageCount(document)) appendPage();
-      const int count = LineCount(*document.pages[p], gridAt(p));
-      if (line < count) return std::pair<size_t, int>{p, line};
-      line -= count;
-      ++p;
-    }
-  };
-
-  if (mode == SpaceMode::kRuled) {
-    std::stable_sort(items.begin(), items.end(), [](const Item &a, const Item &b) {
-      return std::tie(a.line, a.bounds.left) < std::tie(b.line, b.bounds.left);
-    });
-    const int first_line = items.front().line;
-    for (auto &item : items) {
-      if (first_line == first_grid.Line(start.y) && item.line == first_line &&
-          start.x > original.pages[first_page]->background.margin_left)
-        item.dx = dx;
-      item.line += dline;
-    }
-    const double gap = .3 * first_grid.spacing;  // Write minWordSep default.
-    auto left = [](const Item &item) { return item.bounds.left + item.dx; };
-    auto right = [](const Item &item) { return item.bounds.right + item.dx; };
-    size_t current = 0, wordbreak = 0;
-    int line = items.front().line;
-    double current_right = 0;
-    while (current < items.size()) {
-      const auto [p, local_line] = locateLine(line);
-      const auto &page = *document.pages[p];
-      Page visible = page;
-      for (auto &layer : visible.layers)
-        if (!Editable(document, layer.layer_id)) layer.elements = {};
-      auto range =
-          MakeRuledRange(visible, {start.x, gridAt(p).Top(local_line) + gridAt(p).spacing / 2},
-                         {page.width, page.height});
-      const double margin = std::max(page.background.margin_left, range.Left(local_line + 1));
-      const double edge = std::min(page.width, range.Right(local_line)) - .5 * gap;
-      while (current < items.size() && items[current].line == line) {
-        current_right = std::max(current_right, right(items[current]));
-        if (current_right >= edge) break;
-        ++current;
-        if (current == items.size() || items[current].line != line) break;
-        if (left(items[current]) - current_right >= gap) wordbreak = current;
-      }
-      if (current == items.size() || items[current].line != line) break;
-      if (wordbreak == items.size())
-        throw std::invalid_argument("a word is wider than its writable line");
-      size_t next = current;
-      while (next < items.size() && items[next].line == line) ++next;
-      double destination = margin + gap;
-      if (next < items.size() && items[next].line == line + 1) destination = left(items[next]);
-      const double shift = destination - left(items[wordbreak]);
-      double occupied = 0;
-      for (size_t i = wordbreak; i < next; ++i) {
-        items[i].dx += shift;
-        ++items[i].line;
-        occupied = std::max(occupied, right(items[i]));
-      }
-      ++line;
-      size_t rest = next;
-      if (rest < items.size() && items[rest].line == line) {
-        const double shift_next = occupied + 1.25 * gap - left(items[rest]);
-        while (rest < items.size() && items[rest].line == line) items[rest++].dx += shift_next;
-      } else {
-        for (; rest < items.size(); ++rest) ++items[rest].line;
-      }
-      current = wordbreak;
-      current_right = -std::numeric_limits<double>::infinity();
-      wordbreak = items.size();
-    }
-    // Keep each line intact at a fixed page boundary. Later lines move with it.
-    for (size_t i = 0; i < items.size();) {
-      size_t end_line = i + 1;
-      while (end_line < items.size() && items[end_line].line == items[i].line) ++end_line;
-      while (true) {
-        const auto [p, local] = locateLine(items[i].line);
-        double top = std::numeric_limits<double>::infinity(), bottom = -top;
-        for (size_t k = i; k < end_line; ++k) {
-          const double shift =
-              gridAt(p).Top(local) + items[k].within_line - RuledCenter(items[k].element).y;
-          top = std::min(top, items[k].bounds.top + shift);
-          bottom = std::max(bottom, items[k].bounds.bottom + shift);
-        }
-        if (bottom - top > document.pages[p]->height)
-          throw std::invalid_argument("a line is taller than the destination page");
-        if (top >= 0 && bottom <= document.pages[p]->height) break;
-        const double base = gridAt(p).Top(local);
-        const int earliest = std::max(
-            0, static_cast<int>(std::ceil((base - top - gridAt(p).offset) / gridAt(p).spacing)));
-        const bool fits = gridAt(p).Top(earliest) + bottom - base <= document.pages[p]->height;
-        if (!fits && p >= ListedPageCount(original))
-          throw std::invalid_argument("this line cannot fit on a template page");
-        const int advance = fits && top < 0 ? static_cast<int>(std::ceil(-top / gridAt(p).spacing))
-                                            : LineCount(*document.pages[p], gridAt(p)) - local;
-        for (size_t k = i; k < items.size(); ++k) items[k].line += std::max(1, advance);
-      }
-      for (size_t k = i; k < end_line; ++k) {
-        const auto [target, target_line] = locateLine(items[k].line);
-        items[k].target = target;
-        items[k].dy = gridAt(target).Top(target_line) + items[k].within_line -
-                      RuledCenter(items[k].element).y;
-      }
-      i = end_line;
-    }
-  } else {
-    const bool vertical = mode == SpaceMode::kVertical;
-    std::vector<double> offsets{0};
-    for (size_t p = first_page; p < ListedPageCount(document); ++p)
-      offsets.push_back(offsets.back() +
-                        (vertical ? document.pages[p]->height : document.pages[p]->width));
-    std::stable_sort(items.begin(), items.end(), [&](const Item &a, const Item &b) {
-      return a.page != b.page ? a.page < b.page
-             : vertical       ? a.bounds.top < b.bounds.top
-                              : a.bounds.left < b.bounds.left;
-    });
-    double extra = 0;
-    for (auto &item : items) {
-      double position = offsets[item.page - first_page] +
-                        (vertical ? item.bounds.top + dy : item.bounds.left + dx) + extra;
-      const double extent =
-          vertical ? item.bounds.bottom - item.bounds.top : item.bounds.right - item.bounds.left;
-      if (position < 0)
-        throw std::invalid_argument("inserted space moves content before the first editable page");
-      size_t target = 0;
-      while (target + 1 < offsets.size() && position >= offsets[target + 1]) ++target;
-      while (true) {
-        if (first_page + target == ListedPageCount(document)) {
-          appendPage();
-          offsets.push_back(offsets.back() + (vertical
-                                                  ? document.pages[first_page + target]->height
-                                                  : document.pages[first_page + target]->width));
-        }
-        const double size = offsets[target + 1] - offsets[target];
-        if (position >= offsets[target + 1]) {
-          ++target;
-          continue;
-        }
-        if (extent > size)
-          throw std::invalid_argument("an object is larger than the destination page");
-        if (position - offsets[target] + extent <= size) break;
-        const double next = offsets[++target];
-        extra += next - position;
-        position = next;
-      }
-      item.target = first_page + target;
-      if (vertical)
-        item.dy = position - offsets[target] - item.bounds.top;
-      else
-        item.dx = position - offsets[target] - item.bounds.left;
+  for (size_t l = 0; l < page.layers.size(); ++l) {
+    const auto &elements = page.layers[l].elements;
+    for (size_t i = 0; i < elements.size(); ++i) {
+      const Rect bounds = ElementBounds(*elements[i]);
+      if (IsEmpty(bounds)) continue;
+      // Write RectSelector::selectRect: the ink with its bounds past the pen.
+      const bool moves = mode == SpaceMode::kVertical     ? bounds.top >= start.y
+                         : mode == SpaceMode::kHorizontal ? bounds.left >= start.x
+                                                          : InRuledRange(*elements[i], range, g.grouped);
+      if (!moves) continue;
+      const int line = ruled ? g.grid.Line(RuledCenter(*elements[i], g.grouped).y) : 0;
+      g.items.push_back({l, i, bounds, line, 0, 0, elements[i]});
     }
   }
-
-  std::sort(items.begin(), items.end(), [](const Item &a, const Item &b) {
-    return std::tie(a.page, a.layer, a.index) < std::tie(b.page, b.layer, b.index);
+  if (!ruled) return g;
+  std::stable_sort(g.items.begin(), g.items.end(), [](const auto &a, const auto &b) {
+    return std::tie(a.line, a.bounds.left) < std::tie(b.line, b.bounds.left);
   });
-  size_t cursor = 0;
-  for (size_t p = first_page; p < ListedPageCount(document); ++p) {
-    Page page = *document.pages[p];
-    bool changed = false;
-    for (size_t l = 0; l < page.layers.size(); ++l) {
-      Elements elements;
-      for (size_t i = 0; i < page.layers[l].elements.size(); ++i) {
-        if (cursor < items.size() && std::tie(items[cursor].page, items[cursor].layer,
-                                              items[cursor].index) == std::tie(p, l, i)) {
-          const auto &item = items[cursor++];
-          if (item.target == p)
-            elements = elements.push_back(
-                immer::box<Element>(Transformed(item.element, Translation(item.dx, item.dy))));
-          changed = true;
-        } else
-          elements = elements.push_back(page.layers[l].elements[i]);
+  g.insert_x = start.x > page.background.margin_left && !g.items.empty() &&
+               g.items.front().line == g.grid.Line(start.y);
+  return g;
+}
+
+Document InsertSpace(const Document &document, SpaceGesture &g, Point at, IdGenerator &ids,
+                     const std::optional<Page> &template_page) {
+  const Page &page = *document.pages[g.page];
+  at = {std::clamp(at.x, 0.0, page.width), std::clamp(at.y, 0.0, page.height)};
+  const bool ruled = g.mode == SpaceMode::kRuled;
+  std::vector<Shift> shifts(g.items.size());
+  std::set<Place> erased;
+  if (g.mode == SpaceMode::kVertical) {
+    for (Shift &shift : shifts) shift.dy = at.y - g.start.y;
+  } else if (g.mode == SpaceMode::kHorizontal) {
+    double room = kInfinity;
+    for (const auto &item : g.items) room = std::min(room, page.width - item.bounds.right);
+    for (Shift &shift : shifts) shift.dx = std::min(at.x - g.start.x, std::max(0.0, room));
+  } else {
+    const int start_line = g.grid.Line(g.start.y), line = g.grid.Line(at.y);
+    if (!g.items.empty()) {
+      // Write makes no change when the drag puts the first line above the
+      // page (selection.cpp:485-486). Here the first line stops at the top.
+      const int dline = std::max(line - start_line, g.grid.Line(0) - g.items.front().line);
+      // Write scribblearea.cpp:1853-1857.
+      if (g.insert_x) {
+        shifts = Reflow(g, page, at.x - g.start.x, dline);
+      } else {
+        for (Shift &shift : shifts) shift.lines = dline;
       }
-      for (const auto &item : items)
-        if (item.target == p && item.page != p &&
-            original.pages[item.page]->layers[item.layer].layer_id == page.layers[l].layer_id) {
-          elements = elements.push_back(
-              immer::box<Element>(Transformed(item.element, Translation(item.dx, item.dy))));
-          changed = true;
-        }
-      page.layers[l].elements = std::move(elements);
+      for (Shift &shift : shifts) shift.dy = shift.lines * g.grid.spacing;
     }
-    if (changed) document.pages = document.pages.set(p, immer::box<Page>(std::move(page)));
+    if (line < start_line || (line == start_line && at.x < g.start.x))
+      erased = Swept(document, g, at);
   }
-  return document;
+
+  std::map<Place, size_t> moving;
+  for (size_t k = 0; k < g.items.size(); ++k) moving[{g.items[k].layer, g.items[k].index}] = k;
+  const int bottom = BottomLine(page, g.grid);
+  Page next = page;
+  std::vector<Carried> carried;
+  for (size_t l = 0; l < page.layers.size(); ++l) {
+    Elements elements;
+    for (size_t i = 0; i < page.layers[l].elements.size(); ++i) {
+      if (erased.contains({l, i})) continue;
+      const auto &original = page.layers[l].elements[i];
+      const auto found = moving.find({l, i});
+      if (found == moving.end()) {
+        elements = std::move(elements).push_back(original);
+        continue;
+      }
+      SpaceGesture::Item &item = g.items[found->second];
+      const Shift &shift = shifts[found->second];
+      // An element with the same shift as before keeps its value, and the
+      // renderer its drawing.
+      if (shift.dx != item.dx || shift.dy != item.dy) {
+        item.dx = shift.dx;
+        item.dy = shift.dy;
+        item.placed = shift.dx == 0 && shift.dy == 0
+                          ? original
+                          : immer::box<Element>(
+                                Transformed(*original, Translation(shift.dx, shift.dy)));
+      }
+      const int line = item.line + shift.lines;
+      if (ruled && shift.lines > 0 && line >= bottom) {
+        carried.push_back({page.layers[l].layer_id,
+                           Transformed(*item.placed, Translation(0, -g.grid.Top(bottom))),
+                           line - bottom});
+      } else if (g.mode == SpaceMode::kVertical && shift.dy > 0 &&
+                 item.bounds.bottom + shift.dy > page.height) {
+        carried.push_back(
+            {page.layers[l].layer_id, Transformed(*item.placed, Translation(0, -page.height))});
+      } else {
+        elements = std::move(elements).push_back(item.placed);
+      }
+    }
+    next.layers[l].elements = std::move(elements);
+  }
+  Document result = document;
+  result.pages = result.pages.set(g.page, immer::box<Page>(std::move(next)));
+  return Carry(std::move(result), g, std::move(carried), ids, template_page);
 }
 }  // namespace ink_engine

@@ -49,10 +49,11 @@ Page BookmarkLine(const Page &source, const Rect &bookmark) {
   Page page = source;
   const double y = (bookmark.top + bookmark.bottom) / 2;
   const auto range = MakeRuledRange(page, {bookmark.left, y}, {page.width, y});
+  const GroupedCenters grouped = GroupStrokes(page, range.grid.spacing);
   for (auto &layer : page.layers) {
     Elements selected;
     for (const auto &element : layer.elements)
-      if (InRuledRange(*element, range)) selected = selected.push_back(element);
+      if (InRuledRange(*element, range, grouped)) selected = selected.push_back(element);
     layer.elements = std::move(selected);
   }
   return page;

@@ -291,6 +291,11 @@ Editor::Route Editor::Begin(const InkPenSample &s) {
                                 .start = p, .last = p});
   select_->lasso.Add(p, kLassoSimplify / ViewScale());
   select_->ruled_path.push_back(p);
+  if (selector_kind_ >= INK_SELECTOR_SPACE_VERTICAL && selector_kind_ <= INK_SELECTOR_SPACE_RULED) {
+    const auto mode = selector_kind_ == INK_SELECTOR_SPACE_VERTICAL ? SpaceMode::kVertical
+        : selector_kind_ == INK_SELECTOR_SPACE_HORIZONTAL ? SpaceMode::kHorizontal : SpaceMode::kRuled;
+    select_->space = BeginInsertSpace(document(), placement->page, p, mode);
+  }
   ++overlay_version_;
   return Route::kSelect;
 }
@@ -323,6 +328,13 @@ void Editor::SelectInput(const InkPenSample *samples, size_t count) {
       if (lasso) select_->lasso.Add(p, kLassoSimplify / ViewScale());
       select_->last = p;
       if (select_->kind == INK_SELECTOR_RULED_ERASE) select_->ruled_path.push_back(p);
+      if (select_->space) {
+        // Write moves the ink at each pen event (scribblearea.cpp:1833-1885).
+        // A copy of the generator gives an added page the id that the
+        // release gives it.
+        IdGenerator ids = history_->ids();
+        select_->shown = InsertSpace(document(), *select_->space, p, ids, template_page_);
+      }
       ++overlay_version_;
     }
     if (s.phase == INK_PHASE_END) return FinishSelect();
@@ -338,10 +350,10 @@ void Editor::FinishSelect() {
   const Document &doc = document();
   const Page &page = *doc.pages[g.page];
 
-  if (g.kind >= INK_SELECTOR_SPACE_VERTICAL && g.kind <= INK_SELECTOR_SPACE_RULED) {
-    const auto mode = g.kind == INK_SELECTOR_SPACE_VERTICAL ? SpaceMode::kVertical
-        : g.kind == INK_SELECTOR_SPACE_HORIZONTAL ? SpaceMode::kHorizontal : SpaceMode::kRuled;
-    auto next = ink_engine::InsertSpace(doc, g.page, g.start, g.last, mode, history_->ids(), template_page_);
+  if (g.space) {
+    // Write doReleaseEvent (scribblearea.cpp:2163-2193): the moved ink is
+    // committed and the ink under a drag up or left is deleted.
+    Document next = InsertSpace(doc, *g.space, g.last, history_->ids(), template_page_);
     if (!(next == doc)) history_->Push(std::move(next));
     return;
   }
@@ -364,13 +376,14 @@ void Editor::FinishSelect() {
         previous = point;
       }
     }
+    const GroupedCenters grouped = GroupStrokes(ruled_page, grid.spacing);
     std::vector<ElementRef> items;
     for (size_t layer = 0; layer < page.layers.size(); ++layer) {
       if (!Selectable(doc, page.layers[layer])) continue;
       const auto &elements = page.layers[layer].elements;
       for (size_t index = 0; index < elements.size(); ++index) {
         if (std::any_of(ranges.begin(), ranges.end(), [&](const RuledRange &range) {
-          return InRuledRange(*elements[index], range, g.kind == INK_SELECTOR_RULED_ERASE);
+          return InRuledRange(*elements[index], range, grouped, g.kind == INK_SELECTOR_RULED_ERASE);
         })) items.push_back({layer, index});
       }
     }
@@ -752,6 +765,8 @@ bool Editor::SetSelectedText(std::string_view utf8, std::optional<TextBoxStyle> 
 std::optional<SelectionOverlay> Editor::Overlay() {
   double scale = ViewScale();
   if (select_) {
+    // An insert-space drag shows the moved ink and no frame.
+    if (select_->space) return std::nullopt;
     SelectionOverlay overlay{.page = select_->page, .view_scale = scale};
     if (select_->kind == INK_SELECTOR_LASSO) {
       overlay.lasso = select_->lasso.points();

@@ -279,8 +279,15 @@ typedef enum InkSelector {
   INK_SELECTOR_RECT = 1,  /* selects what lies inside a dragged rectangle */
   INK_SELECTOR_RULED = 2,
   INK_SELECTOR_RULED_ERASE = 3,
-  INK_SELECTOR_SPACE_VERTICAL = 4,
-  INK_SELECTOR_SPACE_HORIZONTAL = 5,
+  /* Insert space. The ink moves with the pen; the release is one history
+     step and a cancel restores the page. Ink pushed past the bottom of the
+     page goes to the next page, and a page is added after the last page. */
+  INK_SELECTOR_SPACE_VERTICAL = 4,   /* moves the ink below the pen-down up or down */
+  INK_SELECTOR_SPACE_HORIZONTAL = 5, /* moves the ink right of the pen-down sideways */
+  /* Moves the ink after the pen-down in reading order: the rest of its line
+     sideways, with words that pass the end of a line reflowed to the next
+     lines, or whole lines when the pen-down is in the margin or on a line
+     with no ink after it. A drag up or left deletes the ink it passes. */
   INK_SELECTOR_SPACE_RULED = 6,
   INK_SELECTOR_OVAL = 7 /* selects what the ellipse in a dragged rectangle covers */
 } InkSelector;

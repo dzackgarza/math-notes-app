@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "document/document.h"
+#include "document/reflow.h"
 #include "editor/erase.h"
 #include "editor/history.h"
 #include "ink.h"
@@ -110,9 +111,12 @@ class Editor {
   }
   // The document as the canvas shows it: during an erase gesture, with the
   // erased strokes hidden or cut; while the selection is dragged, without it;
+  // during an insert-space drag, with the ink where the pen has put it;
   // otherwise the document.
   const Document &Shown() const {
-    return erase_ ? erase_->shown : transform_ ? transform_->shown : document();
+    if (erase_) return erase_->shown;
+    if (transform_) return transform_->shown;
+    return select_ && select_->shown ? *select_->shown : document();
   }
 
   // The selection; null when there is none or the document changed under it.
@@ -240,6 +244,11 @@ class Editor {
     Point start, last;  // page coordinates
     LassoPath lasso;
     std::vector<Point> ruled_path;
+    // Insert space (Write MODE_INSSPACEVERT, MODE_INSSPACEHORZ,
+    // MODE_INSSPACERULED): the ink that the drag moves, and the document with
+    // the ink where the pen has put it.
+    std::optional<SpaceGesture> space;
+    std::optional<Document> shown;
   };
   // A drag of the selection or of one of its handles (Write MODE_MOVESELFREE,
   // MODE_SCALESEL, MODE_ROTATESEL; scribblearea.cpp:1735-1832, 2045-2139).
