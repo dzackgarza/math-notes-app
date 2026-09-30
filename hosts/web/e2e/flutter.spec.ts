@@ -995,9 +995,11 @@ async function centerPixel(page: Page, center: PenPoint): Promise<Rgb> {
   return (await screenPixels(page, center))[40];
 }
 
-async function openNewNote(page: Page, title: string): Promise<{ box: Box; cdp: CDPSession }> {
+async function openNewNote(page: Page, title: string, paper?: string): Promise<{ box: Box; cdp: CDPSession }> {
   await page.goto("?root=opfs");
-  await beginTestNote(page, title);
+  // Each paper gets its own notebook: the storage keeps earlier notebooks.
+  await beginTestNote(page, title, paper);
+  if (paper) await page.getByRole("button", { name: paper, exact: true }).click();
   await page.getByRole("button", { name: "Create Note", exact: true }).click();
   const canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
   await canvas.waitFor({ timeout: 30_000 });
@@ -1005,6 +1007,40 @@ async function openNewNote(page: Page, title: string): Promise<{ box: Box; cdp: 
   if (!box) throw new Error("Notebook canvas has no bounds");
   return { box, cdp: await page.context().newCDPSession(page) };
 }
+
+test("Flutter shows ruled, grid, dotted, and blank paper as chosen at creation", async ({ page }, info) => {
+  test.setTimeout(180_000);
+  // The marks in a square of the page: full rows are rules, full columns
+  // are grid verticals, and marks in neither are dots.
+  const pattern = async (paper: string) => {
+    const { box } = await openNewNote(page, paper, paper);
+    const side = 200;
+    const pixels = await capture(page, { x: box.x + 150, y: box.y + 150, width: side, height: side });
+    await page.screenshot({ path: info.outputPath(`${paper}.png`) });
+    const white = pixels.reduce((best, rgb) => (brightness(rgb) > brightness(best) ? rgb : best));
+    const marked = pixels.map((rgb) => brightness(white) - brightness(rgb) > 20);
+    const at = (x: number, y: number) => marked[y * side + x];
+    const range = [...Array(side).keys()];
+    return {
+      marks: marked.filter(Boolean).length,
+      rows: range.filter((y) => range.every((x) => at(x, y))).length,
+      columns: range.filter((x) => range.every((y) => at(x, y))).length,
+    };
+  };
+  const lined = await pattern("Lined Paper");
+  expect(lined.rows, "lined paper has rules").toBeGreaterThan(0);
+  expect(lined.columns, "lined paper has no verticals").toBe(0);
+  for (const paper of ["Grid Paper", "Graph Paper"]) {
+    const grid = await pattern(paper);
+    expect(grid.rows, `${paper} has horizontal lines`).toBeGreaterThan(0);
+    expect(grid.columns, `${paper} has vertical lines`).toBeGreaterThan(0);
+  }
+  const dotted = await pattern("Dot Paper");
+  expect(dotted.marks, "dot paper has dots").toBeGreaterThan(0);
+  expect(dotted.rows + dotted.columns, "dot paper has no lines").toBe(0);
+  const blank = await pattern("Plain Paper");
+  expect(blank.marks, "plain paper is blank").toBe(0);
+});
 
 test("Flutter lasso moves, cuts, pastes, copies, and deletes handwriting", async ({ page, context }, info) => {
   test.setTimeout(90_000);
