@@ -2732,3 +2732,218 @@ test("Flutter creates a note in each page size and orientation", async ({ page }
     await button("Library").click();
   }
 });
+
+test("Flutter insert space moves the handwriting with the pen in each mode, and onto a new page", async ({ page }, info) => {
+  test.setTimeout(240_000);
+  await page.goto("?root=opfs");
+  await beginTestNote(page, "Space", "Space notes");
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  await button("Lined Paper").click();
+  await button("Landscape").click();
+  await button("Create Note").click();
+  const canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
+  await canvas.waitFor({ timeout: 30_000 });
+  const box = await boxOf(canvas);
+  const cdp = await page.context().newCDPSession(page);
+
+  // The rules of the paper below a screen row: the middle row of each thin
+  // run that is darker than the paper, in a column with no handwriting.
+  const rulesBelow = async (top: number) => {
+    const height = Math.floor(box.y + box.height - 10 - top);
+    const column = await capture(page, { x: box.x + box.width - 100, y: top, width: 1, height });
+    const paper = column.reduce((best, rgb) => (brightness(rgb) > brightness(best) ? rgb : best));
+    const found: number[] = [];
+    let run: number[] = [];
+    column.forEach((rgb, i) => {
+      if (brightness(paper) - brightness(rgb) > 20) return run.push(top + i);
+      if (run.length > 0 && run.length <= 4) found.push(run[Math.floor(run.length / 2)]);
+      run = [];
+    });
+    return found;
+  };
+  let rules = await rulesBelow(Math.round(box.y + 120));
+  const spacing = rules[1] - rules[0];
+  const middle = (band: number) => rules[band] + spacing / 2;
+  // The red margin line and the right edge of the page, which fills the width.
+  const row = await capture(page, { x: box.x, y: Math.round(middle(0)), width: 300, height: 1 });
+  const margin = box.x + row.reduce((best, rgb, i) => (rgb[0] - rgb[2] > row[best][0] - row[best][2] ? i : best), 0);
+  expect(row[margin - box.x][0] - row[margin - box.x][2], "the paper has a margin line").toBeGreaterThan(25);
+  const edge = box.x + box.width;
+
+  // A word: one zigzag stroke, 70 px wide, in the band below rule `band`.
+  const word = (left: number, band: number) =>
+    penStroke(cdp, Array.from({ length: 8 }, (_, i) => ({
+      x: margin + left + 10 * i, y: middle(band) + (i % 2 ? 0.2 : -0.2) * spacing,
+    })), 0.6);
+  // The words in a band: the screen columns of each run of ink, where a gap
+  // of 6 px ends a run.
+  const words = async (band: number) => {
+    const left = margin + 8, width = edge - left;
+    const pixels = await capture(page, { x: left, y: rules[band] + 3, width, height: Math.round(spacing) - 6 });
+    const inked = new Array<boolean>(width).fill(false);
+    pixels.forEach((rgb, i) => { if (isInk(rgb)) inked[i % width] = true; });
+    const runs: { left: number; right: number }[] = [];
+    inked.forEach((ink, i) => {
+      if (!ink) return;
+      const last = runs.at(-1);
+      if (last && left + i - last.right < 6) last.right = left + i;
+      else runs.push({ left: left + i, right: left + i });
+    });
+    return runs;
+  };
+  // The band shows words that start at these distances from the margin.
+  const shows = (band: number, lefts: number[], message: string) =>
+    expect.poll(async () => (await words(band)).map(({ left }) =>
+      lefts.find((expected) => Math.abs(left - margin - expected) <= 4) ?? left - margin), { message }).toEqual(lefts);
+  // The ink of the lone word, which the vertical and horizontal modes move off the bands.
+  const lone = () => pixelBounds(page, {
+    x: margin + 150, y: rules[4], width: 450, height: Math.round(4 * spacing),
+  }, isInk);
+
+  const pen = { pointerType: "pen" as const, force: 0.6, button: "left" as const };
+  // The pen goes down and moves, and stays down.
+  const hold = async (from: PenPoint, to: PenPoint) => {
+    await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", clickCount: 1, ...from, ...pen });
+    const steps = Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / 20);
+    for (let step = 1; step <= steps; ++step) {
+      await cdp.send("Input.dispatchMouseEvent", {
+        type: "mouseMoved", buttons: 1, ...pen,
+        x: from.x + ((to.x - from.x) * step) / steps, y: from.y + ((to.y - from.y) * step) / steps,
+      });
+    }
+  };
+  const release = (at: PenPoint) =>
+    cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", clickCount: 1, ...at, ...pen });
+  // A tap on the selected tool opens its modes.
+  const spaceMode = async (mode: string) => {
+    await button("Insert space").click();
+    await button(mode).click();
+    await closePopover(page);
+  };
+  const strokes = async () => (await savedPages(page, "Space", "Space notes")).map((saved) => saved.strokes);
+
+  await word(60, 1);
+  await word(220, 1);
+  await word(380, 1);
+  await word(60, 2);
+  await word(220, 4);
+  await shows(1, [60, 220, 380], "three words on a line");
+  await button("Insert space").click();
+
+  // Reflow, the first mode: the rest of the line follows the pen.
+  let from = { x: margin + 175, y: middle(1) };
+  let to = { x: from.x + 120, y: from.y };
+  await hold(from, to);
+  await page.screenshot({ path: info.outputPath("rest-of-line.png") });
+  await shows(1, [60, 340, 500], "the words after the pen follow it while it is down");
+  await shows(2, [60], "the next line stays");
+  const lines = { x: margin - 60, y: rules[0], width: 700, height: Math.round(6 * spacing) };
+  expect((await capture(page, lines)).filter(isOutline).length, "the drag shows the ink, with no selection band").toBe(0);
+  await release(to);
+  await shows(1, [60, 340, 500], "the release keeps the words where the drag showed them");
+
+  // A word pushed past the end of the line goes to the start of the next
+  // line, and the word of that line moves right of it.
+  const [, , third] = await words(1);
+  const [next] = await words(2);
+  const dx = edge - third.right + 20;
+  const pushed = next.left - margin + (third.right - third.left) + 1.25 * 0.3 * spacing;
+  to = { x: from.x + dx, y: from.y };
+  await hold(from, to);
+  await page.screenshot({ path: info.outputPath("reflow.png") });
+  await shows(1, [60, 340 + dx], "the last word leaves the line");
+  await shows(2, [60, pushed], "the last word starts the next line and pushes its word right");
+  await release(to);
+  await shows(2, [60, pushed], "the release keeps the reflow");
+  await button("Undo").click();
+  await shows(1, [60, 340, 500], "one undo restores the line");
+  await shows(2, [60], "one undo restores the next line");
+
+  // A drag from the margin moves whole lines.
+  from = { x: margin - 40, y: middle(1) };
+  to = { x: from.x, y: middle(3) };
+  await hold(from, to);
+  await page.screenshot({ path: info.outputPath("whole-lines.png") });
+  await shows(1, [], "the line leaves its band");
+  await shows(3, [60, 340, 500], "the line is two lines lower");
+  await shows(4, [60], "the second line is two lines lower");
+  await shows(6, [220], "the last line is two lines lower");
+  await release(to);
+  await shows(3, [60, 340, 500], "the release keeps the lines");
+  expect(await strokes()).toEqual([5]);
+
+  // A drag up deletes the ink that it passes and closes the gap.
+  from = { x: margin - 40, y: middle(6) };
+  to = { x: from.x, y: middle(4) };
+  await hold(from, to);
+  await page.screenshot({ path: info.outputPath("erase.png") });
+  await shows(4, [220], "the lower line takes the place of the line the pen passed");
+  await shows(6, [], "the lower line leaves its band");
+  await shows(3, [60, 340, 500], "the line above the pen stays");
+  await release(to);
+  expect(await strokes()).toEqual([4]);
+  await button("Undo").click();
+  await shows(4, [60], "one undo restores the deleted word");
+  await shows(6, [220], "one undo restores the moved line");
+  await button("Redo").click();
+  await shows(4, [220], "the redo repeats the deletion and the move");
+
+  // Vertical: the ink below the pen moves by the drag, off the lines.
+  await spaceMode("Vertical");
+  const before = await lone();
+  from = { x: margin + 400, y: rules[4] + 2 };
+  to = { x: from.x, y: from.y + 1.5 * spacing };
+  await hold(from, to);
+  await page.screenshot({ path: info.outputPath("vertical.png") });
+  await expect.poll(async () => Math.round((2 * ((await lone()).top - before.top)) / spacing) / 2,
+    { message: "the word below the pen is one and a half lines lower" }).toBe(1.5);
+  await shows(3, [60, 340, 500], "the line above the pen stays");
+  await release(to);
+
+  // Horizontal: the ink right of the pen moves sideways, on every line.
+  await spaceMode("Horizontal");
+  from = { x: margin + 175, y: middle(1) };
+  to = { x: from.x + 100, y: from.y };
+  await hold(from, to);
+  await page.screenshot({ path: info.outputPath("horizontal.png") });
+  await shows(3, [60, 440, 600], "the words right of the pen move with it");
+  await expect.poll(async () => Math.round(((await lone()).left - before.left) / 10) * 10,
+    { message: "the lower word right of the pen moves with it" }).toBe(100);
+  await release(to);
+  // The ink stops at the right edge of the page.
+  const [, , last] = await words(3);
+  const room = edge - 1 - last.right;
+  to = { x: edge - 20, y: from.y };
+  await hold(from, to);
+  await page.screenshot({ path: info.outputPath("edge.png") });
+  await shows(3, [60, 440 + room, 600 + room], "the words stop where the last word meets the page edge");
+  await release(to);
+  await expect(page.getByText("1 / 1", { exact: true })).toBeVisible();
+  await button("Undo").click();
+  await shows(3, [60, 440, 600], "one undo restores the words");
+
+  // Vertical at the foot of the page: the ink that passes the bottom goes to
+  // a new page.
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, 4000);
+  // The hint shows at the end of the notebook: the foot of the page is in view.
+  await expect(page.getByText("Pull and hold to add a page", { exact: true })).toBeVisible();
+  rules = await rulesBelow(Math.round(box.y + 180));
+  const foot = rules.length - 4;
+  await button("Pen").click();
+  await word(220, foot);
+  await shows(foot, [220], "a word near the foot of the page");
+  await button("Insert space").click();
+  await spaceMode("Vertical");
+  from = { x: margin + 400, y: rules[foot] + 2 };
+  to = { x: from.x, y: box.y + box.height - 6 };
+  await hold(from, to);
+  await page.screenshot({ path: info.outputPath("overflow.png") });
+  await shows(foot, [], "the word leaves the page while the pen is down");
+  await release(to);
+  await expect(page.getByText(/^\d \/ 2$/)).toBeVisible();
+  expect(await strokes()).toEqual([4, 1]);
+  await button("Undo").click();
+  await expect(page.getByText("1 / 1", { exact: true })).toBeVisible();
+  expect(await strokes()).toEqual([5]);
+});
