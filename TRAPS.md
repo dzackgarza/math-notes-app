@@ -8,6 +8,7 @@
 - **Size in `source.json` must be the exact IPA byte count.** SideStore verifies it. macOS `stat` is `stat -f %z`, not `-c %s`.
 - **Workflow re-runs reuse `github.run_number`,** so the release step uploads with `--clobber` when the tag exists.
 - **`gh run watch` at its default 3-second interval trips GitHub's secondary rate limit** (`HTTP 403: API rate limit exceeded` while `gh api rate_limit` still shows thousands of core requests left), and the watch exits before the run ends. Watch with `--interval 60`.
+- **`gh run list --commit` with an abbreviated SHA lists nothing,** with no error. Pass the full SHA (`git rev-parse HEAD`), as `just web-fetch` does.
 
 ## Linux host
 
