@@ -3174,3 +3174,54 @@ test("Flutter ruled eraser takes a word on plain paper and keeps the paper plain
   const saved = async () => (await savedPages(page, "Ruled plain", "Plain Paper")).map(({ strokes, ruling }) => ({ strokes, ruling }));
   await expect.poll(saved).toEqual([{ strokes: 2, ruling: "blank" }]);
 });
+
+// The largest brightness step between two neighbors in a screen column.
+// Handwriting that shows sharp gives the step from ink to paper.
+async function sharpestStep(page: Page, x: number, top: number, bottom: number): Promise<number> {
+  const column = await capture(page, { x, y: top, width: 1, height: bottom - top });
+  return Math.max(...column.slice(1).map((rgb, i) => Math.abs(brightness(rgb) - brightness(column[i]))));
+}
+
+test("Flutter menus, alerts, action sheets, and sheets blur the handwriting behind them", async ({ page }, info) => {
+  test.setTimeout(120_000);
+  const { box, cdp } = await openNewNote(page, "Frosted");
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  // Lines 9 px apart: each surface has several of them behind it.
+  for (let y = box.y + 90; y < box.y + box.height - 10; y += 9) {
+    await penStroke(cdp, line(box.x + 30, box.x + box.width - 30, y, 2), 0.8);
+  }
+  expect(await sharpestStep(page, box.x + 200, box.y + 200, box.y + 240), "the lines are sharp on the page").toBeGreaterThan(300);
+  // A column of a surface with no text and no divider, across three lines or
+  // more. Sharp lines behind the surfaces give steps of 21 to 65.
+  const blurred = (x: number, top: number, bottom: number, surface: string) =>
+    expect.poll(() => sharpestStep(page, x, top, bottom), `${surface} blurs the lines behind it`).toBeLessThan(8);
+
+  await button("More").click();
+  const item = await boxOf(button("Go to page"));
+  await blurred(item.x + 0.7 * item.width, item.y + 4, item.y + item.height - 4, "the menu");
+
+  await button("Go to page").click();
+  const title = await boxOf(page.getByText("Go to page", { exact: true }));
+  await blurred(title.x - 10, title.y - 6, title.y + title.height + 6, "the alert");
+  await page.screenshot({ path: info.outputPath("alert.png") });
+  await button("Cancel").click();
+
+  await button("More").click();
+  await button("Paper for new pages").click();
+  const action = await boxOf(button("grid-medium"));
+  await blurred(action.x + 20, action.y + 6, action.y + action.height - 6, "the action sheet");
+  await button("Cancel").click();
+
+  await button("Pages").click();
+  await page.getByRole("button", { name: /^Layers/ }).click();
+  const hide = await boxOf(button("Hide"));
+  await blurred(hide.x + 10, hide.y + hide.height + 20, hide.y + hide.height + 60, "the layers sheet");
+  // The page beside the sheet shows a change that the sheet makes.
+  const lines = async () => (await capture(page, { x: box.x + 100, y: box.y + 200, width: 1, height: 40 })).some(isInk);
+  expect(await lines(), "the lines show beside the sheet").toBe(true);
+  await button("Hide").click();
+  await expect.poll(lines, "the lines of the hidden layer show no more beside the sheet").toBe(false);
+  await button("Done").click();
+  await expect(button("Done")).toHaveCount(0);
+  expect(await lines(), "the layer stays hidden on the page").toBe(false);
+});
