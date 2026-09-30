@@ -613,7 +613,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     children: [
       if (notebook == null) ...[
         Expanded(
-          child: CupertinoSearchTextField(
+          child: SearchField(
             controller: search,
             focusNode: searchFocus,
             placeholder: 'Search notebooks and notes',

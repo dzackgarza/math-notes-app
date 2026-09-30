@@ -14,6 +14,61 @@ String noteTitle(native.Note note) =>
 String modifiedLabel(double milliseconds) =>
     'Modified ${DateTime.fromMillisecondsSinceEpoch(milliseconds.toInt()).toLocal().toString().substring(0, 16)}';
 
+// A search field with its clear button beside the text field in the
+// semantics tree. The suffix button of CupertinoSearchTextField splits the
+// semantics node of the text field when it appears, and the web engine then
+// replaces the focused input element, which ends the typing:
+// https://github.com/flutter/flutter/issues/151980
+class SearchField extends StatelessWidget {
+  const SearchField({
+    super.key,
+    required this.controller,
+    required this.onChanged,
+    this.focusNode,
+    this.placeholder,
+  });
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final FocusNode? focusNode;
+  final String? placeholder;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    alignment: AlignmentDirectional.centerEnd,
+    children: [
+      CupertinoSearchTextField(
+        controller: controller,
+        focusNode: focusNode,
+        placeholder: placeholder,
+        suffixMode: OverlayVisibilityMode.never,
+        padding: const EdgeInsetsDirectional.fromSTEB(5.5, 8, 30, 8),
+        onChanged: onChanged,
+      ),
+      ListenableBuilder(
+        listenable: controller,
+        builder: (context, _) => controller.text.isEmpty
+            ? const SizedBox.shrink()
+            : CupertinoButton(
+                minimumSize: Size.zero,
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                onPressed: () {
+                  controller.clear();
+                  onChanged('');
+                },
+                child: Semantics(
+                  label: 'Clear search',
+                  child: Icon(
+                    CupertinoIcons.xmark_circle_fill,
+                    size: 20,
+                    color: CupertinoColors.secondaryLabel.resolveFrom(context),
+                  ),
+                ),
+              ),
+      ),
+    ],
+  );
+}
+
 // A searchable list of every note in the notes folder; null when the user
 // cancels.
 Future<native.Note?> chooseNote(
@@ -49,7 +104,7 @@ Future<native.Note?> chooseNote(
                 ),
                 Padding(
                   padding: const EdgeInsets.all(12),
-                  child: CupertinoSearchTextField(
+                  child: SearchField(
                     controller: filter,
                     onChanged: (_) => update(() {}),
                   ),
