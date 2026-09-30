@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 
 import { loadEngine } from "../engine/load.ts";
-import { readNotebook, writeFiles } from "../storage/folder.ts";
+import { ensureTemplates, readNotebook, writeFiles } from "../storage/folder.ts";
 import { createFolder, scanLibrary } from "../storage/library.ts";
 import { createNotebook, Saver } from "./notebook.ts";
 
@@ -11,6 +11,7 @@ test("new notes keep existing notebook folders and their contents", async () => 
   const name = `test-create-note-${crypto.randomUUID()}`;
   const root = await origin.getDirectoryHandle(name, { create: true });
   try {
+    await ensureTemplates(root, engine);
     await createFolder(root, [], "Course");
     const lecture = await createNotebook(engine, root, ["Course"], "Lecture", "dotted", "a4", "portrait");
     lecture.document.free();
