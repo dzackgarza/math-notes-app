@@ -579,6 +579,23 @@ InkStatus ink_document_set_page_size(InkDocument *document, InkPageSize size,
   });
 }
 
+InkStatus ink_document_page_size(InkDocument *document, InkPageSize *size,
+                                 InkOrientation *orientation, double *width, double *height) {
+  return Call([&] {
+    if (!document) return NullArgument("document");
+    if (!size || !orientation || !width || !height) return NullArgument("page size");
+    auto [w, h] = ink_engine::PageDimensions(document->history.current().notebook.page_size);
+    *width = w, *height = h;
+    *orientation = w > h ? INK_LANDSCAPE : INK_PORTRAIT;
+    auto [shorter, longer] = std::minmax(w, h);
+    std::array<double, 2> portrait{shorter, longer};
+    *size = portrait == ink_engine::kA4       ? INK_PAGE_A4
+            : portrait == ink_engine::kLetter ? INK_PAGE_LETTER
+                                              : INK_PAGE_CUSTOM;
+    return INK_OK;
+  });
+}
+
 InkStatus ink_document_set_template(InkDocument *document, const char *name, const uint8_t *svg,
                                     size_t size) {
   return Call([&] {

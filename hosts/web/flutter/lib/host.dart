@@ -136,6 +136,15 @@ extension type PageRect(JSObject value) implements JSObject {
   external double get height;
 }
 
+// The size of new pages: `size` 0 A4, 1 Letter, 2 custom; `orientation` 0
+// portrait, 1 landscape; the dimensions in pt.
+extension type NewPageSize(JSObject value) implements JSObject {
+  external int get size;
+  external int get orientation;
+  external double get width;
+  external double get height;
+}
+
 extension type ToolSettings(JSObject value) implements JSObject {
   external factory ToolSettings.create({
     int brush,
@@ -217,7 +226,13 @@ extension type Document(JSObject value) implements JSObject {
   external void movePage(int from, int to);
   external void duplicatePage(int index);
   external JSUint8Array pagePng(int index, int width);
-  external void setPageSize(int size, int orientation);
+  external void setPageSize(
+    int size,
+    int orientation, [
+    double width,
+    double height,
+  ]);
+  external NewPageSize pageSize();
   external void setArrangement(int arrangement);
   external Size contentSize();
   external PageRect pageRect(int index);

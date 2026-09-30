@@ -113,9 +113,13 @@ extension _EditorDialogs on _EditorScreenState {
     boxWidth.dispose();
   }
 
-  // The paper of the page and the size of new pages.
+  // The paper, size, and orientation of new pages. Each change applies at
+  // once, as the toolbar sheet's switches do.
   Future<void> paperMenu() async {
-    final templates = await native.host.listTemplates(widget.note.root).toDart;
+    final templates = (await native.host.listTemplates(widget.note.root).toDart)
+        .toDart
+        .map((name) => name.toDart)
+        .toList();
     if (!mounted) return;
     Future<void> applyTemplate(String name) async {
       await native.host
@@ -125,41 +129,95 @@ extension _EditorDialogs on _EditorScreenState {
       edit(() {});
     }
 
-    final chosen = await showCupertinoModalPopup<Future<void> Function()>(
-      context: context,
-      builder: (context) => CupertinoActionSheet(
-        title: const Text('Paper for new pages'),
-        message: Text('Current: ${widget.note.template}'),
-        actions: [
-          for (final name in templates.toDart)
-            CupertinoActionSheetAction(
-              onPressed: () =>
-                  Navigator.pop(context, () => applyTemplate(name.toDart)),
-              child: Text(name.toDart),
-            ),
-          for (final (size, orientation, label) in const [
-            (0, 0, 'A4 portrait'),
-            (0, 1, 'A4 landscape'),
-            (1, 0, 'Letter portrait'),
-            (1, 1, 'Letter landscape'),
-          ])
-            CupertinoActionSheetAction(
-              onPressed: () => Navigator.pop(
-                context,
-                () async => edit(
-                  () => widget.note.document.setPageSize(size, orientation),
-                ),
-              ),
-              child: Text(label),
-            ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
+    Widget heading(String text) => Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 12, bottom: 6),
+        child: Text(text, style: const TextStyle(fontWeight: FontWeight.w600)),
       ),
     );
-    await chosen?.call();
+    await showCupertinoModalPopup<void>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, update) {
+          final current = widget.note.document.pageSize();
+          return CupertinoActionSheet(
+            title: const Text('Paper for new pages'),
+            message: Column(
+              children: [
+                heading('Paper Style'),
+                for (final name in templates)
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(44, 36),
+                    onPressed: () => unawaited(
+                      run(() async {
+                        await applyTemplate(name);
+                        update(() {});
+                      }),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            paperLabels[name] ?? name,
+                            textAlign: TextAlign.start,
+                          ),
+                        ),
+                        if (name == widget.note.template)
+                          const Icon(CupertinoIcons.checkmark, size: 18),
+                      ],
+                    ),
+                  ),
+                heading('Page Size'),
+                CupertinoSlidingSegmentedControl<int>(
+                  groupValue: current.size == 2 ? null : current.size,
+                  children: const {0: Text('A4'), 1: Text('Letter')},
+                  onValueChanged: (size) {
+                    if (size == null) return;
+                    edit(
+                      () => widget.note.document.setPageSize(
+                        size,
+                        current.orientation,
+                      ),
+                    );
+                    update(() {});
+                  },
+                ),
+                if (current.size == 2)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      'Custom: ${current.width.round()} × ${current.height.round()} pt',
+                    ),
+                  ),
+                heading('Orientation'),
+                CupertinoSlidingSegmentedControl<int>(
+                  groupValue: current.orientation,
+                  children: const {0: Text('Portrait'), 1: Text('Landscape')},
+                  onValueChanged: (orientation) {
+                    if (orientation == null) return;
+                    edit(
+                      () => widget.note.document.setPageSize(
+                        current.size,
+                        orientation,
+                        current.width,
+                        current.height,
+                      ),
+                    );
+                    update(() {});
+                  },
+                ),
+              ],
+            ),
+            cancelButton: CupertinoActionSheetAction(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Done'),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   void insertPage(int at) => edit(() => widget.note.document.insertPage(at));

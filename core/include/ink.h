@@ -127,6 +127,11 @@ InkStatus ink_document_duplicate_page(InkDocument *document, size_t index);
 /* The size of new pages: A4, Letter, or `width` × `height` pt, in `orientation`. */
 InkStatus ink_document_set_page_size(InkDocument *document, InkPageSize size,
                                      InkOrientation orientation, double width, double height);
+/* The size of new pages as ink_document_set_page_size set it: `*width` ×
+   `*height` pt, a landscape page wider than high, and the name A4 or Letter
+   when the dimensions are that size in either orientation. */
+InkStatus ink_document_page_size(InkDocument *document, InkPageSize *size,
+                                 InkOrientation *orientation, double *width, double *height);
 
 /* The notebook's template: `name` under Notes/.templates/, and the bytes of
    that template notebook's pages/0001.svg, whose background new pages copy. */

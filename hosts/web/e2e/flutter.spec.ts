@@ -2522,17 +2522,20 @@ test("Flutter inserts pages before and after a page, deletes a page, and sizes n
   ]);
 
   const a4 = [595.28, 841.89], letter = [612, 792];
+  // One control changes at a time: the sheet shows the current size and
+  // orientation, and the other control keeps its value.
   const papers: [string, number[]][] = [
-    ["Letter landscape", letter.toReversed()],
-    ["Letter portrait", letter],
-    ["A4 landscape", a4.toReversed()],
-    ["A4 portrait", a4],
+    ["Letter", letter],
+    ["Landscape", letter.toReversed()],
+    ["A4", a4.toReversed()],
+    ["Portrait", a4],
   ];
-  for (const [index, [paper]] of papers.entries()) {
+  for (const [index, [control]] of papers.entries()) {
     await choose("More", "Paper for new pages");
-    await expect(button("Cancel")).toBeVisible();
+    await expect(button("Done")).toBeVisible();
     if (index === 1) await page.screenshot({ path: info.outputPath("paper-sheet.png") });
-    await button(paper).click();
+    await button(control).click();
+    await button("Done").click();
     await choose("Pages", "Add page");
     await expect(page.getByText(`2 / ${4 + index}`, { exact: true })).toBeVisible();
   }
@@ -2551,6 +2554,16 @@ test("Flutter inserts pages before and after a page, deletes a page, and sizes n
   await choose("More", "Delete page");
   await expect(page.getByText("2 / 6", { exact: true })).toBeVisible();
   expect((await savedPages(page, "Inserts")).map(({ strokes }) => strokes), "the written page is deleted").toEqual([0, 0, 0, 0, 0, 0]);
+
+  // The paper style of new pages; the pages that exist keep theirs.
+  const rulings = async () => (await savedPages(page, "Inserts")).map(({ ruling }) => ruling);
+  const before = await rulings();
+  await choose("More", "Paper for new pages");
+  await button("Lined Paper").click();
+  await button("Done").click();
+  await choose("Pages", "Add page");
+  await expect(page.getByText("2 / 7", { exact: true })).toBeVisible();
+  expect(await rulings(), "the new page is lined").toEqual([...before, "lined"]);
 });
 
 test("Flutter horizontal scroll puts the pages side by side, pans across them, and persists", async ({ page }, info) => {
@@ -3230,9 +3243,9 @@ test("Flutter menus, alerts, action sheets, and sheets blur the handwriting behi
 
   await button("More").click();
   await button("Paper for new pages").click();
-  const action = await boxOf(button("grid-medium"));
-  await blurred(action.x + 20, action.y + 6, action.y + action.height - 6, "the action sheet");
-  await button("Cancel").click();
+  const action = await boxOf(button("Grid Paper"));
+  await blurred(action.x + 0.6 * action.width, action.y + 4, action.y + action.height - 4, "the action sheet");
+  await button("Done").click();
 
   await button("Pages").click();
   await page.getByRole("button", { name: /^Layers/ }).click();

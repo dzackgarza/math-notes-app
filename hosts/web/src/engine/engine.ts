@@ -643,6 +643,21 @@ export class InkDocument {
     this.engine.check(this.engine.module._ink_document_set_page_size(this.pointer, size, orientation, width, height));
   }
 
+  // The size of new pages: a PageSize, an Orientation, and the dimensions in pt.
+  pageSize(): { size: number; orientation: number; width: number; height: number } {
+    const e = this.engine;
+    return e.withScratch(24, (out) => {
+      e.check(e.module._ink_document_page_size(this.pointer, out, out + 4, out + 8, out + 16));
+      const view = e.view();
+      return {
+        size: view.getInt32(out, true),
+        orientation: view.getInt32(out + 4, true),
+        width: view.getFloat64(out + 8, true),
+        height: view.getFloat64(out + 16, true),
+      };
+    });
+  }
+
   // `page1` is the template notebook's pages/0001.svg.
   setTemplate(name: string, page1: Uint8Array): void {
     const e = this.engine;

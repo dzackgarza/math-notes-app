@@ -155,6 +155,31 @@ TEST_CASE("New pages take the notebook's page size") {
   CHECK(session.doc().notebook.page_size == PageSize{std::array<double, 2>{792, 612}});
 }
 
+TEST_CASE("The page size of new pages reads back as it was set") {
+  ink_test::Session session;
+  InkPageSize size = INK_PAGE_CUSTOM;
+  InkOrientation orientation = INK_LANDSCAPE;
+  double width = 0, height = 0;
+  REQUIRE(ink_document_page_size(session.document, &size, &orientation, &width, &height) == INK_OK);
+  CHECK(size == INK_PAGE_A4);
+  CHECK(orientation == INK_PORTRAIT);
+  CHECK(width == 595.28);
+  CHECK(height == 841.89);
+  REQUIRE(ink_document_set_page_size(session.document, INK_PAGE_LETTER, INK_LANDSCAPE, 0, 0) == INK_OK);
+  REQUIRE(ink_document_page_size(session.document, &size, &orientation, &width, &height) == INK_OK);
+  CHECK(size == INK_PAGE_LETTER);
+  CHECK(orientation == INK_LANDSCAPE);
+  CHECK(width == 792);
+  CHECK(height == 612);
+  REQUIRE(ink_document_set_page_size(session.document, INK_PAGE_CUSTOM, INK_PORTRAIT, 500, 700.5) == INK_OK);
+  REQUIRE(ink_document_page_size(session.document, &size, &orientation, &width, &height) == INK_OK);
+  CHECK(size == INK_PAGE_CUSTOM);
+  CHECK(orientation == INK_PORTRAIT);
+  CHECK(width == 500);
+  CHECK(height == 700.5);
+  CHECK(ink_document_page_size(session.document, &size, &orientation, nullptr, &height) == INK_ERROR_ARGUMENT);
+}
+
 TEST_CASE("A new page copies the template's background, regenerated for another page size") {
   InkDocument *lined = nullptr;
   REQUIRE(ink_builtin_template_create("lined-medium", 3, &lined) == INK_OK);

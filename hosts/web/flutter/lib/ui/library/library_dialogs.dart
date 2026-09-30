@@ -18,6 +18,15 @@ const papers = {
   'grid-fine': 'Graph Paper',
 };
 
+// The labels of every built-in template: those of `papers`, and the rulings
+// that the creation sheets do not offer.
+const paperLabels = {
+  ...papers,
+  'lined-wide': 'Lined Paper, wide',
+  'lined-narrow': 'Lined Paper, narrow',
+  'grid-coarse': 'Grid Paper, coarse',
+};
+
 CupertinoActionSheetAction cancelAction(BuildContext context) =>
     CupertinoActionSheetAction(
       onPressed: () => Navigator.pop(context),
