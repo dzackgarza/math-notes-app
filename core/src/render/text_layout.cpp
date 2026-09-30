@@ -55,7 +55,7 @@ TextLayout LayoutText(const Text &text) {
   style.setColor(SkColorSetRGB(text.fill.r, text.fill.g, text.fill.b));
   ParagraphStyle paragraph_style;
   paragraph_style.setTextStyle(style);
-  paragraph_style.setTextAlign(TextAlign::kLeft);
+  paragraph_style.setTextAlign(TextAlign::kStart);
   paragraph_style.setTextDirection(text.rtl ? TextDirection::kRtl : TextDirection::kLtr);
   auto builder = ParagraphBuilder::make(paragraph_style, fonts, unicode);
   TextLayout layout;
