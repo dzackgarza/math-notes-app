@@ -964,6 +964,13 @@ async function darkestPixel(page: Page, center: PenPoint): Promise<Rgb> {
   return pixels.reduce((darkest, rgb) => (brightness(rgb) < brightness(darkest) ? rgb : darkest));
 }
 
+// How much ink is on screen around a point: the total darkening of the
+// square since `paper`, its capture before writing.
+async function inkAt(page: Page, center: PenPoint, paper: Rgb[]): Promise<number> {
+  const pixels = await screenPixels(page, center);
+  return pixels.reduce((sum, rgb, i) => sum + brightness(paper[i]) - brightness(rgb), 0);
+}
+
 async function centerPixel(page: Page, center: PenPoint): Promise<Rgb> {
   return (await screenPixels(page, center))[40];
 }
@@ -979,6 +986,66 @@ async function openNewNote(page: Page, title: string): Promise<{ box: Box; cdp: 
   return { box, cdp: await page.context().newCDPSession(page) };
 }
 
+test("Flutter lasso moves, cuts, pastes, copies, and deletes handwriting", async ({ page, context }, info) => {
+  test.setTimeout(90_000);
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const { box, cdp } = await openNewNote(page, "Selections");
+  const written = { x: box.x + 220, y: box.y + 170 };
+  const moved = { x: written.x, y: written.y + 150 };
+  const lower = { x: written.x, y: moved.y + 150 };
+  const paper = new Map<PenPoint, Rgb[]>();
+  for (const spot of [written, moved, lower]) paper.set(spot, await screenPixels(page, spot));
+  const shot = (name: string) => page.screenshot({ path: info.outputPath(`${name}.png`) });
+  const dragDown = (from: PenPoint) =>
+    penStroke(cdp, [0, 50, 100, 150].map((dy) => ({ x: from.x, y: from.y + dy })), 0.6);
+  // Where handwriting shows: each spot has the full stroke's ink or none.
+  let stroke = 0;
+  const inked = async () => {
+    const spots = [];
+    for (const spot of [written, moved, lower]) {
+      const ink = await inkAt(page, spot, paper.get(spot)!);
+      expect(ink < 0.1 * stroke || ink > 0.8 * stroke, `ink ${ink} of ${stroke}`).toBe(true);
+      spots.push(ink > 0.8 * stroke);
+    }
+    return spots;
+  };
+
+  await penStroke(cdp, line(written.x - 40, written.x + 40, written.y), 0.6);
+  stroke = await inkAt(page, written, paper.get(written)!);
+  await page.getByRole("button", { name: "Lasso", exact: true }).click();
+  await penStroke(cdp, [
+    { x: written.x - 70, y: written.y - 40 }, { x: written.x + 70, y: written.y - 40 },
+    { x: written.x + 70, y: written.y + 40 }, { x: written.x - 70, y: written.y + 40 },
+    { x: written.x - 70, y: written.y - 40 },
+  ], 0.6);
+  await dragDown(written);
+  await shot("moved");
+  expect(await inked()).toEqual([false, true, false]);
+
+  await page.getByRole("button", { name: "Cut", exact: true }).click();
+  await shot("cut");
+  expect(await inked()).toEqual([false, false, false]);
+  const paste = async () => {
+    await page.getByRole("button", { name: "More", exact: true }).click();
+    await page.getByRole("button", { name: "Paste", exact: true }).click();
+  };
+  await paste();
+  expect(await inked()).toEqual([false, true, false]);
+
+  // Copy leaves the selected handwriting in place; it then moves away, and
+  // a paste puts the copy where the handwriting was copied from.
+  await page.getByRole("button", { name: "Copy", exact: true }).click();
+  await dragDown(moved);
+  expect(await inked()).toEqual([false, false, true]);
+  await paste();
+  await shot("copied");
+  expect(await inked()).toEqual([false, true, true]);
+
+  await page.getByRole("button", { name: "Delete selection", exact: true }).click();
+  await shot("deleted");
+  expect(await inked()).toEqual([false, false, true]);
+});
+
 test("Flutter writes a hard pen stroke visibly thicker than a light one", async ({ page }, info) => {
   test.setTimeout(60_000);
   const { box, cdp } = await openNewNote(page, "Pressure");
@@ -991,9 +1058,7 @@ test("Flutter writes a hard pen stroke visibly thicker than a light one", async 
   await page.screenshot({ path: info.outputPath("pressure.png") });
 
   // Ink on screen: how much each stroke darkened the paper across its width.
-  const ink = async (center: PenPoint, before: Rgb[]) =>
-    (await screenPixels(page, center)).reduce((sum, rgb, i) => sum + brightness(before[i]) - brightness(rgb), 0);
-  const ratio = (await ink(hard, paper[1])) / (await ink(light, paper[0]));
+  const ratio = (await inkAt(page, hard, paper[1])) / (await inkAt(page, light, paper[0]));
   expect(ratio).toBeGreaterThan(1.3);
   expect(ratio).toBeLessThan(3);
 });
