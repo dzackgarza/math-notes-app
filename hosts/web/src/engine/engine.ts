@@ -995,6 +995,12 @@ export class Canvas {
     });
   }
 
+  // Makes the next render() draw a frame, for a caller that reads the canvas
+  // element: the drawing buffer holds a frame only until the browser presents it.
+  invalidate(): void {
+    this.engine.check(this.engine.module._ink_canvas_invalidate(this.pointer));
+  }
+
   free(): void {
     if (this.samples) this.engine.free(this.samples);
     this.engine.check(this.engine.module._ink_canvas_free(this.pointer));

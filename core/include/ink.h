@@ -383,6 +383,10 @@ InkStatus ink_input_update(InkCanvas *canvas, const InkPenSample *samples, size_
 /* Draws a frame when the document, the view, or the live stroke changed
    since the last one. `*drew` is 1 when it drew. */
 InkStatus ink_render(InkCanvas *canvas, int32_t *drew);
+/* Makes the next ink_render draw a frame. For a host that reads the frame
+   from the surface: a WebGL drawing buffer holds a frame only until the
+   browser presents it. */
+InkStatus ink_canvas_invalidate(InkCanvas *canvas);
 /* Moves the document one step back or forward in its history. `*moved` is 0
    at either end. `*page` is the page the step changed, for the host to show,
    or -1 when it changed no page (a page size or template). */

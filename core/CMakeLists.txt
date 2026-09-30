@@ -124,7 +124,7 @@ if(EMSCRIPTEN)
     _ink_canvas_delete_selection _ink_canvas_copy_selection _ink_canvas_paste _ink_canvas_paste_at _ink_canvas_duplicate_selection _ink_canvas_recolor_selection
     _ink_canvas_insert_text _ink_canvas_select_text_at _ink_canvas_selected_text _ink_canvas_set_selected_text
     _ink_canvas_text_properties _ink_canvas_edit_text
-    _ink_input _ink_input_update _ink_render _ink_undo _ink_redo _ink_document_page_rect _ink_document_page_png _ink_struct_layout
+    _ink_input _ink_input_update _ink_render _ink_canvas_invalidate _ink_undo _ink_redo _ink_document_page_rect _ink_document_page_png _ink_struct_layout
     _malloc _free)
   list(JOIN INK_EXPORTS "," INK_EXPORTS_FLAG)
   set(INK_MODULE_FLAGS

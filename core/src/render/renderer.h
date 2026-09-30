@@ -103,7 +103,8 @@ class Renderer {
   void DrawPageForExport(SkCanvas *canvas, const Document &document, const Page &page,
                          bool include_hidden_layers);
 
-  // Redraws everything on the next Update: the assets changed.
+  // Redraws everything on the next Update: the assets changed, or the host
+  // asks for a frame.
   void Invalidate() { invalidated_ = true; }
 
   const RenderStats &stats() const { return stats_; }

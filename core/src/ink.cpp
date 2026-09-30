@@ -1316,6 +1316,14 @@ InkStatus ink_render(InkCanvas *canvas, int32_t *drew) {
   });
 }
 
+InkStatus ink_canvas_invalidate(InkCanvas *canvas) {
+  return Call([&] {
+    if (!canvas) return NullArgument("canvas");
+    canvas->renderer->Invalidate();
+    return INK_OK;
+  });
+}
+
 InkStatus ink_undo(InkDocument *document, int32_t *moved, int32_t *page) {
   return Call([&] { return Step(document, &ink_engine::DocumentHistory::Undo, moved, page); });
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:js_interop';
 import 'dart:ui' show SemanticsRole;
+import 'dart:ui' as ui show Image;
 import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/cupertino.dart';
@@ -75,6 +76,13 @@ class _EditorScreenState extends State<EditorScreen>
   bool applyingViewport = false;
   final transform = PageTransform();
   final element = web.HTMLCanvasElement();
+  // A frame of the ink canvas as a Flutter image, shown over the canvas
+  // while a route covers the editor. Flutter's BackdropFilter does not blur
+  // a platform view on the web (flutter/flutter#143747): without the image,
+  // the translucent Cupertino surfaces show the ink sharp.
+  ui.Image? still;
+  bool capturing = false;
+  ModalRoute<Object?>? route;
   late final Ticker ticker;
   late final String viewType;
   EditorViewModel get editor => context.read<EditorViewModel>();
@@ -204,7 +212,11 @@ class _EditorScreenState extends State<EditorScreen>
     widget.viewport.addListener(receiveViewport);
     widget.destination.addListener(receiveDestination);
     ticker = createTicker((_) {
-      canvas?.render();
+      final covered = !(route?.isCurrent ?? true);
+      if (covered && still == null && !capturing) canvas?.invalidate();
+      final drew = canvas?.render() ?? false;
+      if (covered && drew) unawaited(run(capture));
+      if (!covered && still != null) showStill(null);
       final next = canvas?.selection();
       if (next?.count != selection?.count ||
           next?.x != selection?.x ||
@@ -244,6 +256,35 @@ class _EditorScreenState extends State<EditorScreen>
         if (mounted && widget.active) focus.requestFocus();
       });
     }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    route = ModalRoute.of(context);
+  }
+
+  // Reads the frame that the canvas drew in this task: the drawing buffer
+  // holds it only until the browser presents it.
+  Future<void> capture() async {
+    capturing = true;
+    try {
+      final bitmap = await web.window.createImageBitmap(element).toDart;
+      final image = await ui_web.createImageFromImageBitmap(bitmap);
+      if (mounted && !route!.isCurrent) {
+        showStill(image);
+      } else {
+        image.dispose();
+      }
+    } finally {
+      capturing = false;
+    }
+  }
+
+  void showStill(ui.Image? image) {
+    final previous = still;
+    setState(() => still = image);
+    WidgetsBinding.instance.addPostFrameCallback((_) => previous?.dispose());
   }
 
   Future<void> run(Future<void> Function() action) async {
@@ -1044,6 +1085,7 @@ class _EditorScreenState extends State<EditorScreen>
     pullTimer?.cancel();
     focus.dispose();
     ticker.dispose();
+    still?.dispose();
     scroll.dispose();
     transform.dispose();
     super.dispose();
@@ -1176,6 +1218,17 @@ class _EditorScreenState extends State<EditorScreen>
                                         child: HtmlElementView(
                                           viewType: viewType,
                                         ),
+                                      ),
+                                    ),
+                                    // Always a child: a child that comes and
+                                    // goes moves the listener to another
+                                    // slot, and Flutter then rebuilds it and
+                                    // the scroll view in it from scratch.
+                                    Positioned.fill(
+                                      child: RawImage(
+                                        image: still,
+                                        fit: BoxFit.fill,
+                                        filterQuality: FilterQuality.none,
                                       ),
                                     ),
                                     Positioned.fill(

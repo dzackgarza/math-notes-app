@@ -268,6 +268,7 @@ extension type Canvas(JSObject value) implements JSObject {
   external String selectedText();
   external void setSelectedText(String value);
   external bool render();
+  external void invalidate();
   external void free();
 }
 

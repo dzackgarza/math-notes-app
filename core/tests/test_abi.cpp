@@ -72,6 +72,7 @@ TEST_CASE("A null handle or pointer gives an argument status") {
   int32_t drew = 0;
   CHECK(ink_render(nullptr, &drew) == INK_ERROR_ARGUMENT);
   CHECK(std::string(ink_last_error()) == "canvas is null");
+  CHECK(ink_canvas_invalidate(nullptr) == INK_ERROR_ARGUMENT);
   CHECK(ink_document_create(1, nullptr) == INK_ERROR_ARGUMENT);
   ink_test::Session session;
   CHECK(ink_canvas_set_tool(session.get(), nullptr) == INK_ERROR_ARGUMENT);
