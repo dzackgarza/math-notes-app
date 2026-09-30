@@ -32,6 +32,30 @@ jobs:
           if-no-files-found: error
       - name: Vitest Browser Mode in Chromium
         run: bunx vitest run
+  # The Playwright workflows, in shards that each deploy the web app to their
+  # own nginx.
+  workflows:
+    needs: web
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    defaults:
+      run:
+        working-directory: hosts/web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v8
+        with:
+          name: web-app
+          path: hosts/web/flutter/build/web
+      - uses: oven-sh/setup-bun@v2
+      - name: Install
+        run: |
+          bun install --frozen-lockfile
+          bunx playwright install --with-deps chromium
       - name: Deploy to nginx
         run: |
           sudo apt-get install -y nginx poppler-utils qpdf
@@ -42,10 +66,10 @@ jobs:
           sudo nginx -t
           sudo systemctl restart nginx
       - name: Playwright against the deployment
-        run: bunx playwright test
+        run: bunx playwright test --shard=${{ matrix.shard }}/${{ strategy.job-total }}
       - name: Browser failure evidence
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: web-test-results
+          name: web-test-results-${{ matrix.shard }}
           path: hosts/web/test-results
