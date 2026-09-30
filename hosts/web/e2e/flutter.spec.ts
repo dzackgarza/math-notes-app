@@ -1351,6 +1351,57 @@ test("Flutter palette edits a swatch on the HSV wheel, and adds and removes swat
   expect(near(await swatchColor(4), added), "the added swatch persists").toBe(true);
 });
 
+test("Flutter floats the toolbar over the page under dark chrome and moves it from the menus", async ({ page }, info) => {
+  test.setTimeout(120_000);
+  const { box } = await openNewNote(page, "Chrome");
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  const pageCenter = box.x + box.width / 2;
+  const dark = (rgb: Rgb) => brightness(rgb) < 150;
+  // The dark ribbon on the light page: its middle row in the page's center
+  // column, then its extent along that row.
+  const ribbon = async () => {
+    const column = await capture(page, { x: pageCenter, y: box.y, width: 1, height: box.height });
+    const rows = column.flatMap((rgb, i) => (dark(rgb) ? [i] : []));
+    if (rows.length === 0) throw new Error("No toolbar crosses the page's center column");
+    const y = box.y + (rows[0] + rows[rows.length - 1]) / 2;
+    const row = await capture(page, { x: box.x, y, width: box.width, height: 1 });
+    const columns = row.flatMap((rgb, i) => (dark(rgb) ? [i] : []));
+    return { left: box.x + columns[0], right: box.x + columns[columns.length - 1], y };
+  };
+
+  const topBar = await centerPixel(page, { x: 300, y: 74 });
+  expect(brightness(topBar), "the top bar is dark").toBeLessThan(150);
+  const top = await ribbon();
+  expect(Math.abs((top.left + top.right) / 2 - pageCenter), "the toolbar is centered on the page").toBeLessThan(4);
+  expect(top.y - box.y, "the toolbar floats over the top edge of the page").toBeLessThan(80);
+  const beside = await centerPixel(page, { x: top.left - 40, y: top.y });
+  expect(brightness(beside), "the page shows beside the toolbar").toBeGreaterThan(600);
+
+  await button("View").click();
+  await button("Toolbar at bottom").click();
+  await expect.poll(async () => (await ribbon()).y, { message: "the toolbar moves to the bottom edge" })
+    .toBeGreaterThan(box.y + box.height - 80);
+
+  await button("Pages").click();
+  await button("Add page").click();
+  await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
+
+  await button("More").click();
+  await button("Customize toolbar").click();
+  // One switch per tool kind, in toolbar order; Insert space is the eighth.
+  await page.getByRole("switch").nth(7).click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(button("Insert space")).toHaveCount(0);
+
+  await page.reload();
+  await openTestNotebook(page);
+  await page.getByRole("button", { name: "Open Chrome", exact: false }).click();
+  await page.locator('canvas[id^="ink-canvas-"]:visible').waitFor({ timeout: 30_000 });
+  await page.screenshot({ path: info.outputPath("chrome.png") });
+  expect((await ribbon()).y, "the toolbar stays at the bottom after a reload").toBeGreaterThan(box.y + box.height - 80);
+  await expect(button("Insert space")).toHaveCount(0);
+});
+
 test("Flutter saved pen in the toolbar restores its color and width after a reload", async ({ page }, info) => {
   test.setTimeout(120_000);
   const { box, cdp } = await openNewNote(page, "Saved pens");
