@@ -197,6 +197,7 @@ test("Flutter reconnects a saved folder and retains edits on every page", async 
   await page.getByRole("button", { name: "Add page", exact: true }).click();
   await page.getByRole("button", { name: "Pages", exact: true }).click();
   await page.getByRole("button", { name: "Next page", exact: true }).click();
+  await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
   await draw(box.y + 260);
   await save(page);
   await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
@@ -2368,11 +2369,12 @@ test("Flutter marker popover changes the size of the marker only", async ({ page
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("Page has no viewport");
   await page.mouse.click(viewport.width - 20, viewport.height - 20);
-  await expect.poll(() => page.evaluate(async () => {
+  // A read during the app's write of the file throws; the next read succeeds.
+  await expect(async () => expect(await page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
     const pens = JSON.parse(await (await (await root.getFileHandle(".pens.json")).getFile()).text());
     return { pen: pens.pen, marker: pens.marker };
-  })).toMatchObject({ pen: { brush: "pressure-pen", size: 1.2 }, marker: { brush: "marker", size: 3.6 } });
+  })).toMatchObject({ pen: { brush: "pressure-pen", size: 1.2 }, marker: { brush: "marker", size: 3.6 } })).toPass({ timeout: 15_000 });
 });
 
 test("Flutter two-page layout puts pen input on the right page and shares a PDF", async ({ page }) => {
