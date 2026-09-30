@@ -74,9 +74,23 @@ async function cacheApp(): Promise<void> {
 const rawEvents = new Map<number, PointerEvent>();
 const consumed = new WeakSet<PointerEvent>();
 const sampleIds = { next: 0 };
-for (const type of ["pointerdown", "pointermove", "pointerup", "pointercancel"]) {
+// With ?root=opfs: the last pen events the browser sent and the last stamps
+// Flutter delivered, for a workflow whose stroke went missing (#72).
+function logPointer(line: string): void {
+  const log = window.mathNotesPointers;
+  if (!log) return;
+  log.push(line);
+  if (log.length > 400) log.shift();
+}
+const sampleEvents = ["pointerdown", "pointermove", "pointerup", "pointercancel"];
+// Flutter's button state for the stylus follows its leave and out events too,
+// so the log keeps them.
+for (const type of [...sampleEvents, "pointerleave", "pointerout"]) {
   window.addEventListener(type, (event) => {
     if (!(event instanceof PointerEvent) || event.pointerType === "mouse") return;
+    const target = event.target instanceof Element ? event.target.tagName.toLowerCase() : "";
+    logPointer(`browser ${event.type} ${Math.trunc(event.timeStamp * 1000)} id=${event.pointerId} buttons=${event.buttons} on ${target}`);
+    if (!sampleEvents.includes(event.type)) return;
     const events = event.getCoalescedEvents();
     for (const sample of [event, ...events]) rawEvents.set(Math.trunc(sample.timeStamp * 1000), event);
     // Only recent browser batches can be dispatched by Flutter. Entries for
@@ -105,6 +119,7 @@ function checkPlatform(): void {
 async function startRoot() {
   if (new URLSearchParams(location.search).get("root") === "opfs") {
     window.mathNotesWrites = [];
+    window.mathNotesPointers = [];
     return { root: await navigator.storage.getDirectory(), needsGesture: false };
   }
   const root = await savedRoot();
@@ -144,6 +159,7 @@ function writing<A extends Arguments, R>(task: (...args: A) => Promise<R>): (...
 // `fingerDraws` makes a touch draw with the selected tool.
 function acceptPen(canvas: Canvas, element: HTMLCanvasElement, stamp: number, fingerDraws: boolean): boolean {
   const event = rawEvents.get(stamp);
+  logPointer(`flutter ${stamp} ${!event ? "no browser event" : consumed.has(event) ? "consumed" : event.type}`);
   if (!event || consumed.has(event)) return false;
   consumed.add(event);
   const bounds = element.getBoundingClientRect();

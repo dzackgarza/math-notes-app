@@ -17,5 +17,8 @@ declare global {
     // With ?root=opfs: thumbnail cache reads and engine renders
     // (src/storage/thumbnails.ts).
     mathNotesThumbnails?: { hits: number; renders: number };
+    // With ?root=opfs: the last pen events the browser sent and the stamps
+    // Flutter delivered (src/flutter.ts).
+    mathNotesPointers?: string[];
   }
 }

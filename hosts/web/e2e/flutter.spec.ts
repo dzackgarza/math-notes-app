@@ -3,6 +3,16 @@ import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { networkInterfaces } from "node:os";
 
+// A failed workflow keeps the bridge's pointer log (window.mathNotesPointers):
+// whether each pen event reached Flutter and the engine, for a stroke that
+// left no ink (#72).
+test.afterEach(async ({ page }, info) => {
+  if (info.status === info.expectedStatus) return;
+  const log = await page.evaluate(() => (window as unknown as { mathNotesPointers?: string[] }).mathNotesPointers ?? [])
+    .catch(() => ["the page is gone"]);
+  await info.attach("pointers.txt", { body: log.join("\n"), contentType: "text/plain" });
+});
+
 // Flutter activates its text input channel after semantic focus is delivered.
 // Use actual keyboard input after clicking, rather than fill's synchronous DOM
 // value assignment. See Flutter web_ui semantics/text_field.dart, activate.
