@@ -1291,6 +1291,66 @@ test("Flutter tool popovers set size, opacity, and the brush of each pen type", 
   expect(await inkThickness(page, at(340)), "the marker ignores pressure").toBe(await inkThickness(page, at(400)));
 });
 
+test("Flutter palette edits a swatch on the HSV wheel, and adds and removes swatches", async ({ page }, info) => {
+  test.setTimeout(150_000);
+  const { box, cdp } = await openNewNote(page, "Palette");
+  const swatches = page.getByRole("button", { name: /^Color #/ });
+  const swatchColor = async (index: number) => {
+    const bounds = await swatches.nth(index).boundingBox();
+    if (!bounds) throw new Error("A swatch has no bounds");
+    return centerPixel(page, { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 });
+  };
+  // A short drag at an offset from the wheel's center: the hue ring is the outer
+  // 20 px of the 228 px wheel, and the saturation and value square is inside it.
+  const wheelDrag = async (dx: number, dy: number) => {
+    const bounds = await page.getByRole("button", { name: "Color wheel", exact: true }).boundingBox();
+    if (!bounds) throw new Error("The color wheel has no bounds");
+    const x = bounds.x + bounds.width / 2 + dx;
+    const y = bounds.y + bounds.height / 2 + dy;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + 3, y + 3, { steps: 3 });
+    await page.mouse.up();
+  };
+  const saturation = (rgb: Rgb) => Math.max(...rgb) - Math.min(...rgb);
+  const near = (a: Rgb, b: Rgb) => a.every((channel, i) => Math.abs(channel - b[i]) < 30);
+
+  await page.getByRole("button", { name: "Pen", exact: true }).click();
+  await page.getByRole("button", { name: "3.6 pt", exact: true }).click();
+  await closePopover(page);
+  // A tap on the pen's current swatch opens the wheel for that swatch.
+  await swatches.first().click();
+  await wheelDrag(45, -45);
+  await wheelDrag(0, 104);
+  await closePopover(page);
+  const edited = await swatchColor(0);
+  expect(saturation(edited), "the wheel makes the gray swatch a saturated color").toBeGreaterThan(100);
+  const stroke = { x: box.x + 240, y: box.y + 200 };
+  await penStroke(cdp, line(box.x + 140, box.x + 340, stroke.y), 0.6);
+  const ink = await darkestPixel(page, stroke);
+  expect(near(ink, edited), `the pen writes the swatch color: ink ${ink}, swatch ${edited}`).toBe(true);
+
+  await page.getByRole("button", { name: "Edit colors", exact: true }).click();
+  await page.getByRole("button", { name: "Remove color #ffcf26", exact: true }).click();
+  await wheelDrag(0, -104);
+  await page.getByRole("button", { name: "Add color", exact: true }).click();
+  await closePopover(page);
+  await expect(page.getByRole("button", { name: "Color #ffcf26", exact: true })).toHaveCount(0);
+  await expect(swatches).toHaveCount(5);
+  const added = await swatchColor(4);
+  expect(saturation(added), "the added swatch is a saturated color").toBeGreaterThan(100);
+  expect(near(added, edited), "the added swatch differs from the edited one").toBe(false);
+
+  await page.reload();
+  await openTestNotebook(page);
+  await page.getByRole("button", { name: "Open Palette", exact: false }).click();
+  await page.locator('canvas[id^="ink-canvas-"]:visible').waitFor({ timeout: 30_000 });
+  await page.screenshot({ path: info.outputPath("palette.png") });
+  await expect(swatches).toHaveCount(5);
+  expect(near(await swatchColor(0), edited), "the edited swatch persists").toBe(true);
+  expect(near(await swatchColor(4), added), "the added swatch persists").toBe(true);
+});
+
 test("Flutter saved pen in the toolbar restores its color and width after a reload", async ({ page }, info) => {
   test.setTimeout(120_000);
   const { box, cdp } = await openNewNote(page, "Saved pens");

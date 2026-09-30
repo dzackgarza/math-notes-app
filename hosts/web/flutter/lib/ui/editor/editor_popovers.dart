@@ -442,14 +442,17 @@ extension _EditorPopovers on _EditorScreenState {
     await choosePenColor(color);
   }
 
-  Widget colorWheel(int rgb, ValueChanged<int> changed) => SizedBox(
-    width: 228,
-    height: 228,
-    child: ColorWheelPicker(
-      color: Color(0xFF000000 | rgb),
-      onChanged: (color) => changed(color.toARGB32() & 0xFFFFFF),
-      onWheel: (_) {},
-      wheelWidth: 20,
+  Widget colorWheel(int rgb, ValueChanged<int> changed) => Semantics(
+    label: 'Color wheel',
+    child: SizedBox(
+      width: 228,
+      height: 228,
+      child: ColorWheelPicker(
+        color: Color(0xFF000000 | rgb),
+        onChanged: (color) => changed(color.toARGB32() & 0xFFFFFF),
+        onWheel: (_) {},
+        wheelWidth: 20,
+      ),
     ),
   );
 
