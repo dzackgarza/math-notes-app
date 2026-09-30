@@ -109,7 +109,7 @@ web-deploy: web-build
     rsync -a --delete hosts/web/flutter/build/web/ /var/www/math-notes/
 
 # The Engine (wasm32) workflow runs on every push; its artifacts exist once the
-# "Build Flutter host" step has run (`gh run watch <run>`). The engine module
+# "Build Flutter host" step has run (`gh run watch --interval 60 <run>`). The engine module
 # goes to hosts/web/src/engine/wasm, the web app to /var/www/math-notes.
 # Deploys CI's build of the checked-out commit (served at http://localhost/math-notes/).
 web-fetch:

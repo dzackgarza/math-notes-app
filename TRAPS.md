@@ -7,6 +7,7 @@
 - **Never publish the IPA at a reused URL.** A rolling `latest` tag let the iPad install a cached older IPA (build mismatch). Deleting a tag breaks every cached `source.json` that points at it ("MathNotes.ipa doesn't exist"). Each build gets its own tag `v<run>`; old releases are kept.
 - **Size in `source.json` must be the exact IPA byte count.** SideStore verifies it. macOS `stat` is `stat -f %z`, not `-c %s`.
 - **Workflow re-runs reuse `github.run_number`,** so the release step uploads with `--clobber` when the tag exists.
+- **`gh run watch` at its default 3-second interval trips GitHub's secondary rate limit** (`HTTP 403: API rate limit exceeded` while `gh api rate_limit` still shows thousands of core requests left), and the watch exits before the run ends. Watch with `--interval 60`.
 
 ## Linux host
 
