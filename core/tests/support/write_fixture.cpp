@@ -54,12 +54,38 @@ std::vector<WriteEvent> ReadWriteTrace(const std::string &path) {
     } else if (command == "view") {
       int page;
       double x, y;
-      Require(bool(words >> page >> x >> y) && page == 0 && x == 0 && y == 0, line);
+      Require(bool(words >> page >> x >> y) && page == 0, line);
     } else {
       Require(command == "screen" || command == "props", "unsupported trace command: " + line);
     }
   }
   return events;
+}
+
+WritePage ReadWritePage(const std::string &path) {
+  std::ifstream in(path);
+  Require(in.is_open(), "cannot open " + path);
+  WritePage page;
+  std::string line;
+  while (std::getline(in, line)) {
+    std::istringstream words(line);
+    std::string command;
+    if (!(words >> command) || command != "props") continue;
+    double width, height, x_ruling, y_ruling, margin_left;
+    Require(bool(words >> width >> height >> x_ruling >> y_ruling >> margin_left) && x_ruling == 0, line);
+    page = {kWritePt * width, kWritePt * height, kWritePt * y_ruling, kWritePt * margin_left};
+  }
+  return page;
+}
+
+ink_engine::Document WithWritePage(ink_engine::Document document, const WritePage &from) {
+  ink_engine::Page page = *document.pages[0];
+  page.width = from.width;
+  page.height = from.height;
+  page.background = {.ruling = from.y_ruling > 0 ? ink_engine::Ruling::kLined : ink_engine::Ruling::kBlank,
+                     .y_ruling = from.y_ruling, .margin_left = from.margin_left};
+  document.pages = document.pages.set(0, immer::box<ink_engine::Page>(std::move(page)));
+  return document;
 }
 
 WriteExpected ReadWriteExpected(const std::string &path) {
@@ -138,8 +164,11 @@ std::vector<std::string> ReplayWriteTrace(InkCanvas *canvas, const std::vector<W
     if (e.kind == WriteEvent::kMode) {
       erasing = e.mode == 14 || e.mode == 16;
       ink_canvas_set_eraser(canvas, e.mode == 16 ? INK_ERASER_FREE : INK_ERASER_STROKE, erasing);
-      selecting = e.mode == 18 || e.mode == 20;
-      ink_canvas_set_selector(canvas, e.mode == 18 ? INK_SELECTOR_RECT : INK_SELECTOR_LASSO, selecting);
+      static const std::map<int, InkSelector> kSelectors = {
+          {18, INK_SELECTOR_RECT}, {20, INK_SELECTOR_LASSO},
+          {25, INK_SELECTOR_SPACE_VERTICAL}, {27, INK_SELECTOR_SPACE_RULED}};
+      selecting = kSelectors.contains(e.mode);
+      ink_canvas_set_selector(canvas, selecting ? kSelectors.at(e.mode) : INK_SELECTOR_LASSO, selecting);
       continue;
     }
     if (e.kind == WriteEvent::kCommand) {
