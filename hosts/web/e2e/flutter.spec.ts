@@ -1037,6 +1037,14 @@ async function capture(page: Page, clip: Box): Promise<Rgb[]> {
   return pngPixels(page, await page.screenshot({ clip }));
 }
 
+// Waits for the motion in a rectangle to end: two captures in a row alike.
+async function settled(page: Page, clip: Box): Promise<void> {
+  await expect(async () => {
+    const before = await capture(page, clip);
+    expect(await capture(page, clip)).toEqual(before);
+  }, "the view comes to rest").toPass({ timeout: 10_000 });
+}
+
 // The 9 × 9 square around a point.
 function screenPixels(page: Page, center: PenPoint): Promise<Rgb[]> {
   return capture(page, { x: center.x - 4, y: center.y - 4, width: 9, height: 9 });
@@ -2638,6 +2646,9 @@ test("Flutter horizontal scroll puts the pages side by side, pans across them, a
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   }
   await expect(page.getByText(/^\d \/ 5$/), "the pan changes the shown page").not.toHaveText(shown!);
+  // The pan overscrolls past the last page, and the bounce back takes a
+  // moment; a pen-down beyond the page draws nothing.
+  await settled(page, { x: box.x, y, width: box.width, height: 1 });
   await penStroke(cdp, line(box.x + box.width - 300, box.x + box.width - 200, y), 0.6);
   expect(await strokes(), "the last page is at the right edge after the pan").toEqual([1, 1, 0, 0, 1]);
   await page.screenshot({ path: info.outputPath("last-page.png") });
