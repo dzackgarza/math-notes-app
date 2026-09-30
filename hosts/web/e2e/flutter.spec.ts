@@ -2520,6 +2520,15 @@ test("Flutter inserts pages before and after a page, deletes a page, and sizes n
     { file: "pages/0001.svg", strokes: 1 },
     { file: "pages/0003.svg", strokes: 0 },
   ]);
+  const strokes = async () => (await savedPages(page, "Inserts")).map(({ strokes }) => strokes);
+  await choose("More", "Clear page");
+  expect(await strokes(), "Clear page removes the handwriting of the current page").toEqual([0, 0, 0]);
+  await button("Undo").click();
+  expect(await strokes(), "undo restores the cleared page").toEqual([0, 1, 0]);
+  await choose("Pages", "Previous page");
+  await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
+  await choose("Pages", "Next page");
+  await expect(page.getByText("2 / 3", { exact: true })).toBeVisible();
 
   const a4 = [595.28, 841.89], letter = [612, 792];
   // One control changes at a time: the sheet shows the current size and

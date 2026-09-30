@@ -119,7 +119,8 @@ extension _EditorDialogs on _EditorScreenState {
     final templates = (await native.host.listTemplates(widget.note.root).toDart)
         .toDart
         .map((name) => name.toDart)
-        .toList();
+        .toList()
+      ..sort((a, b) => (paperLabels[a] ?? a).compareTo(paperLabels[b] ?? b));
     if (!mounted) return;
     Future<void> applyTemplate(String name) async {
       await native.host
