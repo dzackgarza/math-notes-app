@@ -2687,8 +2687,11 @@ test("Flutter renames a note with its pages, sorts the notes, and search lists t
   await button("New Note").click();
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Fields");
   await button("Create Note").click();
-  await page.locator('canvas[id^="ink-canvas-"]:visible').waitFor({ timeout: 30_000 });
+  // Rings stays open in a tab with its canvas, so the new tab is the sign
+  // that Fields is open.
+  await expect(button("Close Fields")).toBeVisible({ timeout: 30_000 });
   await button("Library").click();
+  await expect(card("Fields")).toBeVisible();
 
   await button("Rings actions").click();
   await button("Rename").click();
@@ -2812,7 +2815,7 @@ test("Flutter creates a note in each page size and orientation", async ({ page }
     await button(paper).click();
     await button(orientation).click();
     await button("Create Note").click();
-    await page.locator('canvas[id^="ink-canvas-"]:visible').waitFor({ timeout: 30_000 });
+    await expect(button(`Close ${title}`)).toBeVisible({ timeout: 30_000 });
     expect((await savedPages(page, title)).map((saved) => saved.size), title).toEqual([size]);
     await button("Pages").click();
     await button("Add page").click();
