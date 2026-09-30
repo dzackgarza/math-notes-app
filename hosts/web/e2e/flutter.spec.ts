@@ -940,11 +940,10 @@ function line(x0: number, x1: number, y: number, steps = 10): PenPoint[] {
 
 type Rgb = [number, number, number];
 
-// The on-screen pixels of the 9 × 9 square around a point, row by row, from a
-// clipped capture: a full-viewport capture can show the WebGL canvas
-// displaced (TRAPS.md).
-async function screenPixels(page: Page, center: PenPoint): Promise<Rgb[]> {
-  const png = await page.screenshot({ clip: { x: center.x - 4, y: center.y - 4, width: 9, height: 9 } });
+// The on-screen pixels of a rectangle, row by row, from a clipped capture: a
+// full-viewport capture can show the WebGL canvas displaced (TRAPS.md).
+async function capture(page: Page, clip: Box): Promise<Rgb[]> {
+  const png = await page.screenshot({ clip });
   return page.evaluate(async (base64) => {
     const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
     const bitmap = await createImageBitmap(new Blob([bytes], { type: "image/png" }));
@@ -957,7 +956,28 @@ async function screenPixels(page: Page, center: PenPoint): Promise<Rgb[]> {
   }, png.toString("base64"));
 }
 
+// The 9 × 9 square around a point.
+function screenPixels(page: Page, center: PenPoint): Promise<Rgb[]> {
+  return capture(page, { x: center.x - 4, y: center.y - 4, width: 9, height: 9 });
+}
+
 const brightness = (rgb: Rgb) => rgb[0] + rgb[1] + rgb[2];
+
+// Pen ink is near black; the paper, its dots, and its rules are much lighter.
+const isInk = (rgb: Rgb) => brightness(rgb) < 250;
+
+// The screen row of the darkest pixel in a column between two rows.
+async function inkRow(page: Page, x: number, top: number, bottom: number): Promise<number> {
+  const column = await capture(page, { x, y: top, width: 1, height: bottom - top });
+  const darkest = column.reduce((best, rgb, i) => (brightness(rgb) < brightness(column[best]) ? i : best), 0);
+  expect(isInk(column[darkest]), "a column crosses the handwriting").toBe(true);
+  return top + darkest;
+}
+
+// How many pixels of a screen row between two columns are ink.
+async function inkLength(page: Page, y: number, left: number, right: number): Promise<number> {
+  return (await capture(page, { x: left, y, width: right - left, height: 1 })).filter(isInk).length;
+}
 
 async function darkestPixel(page: Page, center: PenPoint): Promise<Rgb> {
   const pixels = await screenPixels(page, center);
@@ -1044,6 +1064,40 @@ test("Flutter lasso moves, cuts, pastes, copies, and deletes handwriting", async
   await page.getByRole("button", { name: "Delete selection", exact: true }).click();
   await shot("deleted");
   expect(await inked()).toEqual([false, false, true]);
+});
+
+test("Flutter pans the page with one finger and zooms it with a pinch", async ({ page }, info) => {
+  test.setTimeout(90_000);
+  const { box, cdp } = await openNewNote(page, "Touch navigation");
+  const written = { x: box.x + 500, y: box.y + 320 };
+  await penStroke(cdp, line(written.x - 40, written.x + 40, written.y), 0.6);
+  // A column through the handwriting, between two columns of paper dots.
+  const column = written.x + 18;
+  const top = box.y + 120;
+  const bottom = box.y + box.height - 40;
+  const before = await inkRow(page, column, top, bottom);
+  const touch = (type: "touchStart" | "touchMove" | "touchEnd", points: PenPoint[]) =>
+    cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points.map((p, id) => ({ id, ...p })) });
+
+  // A finger drags 150 px up; the page follows it past the touch slop.
+  const finger = { x: box.x + 900, y: box.y + 450 };
+  await touch("touchStart", [finger]);
+  for (let dy = 30; dy <= 150; dy += 30) await touch("touchMove", [{ x: finger.x, y: finger.y - dy }]);
+  await touch("touchEnd", []);
+  await page.screenshot({ path: info.outputPath("panned.png") });
+  const panned = await inkRow(page, column, top, bottom);
+  expect(before - panned).toBeGreaterThan(100);
+  expect(before - panned).toBeLessThanOrEqual(150);
+
+  // Two fingers spread from 100 to 240 px apart below the handwriting.
+  const length = await inkLength(page, panned, written.x - 200, written.x + 200);
+  const spread = (half: number) => [{ x: written.x - half, y: panned + 60 }, { x: written.x + half, y: panned + 60 }];
+  await touch("touchStart", spread(50));
+  for (let half = 60; half <= 120; half += 10) await touch("touchMove", spread(half));
+  await touch("touchEnd", []);
+  await page.screenshot({ path: info.outputPath("zoomed.png") });
+  const zoomed = await inkRow(page, column, top, bottom);
+  expect(await inkLength(page, zoomed, written.x - 300, written.x + 300)).toBeGreaterThan(1.5 * length);
 });
 
 test("Flutter rewinds handwriting with Ctrl+Z and the undo dial", async ({ page }, info) => {
