@@ -24,6 +24,12 @@ jobs:
       - name: Build Flutter host
         working-directory: .
         run: just _flutter-host
+      # The deployment: `just web-fetch` copies it to this machine's nginx.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: web-app
+          path: hosts/web/flutter/build/web/
+          if-no-files-found: error
       - name: Vitest Browser Mode in Chromium
         run: bunx vitest run
       - name: Deploy to nginx

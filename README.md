@@ -27,7 +27,7 @@ iPad: SideStore source ◄── releases/latest/download/source.json
 
 ## Web app on this machine
 
-`just web-deploy` builds the Flutter web app with the pinned Flutter SDK and copies it to `/var/www/math-notes`. nginx serves it at `http://localhost/math-notes/` with `include <repo>/hosts/web/deploy/nginx-math-notes.conf;` inside the `server` block for `localhost`, then `sudo nginx -s reload`. Use `localhost`, not a LAN address: the folder picker and coalesced pen events need a secure context.
+CI builds the engine and the Flutter web app on every push (workflow "Engine (wasm32)", which uploads the artifacts `engine-module` and `web-app`). `just web-fetch` downloads the build of the checked-out commit and copies the web app to `/var/www/math-notes`; `gh run watch <run>` waits for a run. `just web-deploy` builds both on this machine instead, which loads the machine for minutes. nginx serves the deployment at `http://localhost/math-notes/` with `include <repo>/hosts/web/deploy/nginx-math-notes.conf;` inside the `server` block for `localhost`, then `sudo nginx -s reload`. Use `localhost`, not a LAN address: the folder picker and coalesced pen events need a secure context.
 
 In Chrome, choose the notes folder once; after a restart, **Reconnect folder** grants access again (it needs a click).
 

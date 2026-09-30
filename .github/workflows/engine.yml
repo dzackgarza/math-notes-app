@@ -3,7 +3,7 @@ name: Engine (wasm32)
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: ['**']
     paths:
       - core/**
       - tests/documents/**

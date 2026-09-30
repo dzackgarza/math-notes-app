@@ -2,6 +2,11 @@
 
 Read README.md (pipeline, layout) and TRAPS.md (known failures) first.
 
+Builds run in CI, not on this machine: commit, push, `gh run watch` the
+"Engine (wasm32)" run, then `just web-fetch` deploys its build to
+`http://localhost/math-notes/` for the Playwright workflows. Run targeted
+workflows against that deployment; CI runs the whole suite.
+
 ## Product boundary: handwritten drafts
 
 Math Notes preserves rough handwritten work. Paper preparation and final

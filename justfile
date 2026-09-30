@@ -103,9 +103,31 @@ web-engine-test: engine-module
     cp {{build}}/web/engine.* {{build}}/web/engine_test.* hosts/web/src/engine/wasm/
     cd hosts/web && bunx tsc -b && node --test src/engine/engine.test.ts
 
+# CI is the builder for this machine (push, then `just web-fetch`); CI itself runs the recipes below.
 # Builds the web app and copies it to /var/www/math-notes (served at http://localhost/math-notes/, README).
 web-deploy: web-build
     rsync -a --delete hosts/web/flutter/build/web/ /var/www/math-notes/
+
+# The Engine (wasm32) workflow runs on every push; its artifacts exist once the
+# "Build Flutter host" step has run (`gh run watch <run>`). The engine module
+# goes to hosts/web/src/engine/wasm, the web app to /var/www/math-notes.
+# Deploys CI's build of the checked-out commit (served at http://localhost/math-notes/).
+web-fetch:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    sha="$(git rev-parse HEAD)"
+    run="$(gh run list --workflow engine.yml --commit "$sha" --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+    if [ -z "$run" ]; then
+      echo "No Engine (wasm32) run for $sha: push the commit, or run: gh workflow run engine.yml --ref $(git branch --show-current)" >&2
+      exit 1
+    fi
+    dir="hosts/web/flutter/build/ci/$run"
+    gh run download "$run" -n engine-module -D "$dir/engine"
+    gh run download "$run" -n web-app -D "$dir/web"
+    mkdir -p hosts/web/src/engine/wasm
+    rsync -a "$dir/engine/" hosts/web/src/engine/wasm/
+    rsync -a --delete "$dir/web/" /var/www/math-notes/
+    echo "Deployed run $run of $sha to http://localhost/math-notes/"
 
 # Vitest Browser Mode in Chromium, then Playwright against the deployment.
 web-test: web-deploy
