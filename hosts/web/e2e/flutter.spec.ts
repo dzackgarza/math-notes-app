@@ -546,6 +546,47 @@ test("Flutter ignores a palm that drags during a pen stroke", async ({ page }) =
   expect(Math.max(...ys) - Math.min(...ys)).toBeLessThan(Math.max(...xs) - Math.min(...xs));
 });
 
+test("Flutter modal dialogs block pen ink underneath them", async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto("?root=opfs");
+  await beginTestNote(page, "Modal input");
+  await page.getByRole("button", { name: "Create Note", exact: true }).click();
+  const canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
+  await canvas.waitFor({ timeout: 30_000 });
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Notebook canvas has no bounds");
+
+  await page.getByRole("button", { name: "More", exact: true }).click();
+  await page.getByRole("button", { name: "Go to page", exact: true }).click();
+  await expect(page.getByText("Go to page", { exact: true })).toBeVisible();
+
+  const cdp = await page.context().newCDPSession(page);
+  const pen = { pointerType: "pen" as const, force: 0.6, tiltX: 20, tiltY: -10 };
+  await cdp.send("Input.dispatchMouseEvent", {
+    type: "mousePressed", button: "left", clickCount: 1,
+    x: box.x + 150, y: box.y + 180, ...pen,
+  });
+  await cdp.send("Input.dispatchMouseEvent", {
+    type: "mouseMoved", button: "left", buttons: 1,
+    x: box.x + 250, y: box.y + 220, ...pen,
+  });
+  await cdp.send("Input.dispatchMouseEvent", {
+    type: "mouseReleased", button: "left", clickCount: 1,
+    x: box.x + 250, y: box.y + 220, ...pen,
+  });
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await save(page);
+  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  const strokes = await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    const notebook = await root.getDirectoryHandle("Test Notebook");
+    const pages = await (await notebook.getDirectoryHandle("Modal input")).getDirectoryHandle("pages");
+    const svg = await (await (await pages.getFileHandle("0001.svg")).getFile()).text();
+    return svg.match(/<path id="s-/g)?.length ?? 0;
+  });
+  expect(strokes).toBe(0);
+});
+
 test("Flutter undoes on a two-finger tap and redoes on a three-finger tap", async ({ page }) => {
   test.setTimeout(60_000);
   await page.goto("?root=opfs");
