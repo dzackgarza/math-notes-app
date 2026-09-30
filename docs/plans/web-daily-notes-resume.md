@@ -2,19 +2,17 @@
 
 Date: 2026-09-28. Branch: `write-core-integration`.
 
-## Next work: phase B
+## Next work: phase A, the MVP
 
 The [delivery order](web-daily-notes-handoff.md#delivery-order) is strict.
-Every L0 and L1 row of [core features](../specs/core-features.md) exists in
-the Flutter host, and the editor chrome follows the
-[tablet interface](../specs/tablet-ui.md#editor). Phase B, keep, find, and
-share notes, is the next work. Its open items are the phase B gaps below.
+Phase A is open. Its work sources and its completion rule are the priority
+paragraphs of [AGENTS.md](../../AGENTS.md).
 Earlier sessions built later-phase features (PDF import, split view,
 conflicts, layers, clippings, ruled editing, bookmarks, typed text, figures)
 before their phase. That code stays. It gets no further work until its phase starts.
 
-The editor chrome lives in `hosts/web/flutter/lib/notebook.dart` and
-`main.dart`. Dependencies: `flex_color_picker` (HSV wheel),
+The editor chrome lives in `hosts/web/flutter/lib/ui/editor/`, and the
+library in `hosts/web/flutter/lib/ui/library/`. Dependencies: `flex_color_picker` (HSV wheel),
 `pull_down_button` (iOS pull-down menus), `popover` (tool popovers), and
 `lucide_icons_flutter` (toolbar and menu icons).
 

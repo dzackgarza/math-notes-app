@@ -26,7 +26,11 @@ These are permanent product boundaries, not features deferred beyond v1.
 Dependency capabilities and agent-written surveys cannot expand them. Read
 the [TikZ contract](docs/specs/tikz-drawing-mode.md) before figure work.
 
-Priority: [core features](docs/specs/core-features.md) layers the standard feature set of handwriting apps. Every L0 and L1 feature exists and works in the deployed app before any work on L2 or L3 features, test expansion, or release administration. The next work is the ordered list in [the resume plan](docs/plans/web-daily-notes-resume.md#phase-a-work-in-order).
+Priority: the MVP. [Core features](docs/specs/core-features.md) layers the standard feature set of handwriting apps. The MVP is the deployed web app with every L0 and L1 feature working and every screen matching the [tablet interface](docs/specs/tablet-ui.md). It precedes L2 and L3 features, handoff phases B to G, test expansion, and release administration.
+
+MVP work has two sources, in this order: the entries of [COMPLAINTS.md](COMPLAINTS.md), then the open items of the L0/L1 checklist on #56, one E2E workflow for each feature row. The MVP is complete when both are empty.
+
+A feature works when its workflow passes in the deployed app and a screenshot of each screen, sheet, and menu in that workflow shows legible text, theme colors, and the same control for the same function as on the other screens. Read the screenshot before each commit that changes the interface. Fix a visible defect, or enter it in COMPLAINTS.md.
 
 Work plan: the GitHub issue tree rooted at #11, one milestone per sub-issue. `uvx --from git+https://github.com/dzackgarza/itree itree next dzackgarza/math-notes-app` names the next work unit in tree order.
 

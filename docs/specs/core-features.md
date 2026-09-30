@@ -28,7 +28,7 @@ earlier layers exists and works in the deployed app.
 | Freehand lasso: move, delete, cut, copy, paste | Exists. |
 | Undo and redo: toolbar buttons, rewind dial, and Ctrl+Z | Exists. A drag on the undo button turns the rewind dial (`hosts/web/flutter/lib/undo_dial.dart`, from Write's `ButtonDragDial`). |
 | Pen draws; one finger pans | Exists. |
-| Palm rejection: a resting hand neither draws nor moves the page during a stroke | Exists (`PalmRejection` in `hosts/web/flutter/lib/notebook.dart`). |
+| Palm rejection: a resting hand neither draws nor moves the page during a stroke | Exists (`PalmRejection` in `hosts/web/flutter/lib/ui/editor/editor_input.dart`). |
 | Pinch zoom | Exists. |
 | Multi-page document, vertical page stack | Exists. **View** also offers horizontal scroll and two pages side by side (`ink_document_set_arrangement`). |
 | Add and delete a page | Exists: held pull at the end, the **Pages** and **⋯** menus, and the page overview. |
@@ -46,7 +46,7 @@ earlier layers exists and works in the deployed app.
 | Touch color picker and customizable palette | Exists: an HSV wheel (`flex_color_picker`) edits a swatch; **+** edits the palette. |
 | Dark app chrome; floating icon toolbar; top-right pull-down menus | Exists (`pull_down_button`). |
 | Partial eraser | Exists. |
-| Two-finger tap undo; three-finger tap redo | Exists (`FingerTap` in `hosts/web/flutter/lib/notebook.dart`). |
+| Two-finger tap undo; three-finger tap redo | Exists (`FingerTap` in `hosts/web/flutter/lib/ui/editor/editor_input.dart`). |
 | Stylus eraser end or side button switches to the eraser | Exists. A stroke begun with the side button held erases until the pen lifts. |
 | Finger-drawing toggle | Exists. One finger draws, two fingers pan and zoom, and a second finger cancels the stroke in progress. The choice persists. |
 | Rectangle select; oval select | Exists. |
