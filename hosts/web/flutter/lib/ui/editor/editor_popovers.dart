@@ -237,6 +237,7 @@ extension _EditorPopovers on _EditorScreenState {
               width: 288,
               height: 64,
               gaplessPlayback: true,
+              semanticLabel: 'Stroke sample',
             ),
           ),
           if (highlighter || !advanced) ...[

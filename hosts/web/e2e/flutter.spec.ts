@@ -1228,6 +1228,69 @@ async function inkThickness(page: Page, center: PenPoint): Promise<number> {
   return column.filter((rgb) => brightness(rgb) < 600).length;
 }
 
+// A tap outside a popover closes it.
+async function closePopover(page: Page): Promise<void> {
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("Page has no viewport");
+  await page.mouse.click(viewport.width - 20, viewport.height - 20);
+}
+
+test("Flutter tool popovers set size, opacity, and the brush of each pen type", async ({ page }, info) => {
+  test.setTimeout(120_000);
+  const { box, cdp } = await openNewNote(page, "Tool popover");
+  const tool = (name: string) => page.getByRole("button", { name, exact: true });
+  const sample = page.getByRole("img", { name: "Stroke sample", exact: true });
+  const sampleInk = async () => {
+    const bounds = await sample.boundingBox();
+    if (!bounds) throw new Error("The stroke sample has no bounds");
+    return (await capture(page, bounds)).filter((rgb) => brightness(rgb) < 600).length;
+  };
+  const at = (y: number) => ({ x: box.x + 240, y: box.y + y });
+  const write = (y: number, force = 0.6) => penStroke(cdp, line(box.x + 140, box.x + 340, box.y + y), force);
+
+  // The pen is selected, so a tap on it opens its popover.
+  await tool("Pen").click();
+  await tool("0.6 pt").click();
+  const thinSample = await sampleInk();
+  await tool("3.6 pt").click();
+  await expect.poll(sampleInk, { message: "the stroke sample follows the size" }).toBeGreaterThan(2.5 * thinSample);
+  await tool("0.6 pt").click();
+  await closePopover(page);
+  await write(160);
+  await tool("Pen").click();
+  await tool("3.6 pt").click();
+  await closePopover(page);
+  await write(220);
+
+  await tool("Pen").click();
+  await tool("Advanced").click();
+  const opacity = page.getByRole("slider");
+  const track = await opacity.boundingBox();
+  if (!track) throw new Error("The opacity slider has no bounds");
+  // A Cupertino slider moves by a drag of its thumb, here at 100%.
+  const middle = track.y + track.height / 2;
+  await page.mouse.move(track.x + track.width - 14, middle);
+  await page.mouse.down();
+  await page.mouse.move(track.x, middle, { steps: 10 });
+  await page.mouse.up();
+  await expect(page.getByText("10%", { exact: true })).toBeVisible();
+  await closePopover(page);
+  await write(280);
+
+  // The marker keeps a constant width under light and hard pressure.
+  await tool("Marker").click();
+  await write(340, 0.15);
+  await write(400, 1);
+  await page.screenshot({ path: info.outputPath("tool-popover.png") });
+
+  const thin = await inkThickness(page, at(160));
+  expect(await inkThickness(page, at(220)), "the 3.6 pt preset writes thicker").toBeGreaterThan(2.5 * thin);
+  const solid = brightness(await darkestPixel(page, at(220)));
+  const faint = brightness(await darkestPixel(page, at(280)));
+  expect(faint - solid, "10% opacity writes faint ink").toBeGreaterThan(300);
+  expect(await inkThickness(page, at(340)), "the marker ignores pressure").toBe(await inkThickness(page, at(400)));
+});
+
 test("Flutter saved pen in the toolbar restores its color and width after a reload", async ({ page }, info) => {
   test.setTimeout(120_000);
   const { box, cdp } = await openNewNote(page, "Saved pens");
@@ -1235,15 +1298,10 @@ test("Flutter saved pen in the toolbar restores its color and width after a relo
     await page.getByRole("button", { name: "Pen", exact: true }).click();
     await page.getByRole("button", { name: label, exact: true }).click();
   };
-  const closePopover = async () => {
-    const viewport = page.viewportSize();
-    if (!viewport) throw new Error("Page has no viewport");
-    await page.mouse.click(viewport.width - 20, viewport.height - 20);
-  };
   const plainPen = async () => {
     await page.getByRole("button", { name: "Color #1a1a1a", exact: true }).click();
     await penSize("0.6 pt");
-    await closePopover();
+    await closePopover(page);
   };
   const saved = page.getByRole("button", { name: "Saved pen 3.6 pt #d92d39", exact: true });
   const write = (y: number) => penStroke(cdp, line(box.x + 140, box.x + 340, y), 0.6);
