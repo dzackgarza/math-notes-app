@@ -1102,6 +1102,60 @@ test("Flutter lasso moves, cuts, pastes, copies, and deletes handwriting", async
   expect(await inked()).toEqual([false, false, true]);
 });
 
+test("Flutter rectangle and oval selections take the handwriting inside their shapes", async ({ page }, info) => {
+  test.setTimeout(90_000);
+  const { box, cdp } = await openNewNote(page, "Shapes");
+  const left = { x: box.x + 220, y: box.y + 180 };
+  const right = { x: box.x + 460, y: box.y + 180 };
+  const below = { x: box.x + 220, y: box.y + 330 };
+  // Inside the oval's bounding box, but outside the oval.
+  const corner = { x: right.x + 54, y: right.y + 26 };
+  const spots = [left, right, below, corner];
+  const paper = new Map<PenPoint, Rgb[]>();
+  for (const spot of spots) paper.set(spot, await screenPixels(page, spot));
+  const ink = new Map<PenPoint, number>();
+  for (const spot of [left, right, below]) {
+    await penStroke(cdp, line(spot.x - 40, spot.x + 40, spot.y), 0.6);
+    ink.set(spot, await inkAt(page, spot, paper.get(spot)!));
+  }
+  await penStroke(cdp, line(corner.x - 6, corner.x + 6, corner.y, 4), 0.6);
+  ink.set(corner, await inkAt(page, corner, paper.get(corner)!));
+  // Where handwriting shows: each spot has its full stroke's ink or none.
+  const inked = async () => {
+    const shown = [];
+    for (const spot of spots) {
+      const now = await inkAt(page, spot, paper.get(spot)!);
+      const full = ink.get(spot)!;
+      expect(now < 0.1 * full || now > 0.8 * full, `ink ${now} of ${full}`).toBe(true);
+      shown.push(now > 0.8 * full);
+    }
+    return shown;
+  };
+  // A tap on the selected lasso opens its modes.
+  const lassoMode = async (mode: string) => {
+    await page.getByRole("button", { name: "Lasso", exact: true }).click();
+    await page.getByRole("button", { name: mode, exact: true }).click();
+    await closePopover(page);
+  };
+  // A drag from corner to corner of the shape's bounding box.
+  const dragBox = (center: PenPoint) =>
+    penStroke(cdp, [0, 0.25, 0.5, 0.75, 1].map((t) => ({ x: center.x - 60 + 120 * t, y: center.y - 30 + 60 * t })), 0.6);
+  const remove = () => page.getByRole("button", { name: "Delete selection", exact: true }).click();
+
+  await page.getByRole("button", { name: "Lasso", exact: true }).click();
+  await lassoMode("Rectangle");
+  await dragBox(left);
+  await remove();
+  await page.screenshot({ path: info.outputPath("rectangle.png") });
+  expect(await inked()).toEqual([false, true, true, true]);
+
+  await lassoMode("Oval");
+  await dragBox(right);
+  await remove();
+  await page.screenshot({ path: info.outputPath("oval.png") });
+  expect(await inked()).toEqual([false, false, true, true]);
+});
+
 test("Flutter pans the page with one finger and zooms it with a pinch", async ({ page }, info) => {
   test.setTimeout(90_000);
   const { box, cdp } = await openNewNote(page, "Touch navigation");
