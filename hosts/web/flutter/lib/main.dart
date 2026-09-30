@@ -89,15 +89,22 @@ class _ShellState extends State<Shell> {
   @override
   void initState() {
     super.initState();
-    // The offline cache fills in the background; the app does not wait for it.
+    final folder = context.read<NotesFolder>();
     unawaited(
-      deadline(
-        'Saving the app for offline use',
-        const Duration(minutes: 2),
-        native.host.cacheApp().toDart,
-      ).then((_) {}, onError: showError),
+      context.read<Activity>().run(() async {
+        native.host.checkPlatform();
+        // The offline cache fills in the background; the app does not wait
+        // for it.
+        unawaited(
+          deadline(
+            'Saving the app for offline use',
+            const Duration(minutes: 2),
+            native.host.cacheApp().toDart,
+          ).then((_) {}, onError: showError),
+        );
+        await folder.start();
+      }),
     );
-    unawaited(context.read<Activity>().run(context.read<NotesFolder>().start));
   }
 
   @override

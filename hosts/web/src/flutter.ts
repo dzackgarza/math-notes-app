@@ -89,6 +89,19 @@ window.addEventListener("contextmenu", (event) => {
   if (event instanceof PointerEvent && event.pointerType === "pen") event.preventDefault();
 }, true);
 
+// Chrome gives the folder picker, the origin-private file system, Web Locks,
+// and service workers to secure contexts only
+// (https://w3c.github.io/webappsec-secure-contexts/): localhost and https
+// addresses. At a LAN address or a hostname over http, none of them exist.
+function checkPlatform(): void {
+  if (!window.isSecureContext) {
+    throw new Error(`${location.origin} is not a secure address, so the browser gives Math Notes no folder access there. Open http://localhost${location.pathname} on this machine, or an https address.`);
+  }
+  if (typeof window.showDirectoryPicker !== "function") {
+    throw new Error("This browser has no folder picker. Math Notes runs in Chrome.");
+  }
+}
+
 async function startRoot() {
   if (new URLSearchParams(location.search).get("root") === "opfs") {
     window.mathNotesWrites = [];
@@ -220,7 +233,7 @@ const api = {
   importPdf,
   applyTemplate: reading(applyTemplate), listTemplates: reading(listTemplates), finishFigure, figureSource,
   thumbnail: reading(thumbnail), tagColors: TAG_COLORS,
-  cacheApp, paperPreview: reading(paperPreview), exportPdf, sharePdf, insertImage, loadEngine, startRoot, pickRoot, requestPermission, watchRoot,
+  cacheApp, paperPreview: reading(paperPreview), exportPdf, sharePdf, insertImage, checkPlatform, loadEngine, startRoot, pickRoot, requestPermission, watchRoot,
   prepareRoot, library,
   createNotebook, openNotebook,
   createFolder: writing(createFolder), moveEntry: writing(moveEntry), moveToTrash: writing(moveToTrash),

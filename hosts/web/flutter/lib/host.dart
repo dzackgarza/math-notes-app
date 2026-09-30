@@ -412,6 +412,7 @@ extension type Host(JSObject value) implements JSObject {
     double x,
     double y,
   );
+  external void checkPlatform();
   external JSPromise<Engine> loadEngine();
   external JSPromise<StartRoot> startRoot();
   external JSPromise<Directory> pickRoot();

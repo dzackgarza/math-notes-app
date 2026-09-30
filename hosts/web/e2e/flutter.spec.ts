@@ -1,6 +1,7 @@
 import { expect, test, type CDPSession, type Locator, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import { networkInterfaces } from "node:os";
 
 // Flutter activates its text input channel after semantic focus is delivered.
 // Use actual keyboard input after clicking, rather than fill's synchronous DOM
@@ -3286,3 +3287,26 @@ test("Flutter menus, alerts, action sheets, and sheets blur the handwriting behi
   await expect(button("Done")).toHaveCount(0);
   expect(await lines(), "the layer stays hidden on the page").toBe(false);
 });
+
+// The deployment also answers at this machine's LAN address, where Chrome
+// gives no folder access: the context is not secure.
+function lanAddress(deployment: string): string {
+  const lan = Object.values(networkInterfaces()).flat().find((address) => address?.family === "IPv4" && !address.internal);
+  if (!lan) throw new Error("This machine has no LAN address");
+  const url = new URL(deployment);
+  url.protocol = "http:";
+  url.hostname = lan.address;
+  return url.href;
+}
+
+test("Flutter at a LAN address says the address is not secure and names the localhost address", async ({ page, baseURL }, info) => {
+  test.setTimeout(60_000);
+  if (!baseURL) throw new Error("The Playwright configuration has no baseURL");
+  await page.goto(lanAddress(baseURL));
+  expect(await page.evaluate(() => window.isSecureContext), "the LAN address is not a secure context").toBe(false);
+  const error = page.getByRole("button", { name: /is not a secure address/ });
+  await expect(error).toBeVisible();
+  await expect(error).toHaveAccessibleName(new RegExp(`Open http://localhost${new URL(baseURL).pathname} on this machine`));
+  await expect(page.getByRole("button", { name: /reading 'controller'/ }), "the service worker failure is not a second error").toHaveCount(0);
+  await expect(page.getByRole("button", { name: /showDirectoryPicker/ })).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("lan-address.png") });
