@@ -4,6 +4,7 @@ import * as mupdf from "mupdf";
 
 export type PdfRequest = { kind: "open"; bytes: ArrayBuffer } | { kind: "page"; index: number };
 export type PdfReply =
+  | { kind: "ready" }
   | { kind: "opened"; count: number }
   | { kind: "page"; png: Uint8Array; width: number; height: number }
   | { kind: "error"; message: string };
@@ -37,3 +38,7 @@ self.onmessage = (event: MessageEvent<PdfRequest>) => {
     self.postMessage({ kind: "error", message: String(error) } satisfies PdfReply);
   }
 };
+// A module worker drops each message that arrives while the MuPDF import loads.
+// The host waits for this reply, as in the INIT message of MuPDF's viewer worker:
+// https://github.com/ArtifexSoftware/mupdf.js/blob/master/examples/simple-viewer/worker.js
+self.postMessage({ kind: "ready" } satisfies PdfReply);

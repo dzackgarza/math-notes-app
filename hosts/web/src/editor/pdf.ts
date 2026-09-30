@@ -16,18 +16,24 @@ export async function importPdf(
   });
   if (!file) return null;
   const worker = new Worker(new URL("./pdf.worker.ts", import.meta.url), { type: "module" });
-  const request = (message: PdfRequest): Promise<PdfReply> => new Promise((resolve, reject) => {
+  const reply = (): Promise<PdfReply> => new Promise((resolve, reject) => {
     worker.onerror = (event) => reject(new Error(event.message || "PDF worker failed."));
     worker.onmessageerror = () => reject(new Error("Could not read the imported PDF page."));
     worker.onmessage = (event: MessageEvent<PdfReply>) => {
       if (event.data.kind === "error") reject(new Error(event.data.message));
       else resolve(event.data);
     };
-    worker.postMessage(message, message.kind === "open" ? [message.bytes] : []);
   });
+  const request = (message: PdfRequest): Promise<PdfReply> => {
+    const answer = reply();
+    worker.postMessage(message, message.kind === "open" ? [message.bytes] : []);
+    return answer;
+  };
+  const ready = reply();
   let note: OpenNotebook | undefined;
   let completed = 0;
   try {
+    await ready;
     const opened = await request({ kind: "open", bytes: await file.arrayBuffer() });
     if (opened.kind !== "opened" || opened.count === 0) throw new Error("The PDF has no pages.");
     progress(0, opened.count);
