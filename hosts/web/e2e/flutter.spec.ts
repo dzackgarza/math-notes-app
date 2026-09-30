@@ -1046,6 +1046,55 @@ test("Flutter lasso moves, cuts, pastes, copies, and deletes handwriting", async
   expect(await inked()).toEqual([false, false, true]);
 });
 
+test("Flutter rewinds handwriting with Ctrl+Z and the undo dial", async ({ page }, info) => {
+  test.setTimeout(90_000);
+  const { box, cdp } = await openNewNote(page, "Rewind");
+  const spots = [180, 260, 340].map((dy) => ({ x: box.x + 220, y: box.y + dy }));
+  const paper: Rgb[][] = [];
+  for (const spot of spots) paper.push(await screenPixels(page, spot));
+  const strokes: number[] = [];
+  for (const [i, spot] of spots.entries()) {
+    await penStroke(cdp, line(spot.x - 40, spot.x + 40, spot.y), 0.6);
+    strokes.push(await inkAt(page, spot, paper[i]));
+  }
+  // Which of the three lines of handwriting show: each is whole or gone.
+  const shown = async () => {
+    const lines = [];
+    for (const [i, spot] of spots.entries()) {
+      const ink = await inkAt(page, spot, paper[i]);
+      expect(ink < 0.1 * strokes[i] || ink > 0.8 * strokes[i], `ink ${ink} of ${strokes[i]}`).toBe(true);
+      lines.push(ink > 0.8 * strokes[i]);
+    }
+    return lines;
+  };
+  expect(await shown()).toEqual([true, true, true]);
+
+  await page.keyboard.press("Control+z");
+  expect(await shown()).toEqual([true, true, false]);
+  await page.keyboard.press("Control+Shift+z");
+  expect(await shown()).toEqual([true, true, true]);
+
+  // A drag from the undo button turns the dial below it (undo_dial.dart):
+  // each 1/32 turn counterclockwise undoes a step, clockwise redoes one.
+  const button = await page.getByRole("button", { name: "Undo", exact: true }).boundingBox();
+  if (!button) throw new Error("Undo button has no bounds");
+  const start = { x: button.x + button.width / 2, y: button.y + button.height / 2 };
+  const center = { x: start.x, y: button.y + 1.3 * button.height + 2.5 * button.height };
+  const radius = center.y - start.y;
+  const at = (degrees: number) => {
+    const angle = -Math.PI / 2 + (degrees * Math.PI) / 180;
+    return { x: center.x + radius * Math.cos(angle), y: center.y + radius * Math.sin(angle) };
+  };
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  for (let degrees = -4; degrees >= -28; degrees -= 4) await page.mouse.move(at(degrees).x, at(degrees).y);
+  await page.screenshot({ path: info.outputPath("dial-rewound.png") });
+  expect(await shown()).toEqual([true, false, false]);
+  for (let degrees = -24; degrees <= -8; degrees += 4) await page.mouse.move(at(degrees).x, at(degrees).y);
+  await page.mouse.up();
+  expect(await shown()).toEqual([true, true, false]);
+});
+
 test("Flutter writes a hard pen stroke visibly thicker than a light one", async ({ page }, info) => {
   test.setTimeout(60_000);
   const { box, cdp } = await openNewNote(page, "Pressure");
