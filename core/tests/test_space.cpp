@@ -11,6 +11,7 @@
 
 #include "document/pages.h"
 #include "editor/canvas.h"
+#include "format/notebook.h"
 #include "support/session.h"
 #include "support/write_fixture.h"
 
@@ -204,6 +205,45 @@ TEST_CASE("Vertical insert space puts the ink that passes the page bottom on the
   CHECK(std::abs(book.Bounds(1, 0).top - (next.top + book.Bounds(1, 1).bottom)) < 1e-9);
   CHECK(ListedPageCount(book.session.doc()) == 2);
   CHECK(book.session.document->history.size() == steps + 1);
+}
+
+TEST_CASE("Vertical insert space puts a figure on the next page with its id and TikZ source; the saved notebook has it there") {
+  Pages book(2);
+  const double height = book.session.doc().pages[0]->height;
+  const Rect page = PageRect(book.session.document, 0);
+  REQUIRE(ink_canvas_figure_begin(book.session.get(), 0, 0) == INK_OK);
+  Drag(book.session.get(), {page.left + 100, page.top + 700}, {page.left + 200, page.top + 720}, 1000);
+  const uint8_t *bytes = nullptr;
+  size_t size = 0;
+  REQUIRE(ink_canvas_figure_scene(book.session.get(), &bytes, &size) == INK_OK);
+  const std::string scene(reinterpret_cast<const char *>(bytes), size);
+  const std::string tikz = "\\begin{tikzpicture}\\draw (0,0)--(1,0);\\end{tikzpicture}\n";
+  REQUIRE(ink_canvas_figure_complete(book.session.get(), reinterpret_cast<const uint8_t *>(scene.data()),
+                                     scene.size(), reinterpret_cast<const uint8_t *>(tikz.data()), tikz.size(),
+                                     &bytes, &size) == INK_OK);
+  REQUIRE(book.Ink(0).size() == 1);
+  const Figure drawn = std::get<Figure>(book.Ink(0)[0]->value);
+  const Rect before = book.Bounds(0, 0);
+
+  book.Space(INK_SELECTOR_SPACE_VERTICAL, 0, {300, 600}, {300, 800});
+  CHECK(book.Ink(0).empty());
+  REQUIRE(book.Ink(1).size() == 1);
+  const Figure &moved = std::get<Figure>(book.Ink(1)[0]->value);
+  CHECK(moved.id == drawn.id);
+  CHECK(moved.scene_href == drawn.scene_href);
+  CHECK(moved.tikz_href == drawn.tikz_href);
+  CHECK(moved.children == drawn.children);
+  CHECK(std::abs(book.Bounds(1, 0).top - (before.top + 200 - height)) < 1e-9);
+  REQUIRE(ink_document_figure_source(book.session.document, drawn.id.c_str(), &bytes, &size) == INK_OK);
+  CHECK(std::string(reinterpret_cast<const char *>(bytes), size) == tikz);
+
+  const Document saved = LoadNotebook(AllFiles(book.session.doc()));
+  CHECK(saved.pages[0]->layers[0].elements.empty());
+  REQUIRE(saved.pages[1]->layers[0].elements.size() == 1);
+  const Figure &reopened = std::get<Figure>(saved.pages[1]->layers[0].elements[0]->value);
+  CHECK(reopened.id == drawn.id);
+  CHECK(reopened.tikz_href == drawn.tikz_href);
+  CHECK(std::abs(ElementBounds(*saved.pages[1]->layers[0].elements[0]).top - book.Bounds(1, 0).top) < 0.01);
 }
 
 TEST_CASE("Ruled insert space moves whole lines past the last page onto a new page; one undo restores the notebook") {
