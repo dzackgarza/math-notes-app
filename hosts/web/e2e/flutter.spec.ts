@@ -549,8 +549,8 @@ test("Flutter ignores a palm that drags during a pen stroke", async ({ page }) =
   expect(Math.max(...ys) - Math.min(...ys)).toBeLessThan(Math.max(...xs) - Math.min(...xs));
 });
 
-test("Flutter modal dialogs block pen ink underneath them", async ({ page }) => {
-  test.setTimeout(60_000);
+test("Flutter modal dialogs block pen ink underneath them, and a cancelled pen stroke leaves no ink", async ({ page }) => {
+  test.setTimeout(90_000);
   await page.goto("?root=opfs");
   await beginTestNote(page, "Modal input");
   await page.getByRole("button", { name: "Create Note", exact: true }).click();
@@ -578,16 +578,36 @@ test("Flutter modal dialogs block pen ink underneath them", async ({ page }) => 
     x: box.x + 250, y: box.y + 220, ...pen,
   });
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await save(page);
-  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
-  const strokes = await page.evaluate(async () => {
-    const root = await navigator.storage.getDirectory();
-    const notebook = await root.getDirectoryHandle("Test Notebook");
-    const pages = await (await notebook.getDirectoryHandle("Modal input")).getDirectoryHandle("pages");
-    const svg = await (await (await pages.getFileHandle("0001.svg")).getFile()).text();
-    return svg.match(/<path id="s-/g)?.length ?? 0;
-  });
-  expect(strokes).toBe(0);
+  const strokes = async () => {
+    await save(page);
+    await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+    return page.evaluate(async () => {
+      const root = await navigator.storage.getDirectory();
+      const notebook = await root.getDirectoryHandle("Test Notebook");
+      const pages = await (await notebook.getDirectoryHandle("Modal input")).getDirectoryHandle("pages");
+      const svg = await (await (await pages.getFileHandle("0001.svg")).getFile()).text();
+      return svg.match(/<path id="s-/g)?.length ?? 0;
+    });
+  };
+  expect(await strokes(), "the dialog blocks the ink").toBe(0);
+
+  // The browser cancels a pen stroke (a palm gesture, a lost pen): the page
+  // receives pointercancel, as CDP cannot send it.
+  await page.evaluate(async ({ x, y }) => {
+    const send = async (type: string, clientX: number, buttons: number) => {
+      document.elementFromPoint(clientX, y)!.dispatchEvent(new PointerEvent(type, {
+        pointerId: 7, pointerType: "pen", isPrimary: true, bubbles: true, cancelable: true, composed: true,
+        clientX, clientY: y, pressure: buttons ? 0.6 : 0, button: buttons ? 0 : -1, buttons,
+      }));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    };
+    await send("pointerdown", x, 1);
+    for (const offset of [40, 80, 120, 160]) await send("pointermove", x + offset, 1);
+    await send("pointercancel", x + 160, 0);
+  }, { x: box.x + 150, y: box.y + 300 });
+  expect(await strokes(), "the cancelled stroke leaves no ink").toBe(0);
+  await penStroke(cdp, line(box.x + 150, box.x + 310, box.y + 360, 4), 0.6);
+  expect(await strokes(), "the next stroke draws").toBe(1);
 });
 
 test("Flutter undoes on a two-finger tap and redoes on a three-finger tap", async ({ page }) => {
