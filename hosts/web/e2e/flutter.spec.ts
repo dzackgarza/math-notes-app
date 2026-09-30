@@ -802,18 +802,13 @@ test("Flutter partial and whole-stroke erases each undo and redo", async ({ page
   const expectStrokes = async (count: number) => {
     await expect.poll(savedStrokeCount, { timeout: 8_000 }).toBe(count);
   };
-  const dismissPopover = async () => {
-    const viewport = page.viewportSize();
-    if (!viewport) throw new Error("Page has no viewport");
-    await page.mouse.click(viewport.width - 20, viewport.height - 20);
-  };
 
   await drag([150, 220], [350, 220]);
   await expectStrokes(1);
   await page.getByRole("button", { name: "Eraser", exact: true }).click();
   await page.getByRole("button", { name: "Eraser", exact: true }).click();
   await page.getByRole("button", { name: "Partial", exact: true }).click();
-  await dismissPopover();
+  await closePopover(page);
   await drag([250, 170], [250, 270]);
   await expectStrokes(2);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
@@ -825,7 +820,7 @@ test("Flutter partial and whole-stroke erases each undo and redo", async ({ page
 
   await page.getByRole("button", { name: "Eraser", exact: true }).click();
   await page.getByRole("button", { name: "Stroke", exact: true }).click();
-  await dismissPopover();
+  await closePopover(page);
   await drag([250, 170], [250, 270]);
   await expectStrokes(0);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
@@ -1943,11 +1938,15 @@ async function inkThickness(page: Page, center: PenPoint): Promise<number> {
   return column.filter((rgb) => brightness(rgb) < 600).length;
 }
 
-// A tap outside a popover closes it.
+// A tap outside a popover closes it. The popover's barrier takes every pointer
+// event and hides the screen behind it from the accessibility tree until the
+// close transition ends, so the editor's own buttons coming back is the sign
+// that the next pen event reaches the page.
 async function closePopover(page: Page): Promise<void> {
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("Page has no viewport");
   await page.mouse.click(viewport.width - 20, viewport.height - 20);
+  await expect(page.getByRole("button", { name: "Library", exact: true })).toBeVisible();
 }
 
 test("Flutter tool popovers set size, opacity, and the brush of each pen type", async ({ page }, info) => {
