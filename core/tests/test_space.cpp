@@ -21,9 +21,12 @@ namespace {
 const std::string kWriteDir = INK_FIXTURE_DIR "/../../../tests/fixtures/write/";
 
 // Replays a case on its page. Each stroke Write deleted is gone; every other
-// stroke is on page 0 with Write's translation.
-void CheckAgainstWrite(const std::string &name) {
-  auto trace = ink_test::ReadWriteTrace(kWriteDir + name + "/trace.txt");
+// stroke is on page 0 with Write's translation. With `until`, replays the
+// lines before the first command of that name and checks the elements that
+// Write numbers 0 to `count` - 1: the rest of the case must leave them as
+// they are.
+void CheckAgainstWrite(const std::string &name, const std::string &until = "", size_t count = 0) {
+  auto trace = ink_test::ReadWriteTrace(kWriteDir + name + "/trace.txt", until);
   auto expected = ink_test::ReadWriteExpected(kWriteDir + name + "/expected.json");
   ink_test::Session canvas(
       ink_test::WithWritePage(ink_test::Session().doc(), ink_test::ReadWritePage(kWriteDir + name + "/trace.txt")));
@@ -31,16 +34,30 @@ void CheckAgainstWrite(const std::string &name) {
 
   REQUIRE(ListedPageCount(canvas.doc()) == 1);
   std::map<std::string, Transform> ours;
-  for (const auto &element : canvas.doc().pages[0]->layers[0].elements) {
-    const Stroke &stroke = std::get<Stroke>(element->value);
+  auto add = [&](const Element &element) {
+    const Stroke &stroke = std::get<Stroke>(element.value);
     ours[stroke.id] = stroke.transform;
+  };
+  for (const auto &element : canvas.doc().pages[0]->layers[0].elements) {
+    if (const auto *link = std::get_if<Link>(&element->value)) {
+      for (const auto &child : link->children) add(*child);
+    } else {
+      add(*element);
+    }
   }
-  REQUIRE(drawn.size() == expected.elements.size() + expected.deleted.size());
+  if (until.empty()) {
+    count = drawn.size();
+    REQUIRE(count == expected.elements.size() + expected.deleted.size());
+  }
+  REQUIRE(count <= drawn.size());
   for (int id : expected.deleted) {
+    if (size_t(id) >= count) continue;
     INFO("stroke " << id);
     CHECK(!ours.contains(drawn[id]));
   }
   for (const ink_test::WriteElement &element : expected.elements) {
+    // A link has no translation of its own.
+    if (size_t(element.id) >= count || drawn[element.id].empty()) continue;
     INFO("stroke " << element.id);
     REQUIRE(ours.contains(drawn[element.id]));
     const Transform &transform = ours[drawn[element.id]];
@@ -255,4 +272,14 @@ TEST_CASE("Ruled insert space reflows the words of one column and leaves the oth
 
 TEST_CASE("Ruled insert space reflows words to the next lines; vertical insert space moves the ink below") {
   CheckAgainstWrite("upstream-test7");
+}
+
+TEST_CASE("Ruled insert space reflows a column that a slanted divider bounds; the second column stays") {
+  // The case goes on to draw more strokes, and to erase them.
+  CheckAgainstWrite("upstream-test11", "pen", 129);
+}
+
+TEST_CASE("Ruled insert space reflows words that were not drawn from left to right in their order on the line") {
+  // The case goes on to paste a figure from Write's clipboard.
+  CheckAgainstWrite("upstream-test15", "clipsvg", 28);
 }

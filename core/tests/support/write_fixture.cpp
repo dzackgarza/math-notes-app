@@ -29,7 +29,7 @@ std::set<std::string> StrokeIds(const ink_engine::Document &document) {
 
 }  // namespace
 
-std::vector<WriteEvent> ReadWriteTrace(const std::string &path) {
+std::vector<WriteEvent> ReadWriteTrace(const std::string &path, const std::string &until) {
   std::ifstream in(path);
   Require(in.is_open(), "cannot open " + path);
   std::vector<WriteEvent> events;
@@ -38,6 +38,7 @@ std::vector<WriteEvent> ReadWriteTrace(const std::string &path) {
     std::istringstream words(line);
     std::string command;
     if (!(words >> command) || command[0] == '#') continue;
+    if (command == until) break;
     if (command == "ie") {
       WriteEvent e;
       int src, mm;
@@ -51,12 +52,23 @@ std::vector<WriteEvent> ReadWriteTrace(const std::string &path) {
       WriteEvent e{.kind = WriteEvent::kCommand};
       Require(bool(words >> e.command), line);
       events.push_back(e);
+    } else if (command == "pen") {
+      WriteEvent e{.kind = WriteEvent::kPen};
+      Require(bool(words >> e.argb >> e.width), line);
+      events.push_back(e);
+    } else if (command == "hyperref") {
+      WriteEvent e{.kind = WriteEvent::kLink};
+      Require(bool(words >> e.href), line);
+      events.push_back(e);
+    } else if (command == "clearsel") {
+      events.push_back({.kind = WriteEvent::kClearSelection});
     } else if (command == "view") {
       int page;
       double x, y;
       Require(bool(words >> page >> x >> y) && page == 0, line);
     } else {
-      Require(command == "screen" || command == "props", "unsupported trace command: " + line);
+      Require(command == "screen" || command == "props" || command == "pathrel",
+              "unsupported trace command: " + line);
     }
   }
   return events;
@@ -160,6 +172,7 @@ std::vector<std::string> ReplayWriteTrace(InkCanvas *canvas, const std::vector<W
   std::vector<std::string> drawn;
   bool erasing = false, selecting = false;
   InkPenSample last{};
+  double clock = 0;
   for (const WriteEvent &e : trace) {
     if (e.kind == WriteEvent::kMode) {
       erasing = e.mode == 14 || e.mode == 16;
@@ -182,10 +195,30 @@ std::vector<std::string> ReplayWriteTrace(InkCanvas *canvas, const std::vector<W
       }
       continue;
     }
+    if (e.kind == WriteEvent::kPen) {
+      marker.rgb = e.argb & 0xFFFFFF;
+      marker.size = float(kWritePt * e.width);
+      ink_canvas_set_tool(canvas, &marker);
+      continue;
+    }
+    if (e.kind == WriteEvent::kLink) {
+      Require(ink_canvas_link_selection(canvas, e.href.c_str()) == INK_OK, "link");
+      drawn.emplace_back();
+      continue;
+    }
+    if (e.kind == WriteEvent::kClearSelection) {
+      Require(ink_canvas_clear_selection(canvas) == INK_OK, "clear selection");
+      continue;
+    }
     std::set<std::string> before = StrokeIds(canvas->editor.document());
     // The coordinates of a release are ignored: it ends at the last position.
     InkPenSample s = e.ev == -1 ? last : InkPenSample{.x = e.x, .y = e.y};
-    s.time = e.time;
+    // Write's own cases give each event the time 0 (scribbletest.cpp:499):
+    // Write makes a path from the positions alone. The engine models a stroke
+    // from timed input, thus such events get the 10 ms step of the recorded
+    // cases.
+    clock = std::max(e.time, clock + 10);
+    s.time = clock;
     s.pressure = float(e.pressure);
     s.tool = INK_TOOL_PEN;
     s.phase = uint8_t(e.ev == 1 ? INK_PHASE_BEGIN : e.ev == -1 ? INK_PHASE_END : INK_PHASE_MOVE);
