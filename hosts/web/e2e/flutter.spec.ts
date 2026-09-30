@@ -2733,19 +2733,10 @@ test("Flutter creates a note in each page size and orientation", async ({ page }
   }
 });
 
-test("Flutter insert space moves the handwriting with the pen in each mode, and onto a new page", async ({ page }, info) => {
-  test.setTimeout(240_000);
-  await page.goto("?root=opfs");
-  await beginTestNote(page, "Space", "Space notes");
-  const button = (name: string) => page.getByRole("button", { name, exact: true });
-  await button("Lined Paper").click();
-  await button("Landscape").click();
-  await button("Create Note").click();
-  const canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
-  await canvas.waitFor({ timeout: 30_000 });
-  const box = await boxOf(canvas);
-  const cdp = await page.context().newCDPSession(page);
-
+// Lined paper on the screen, and words written on it. `rules` holds the
+// screen rows of the rules below the top of the view; `find` reads them again
+// after the page scrolls.
+async function linedPaper(page: Page, cdp: CDPSession, box: Box) {
   // The rules of the paper below a screen row: the middle row of each thin
   // run that is darker than the paper, in a column with no handwriting.
   const rulesBelow = async (top: number) => {
@@ -2795,25 +2786,57 @@ test("Flutter insert space moves the handwriting with the pen in each mode, and 
   const shows = (band: number, lefts: number[], message: string) =>
     expect.poll(async () => (await words(band)).map(({ left }) =>
       lefts.find((expected) => Math.abs(left - margin - expected) <= 4) ?? left - margin), { message }).toEqual(lefts);
+  return {
+    get rules() { return rules; },
+    find: async (top: number) => { rules = await rulesBelow(top); },
+    spacing, middle, margin, edge, word, words, shows,
+  };
+}
+
+const heldPen = { pointerType: "pen" as const, force: 0.6, button: "left" as const };
+
+// The pen, which is down, moves.
+async function penDrag(cdp: CDPSession, from: PenPoint, to: PenPoint): Promise<void> {
+  const steps = Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / 20);
+  for (let step = 1; step <= steps; ++step) {
+    await cdp.send("Input.dispatchMouseEvent", {
+      type: "mouseMoved", buttons: 1, ...heldPen,
+      x: from.x + ((to.x - from.x) * step) / steps, y: from.y + ((to.y - from.y) * step) / steps,
+    });
+  }
+}
+
+// The pen goes down and moves, and stays down.
+async function penHold(cdp: CDPSession, from: PenPoint, to: PenPoint): Promise<void> {
+  await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", clickCount: 1, ...from, ...heldPen });
+  await penDrag(cdp, from, to);
+}
+
+async function penRelease(cdp: CDPSession, at: PenPoint): Promise<void> {
+  await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", clickCount: 1, ...at, ...heldPen });
+}
+
+test("Flutter insert space moves the handwriting with the pen in each mode, and onto a new page", async ({ page }, info) => {
+  test.setTimeout(240_000);
+  await page.goto("?root=opfs");
+  await beginTestNote(page, "Space", "Space notes");
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  await button("Lined Paper").click();
+  await button("Landscape").click();
+  await button("Create Note").click();
+  const canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
+  await canvas.waitFor({ timeout: 30_000 });
+  const box = await boxOf(canvas);
+  const cdp = await page.context().newCDPSession(page);
+  const paper = await linedPaper(page, cdp, box);
+  const { spacing, middle, margin, edge, word, words, shows } = paper;
   // The ink of the lone word, which the vertical and horizontal modes move off the bands.
   const lone = () => pixelBounds(page, {
-    x: margin + 150, y: rules[4], width: 450, height: Math.round(4 * spacing),
+    x: margin + 150, y: paper.rules[4], width: 450, height: Math.round(4 * spacing),
   }, isInk);
 
-  const pen = { pointerType: "pen" as const, force: 0.6, button: "left" as const };
-  // The pen goes down and moves, and stays down.
-  const hold = async (from: PenPoint, to: PenPoint) => {
-    await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", clickCount: 1, ...from, ...pen });
-    const steps = Math.ceil(Math.hypot(to.x - from.x, to.y - from.y) / 20);
-    for (let step = 1; step <= steps; ++step) {
-      await cdp.send("Input.dispatchMouseEvent", {
-        type: "mouseMoved", buttons: 1, ...pen,
-        x: from.x + ((to.x - from.x) * step) / steps, y: from.y + ((to.y - from.y) * step) / steps,
-      });
-    }
-  };
-  const release = (at: PenPoint) =>
-    cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", clickCount: 1, ...at, ...pen });
+  const hold = (from: PenPoint, to: PenPoint) => penHold(cdp, from, to);
+  const release = (at: PenPoint) => penRelease(cdp, at);
   // A tap on the selected tool opens its modes.
   const spaceMode = async (mode: string) => {
     await button("Insert space").click();
@@ -2837,7 +2860,7 @@ test("Flutter insert space moves the handwriting with the pen in each mode, and 
   await page.screenshot({ path: info.outputPath("rest-of-line.png") });
   await shows(1, [60, 340, 500], "the words after the pen follow it while it is down");
   await shows(2, [60], "the next line stays");
-  const lines = { x: margin - 60, y: rules[0], width: 700, height: Math.round(6 * spacing) };
+  const lines = { x: margin - 60, y: paper.rules[0], width: 700, height: Math.round(6 * spacing) };
   expect((await capture(page, lines)).filter(isOutline).length, "the drag shows the ink, with no selection band").toBe(0);
   await release(to);
   await shows(1, [60, 340, 500], "the release keeps the words where the drag showed them");
@@ -2891,7 +2914,7 @@ test("Flutter insert space moves the handwriting with the pen in each mode, and 
   // Vertical: the ink below the pen moves by the drag, off the lines.
   await spaceMode("Vertical");
   const before = await lone();
-  from = { x: margin + 400, y: rules[4] + 2 };
+  from = { x: margin + 400, y: paper.rules[4] + 2 };
   to = { x: from.x, y: from.y + 1.5 * spacing };
   await hold(from, to);
   await page.screenshot({ path: info.outputPath("vertical.png") });
@@ -2928,14 +2951,14 @@ test("Flutter insert space moves the handwriting with the pen in each mode, and 
   await page.mouse.wheel(0, 4000);
   // The hint shows at the end of the notebook: the foot of the page is in view.
   await expect(page.getByText("Pull and hold to add a page", { exact: true })).toBeVisible();
-  rules = await rulesBelow(Math.round(box.y + 180));
-  const foot = rules.length - 4;
+  await paper.find(Math.round(box.y + 180));
+  const foot = paper.rules.length - 4;
   await button("Pen").click();
   await word(220, foot);
   await shows(foot, [220], "a word near the foot of the page");
   await button("Insert space").click();
   await spaceMode("Vertical");
-  from = { x: margin + 400, y: rules[foot - 3] + 2 };
+  from = { x: margin + 400, y: paper.rules[foot - 3] + 2 };
   to = { x: from.x, y: box.y + box.height - 6 };
   await hold(from, to);
   await page.screenshot({ path: info.outputPath("overflow.png") });
@@ -2955,7 +2978,7 @@ test("Flutter insert space moves the handwriting with the pen in each mode, and 
   await page.getByRole("button", { name: "Open Space", exact: false }).click();
   await canvas.waitFor({ timeout: 30_000 });
   await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
-  rules = await rulesBelow(Math.round(box.y + 120));
+  await paper.find(Math.round(box.y + 120));
   await shows(3, [60, 440, 600], "the first page reopens with its words in place");
   await button("Pages").click();
   await button("Next page").click();
@@ -3003,4 +3026,150 @@ test("Flutter scrolls the page with the mouse wheel and zooms it with Ctrl and t
   await expect(async () => {
     expect(await inkWidth(await inkRow(page, column, top, bottom))).toBeGreaterThan(1.4 * length);
   }, "Ctrl and the wheel make the handwriting larger").toPass({ timeout: 5_000 });
+});
+
+test("Flutter ruled lasso and ruled eraser take the words of the lines under the pen and show them during the drag", async ({ page }, info) => {
+  test.setTimeout(240_000);
+  await page.goto("?root=opfs");
+  await beginTestNote(page, "Ruled", "Ruled notes");
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  await button("Lined Paper").click();
+  await button("Landscape").click();
+  await button("Create Note").click();
+  const canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
+  await canvas.waitFor({ timeout: 30_000 });
+  const box = await boxOf(canvas);
+  const cdp = await page.context().newCDPSession(page);
+  const { rules, spacing, middle, margin, word, shows } = await linedPaper(page, cdp, box);
+  const at = (left: number, band: number) => ({ x: margin + left, y: middle(band) });
+  // A tap on the selected tool opens its modes.
+  const ruledMode = async (tool: string) => {
+    await button(tool).click();
+    await button(tool).click();
+    await button("Ruled").click();
+    await closePopover(page);
+  };
+  const near = (value: number, expected: number, message: string) =>
+    expect(Math.abs(value - expected), `${message}: ${value} is near ${expected}`).toBeLessThanOrEqual(6);
+
+  // Two columns on lines 1 to 3, with a divider between them, and words on lines 4 to 6.
+  const divider = 330;
+  await word(60, 1);
+  await word(220, 1);
+  await word(380, 1);
+  await word(60, 2);
+  await word(380, 2);
+  await penStroke(cdp, Array.from({ length: 13 }, (_, i) => ({
+    x: margin + divider, y: rules[1] + 2 + ((3 * spacing - 4) * i) / 12,
+  })), 0.6);
+  await word(60, 4);
+  await word(220, 4);
+  await word(60, 5);
+  await word(60, 6);
+  await shows(1, [60, 220, divider, 380], "line 1 has three words and the divider");
+  await shows(2, [60, divider, 380], "line 2 has two words and the divider");
+  await ruledMode("Eraser");
+  await ruledMode("Lasso");
+
+  // The ruled lasso outlines the lines it covers while the pen is down.
+  const outline = () => pixelBounds(page, {
+    x: Math.ceil(box.x), y: rules[0] + 4, width: Math.floor(box.width) - 1, height: Math.round(4.5 * spacing),
+  }, isOutline);
+  await penHold(cdp, at(200, 1), at(300, 1));
+  await page.screenshot({ path: info.outputPath("one-line.png") });
+  await expect(async () => {
+    const part = await outline();
+    near(part.top, rules[1], "the top of the part of line 1");
+    near(part.bottom, rules[2], "the bottom of the part of line 1");
+    near(part.left, margin + 200, "the pen-down");
+    near(part.right, margin + 300, "the pen");
+  }).toPass({ timeout: 5_000 });
+  // On a second line, the outline stops at the divider of the column.
+  await penDrag(cdp, at(300, 1), at(150, 2));
+  await page.screenshot({ path: info.outputPath("two-lines.png") });
+  await expect(async () => {
+    const column = await outline();
+    near(column.top, rules[1], "the top of line 1");
+    near(column.bottom, rules[3], "the bottom of line 2");
+    near(column.right, margin + divider, "the divider");
+    expect(column.left, "line 2 from the page edge").toBeLessThan(margin - 20);
+  }).toPass({ timeout: 5_000 });
+  await penRelease(cdp, at(150, 2));
+  await button("Delete selection").click();
+  await shows(1, [60, divider, 380], "the word after the pen-down in the left column is taken");
+  await shows(2, [divider, 380], "the word before the pen on line 2 is taken");
+  await button("Undo").click();
+  await shows(1, [60, 220, divider, 380], "one undo restores line 1");
+  await shows(2, [60, divider, 380], "one undo restores line 2");
+
+  // A ruled selection moves down by whole lines.
+  const wordTop = async (left: number, band: number) => (await pixelBounds(page, {
+    x: Math.round(margin + left - 6), y: rules[band] + 2, width: 84, height: Math.round(spacing) - 4,
+  }, isInk)).top - rules[band];
+  const top = await wordTop(220, 4);
+  await penHold(cdp, at(200, 4), at(300, 4));
+  await penRelease(cdp, at(300, 4));
+  await penStroke(cdp, [0, 0.25, 0.5, 0.75, 1].map((t) => ({
+    x: margin + 255 + 200 * t, y: middle(4) + 0.7 * spacing * t,
+  })), 0.6);
+  await shows(4, [60], "the selected word leaves line 4");
+  await shows(5, [60, 420], "the selected word is on line 5");
+  expect(Math.abs(await wordTop(420, 5) - top), "the word is one whole line lower").toBeLessThanOrEqual(1);
+
+  // The ruled eraser, inside the selection: the ink goes while the pen is down.
+  await button("Eraser").click();
+  await penHold(cdp, at(430, 5), at(480, 5));
+  await page.screenshot({ path: info.outputPath("erase-held.png") });
+  await shows(5, [60], "the word under the held eraser is hidden");
+  await penRelease(cdp, at(480, 5));
+  // Along a line it takes the words it touches; on the next line it starts again.
+  await penHold(cdp, at(200, 1), at(310, 1));
+  await shows(1, [60, divider, 380], "the word under the held eraser on line 1 is hidden");
+  await penDrag(cdp, at(310, 1), at(310, 2));
+  await shows(2, [60, divider, 380], "line 2 stays when the eraser comes down onto it");
+  await penDrag(cdp, at(310, 2), at(100, 2));
+  await shows(2, [divider, 380], "the word under the held eraser on line 2 is hidden");
+  await penRelease(cdp, at(100, 2));
+  // In the left margin it takes each whole line that it leaves.
+  await penHold(cdp, at(-30, 4), at(-30, 6));
+  await shows(4, [], "line 4 is hidden");
+  await shows(5, [], "line 5 is hidden");
+  await shows(6, [60], "the line of the pen stays");
+  await penRelease(cdp, at(-30, 6));
+  const strokes = async () => (await savedPages(page, "Ruled", "Ruled notes")).map((saved) => saved.strokes);
+  await expect.poll(strokes, "the divider and four words remain").toEqual([5]);
+  await button("Undo").click();
+  await shows(4, [60], "one undo restores line 4");
+  await shows(5, [60], "one undo restores line 5");
+  await button("Redo").click();
+  await shows(4, [], "redo erases line 4 again");
+  await expect.poll(strokes).toEqual([5]);
+});
+
+test("Flutter ruled eraser takes a word on plain paper and keeps the paper plain", async ({ page }) => {
+  test.setTimeout(90_000);
+  const { box, cdp } = await openNewNote(page, "Ruled plain", "Plain Paper");
+  // Two words on one row and a word four rows of Write's blank-page lines lower.
+  const spots = [{ x: box.x + 235, y: box.y + 200 }, { x: box.x + 395, y: box.y + 200 }, { x: box.x + 235, y: box.y + 320 }];
+  const paper: Rgb[][] = [];
+  for (const spot of spots) paper.push(await screenPixels(page, spot));
+  const ink: number[] = [];
+  for (const [i, spot] of spots.entries()) {
+    await penStroke(cdp, Array.from({ length: 8 }, (_, k) => ({ x: spot.x - 35 + 10 * k, y: spot.y + (k % 2 ? 3 : -3) })), 0.6);
+    ink.push(await inkAt(page, spot, paper[i]));
+  }
+  const shown = () => Promise.all(spots.map(async (spot, i) => (await inkAt(page, spot, paper[i])) > 0.8 * ink[i]));
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  await button("Eraser").click();
+  await button("Eraser").click();
+  await button("Ruled").click();
+  await closePopover(page);
+
+  const from = { x: spots[0].x - 50, y: spots[0].y };
+  const to = { x: spots[0].x + 50, y: spots[0].y };
+  await penHold(cdp, from, to);
+  await expect.poll(shown, "the word under the held eraser is hidden").toEqual([false, true, true]);
+  await penRelease(cdp, to);
+  const saved = async () => (await savedPages(page, "Ruled plain", "Plain Paper")).map(({ strokes, ruling }) => ({ strokes, ruling }));
+  await expect.poll(saved).toEqual([{ strokes: 2, ruling: "blank" }]);
 });
