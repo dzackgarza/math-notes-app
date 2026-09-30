@@ -979,6 +979,25 @@ async function openNewNote(page: Page, title: string): Promise<{ box: Box; cdp: 
   return { box, cdp: await page.context().newCDPSession(page) };
 }
 
+test("Flutter writes a hard pen stroke visibly thicker than a light one", async ({ page }, info) => {
+  test.setTimeout(60_000);
+  const { box, cdp } = await openNewNote(page, "Pressure");
+  const light = { x: box.x + 240, y: box.y + 180 };
+  const hard = { x: box.x + 240, y: box.y + 260 };
+  const paper = [await screenPixels(page, light), await screenPixels(page, hard)];
+
+  await penStroke(cdp, line(box.x + 140, box.x + 340, light.y), 0.15);
+  await penStroke(cdp, line(box.x + 140, box.x + 340, hard.y), 1);
+  await page.screenshot({ path: info.outputPath("pressure.png") });
+
+  // Ink on screen: how much each stroke darkened the paper across its width.
+  const ink = async (center: PenPoint, before: Rgb[]) =>
+    (await screenPixels(page, center)).reduce((sum, rgb, i) => sum + brightness(before[i]) - brightness(rgb), 0);
+  const ratio = (await ink(hard, paper[1])) / (await ink(light, paper[0]));
+  expect(ratio).toBeGreaterThan(1.3);
+  expect(ratio).toBeLessThan(3);
+});
+
 test("Flutter highlighting handwriting leaves the handwriting dark", async ({ page }, info) => {
   test.setTimeout(60_000);
   const { box, cdp } = await openNewNote(page, "Highlight");
