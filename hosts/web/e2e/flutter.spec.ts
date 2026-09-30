@@ -2967,3 +2967,40 @@ test("Flutter insert space moves the handwriting with the pen in each mode, and 
   }, isInk);
   expect(Math.round((carried.left - margin) / 10) * 10, "the word reopens on the new page in its column").toBe(220);
 });
+
+test("Flutter scrolls the page with the mouse wheel and zooms it with Ctrl and the wheel", async ({ page }, info) => {
+  test.setTimeout(90_000);
+  const { box, cdp } = await openNewNote(page, "Wheel");
+  const written = { x: box.x + 500, y: box.y + 420 };
+  await penStroke(cdp, line(written.x - 40, written.x + 40, written.y), 0.6);
+  // A column through the handwriting, between two columns of paper dots.
+  const column = written.x + 18;
+  const top = box.y + 120;
+  const bottom = box.y + box.height - 40;
+  const before = await inkRow(page, column, top, bottom);
+  const inkWidth = (row: number) => inkLength(page, row, written.x - 300, written.x + 300);
+  const length = await inkWidth(before);
+  // The handwriting is `scrolled` px above its first row, at its first size.
+  const shows = (scrolled: number, message: string) => expect(async () => {
+    const row = await inkRow(page, column, top, bottom);
+    expect(before - row, message).toBe(scrolled);
+    expect(await inkWidth(row), message).toBe(length);
+  }).toPass({ timeout: 5_000 });
+
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, 200);
+  await shows(200, "the wheel scrolls the page down");
+  await page.mouse.wheel(0, -200);
+  await page.screenshot({ path: info.outputPath("scrolled-back.png") });
+  await shows(0, "the wheel scrolls the page back up at the same zoom");
+
+  // Ctrl and the wheel zoom the page about the pointer, here on the handwriting.
+  await page.mouse.move(written.x, before);
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, -100);
+  await page.keyboard.up("Control");
+  await page.screenshot({ path: info.outputPath("zoomed.png") });
+  await expect(async () => {
+    expect(await inkWidth(await inkRow(page, column, top, bottom))).toBeGreaterThan(1.4 * length);
+  }, "Ctrl and the wheel make the handwriting larger").toPass({ timeout: 5_000 });
+});
