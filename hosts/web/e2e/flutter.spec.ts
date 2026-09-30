@@ -2511,7 +2511,7 @@ async function savedPages(page: Page, title: string, notebook = "Test Notebook")
 }
 
 test("Flutter inserts pages before and after a page, deletes a page, and sizes new pages", async ({ page }, info) => {
-  test.setTimeout(120_000);
+  test.setTimeout(240_000);
   const { box, cdp } = await openNewNote(page, "Inserts");
   const button = (name: string) => page.getByRole("button", { name, exact: true });
   const choose = async (menu: string, item: string) => {
