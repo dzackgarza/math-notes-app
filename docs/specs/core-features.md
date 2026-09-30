@@ -69,7 +69,8 @@ cross-page reflow (Write), and TikZ skeleton extraction. They receive no work
 until L0 and L1 are complete.
 
 Absent L2 features: double-tap zoom, shape tool, return to the previous tool
-after erasing, erase highlighter only, page rotate, image export.
+after erasing, erase highlighter only, page rotate, image export, scroll at
+the view edge during a selection drag (Write `autoScrollSelect`).
 
 ## Reference implementation
 
