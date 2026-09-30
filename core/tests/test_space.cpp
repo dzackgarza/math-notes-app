@@ -214,6 +214,33 @@ TEST_CASE("Ruled insert space moves whole lines past the last page onto a new pa
   CHECK(book.session.doc() == before);
 }
 
+TEST_CASE("A word that reflows past the last line of a page starts the first line of the next page") {
+  Pages book(2);
+  // Three words on the last whole line of page 1, and a word on the first
+  // line of page 2. The lines are 19.2 pt apart and the first starts at 18.2.
+  const Rect first = book.Draw(0, {100, 815}, {140, 815});
+  const Rect second = book.Draw(0, {300, 815}, {340, 815});
+  const Rect third = book.Draw(0, {500, 815}, {540, 815});
+  const Rect next = book.Draw(1, {300, 27.8}, {340, 27.8});
+  const size_t steps = book.session.document->history.size();
+
+  // 80 pt of space after the first word puts the third past the right edge.
+  book.Space(INK_SELECTOR_SPACE_RULED, 0, {200, 815}, {280, 815});
+  REQUIRE(book.Ink(0).size() == 2);
+  CHECK(Same(book.Bounds(0, 0), first));
+  CHECK(std::abs(book.Bounds(0, 1).left - (second.left + 80)) < 1e-9);
+  REQUIRE(book.Ink(1).size() == 2);
+  // The third word is on the first line of page 2, at the start of the line
+  // as on a line of its own page (0.3 of a line from the left limit).
+  CHECK(std::abs(book.Bounds(1, 1).left - 0.3 * 19.2) < 1e-9);
+  CHECK(std::abs(book.Bounds(1, 1).top - (third.top - 815 + 27.8)) < 1e-9);
+  // The ink of page 2 is one line lower.
+  CHECK(std::abs(book.Bounds(1, 0).left - next.left) < 1e-9);
+  CHECK(std::abs(book.Bounds(1, 0).top - (next.top + 19.2)) < 1e-9);
+  CHECK(ListedPageCount(book.session.doc()) == 2);
+  CHECK(book.session.document->history.size() == steps + 1);
+}
+
 TEST_CASE("Ruled insert space on a blank page moves the rest of the line as Write does") {
   CheckAgainstWrite("insspace-virtual-ruling");
 }
