@@ -662,25 +662,25 @@ class _EditorScreenState extends State<EditorScreen>
       Positioned(
         bottom: ribbonBottomInset + 12,
         right: 12,
-        child: IgnorePointer(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: chromeBar,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Semantics(
-              container: true,
-              child: Text(
-                '${page + 1} / ${widget.note.document.pageCount()}',
-                style: white,
-              ),
-            ),
-          ),
-        ),
+        child: statusLabel('${page + 1} / ${widget.note.document.pageCount()}'),
       ),
     ];
   }
+
+  // A status text on the chrome color, legible over the paper.
+  Widget statusLabel(String text) => IgnorePointer(
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: chromeBar,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Semantics(
+        container: true,
+        child: Text(text, style: const TextStyle(color: CupertinoColors.white)),
+      ),
+    ),
+  );
 
   Widget selectionMenu() {
     final figure = !drawing && canvas!.selectedFigure().isNotEmpty;
@@ -1295,18 +1295,13 @@ class _EditorScreenState extends State<EditorScreen>
                                         bottom: ribbonBottomInset + 12,
                                         left: 0,
                                         right: 0,
-                                        child: IgnorePointer(
-                                          child: Center(
-                                            child: Semantics(
-                                              container: true,
-                                              child: Text(
-                                                pullReady
-                                                    ? 'Release to add a page'
-                                                    : pullTimer != null
-                                                    ? 'Hold to add a page'
-                                                    : 'Pull and hold to add a page',
-                                              ),
-                                            ),
+                                        child: Center(
+                                          child: statusLabel(
+                                            pullReady
+                                                ? 'Release to add a page'
+                                                : pullTimer != null
+                                                ? 'Hold to add a page'
+                                                : 'Pull and hold to add a page',
                                           ),
                                         ),
                                       ),
