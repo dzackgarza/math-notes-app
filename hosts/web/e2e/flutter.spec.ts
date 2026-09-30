@@ -131,13 +131,30 @@ test("Flutter moves, finds, trashes, and restores a note with its metadata", asy
   await openTestNotebook(page, "Archive");
   await expect(page.getByRole("button", { name: "Open Movable", exact: false })).toBeVisible();
 
+  // A tag made from the sidebar, then given to the note with its description
+  // from the card menu; the sidebar tag lists the note.
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "New tag", exact: true }).click();
+  await enterText(page.getByRole("textbox", { name: "Tag name", exact: true }), "geometry");
+  await page.getByRole("button", { name: "Add tag", exact: true }).click();
+  await expect(page.getByRole("button", { name: /^geometry/ })).toBeVisible();
+  await page.getByRole("button", { name: "Movable actions", exact: true }).click();
+  await page.getByRole("button", { name: "Details and tags", exact: true }).click();
+  await enterText(page.getByRole("textbox", { name: "Description", exact: true }), "Moved from Inbox");
+  await addTag(page, "geometry");
+  await page.getByRole("button", { name: "Save details", exact: true }).click();
+  await page.getByRole("button", { name: /^geometry/ }).click();
+  await expect(page.getByRole("button", { name: "Open Movable", exact: false })).toBeVisible();
+
   const metadata = JSON.parse(
     await page.evaluate(async () => {
       const root = await navigator.storage.getDirectory();
       return (await (await root.getFileHandle(".library.json")).getFile()).text();
     }),
   );
-  expect(metadata.notes["Archive/Movable"].tags).toEqual(["algebra"]);
+  expect(metadata.notes["Archive/Movable"].tags).toEqual(["algebra", "geometry"]);
+  expect(metadata.notes["Archive/Movable"].description).toBe("Moved from Inbox");
+  expect(metadata.tags.map(({ name }: { name: string }) => name)).toContain("geometry");
   expect(metadata.notes["Inbox/Movable"]).toBeUndefined();
   expect(metadata.notes[".trash/Movable"]).toBeUndefined();
 });
