@@ -431,6 +431,8 @@ test("Flutter adds a page only after a held edge pull and preserves keyboard his
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.wheel(0, 4000);
   await expect(page.getByText("Pull and hold to add a page", { exact: true })).toBeVisible();
+  expect((await textIn(page, await boxOf(page.getByText("Pull and hold to add a page", { exact: true })))).contrast,
+    "the hint is legible over the paper").toBeGreaterThan(4.5);
   const cdp = await page.context().newCDPSession(page);
   const x = box.x + box.width / 2;
   const y = box.y + box.height - 40;
@@ -624,7 +626,7 @@ test("Flutter undoes on a two-finger tap and redoes on a three-finger tap", asyn
   expect(await strokes()).toBe(1);
 });
 
-test("Flutter erases with the pen side button and draws with a finger on request", async ({ page }) => {
+test("Flutter erases with the pen side button and eraser end and draws with a finger on request", async ({ page }) => {
   test.setTimeout(120_000);
   await page.goto("?root=opfs");
   await beginTestNote(page, "Fingers");
@@ -656,6 +658,23 @@ test("Flutter erases with the pen side button and draws with a finger on request
   expect(await strokes()).toBe(1);
   await penDrag("right", [230, 100], [230, 200]);
   expect(await strokes()).toBe(0);
+  // CDP has no button for the eraser end of a pen, so the page receives the
+  // pointer events that the eraser end makes: button 5, buttons 32.
+  await penDrag("left", [160, 150], [300, 150]);
+  expect(await strokes()).toBe(1);
+  await page.evaluate(async ({ x, y }) => {
+    const send = async (type: string, clientY: number, button: number, buttons: number) => {
+      document.elementFromPoint(x, clientY)!.dispatchEvent(new PointerEvent(type, {
+        pointerId: 9, pointerType: "pen", isPrimary: true, bubbles: true, cancelable: true, composed: true,
+        clientX: x, clientY, pressure: buttons ? 0.6 : 0, button, buttons,
+      }));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    };
+    await send("pointerdown", y + 100, 5, 32);
+    for (const offset of [125, 150, 175, 200]) await send("pointermove", y + offset, -1, 32);
+    await send("pointerup", y + 200, 5, 0);
+  }, { x: box.x + 230, y: box.y });
+  expect(await strokes(), "the eraser end of the pen erases").toBe(0);
 
   await page.getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("button", { name: "Draw with finger", exact: true }).click();
@@ -940,20 +959,28 @@ function line(x0: number, x1: number, y: number, steps = 10): PenPoint[] {
 
 type Rgb = [number, number, number];
 
-// The on-screen pixels of a rectangle, row by row, from a clipped capture: a
-// full-viewport capture can show the WebGL canvas displaced (TRAPS.md).
-async function capture(page: Page, clip: Box): Promise<Rgb[]> {
-  const png = await page.screenshot({ clip });
-  return page.evaluate(async (base64) => {
+// The pixels of a PNG, row by row. The page decodes the PNG and returns the
+// RGBA bytes as one base64 string: an array of pixels takes seconds to cross
+// the protocol.
+async function pngPixels(page: Page, png: Buffer): Promise<Rgb[]> {
+  const rgba = Buffer.from(await page.evaluate(async (base64) => {
     const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
     const bitmap = await createImageBitmap(new Blob([bytes], { type: "image/png" }));
     const context = new OffscreenCanvas(bitmap.width, bitmap.height).getContext("2d");
     if (!context) throw new Error("No 2D context");
     context.drawImage(bitmap, 0, 0);
     const data = context.getImageData(0, 0, bitmap.width, bitmap.height).data;
-    return Array.from({ length: data.length / 4 }, (_, i): [number, number, number] =>
-      [data[4 * i], data[4 * i + 1], data[4 * i + 2]]);
-  }, png.toString("base64"));
+    let binary = "";
+    for (let i = 0; i < data.length; i += 0x8000) binary += String.fromCharCode(...data.subarray(i, i + 0x8000));
+    return btoa(binary);
+  }, png.toString("base64")), "base64");
+  return Array.from({ length: rgba.length / 4 }, (_, i): Rgb => [rgba[4 * i], rgba[4 * i + 1], rgba[4 * i + 2]]);
+}
+
+// The on-screen pixels of a rectangle, row by row, from a clipped capture: a
+// full-viewport capture can show the WebGL canvas displaced (TRAPS.md).
+async function capture(page: Page, clip: Box): Promise<Rgb[]> {
+  return pngPixels(page, await page.screenshot({ clip }));
 }
 
 // The 9 × 9 square around a point.
@@ -1031,6 +1058,153 @@ async function openNewNote(page: Page, title: string, paper?: string): Promise<{
   if (!box) throw new Error("Notebook canvas has no bounds");
   return { box, cdp: await page.context().newCDPSession(page) };
 }
+
+// WCAG relative luminance: https://www.w3.org/TR/WCAG22/#dfn-relative-luminance
+function luminance(rgb: Rgb): number {
+  const [red, green, blue] = rgb.map((channel) => {
+    const value = channel / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+}
+
+// WCAG contrast ratio; 4.5 is the minimum for legible body text:
+// https://www.w3.org/TR/WCAG22/#contrast-minimum
+const contrast = (a: Rgb, b: Rgb) =>
+  (Math.max(luminance(a), luminance(b)) + 0.05) / (Math.min(luminance(a), luminance(b)) + 0.05);
+
+// The text drawn in a screen region: its left edge, and its contrast with
+// the background, which is the top-left pixel of the region.
+async function textIn(page: Page, box: Box): Promise<{ left: number; contrast: number }> {
+  const region = { x: Math.round(box.x), y: Math.round(box.y), width: Math.round(box.width), height: Math.round(box.height) };
+  const pixels = await capture(page, region);
+  const ratios = pixels.map((rgb) => contrast(rgb, pixels[0]));
+  const first = ratios.reduce((left, ratio, i) => (ratio > 2 ? Math.min(left, i % region.width) : left), region.width);
+  return { left: region.x + first, contrast: Math.max(...ratios) };
+}
+
+async function boxOf(locator: Locator): Promise<Box> {
+  await locator.scrollIntoViewIfNeeded();
+  const box = await locator.boundingBox();
+  if (!box) throw new Error("The element has no bounds");
+  return box;
+}
+
+// The accent blue of links, rings, and filled buttons in the dark theme.
+const isAccent = ([red, , blue]: Rgb) => blue > 200 && red < 100;
+
+// Taps an anchor whose pull-down menu opens at it: the items start within a
+// finger's width of the anchor, and the menu is much narrower than the screen.
+async function openMenuAt(anchor: Locator, items: Locator[]): Promise<void> {
+  const at = await boxOf(anchor);
+  await anchor.click();
+  // The menu grows from the anchor; the assertions hold when it is open.
+  await expect(async () => {
+    const boxes = await Promise.all(items.map(async (item) => {
+      const box = await item.boundingBox();
+      if (!box) throw new Error("The menu item has no bounds");
+      return box;
+    }));
+    const left = Math.min(...boxes.map((box) => box.x));
+    const right = Math.max(...boxes.map((box) => box.x + box.width));
+    const top = Math.min(...boxes.map((box) => box.y));
+    const bottom = Math.max(...boxes.map((box) => box.y + box.height));
+    expect(right - left, "the menu is narrower than a bottom sheet").toBeLessThan(400);
+    expect(right - left, "the menu is wider than its anchor's icon").toBeGreaterThan(150);
+    expect(Math.max(left - (at.x + at.width), at.x - right), "the menu is beside the anchor").toBeLessThan(44);
+    expect(Math.max(top - (at.y + at.height), at.y - bottom), "the menu is above or below the anchor").toBeLessThan(44);
+  }).toPass({ timeout: 5_000 });
+}
+
+test("Flutter library shows dark chrome, cover colors, aligned creation controls, and card menus at the cards", async ({ page }, info) => {
+  test.setTimeout(150_000);
+  await page.goto("?root=opfs");
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  const text = (content: string) => page.getByText(content, { exact: true });
+
+  await button("New Notebook").click();
+  await enterText(page.getByRole("textbox", { name: "Notebook Title", exact: true }), "Covers");
+  await addTag(page, "groups");
+  await expect(text("Cover Color")).toBeVisible();
+  const covers: Record<string, Rgb> = {
+    Blue: [0xa9, 0xc1, 0xf5], Green: [0xbf, 0xe8, 0xcc], Purple: [0xe6, 0xc8, 0xf1], Peach: [0xf2, 0xd0, 0xba],
+  };
+  const swatch = async (name: string) => {
+    const box = await boxOf(button(name));
+    const pixels = await capture(page, { x: Math.round(box.x), y: Math.round(box.y), width: 44, height: 44 });
+    return { center: pixels[22 * 44 + 22], ring: pixels.filter(isAccent).length };
+  };
+  for (const [name, color] of Object.entries(covers)) {
+    expect((await swatch(name)).center, `the ${name} swatch shows its color`).toEqual(color);
+  }
+  expect((await swatch("Blue")).ring, "the ring is on the selected swatch").toBeGreaterThan(50);
+  expect((await swatch("Peach")).ring).toBe(0);
+  await button("Peach").click();
+  await expect.poll(async () => (await swatch("Peach")).ring, { message: "the ring moves to the chosen swatch" }).toBeGreaterThan(50);
+  expect((await swatch("Blue")).ring).toBe(0);
+
+  const location = await textIn(page, await boxOf(button("My Notes")));
+  expect(location.left, "the location control starts under its heading")
+    .toBeCloseTo((await textIn(page, await boxOf(text("Location")))).left, -1);
+  const later = await textIn(page, await boxOf(text("You can move this notebook later.")));
+  expect(later.contrast, "the location note is legible").toBeGreaterThan(4.5);
+  await page.screenshot({ path: info.outputPath("new-notebook.png") });
+  await button("Create Notebook").click();
+
+  // A new notebook opens; its New Note sheet takes the notebook's tags.
+  await button("New Note").click();
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Rings");
+  const change = await textIn(page, await boxOf(button("Change Notebook · Covers")));
+  expect(change.left, "the notebook control starts under its heading")
+    .toBeCloseTo((await textIn(page, await boxOf(text("Notebook")))).left, -1);
+  const settingsName = page.getByRole("textbox", { name: "Settings name", exact: true });
+  const heading = await boxOf(text("Starting Template"));
+  const field = await boxOf(settingsName);
+  expect(field.y - (heading.y + heading.height), "the settings name is under the Starting Template heading").toBeGreaterThanOrEqual(0);
+  expect(field.y - (heading.y + heading.height)).toBeLessThan(30);
+  await enterText(settingsName, "Proof paper");
+  await button("Save as template").click();
+  await expect(page.getByRole("status", { name: "Template saved", exact: true })).toBeVisible();
+  await button("New Note").click();
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Rings");
+  const template = await boxOf(page.getByRole("button", { name: "Proof paper", exact: false }));
+  const summary = await textIn(page, { ...template, y: template.y + template.height / 2, height: template.height / 2 });
+  expect(summary.contrast, "the template summary is legible").toBeGreaterThan(4.5);
+  await page.screenshot({ path: info.outputPath("new-note.png") });
+  await button("Create Note").click();
+  await button("Close Rings").click();
+
+  const noteMenu = ["Add favorite", "Details and tags", "Rename", "Move", "Move to trash"].map(button);
+  await openMenuAt(button("Rings actions"), noteMenu);
+  await page.screenshot({ path: info.outputPath("note-menu.png") });
+  await button("Move to trash").click();
+  await expect(button("Rings actions")).toHaveCount(0);
+
+  await button("Notebooks").click();
+  const card = await boxOf(page.getByRole("button", { name: "Open Covers", exact: false }));
+  expect(await centerPixel(page, { x: card.x + card.width / 2, y: card.y + card.height / 3 }), "the card has the chosen cover color")
+    .toEqual(covers.Peach);
+  expect(brightness(await centerPixel(page, { x: 105, y: 560 })), "the sidebar is dark").toBeLessThan(150);
+  expect((await textIn(page, await boxOf(text("Math Notes")))).contrast, "the sidebar title is legible").toBeGreaterThan(4.5);
+  expect((await textIn(page, await boxOf(text("Tags")))).contrast, "the Tags heading is legible").toBeGreaterThan(4.5);
+  const tag = await boxOf(page.getByRole("button", { name: "groups", exact: false }).first());
+  expect((await textIn(page, { ...tag, x: tag.x + tag.width - 40, width: 40 })).contrast, "the tag count is legible").toBeGreaterThan(4.5);
+  await page.screenshot({ path: info.outputPath("library.png") });
+
+  await openMenuAt(button("Covers notebook actions"), [button("Rename"), button("Move to trash")]);
+  await page.screenshot({ path: info.outputPath("notebook-menu.png") });
+  await button("Rename").click();
+  await button("Cancel").click();
+
+  await button("Trash").click();
+  await openMenuAt(page.getByRole("button", { name: "Open Rings", exact: false }), [button("Restore")]);
+  await page.screenshot({ path: info.outputPath("trash-menu.png") });
+  await button("Restore").click();
+  await button("Covers").click();
+  await button("Library").click();
+  await openTestNotebook(page, "Covers");
+  await expect(page.getByRole("button", { name: "Open Rings", exact: false })).toBeVisible();
+});
 
 test("Flutter shows ruled, grid, dotted, and blank paper as chosen at creation", async ({ page }, info) => {
   test.setTimeout(180_000);
@@ -1252,6 +1426,333 @@ test("Flutter resizes a selection by its corner handles and duplicates it", asyn
   const column = await capture(page, { x: Math.round(middle.x), y: region.y, width: 1, height: region.height });
   const runs = column.filter((rgb, i) => isInk(rgb) && !isInk(column[i - 1] ?? [255, 255, 255])).length;
   expect(runs, "a column crosses the original and the copy").toBe(2);
+});
+
+// The salmon square of fixtures/figure.jpg: 90 px wide, 15 px right of and
+// 80 px below the top-left corner of the 230 × 200 px image.
+const isSalmon = ([red, green, blue]: Rgb) => red > 230 && Math.abs(green - 128) < 30 && Math.abs(blue - 129) < 30;
+
+test("Flutter inserts a JPEG figure, moves, resizes, and deletes it, and keeps it after a reload", async ({ page }, info) => {
+  test.setTimeout(150_000);
+  const { box, cdp } = await openNewNote(page, "Figure", "Plain Paper");
+  const region = { x: Math.round(box.x) + 100, y: Math.round(box.y) + 80, width: 900, height: 520 };
+  const square = () => pixelBounds(page, region, isSalmon);
+  const drag = (from: PenPoint, dx: number, dy: number) =>
+    penStroke(cdp, [0, 0.25, 0.5, 0.75, 1].map((t) => ({ x: from.x + dx * t, y: from.y + dy * t })), 0.6);
+  // The left, right, and bottom of the selection rectangle: its outline is
+  // 5 px inside the edges of its corner handles.
+  const selectionRect = async () => {
+    const outline = await pixelBounds(page, region, isOutline);
+    return { left: outline.left + 5, right: outline.right - 5, bottom: outline.bottom - 5 };
+  };
+  // Screen pixels for each point of the A4 page, which fills the view's width.
+  const scale = box.width / 595;
+
+  // The image arrives selected, one point for each of its pixels.
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Image", exact: true }).click();
+  await (await chooser).setFiles("e2e/fixtures/figure.jpg");
+  await expect(page.getByRole("button", { name: "Delete selection", exact: true })).toBeAttached();
+  await page.screenshot({ path: info.outputPath("inserted.png") });
+  const inserted = await square();
+  const frame = await selectionRect();
+  expect(Math.abs(size(inserted).width - 90 * scale), "the square is 90 pt wide").toBeLessThan(4);
+  expect(Math.abs(size(inserted).height - 90 * scale), "the square is 90 pt high").toBeLessThan(4);
+  expect(Math.abs(frame.right - frame.left - 230 * scale), "the image is 230 pt wide").toBeLessThan(4);
+  expect(Math.abs(inserted.left - frame.left - 15 * scale), "the square is 15 pt from the image's left edge").toBeLessThan(4);
+
+  // A drag inside the selection moves the image.
+  await drag({ x: (inserted.left + inserted.right) / 2, y: (inserted.top + inserted.bottom) / 2 }, -180, -20);
+  await page.screenshot({ path: info.outputPath("moved.png") });
+  const moved = await square();
+  expect(moved).toEqual({ left: inserted.left - 180, right: inserted.right - 180, top: inserted.top - 20, bottom: inserted.bottom - 20 });
+
+  // The bottom-right handle, dragged halfway to the opposite corner, halves the image.
+  const held = await selectionRect();
+  const width = held.right - held.left;
+  await drag({ x: held.right, y: held.bottom }, -width / 2, (-width / 2) * (200 / 230));
+  await page.screenshot({ path: info.outputPath("halved.png") });
+  const halved = await square();
+  expect(Math.abs(size(halved).width - 45 * scale), "the square is 45 pt wide").toBeLessThan(4);
+  expect(Math.abs(size(halved).height - 45 * scale), "the square is 45 pt high").toBeLessThan(4);
+  expect(Math.abs(halved.left - held.left - 7.5 * scale), "the image's left edge stays in place").toBeLessThan(4);
+
+  const salmon = async () => (await capture(page, region)).filter(isSalmon).length;
+  await page.getByRole("button", { name: "Delete selection", exact: true }).click();
+  expect(await salmon(), "the image is deleted").toBe(0);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  expect(await square(), "undo restores the image").toEqual(halved);
+
+  await save(page);
+  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  const asset = await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    const notebook = await root.getDirectoryHandle("Plain Paper");
+    const dir = await notebook.getDirectoryHandle("Figure");
+    const pages = await dir.getDirectoryHandle("pages");
+    const svg = await (await (await pages.getFileHandle("0001.svg")).getFile()).text();
+    const name = svg.match(/href="\.\.\/assets\/([0-9a-f]+\.jpg)"/)?.[1];
+    if (!name) throw new Error("Saved image has no JPEG asset reference");
+    const assets = await dir.getDirectoryHandle("assets");
+    const file = await (await assets.getFileHandle(name)).getFile();
+    return btoa(String.fromCharCode(...new Uint8Array(await file.arrayBuffer())));
+  });
+  expect(Buffer.from(asset, "base64")).toEqual(await readFile("e2e/fixtures/figure.jpg"));
+
+  await page.reload();
+  await openTestNotebook(page, "Plain Paper");
+  await page.getByRole("button", { name: "Open Figure", exact: false }).click();
+  await page.locator('canvas[id^="ink-canvas-"]:visible').waitFor({ timeout: 30_000 });
+  await page.getByRole("button", { name: "More", exact: true }).waitFor();
+  await page.screenshot({ path: info.outputPath("reopened.png") });
+  expect(await square(), "the image reopens at the same place and size").toEqual(halved);
+});
+
+test("Flutter places typed text boxes, wraps them at a width, and edits and deletes them", async ({ page }, info) => {
+  test.setTimeout(150_000);
+  const { box } = await openNewNote(page, "Typed", "Plain Paper");
+  // The page view below the toolbar, split at the middle: the wrapped box is
+  // in the left half and the one-word box in the right half.
+  const top = Math.round(box.y) + 120;
+  const left = { x: 40, y: top, width: 590, height: 460 };
+  const right = { x: 630, y: top, width: 610, height: 460 };
+  const text = page.getByRole("textbox", { name: "Text", exact: true });
+  const boxWidth = page.getByRole("textbox", { name: "Width (pt)", exact: true });
+  const done = () => page.getByRole("button", { name: "Done", exact: true }).click();
+  const clear = () => page.getByRole("button", { name: "Clear selection", exact: true }).click();
+  const sentence = "Every vector space has a basis.";
+  // Screen pixels for each point of the A4 page, which fills the view's width.
+  const scale = box.width / 595;
+
+  await page.getByRole("button", { name: "Text", exact: true }).click();
+  await expect(page.getByText("Insert text", { exact: true })).toBeVisible();
+  await enterText(text, "Lemma");
+  await done();
+  await clear();
+  await page.screenshot({ path: info.outputPath("inserted.png") });
+  const lemma = await pixelBounds(page, right, isInk);
+  const tap = { x: 120, y: top + 30 };
+  await page.mouse.click(tap.x, tap.y);
+  await expect(page.getByText("Insert text", { exact: true })).toBeVisible();
+  await boxWidth.click();
+  await expect(boxWidth).toHaveValue("300");
+  await enterText(text, sentence);
+  await enterText(boxWidth, "100");
+  await done();
+  await clear();
+  await page.screenshot({ path: info.outputPath("wrapped.png") });
+  const wrapped = await pixelBounds(page, left, isInk);
+  // The "E" that starts the sentence.
+  const firstLetter = () => pixelBounds(page, { x: tap.x - 5, y: tap.y, width: 25, height: 50 }, isInk);
+  const letter = await firstLetter();
+  // The last of the wrapped lines: the rows 30 px above the box's bottom.
+  const lastLine = (b: Bounds) => pixelBounds(page, { x: left.x, y: b.bottom - 30, width: left.width, height: 30 }, isInk);
+  const boxRight = tap.x + 100 * scale;
+  expect(Math.abs(wrapped.left - tap.x), "the box starts at the tap").toBeLessThan(6);
+  expect(wrapped.top - tap.y, "the box starts at the tap").toBeGreaterThanOrEqual(0);
+  expect(wrapped.top - tap.y, "the box starts at the tap").toBeLessThan(25);
+  expect(wrapped.right, "the lines end inside the box's width").toBeLessThan(boxRight + 2);
+  expect(Math.abs((await lastLine(wrapped)).left - tap.x), "the last line starts at the box's left edge").toBeLessThan(6);
+
+  // A tap on a box edits it. Width 0 puts the sentence on one line.
+  const edit = async (at: PenPoint, content: string, width: string) => {
+    await page.mouse.click(at.x, at.y);
+    await expect(page.getByText("Edit text", { exact: true })).toBeVisible();
+    await expect(text).toHaveValue(content);
+    await boxWidth.click();
+    await expect(boxWidth).toHaveValue(width);
+  };
+  const inside = { x: tap.x + 30, y: tap.y + 30 };
+  await edit(inside, sentence, "100");
+  await enterText(boxWidth, "0");
+  await done();
+  await clear();
+  await page.screenshot({ path: info.outputPath("one-line.png") });
+  // The rows of the sentence on one line, across both halves of the view.
+  const firstRows = { x: left.x, y: top, width: 1200, height: 150 };
+  const oneLine = await pixelBounds(page, firstRows, isInk);
+  expect(size(wrapped).height, "the 100 pt box has at least three lines").toBeGreaterThan(3 * size(oneLine).height);
+  expect(size(oneLine).width, "the single line is wider than 100 pt").toBeGreaterThan(100 * scale + 50);
+  expect(await firstLetter(), "the box stays in place").toEqual(letter);
+
+  // A width outside the range keeps the dialog open; Cancel keeps the box.
+  await edit(inside, sentence, "0");
+  await enterText(boxWidth, "-5");
+  await done();
+  await expect(page.getByText("Use a width from 0 to 100000 pt.", { exact: true })).toBeVisible();
+  await page.screenshot({ path: info.outputPath("width-rejected.png") });
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await clear();
+  expect(await pixelBounds(page, firstRows, isInk)).toEqual(oneLine);
+
+  // A box with no text is deleted; undo restores it.
+  await edit({ x: lemma.left + 30, y: lemma.top + 10 }, "Lemma", "300");
+  await text.click();
+  await text.press("ControlOrMeta+a");
+  await text.press("Backspace");
+  await done();
+  await page.screenshot({ path: info.outputPath("deleted.png") });
+  const word = { x: lemma.left - 10, y: lemma.top - 10, width: size(lemma).width + 20, height: size(lemma).height + 20 };
+  expect((await capture(page, word)).filter(isInk).length, "the empty box is deleted").toBe(0);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  expect(await pixelBounds(page, word, isInk), "undo restores the box").toEqual(lemma);
+
+  // A right-to-left box ends its lines at the box's right edge.
+  await edit(inside, sentence, "0");
+  await enterText(boxWidth, "100");
+  await page.getByRole("switch").click();
+  await done();
+  await clear();
+  await page.screenshot({ path: info.outputPath("right-to-left.png") });
+  const rightToLeft = await pixelBounds(page, left, isInk);
+  const lastRtlLine = await lastLine(rightToLeft);
+  expect(Math.abs(lastRtlLine.right - boxRight), "the last line ends at the box's right edge").toBeLessThan(8);
+  expect(lastRtlLine.left, "the last line starts away from the left edge").toBeGreaterThan(tap.x + 50);
+
+  await save(page);
+  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  await page.reload();
+  await openTestNotebook(page, "Plain Paper");
+  await page.getByRole("button", { name: "Open Typed", exact: false }).click();
+  await page.locator('canvas[id^="ink-canvas-"]:visible').waitFor({ timeout: 30_000 });
+  await page.getByRole("button", { name: "More", exact: true }).waitFor();
+  await expect.poll(() => pixelBounds(page, left, isInk), "the wrapped box reopens unchanged").toEqual(rightToLeft);
+  await page.screenshot({ path: info.outputPath("reopened.png") });
+  expect(await pixelBounds(page, word, isInk), "the one-word box reopens unchanged").toEqual(lemma);
+});
+
+test("Flutter imports a PDF, annotates its pages, and exports them with the annotations", async ({ page }, info) => {
+  test.setTimeout(240_000);
+  await page.goto("?root=opfs");
+  await createTestNotebook(page, "Papers");
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Import PDF", exact: true }).click();
+  await (await chooser).setFiles("e2e/fixtures/paper.pdf");
+  const canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
+  await canvas.waitFor({ timeout: 60_000 });
+  await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Notebook canvas has no bounds");
+  const cdp = await page.context().newCDPSession(page);
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  // Screen pixels for each point of the Letter page, which fills the view's width.
+  const scale = box.width / 612;
+  // The black bar at the top of a fixture page (paper.tex), 1 cm tall: the
+  // first tall dark run in a column through it, and the bar's length along
+  // the middle row of that run. The glyphs of the text are shorter runs.
+  const bar = async () => {
+    const dark = (await capture(page, { x: 230, y: box.y, width: 1, height: box.height })).map(isInk);
+    const top = dark.findIndex((_, row) => row + 40 <= dark.length && dark.slice(row, row + 40).every(Boolean));
+    if (top < 0) throw new Error("No bar crosses the column");
+    const bottom = dark.indexOf(false, top);
+    const y = box.y + (top + bottom) / 2;
+    return { y, height: bottom - top, length: await inkLength(page, y, 0, Math.round(box.width)) };
+  };
+  // The ink in the left margin of the page around a row. The fixture's margin is blank.
+  const marginInk = async (y: number) =>
+    (await capture(page, { x: 40, y: y - 10, width: 140, height: 20 })).filter(isInk).length;
+
+  let first = await bar();
+  await expect(async () => {
+    first = await bar();
+    expect(first.length / box.width, "the bar of page 1 spans half the page width").toBeCloseTo(0.5, 2);
+  }).toPass({ timeout: 15_000 });
+  expect(first.height / first.length, "the page keeps its proportions").toBeCloseTo(28.35 / 306, 2);
+  await page.screenshot({ path: info.outputPath("imported.png") });
+
+  const note = first.y + 150;
+  expect(await marginInk(note)).toBe(0);
+  await penStroke(cdp, line(60, 160, note), 0.6);
+  expect(await marginInk(note), "the pen writes in the margin").toBeGreaterThan(80);
+
+  const x = 400;
+  const above = { x, y: first.y - 45 };
+  const paper = await centerPixel(page, above);
+  await button("Highlighter").click();
+  await penStroke(cdp, [-60, -30, 0, 30, 60].map((dy) => ({ x, y: first.y + dy })), 0.6);
+  const tint = await centerPixel(page, above);
+  expect(brightness(paper) - brightness(tint), "the highlighter tints the page").toBeGreaterThan(30);
+  expect(isInk(tint)).toBe(false);
+  expect(isInk(await centerPixel(page, { x, y: first.y })), "the highlighted bar stays dark").toBe(true);
+  await page.screenshot({ path: info.outputPath("annotated.png") });
+
+  // The stroke eraser removes handwriting and leaves the imported page.
+  await button("Eraser").click();
+  await button("Eraser").click();
+  await button("Stroke").click();
+  await closePopover(page);
+  await penStroke(cdp, [-40, 0, 40].map((dy) => ({ x: 110, y: note + dy })), 0.6);
+  expect(await marginInk(note), "the eraser removes the pen stroke").toBe(0);
+  await penStroke(cdp, [-50, 0, 50].map((dy) => ({ x: 300, y: first.y + dy })), 0.6);
+  expect(await bar(), "the eraser leaves the imported page").toEqual(first);
+  await button("Undo").click();
+  await expect.poll(() => marginInk(note), { message: "undo restores the pen stroke" }).toBeGreaterThan(80);
+
+  await button("Pages").click();
+  await button("Next page").click();
+  await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
+  let second = first;
+  await expect(async () => {
+    second = await bar();
+    expect(second.length / box.width, "the bar of page 2 spans a quarter of the page width").toBeCloseTo(0.25, 2);
+  }).toPass({ timeout: 15_000 });
+  await button("Pen").click();
+  const secondNote = second.y + 150;
+  await penStroke(cdp, line(60, 160, secondNote), 0.6);
+  expect(await marginInk(secondNote), "the pen writes on page 2").toBeGreaterThan(80);
+  await page.screenshot({ path: info.outputPath("second-page.png") });
+  await save(page);
+  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+
+  await button("More").click();
+  await button("Export PDF").click();
+  const download = page.waitForEvent("download");
+  await button("Export").click();
+  const pdfPath = info.outputPath("paper.pdf");
+  await (await download).saveAs(pdfPath);
+  expect(execFileSync("qpdf", ["--check", pdfPath], { encoding: "utf8" })).toContain("No syntax or stream encoding errors found");
+  const infoText = execFileSync("pdfinfo", [pdfPath], { encoding: "utf8" });
+  expect(infoText).toMatch(/Pages:\s+2/);
+  expect(infoText).toMatch(/Page size:\s+612 x 792 pts \(letter\)/);
+  // An exported page at 72 dpi: one pixel for each point, 612 in each row.
+  const exported = async (pageNumber: number) => {
+    const prefix = info.outputPath(`exported-${pageNumber}`);
+    execFileSync("pdftoppm", ["-r", "72", "-png", "-f", `${pageNumber}`, "-l", `${pageNumber}`, "-singlefile", pdfPath, prefix]);
+    const pixels = await pngPixels(page, await readFile(`${prefix}.png`));
+    expect(pixels.length).toBe(612 * 792);
+    return pixels;
+  };
+  const inkIn = (pixels: Rgb[], y: number, left: number, right: number) =>
+    pixels.slice(612 * y + left, 612 * y + right).filter(isInk).length;
+  // pdftoppm shows the bar of paper.pdf on rows 95 to 123; row 109 is its middle.
+  for (const [pageNumber, fraction] of [[1, 0.5], [2, 0.25]]) {
+    const pixels = await exported(pageNumber);
+    expect(Math.abs(inkIn(pixels, 109, 0, 612) - 612 * fraction), `the bar of exported page ${pageNumber}`).toBeLessThan(4);
+    // The pen stroke is 1 pt thick: gray at this resolution, on one or two rows.
+    const row = 109 + Math.round(150 / scale);
+    const margin = pixels.slice(612 * (row - 5), 612 * (row + 6))
+      .filter((rgb, i) => i % 612 >= 20 && i % 612 < 86 && brightness(rgb) < 600).length;
+    expect(margin, `the pen stroke of exported page ${pageNumber}`).toBeGreaterThan(30);
+  }
+  const highlighted = (await exported(1))[612 * (109 - Math.round(45 / scale)) + Math.round(x / scale)];
+  expect(isInk(highlighted)).toBe(false);
+  expect(brightness(highlighted), "the exported highlight").toBeLessThan(735);
+
+  await page.reload();
+  await openTestNotebook(page, "Papers");
+  await page.getByRole("button", { name: "Open paper", exact: false }).click();
+  await canvas.waitFor({ timeout: 30_000 });
+  await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
+  await expect(async () => {
+    expect(await bar(), "page 1 returns after a reload").toEqual(first);
+    expect(await marginInk(note)).toBeGreaterThan(80);
+  }).toPass({ timeout: 15_000 });
+  await button("Pages").click();
+  await button("Next page").click();
+  await expect(async () => {
+    expect(await bar(), "page 2 returns after a reload").toEqual(second);
+    expect(await marginInk(secondNote)).toBeGreaterThan(80);
+  }).toPass({ timeout: 15_000 });
 });
 
 test("Flutter pans the page with one finger and zooms it with a pinch", async ({ page }, info) => {
@@ -1939,4 +2440,295 @@ test("Flutter two-page layout puts pen input on the right page and shares a PDF"
   await canvas.waitFor({ timeout: 30_000 });
   await page.getByRole("button", { name: "View", exact: true }).click();
   await expect(page.getByRole("button", { name: /^\S+ Two pages$/ })).toHaveAttribute("aria-current", "true");
+});
+
+// The pages in the files of a note, in document order: the file of each page,
+// its SVG size, and its stroke count.
+function storedPages(page: Page, title: string, notebook = "Test Notebook") {
+  return page.evaluate(async ({ title, notebook }) => {
+    const root = await navigator.storage.getDirectory();
+    const dir = await (await root.getDirectoryHandle(notebook)).getDirectoryHandle(title);
+    const manifest = JSON.parse(await (await (await dir.getFileHandle("notebook.json")).getFile()).text());
+    const pages = await dir.getDirectoryHandle("pages");
+    const saved = [];
+    for (const entry of manifest.pages as { file: string }[]) {
+      const svg = await (await (await pages.getFileHandle(entry.file.replace("pages/", ""))).getFile()).text();
+      const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
+      saved.push({
+        file: entry.file,
+        size: parsed.documentElement.getAttribute("viewBox")?.split(" ").slice(2).map(Number),
+        strokes: svg.match(/<path id="s-/g)?.length ?? 0,
+        ruling: parsed.getElementById("background")?.getAttribute("mn:ruling"),
+      });
+    }
+    return saved;
+  }, { title, notebook });
+}
+
+async function savedPages(page: Page, title: string, notebook = "Test Notebook") {
+  await save(page);
+  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  return storedPages(page, title, notebook);
+}
+
+test("Flutter inserts pages before and after a page, deletes a page, and sizes new pages", async ({ page }, info) => {
+  test.setTimeout(120_000);
+  const { box, cdp } = await openNewNote(page, "Inserts");
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  const choose = async (menu: string, item: string) => {
+    await button(menu).click();
+    await button(item).click();
+  };
+  const goTo = async (number: number) => {
+    await choose("More", "Go to page");
+    await enterText(page.getByRole("textbox"), `${number}`);
+    await page.screenshot({ path: info.outputPath("go-to-page.png") });
+    await button("Go").click();
+    await expect(page.getByText(new RegExp(`^${number} / \\d$`))).toBeVisible();
+  };
+  await penStroke(cdp, line(box.x + 150, box.x + 300, box.y + 250), 0.6);
+
+  await choose("Pages", "Insert page before");
+  await expect(page.getByText(/^\d \/ 2$/)).toBeVisible();
+  await goTo(2);
+  await choose("Pages", "Insert page after");
+  await expect(page.getByText("2 / 3", { exact: true })).toBeVisible();
+  expect((await savedPages(page, "Inserts")).map(({ file, strokes }) => ({ file, strokes }))).toEqual([
+    { file: "pages/0002.svg", strokes: 0 },
+    { file: "pages/0001.svg", strokes: 1 },
+    { file: "pages/0003.svg", strokes: 0 },
+  ]);
+
+  const a4 = [595.28, 841.89], letter = [612, 792];
+  const papers: [string, number[]][] = [
+    ["Letter landscape", letter.toReversed()],
+    ["Letter portrait", letter],
+    ["A4 landscape", a4.toReversed()],
+    ["A4 portrait", a4],
+  ];
+  for (const [index, [paper]] of papers.entries()) {
+    await choose("More", "Paper for new pages");
+    await expect(button("Cancel")).toBeVisible();
+    if (index === 1) await page.screenshot({ path: info.outputPath("paper-sheet.png") });
+    await button(paper).click();
+    await choose("Pages", "Add page");
+    await expect(page.getByText(`2 / ${4 + index}`, { exact: true })).toBeVisible();
+  }
+  expect((await savedPages(page, "Inserts")).map(({ size }) => size), "a new page takes the chosen size")
+    .toEqual([a4, a4, a4, ...papers.map(([, size]) => size)]);
+  await goTo(4);
+  await page.screenshot({ path: info.outputPath("letter-landscape.png") });
+
+  await choose("More", "Delete page");
+  await expect(page.getByText(/^\d \/ 6$/)).toBeVisible();
+  expect((await savedPages(page, "Inserts")).map(({ size }) => size), "the landscape Letter page is deleted")
+    .toEqual([a4, a4, a4, ...papers.slice(1).map(([, size]) => size)]);
+  await button("Undo").click();
+  await expect(page.getByText(/^\d \/ 7$/)).toBeVisible();
+  await goTo(2);
+  await choose("More", "Delete page");
+  await expect(page.getByText("2 / 6", { exact: true })).toBeVisible();
+  expect((await savedPages(page, "Inserts")).map(({ strokes }) => strokes), "the written page is deleted").toEqual([0, 0, 0, 0, 0, 0]);
+});
+
+test("Flutter horizontal scroll puts the pages side by side, pans across them, and persists", async ({ page }, info) => {
+  test.setTimeout(120_000);
+  const { box, cdp } = await openNewNote(page, "Sideways");
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  for (const count of [2, 3, 4, 5]) {
+    await button("Pages").click();
+    await button("Add page").click();
+    await expect(page.getByText(`1 / ${count}`, { exact: true })).toBeVisible();
+  }
+  await button("View").click();
+  await button("Horizontal scroll").click();
+  const strokes = async () => (await savedPages(page, "Sideways")).map((saved) => saved.strokes);
+  // A page fits the view height, so the view holds more than two A4 pages.
+  const pageWidth = box.height * 595.28 / 841.89;
+  const y = box.y + box.height / 2;
+  await penStroke(cdp, line(box.x + 100, box.x + 200, y), 0.6);
+  await penStroke(cdp, line(box.x + pageWidth + 100, box.x + pageWidth + 200, y), 0.6);
+  expect(await strokes(), "the second page is beside the first").toEqual([1, 1, 0, 0, 0]);
+  await page.screenshot({ path: info.outputPath("horizontal.png") });
+  const shown = await page.getByText(/^\d \/ 5$/).textContent();
+  // One finger pans the pages to the left, to the end of the row.
+  for (let pan = 0; pan < 2; ++pan) {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ id: 1, x: 1100, y }] });
+    for (const x of [1000, 800, 600, 400, 200]) {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ id: 1, x, y }] });
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  }
+  await expect(page.getByText(/^\d \/ 5$/), "the pan changes the shown page").not.toHaveText(shown!);
+  await penStroke(cdp, line(box.x + box.width - 300, box.x + box.width - 200, y), 0.6);
+  expect(await strokes(), "the last page is at the right edge after the pan").toEqual([1, 1, 0, 0, 1]);
+  await page.screenshot({ path: info.outputPath("last-page.png") });
+  await button("View").click();
+  await expect(page.getByRole("button", { name: /Fit height$/ })).toBeVisible();
+  await closePopover(page);
+
+  await page.reload();
+  await openTestNotebook(page);
+  await page.getByRole("button", { name: "Open Sideways", exact: false }).click();
+  await page.locator('canvas[id^="ink-canvas-"]:visible').waitFor({ timeout: 30_000 });
+  await button("View").click();
+  await expect(page.getByRole("button", { name: /^\S+ Horizontal scroll$/ })).toHaveAttribute("aria-current", "true");
+  await page.getByRole("button", { name: "Vertical scroll", exact: true }).click();
+  await button("View").click();
+  await expect(page.getByRole("button", { name: /^\S+ Vertical scroll$/ })).toHaveAttribute("aria-current", "true");
+  await expect(page.getByRole("button", { name: /Fit width$/ })).toBeVisible();
+});
+
+test("Flutter renames a note with its pages, sorts the notes, and search lists the matching titles only", async ({ page }, info) => {
+  test.setTimeout(150_000);
+  await page.goto("?root=opfs");
+  await beginTestNote(page, "Rings", "Shelf");
+  await page.getByRole("button", { name: "Create Note", exact: true }).click();
+  const canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
+  await canvas.waitFor({ timeout: 30_000 });
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Notebook canvas has no bounds");
+  const cdp = await page.context().newCDPSession(page);
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  const card = (title: string) => page.getByRole("button", { name: `Open ${title}`, exact: false });
+  await penStroke(cdp, line(box.x + 150, box.x + 300, box.y + 250), 0.6);
+  await save(page);
+  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  await button("Library").click();
+  await button("New Note").click();
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Fields");
+  await button("Create Note").click();
+  await page.locator('canvas[id^="ink-canvas-"]:visible').waitFor({ timeout: 30_000 });
+  await button("Library").click();
+
+  await button("Rings actions").click();
+  await button("Rename").click();
+  await enterText(page.getByRole("textbox", { name: "Name", exact: true }), "Modules");
+  await button("Rename").click();
+  await expect(card("Modules")).toBeVisible();
+  await expect(card("Rings")).toHaveCount(0);
+  await card("Modules").click();
+  await expect(button("Close Modules")).toBeVisible();
+  const saved = await savedPages(page, "Modules", "Shelf");
+  expect(saved.map(({ strokes }) => strokes), "the renamed note keeps its handwriting").toEqual([1]);
+  expect(await page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    return Array.fromAsync((await root.getDirectoryHandle("Shelf")).keys());
+  })).not.toContain("Rings");
+  await button("Library").click();
+
+  const left = async (title: string) => (await boxOf(card(title))).x;
+  const top = async (title: string) => (await boxOf(card(title))).y;
+  const sort = async (item: string) => {
+    await button("Sort").click();
+    // The current choice carries a check mark before its name.
+    await page.getByRole("button", { name: new RegExp(`^(\\S )?${item}$`) }).click();
+  };
+  await sort("Name");
+  await sort("Z to A");
+  await expect.poll(async () => (await left("Modules")) < (await left("Fields")), { message: "Z to A puts Modules first" }).toBe(true);
+  await sort("A to Z");
+  await expect.poll(async () => (await left("Fields")) < (await left("Modules")), { message: "A to Z puts Fields first" }).toBe(true);
+  // Modules was saved after Fields was made.
+  await sort("Date modified");
+  await sort("Newest first");
+  await expect.poll(async () => (await left("Modules")) < (await left("Fields")), { message: "the newest note is first" }).toBe(true);
+  await sort("Oldest first");
+  await expect.poll(async () => (await left("Fields")) < (await left("Modules")), { message: "the oldest note is first" }).toBe(true);
+  await sort("List");
+  await expect.poll(async () => (await top("Fields")) < (await top("Modules")), { message: "the list puts one note on each row" }).toBe(true);
+  expect(await left("Fields")).toBe(await left("Modules"));
+  await page.screenshot({ path: info.outputPath("list.png") });
+  await sort("Grid");
+  await expect.poll(async () => (await top("Fields")) === (await top("Modules"))).toBe(true);
+
+  await button("Notebooks").click();
+  await button("Search").click();
+  const search = page.getByRole("textbox", { name: "Search notebooks and notes", exact: true });
+  await expect(search).toBeFocused();
+  await page.keyboard.type("Mod");
+  await expect(search).toHaveValue("Mod");
+  await expect(card("Modules")).toBeVisible();
+  await expect(card("Fields")).toHaveCount(0);
+  // The notebook that holds a matching note shows too.
+  await expect(card("Shelf")).toBeVisible();
+  await page.screenshot({ path: info.outputPath("search.png") });
+  await enterText(search, "Rings");
+  await expect(search).toHaveValue("Rings");
+  await expect(page.getByText('Nothing matches "Rings".', { exact: true })).toBeVisible();
+  await expect(card("Modules")).toHaveCount(0);
+  await expect(card("Shelf")).toHaveCount(0);
+  await button("Clear search").click();
+  await expect(search).toHaveValue("");
+  await expect(card("Shelf")).toBeVisible();
+  await enterText(search, "shelf");
+  await expect(card("Modules")).toHaveCount(0);
+  await card("Shelf").click();
+  await card("Modules").click();
+
+  await button("Open note").click();
+  const filter = page.getByRole("textbox", { name: "Search", exact: true });
+  await filter.click();
+  await page.keyboard.type("Fie");
+  await expect(filter).toHaveValue("Fie");
+  await page.screenshot({ path: info.outputPath("picker.png") });
+  await expect(page.getByRole("group", { name: "Modules Shelf", exact: true })).toHaveCount(0);
+  await page.getByRole("group", { name: "Fields Shelf", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Fields", exact: true })).toBeVisible();
+});
+
+test("Flutter saves handwriting without a Save tap and shows it after a reload", async ({ page }) => {
+  test.setTimeout(120_000);
+  const { box, cdp } = await openNewNote(page, "Unattended");
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  const stored = (strokes: number[], message: string) => expect(async () => {
+    expect((await storedPages(page, "Unattended")).map((saved) => saved.strokes), message).toEqual(strokes);
+  }).toPass({ timeout: 15_000 });
+  const y = box.y + 250;
+  const inked = async () => (await capture(page, { x: box.x + 225, y: y - 10, width: 1, height: 20 })).some(isInk);
+  await penStroke(cdp, line(box.x + 150, box.x + 300, y), 0.6);
+  await stored([1], "the stroke reaches the note file");
+  await button("Undo").click();
+  await stored([0], "the undo reaches the note file");
+  await button("Redo").click();
+  await stored([1], "the redo reaches the note file");
+  await button("Pages").click();
+  await button("Add page").click();
+  await stored([1, 0], "the new page reaches the note file");
+
+  await page.reload();
+  await openTestNotebook(page);
+  await page.getByRole("button", { name: "Open Unattended", exact: false }).click();
+  await page.locator('canvas[id^="ink-canvas-"]:visible').waitFor({ timeout: 30_000 });
+  await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
+  await expect.poll(inked, { message: "the handwriting returns" }).toBe(true);
+});
+
+test("Flutter creates a note in each page size and orientation", async ({ page }) => {
+  test.setTimeout(150_000);
+  await page.goto("?root=opfs");
+  await createTestNotebook(page);
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  const a4 = [595.28, 841.89], letter = [612, 792];
+  const papers: [string, string, number[]][] = [
+    ["A4", "Portrait", a4],
+    ["A4", "Landscape", a4.toReversed()],
+    ["Letter", "Portrait", letter],
+    ["Letter", "Landscape", letter.toReversed()],
+  ];
+  for (const [paper, orientation, size] of papers) {
+    const title = `${paper} ${orientation}`;
+    await button("New Note").click();
+    await enterText(page.getByRole("textbox", { name: "Title", exact: true }), title);
+    await button(paper).click();
+    await button(orientation).click();
+    await button("Create Note").click();
+    await page.locator('canvas[id^="ink-canvas-"]:visible').waitFor({ timeout: 30_000 });
+    expect((await savedPages(page, title)).map((saved) => saved.size), title).toEqual([size]);
+    await button("Pages").click();
+    await button("Add page").click();
+    await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
+    expect((await savedPages(page, title)).map((saved) => saved.size), `${title}, second page`).toEqual([size, size]);
+    await button("Library").click();
+  }
 });
