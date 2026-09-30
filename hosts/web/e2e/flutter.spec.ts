@@ -1222,6 +1222,65 @@ test("Flutter highlighting handwriting leaves the handwriting dark", async ({ pa
   for (const channel of [0, 1, 2]) expect(Math.abs(crossing[channel] - plainInk[channel])).toBeLessThan(24);
 });
 
+// Rows of a column through a stroke that the stroke darkens.
+async function inkThickness(page: Page, center: PenPoint): Promise<number> {
+  const column = await capture(page, { x: center.x, y: center.y - 20, width: 1, height: 41 });
+  return column.filter((rgb) => brightness(rgb) < 600).length;
+}
+
+test("Flutter saved pen in the toolbar restores its color and width after a reload", async ({ page }, info) => {
+  test.setTimeout(120_000);
+  const { box, cdp } = await openNewNote(page, "Saved pens");
+  const penSize = async (label: string) => {
+    await page.getByRole("button", { name: "Pen", exact: true }).click();
+    await page.getByRole("button", { name: label, exact: true }).click();
+  };
+  const closePopover = async () => {
+    const viewport = page.viewportSize();
+    if (!viewport) throw new Error("Page has no viewport");
+    await page.mouse.click(viewport.width - 20, viewport.height - 20);
+  };
+  const plainPen = async () => {
+    await page.getByRole("button", { name: "Color #1a1a1a", exact: true }).click();
+    await penSize("0.6 pt");
+    await closePopover();
+  };
+  const saved = page.getByRole("button", { name: "Saved pen 3.6 pt #d92d39", exact: true });
+  const write = (y: number) => penStroke(cdp, line(box.x + 140, box.x + 340, y), 0.6);
+
+  await page.getByRole("button", { name: "Color #d92d39", exact: true }).click();
+  await penSize("3.6 pt");
+  await page.getByRole("button", { name: "Save pen", exact: true }).click();
+  await expect(saved).toBeVisible();
+  await plainPen();
+  const plain = { x: box.x + 240, y: box.y + 180 };
+  await write(plain.y);
+  await saved.click();
+  const shortcut = { x: box.x + 240, y: box.y + 260 };
+  await write(shortcut.y);
+  await plainPen();
+
+  await page.reload();
+  await openTestNotebook(page);
+  await page.getByRole("button", { name: "Open Saved pens", exact: false }).click();
+  await page.locator('canvas[id^="ink-canvas-"]:visible').waitFor({ timeout: 30_000 });
+  await saved.click();
+  const reloaded = { x: box.x + 240, y: box.y + 340 };
+  await write(reloaded.y);
+  await page.screenshot({ path: info.outputPath("saved-pens.png") });
+
+  // The saved pen writes thick red strokes; the plain pen a thin gray one.
+  const thin = await inkThickness(page, plain);
+  const dark = await darkestPixel(page, plain);
+  expect(Math.max(...dark) - Math.min(...dark), "the plain stroke is gray, not red").toBeLessThan(30);
+  expect(brightness(dark), "the plain stroke is dark").toBeLessThan(450);
+  for (const spot of [shortcut, reloaded]) {
+    const [red, green, blue] = await darkestPixel(page, spot);
+    expect(red - Math.max(green, blue), "the saved pen stroke is red").toBeGreaterThan(100);
+    expect(await inkThickness(page, spot), "the saved pen stroke is thick").toBeGreaterThan(2.5 * thin);
+  }
+});
+
 test("Flutter pen color and width changes affect only later strokes", async ({ page }) => {
   test.setTimeout(90_000);
   await page.goto("?root=opfs");
