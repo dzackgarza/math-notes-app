@@ -256,4 +256,18 @@ bool InRuledRange(const Element &element, const RuledRange &range, const Grouped
   }
   return !overlap;
 }
+
+std::vector<Point> RuledOutline(const RuledRange &range, double width) {
+  const auto x = [&](double stop) { return std::clamp(stop, 0.0, width); };
+  std::vector<Point> outline;
+  for (int line = range.first; line <= range.last; ++line) {
+    outline.push_back({x(range.Left(line)), range.grid.Top(line)});
+    outline.push_back({x(range.Left(line)), range.grid.Top(line + 1)});
+  }
+  for (int line = range.last; line >= range.first; --line) {
+    outline.push_back({x(range.Right(line)), range.grid.Top(line + 1)});
+    outline.push_back({x(range.Right(line)), range.grid.Top(line)});
+  }
+  return outline;
+}
 }  // namespace ink_engine

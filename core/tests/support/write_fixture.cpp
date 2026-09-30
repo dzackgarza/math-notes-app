@@ -66,6 +66,12 @@ std::vector<WriteEvent> ReadWriteTrace(const std::string &path, const std::strin
       int page;
       double x, y;
       Require(bool(words >> page >> x >> y) && page == 0, line);
+    } else if (command == "cfg") {
+      // The engine's ruled erase is Write's default, greedyRuledErase 1.
+      std::string key;
+      int value;
+      Require(bool(words >> key >> value) && key == "greedyRuledErase" && value == 1,
+              "unsupported trace command: " + line);
     } else {
       Require(command == "screen" || command == "props" || command == "pathrel",
               "unsupported trace command: " + line);
@@ -178,7 +184,8 @@ std::vector<std::string> ReplayWriteTrace(InkCanvas *canvas, const std::vector<W
       erasing = e.mode == 14 || e.mode == 16;
       ink_canvas_set_eraser(canvas, e.mode == 16 ? INK_ERASER_FREE : INK_ERASER_STROKE, erasing);
       static const std::map<int, InkSelector> kSelectors = {
-          {18, INK_SELECTOR_RECT}, {20, INK_SELECTOR_LASSO},
+          {15, INK_SELECTOR_RULED_ERASE}, {18, INK_SELECTOR_RECT},
+          {19, INK_SELECTOR_RULED}, {20, INK_SELECTOR_LASSO},
           {25, INK_SELECTOR_SPACE_VERTICAL}, {27, INK_SELECTOR_SPACE_RULED}};
       selecting = kSelectors.contains(e.mode);
       ink_canvas_set_selector(canvas, selecting ? kSelectors.at(e.mode) : INK_SELECTOR_LASSO, selecting);

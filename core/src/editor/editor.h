@@ -18,6 +18,7 @@
 #include "ink.h"
 #include "layout/layout.h"
 #include "render/renderer.h"
+#include "selection/ruled.h"
 #include "selection/selection.h"
 #include "ink/brush/brush.h"
 #include "ink/geometry/envelope.h"
@@ -57,7 +58,20 @@ ink::Brush MakeBrush(const Pen &pen);
 // An element of a page: its layer and its index in that layer.
 struct ElementRef {
   size_t layer = 0, index = 0;
-  bool operator==(const ElementRef &) const = default;
+  auto operator<=>(const ElementRef &) const = default;
+};
+
+// A ruled select or ruled erase drag (Write MODE_SELECTRULED and
+// MODE_ERASERULED; scribblearea.cpp:1539-1547, 1560-1563, 1697-1724): the
+// elements it has taken at each pen event.
+struct RuledDrag {
+  Page page;               // the selectable layers, on the working grid
+  RuledGrid grid;
+  GroupedCenters grouped;  // of `page`
+  int line = 0;              // ruled erase: Write eraseCurrLine
+  double min = 0, max = 0;   // ruled erase: Write eraseXmin, eraseXmax
+  std::optional<RuledRange> range;  // ruled select: what the drag covers
+  std::vector<ElementRef> items;    // layer, then document order
 };
 
 // The selected elements of one page. They index into `value`; once the
@@ -112,7 +126,8 @@ class Editor {
   // The document as the canvas shows it: during an erase gesture, with the
   // erased strokes hidden or cut; while the selection is dragged, without it;
   // during an insert-space drag, with the ink where the pen has put it;
-  // otherwise the document.
+  // during a ruled erase drag, without the ink it has taken; otherwise the
+  // document.
   const Document &Shown() const {
     if (erase_) return erase_->shown;
     if (transform_) return transform_->shown;
@@ -243,11 +258,12 @@ class Editor {
     Point origin;       // content position of the page
     Point start, last;  // page coordinates
     LassoPath lasso;
-    std::vector<Point> ruled_path;
+    std::optional<RuledDrag> ruled;
     // Insert space (Write MODE_INSSPACEVERT, MODE_INSSPACEHORZ,
-    // MODE_INSSPACERULED): the ink that the drag moves, and the document with
-    // the ink where the pen has put it.
+    // MODE_INSSPACERULED): the ink that the drag moves.
     std::optional<SpaceGesture> space;
+    // The document with the ink where an insert-space drag has put it, or
+    // without the ink that a ruled erase drag has taken.
     std::optional<Document> shown;
   };
   // A drag of the selection or of one of its handles (Write MODE_MOVESELFREE,

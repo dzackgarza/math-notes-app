@@ -56,7 +56,7 @@ struct LiveInk {
 // selected ink while it is dragged. Page coordinates.
 struct SelectionOverlay {
   size_t page = 0;
-  std::vector<Point> lasso;
+  std::vector<Point> lasso;   // a closed outline: the lasso, the oval, the ruled range
   std::optional<Rect> band;   // a rectangle being dragged out
   std::optional<Rect> frame;  // the selection rectangle
   Point rotate_handle;

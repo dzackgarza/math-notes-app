@@ -51,4 +51,7 @@ RuledRange MakeRuledRange(const RuledGrid &grid, Point start, Point end, RuledSt
 RuledRange MakeRuledRange(const Page &page, Point start, Point end, bool columns = true);
 bool InRuledRange(const Element &element, const RuledRange &range, const GroupedCenters &grouped,
                   bool overlap = false);
+// The closed outline of the range on a page of that width: Write
+// RuledSelector::drawBG (selection.cpp:1279-1312).
+std::vector<Point> RuledOutline(const RuledRange &range, double width);
 }  // namespace ink_engine

@@ -31,9 +31,10 @@ struct WriteEvent {
 // The `ie`, `mode`, `cmd`, `pen`, `hyperref` and `clearsel` lines of
 // trace.txt. `view` and `screen` only set up Write's view, which `ie`
 // coordinates do not depend on, `pathrel` only sets the form of Write's saved
-// path data, and `props` is the page (ReadWritePage); any other command is an
-// error, since replaying it is the job of a later unit. With `until`, the
-// lines before the first command of that name.
+// path data, `props` is the page (ReadWritePage), and `cfg greedyRuledErase 1`
+// is the engine's ruled erase; any other command is an error, since replaying
+// it is the job of a later unit. With `until`, the lines before the first
+// command of that name.
 std::vector<WriteEvent> ReadWriteTrace(const std::string &path, const std::string &until = "");
 
 // The page of a trace in points: its `props` line, or the page of the replay

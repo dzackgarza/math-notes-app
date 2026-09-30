@@ -3114,7 +3114,8 @@ test("Flutter ruled lasso and ruled eraser take the words of the lines under the
   })), 0.6);
   await shows(4, [60], "the selected word leaves line 4");
   await shows(5, [60, 420], "the selected word is on line 5");
-  expect(Math.abs(await wordTop(420, 5) - top), "the word is one whole line lower").toBeLessThanOrEqual(1);
+  // A move that followed the pen would put it 0.3 of a line higher.
+  expect(Math.abs(await wordTop(420, 5) - top), "the word is one whole line lower").toBeLessThan(0.15 * spacing);
 
   // The ruled eraser, inside the selection: the ink goes while the pen is down.
   await button("Eraser").click();

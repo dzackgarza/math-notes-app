@@ -93,6 +93,25 @@ TEST_CASE("The stroke eraser deletes the strokes Write deletes") {
   CHECK(canvas.document->history.size() == 1 + drawn.size() + 2);
 }
 
+TEST_CASE("The ruled eraser deletes the strokes Write deletes") {
+  const std::string trace_file = kWriteDir + "ruled-erase-greedy/trace.txt";
+  auto trace = ink_test::ReadWriteTrace(trace_file);
+  auto expected = ink_test::ReadWriteExpected(kWriteDir + "ruled-erase-greedy/expected.json");
+  ink_test::Session canvas(
+      ink_test::WithWritePage(ink_test::Session().doc(), ink_test::ReadWritePage(trace_file)));
+  std::vector<std::string> drawn = ink_test::ReplayWriteTrace(canvas.get(), trace);
+
+  std::set<std::string> present;
+  for (const Stroke &s : Strokes(canvas.doc())) present.insert(s.id);
+  std::set<int> deleted;
+  for (size_t i = 0; i < drawn.size(); ++i) {
+    if (!present.contains(drawn[i])) deleted.insert(int(i));
+  }
+  CHECK(deleted == expected.deleted);
+  // The erase gesture is one step.
+  CHECK(canvas.document->history.size() == 1 + drawn.size() + 1);
+}
+
 TEST_CASE("The free eraser leaves Write's pieces") {
   for (std::string name : {"free-erase", "free-erase-document"}) {
     INFO(name);
