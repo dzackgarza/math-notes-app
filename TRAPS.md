@@ -30,6 +30,7 @@
 - **The Write build is C++14 with `-fno-rtti`:** no `std::to_chars`, no `dynamic_cast`.
 - **A Write mode other than 12 lasts one gesture** (`doubleTapSticky` off, `ScribbleMode::setMode`). A trace with one `mode 14` before three erase gestures erased on the first only; the others drew strokes, and the replay still reported 0 failures. Set the mode before each gesture.
 - **`just write-fixtures` compiled Write for wasm** (`ulib/fileutil.h` not found under `EmDebug/`): the justfile exports `EMSDK`, and Write's Makefile picks `Makefile.wasm` when it is set. The recipe unsets it for the Write build.
+- **Each `ie` line of an upstream trace has the time 0** (`ScribbleTest::ie`, `scribbletest.cpp:499`); Write makes a path from the positions alone. The engine, given those times, stored a two-point divider with the outline of its last point only, so `FindStops` saw no column and `upstream-test11` moved both columns. `ReplayWriteTrace` steps the clock 10 ms per event.
 
 ## Engine
 
