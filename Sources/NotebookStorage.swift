@@ -8,6 +8,32 @@ struct FolderReference: Hashable, Identifiable {
   var name: String { path.isEmpty ? "My Notes" : path.joined(separator: " / ") }
 }
 
+enum LibrarySort: String, CaseIterable, Identifiable {
+  case modified
+  case name
+
+  var id: Self { self }
+}
+
+struct LibraryFolderItem: Identifiable {
+  let reference: FolderReference
+  let modified: Date?
+
+  var id: String { reference.id }
+}
+
+struct LibraryNotebookItem: Identifiable {
+  let reference: NotebookReference
+  let modified: Date
+
+  var id: String { reference.id }
+}
+
+struct LibraryListing {
+  let folders: [LibraryFolderItem]
+  let notebooks: [LibraryNotebookItem]
+}
+
 struct NotebookReference: Hashable, Identifiable {
   let path: [String]
 
@@ -68,6 +94,7 @@ final class NotesRootAccess {
 
   private let presenter: RootFilePresenter
   private var accessing = true
+  private var thumbnailCache: [String: (stamp: String, data: Data)] = [:]
 
   init(selectedURL: URL) throws {
     guard selectedURL.startAccessingSecurityScopedResource() else {
@@ -201,6 +228,65 @@ final class NotesRootAccess {
         if right.path.isEmpty { return false }
         return left.id.localizedStandardCompare(right.id) == .orderedAscending
       }
+    }
+  }
+
+  func library(in parent: FolderReference, sort: LibrarySort) throws -> LibraryListing {
+    try coordinatedRead(at: url) { root in
+      let directory = parent.path.reduce(root) { partial, component in
+        partial.appendingPathComponent(component, isDirectory: true)
+      }
+      let children = try FileManager.default.contentsOfDirectory(
+        at: directory,
+        includingPropertiesForKeys: [.isDirectoryKey],
+        options: [.skipsHiddenFiles])
+      var folders: [LibraryFolderItem] = []
+      var notebooks: [LibraryNotebookItem] = []
+
+      for child in children {
+        let name = child.lastPathComponent
+        guard !name.hasPrefix("."),
+          try child.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true
+        else { continue }
+
+        let path = parent.path + [name]
+        if FileManager.default.fileExists(
+          atPath: child.appendingPathComponent("notebook.json").path)
+        {
+          notebooks.append(
+            LibraryNotebookItem(
+              reference: NotebookReference(path: path),
+              modified: try Self.notebookModification(at: child)))
+        } else {
+          folders.append(
+            LibraryFolderItem(
+              reference: FolderReference(path: path),
+              modified: try Self.latestNotebookModification(in: child)))
+        }
+      }
+
+      let nameOrder: (String, String) -> Bool = {
+        $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+      }
+      switch sort {
+      case .name:
+        folders.sort { nameOrder($0.reference.name, $1.reference.name) }
+        notebooks.sort { nameOrder($0.reference.name, $1.reference.name) }
+      case .modified:
+        folders.sort {
+          switch ($0.modified, $1.modified) {
+          case let (left?, right?) where left != right:
+            return left > right
+          default:
+            return nameOrder($0.reference.name, $1.reference.name)
+          }
+        }
+        notebooks.sort {
+          if $0.modified != $1.modified { return $0.modified > $1.modified }
+          return nameOrder($0.reference.name, $1.reference.name)
+        }
+      }
+      return LibraryListing(folders: folders, notebooks: notebooks)
     }
   }
 
@@ -470,6 +556,64 @@ final class NotesRootAccess {
 
   private struct NotebookIndex: Decodable {
     let template: String?
+  }
+
+  private static func notebookModification(at notebookURL: URL) throws -> Date {
+    let fileManager = FileManager.default
+    var latest =
+      try notebookURL
+        .appendingPathComponent("notebook.json")
+        .resourceValues(forKeys: [.contentModificationDateKey])
+        .contentModificationDate ?? .distantPast
+
+    let pagesURL = notebookURL.appendingPathComponent("pages", isDirectory: true)
+    var isDirectory: ObjCBool = false
+    guard fileManager.fileExists(atPath: pagesURL.path, isDirectory: &isDirectory),
+      isDirectory.boolValue
+    else {
+      return latest
+    }
+
+    for page in try fileManager.contentsOfDirectory(
+      at: pagesURL,
+      includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey],
+      options: [.skipsHiddenFiles])
+    {
+      let values = try page.resourceValues(
+        forKeys: [.isRegularFileKey, .contentModificationDateKey])
+      guard values.isRegularFile == true, let modified = values.contentModificationDate else {
+        continue
+      }
+      if modified > latest { latest = modified }
+    }
+    return latest
+  }
+
+  private static func latestNotebookModification(in directory: URL) throws -> Date? {
+    let fileManager = FileManager.default
+    var latest: Date?
+    for child in try fileManager.contentsOfDirectory(
+      at: directory,
+      includingPropertiesForKeys: [.isDirectoryKey],
+      options: [.skipsHiddenFiles])
+    {
+      guard !child.lastPathComponent.hasPrefix("."),
+        try child.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true
+      else { continue }
+
+      let candidate: Date?
+      if fileManager.fileExists(
+        atPath: child.appendingPathComponent("notebook.json").path)
+      {
+        candidate = try notebookModification(at: child)
+      } else {
+        candidate = try latestNotebookModification(in: child)
+      }
+      if let candidate, latest == nil || candidate > latest! {
+        latest = candidate
+      }
+    }
+    return latest
   }
 
   private static func readSnapshot(at notebookURL: URL) throws -> Snapshot {

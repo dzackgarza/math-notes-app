@@ -202,6 +202,16 @@ final class EngineDocument {
     }
   }
 
+  func pagePNG(index: Int, width: Int32 = 240) throws -> Data {
+    var bytes: UnsafePointer<UInt8>?
+    var size = 0
+    try check(
+      ink_document_page_png(pointer, index, width, &bytes, &size),
+      operation: "Render page thumbnail")
+    guard size > 0, let bytes else { return Data() }
+    return Data(bytes: bytes, count: size)
+  }
+
   func exportPDF(
     title: String,
     firstPage: Int = 0,
