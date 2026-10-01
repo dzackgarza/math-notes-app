@@ -13,6 +13,7 @@ import 'package:flex_color_picker/flex_color_picker.dart' show ColorWheelPicker;
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:popover/popover.dart';
 import 'package:pull_down_button/pull_down_button.dart';
+import 'package:toastification/toastification.dart';
 import 'package:web/web.dart' as web;
 
 import '../../errors.dart';
@@ -25,6 +26,7 @@ import '../../undo_dial.dart';
 import '../../data/open_notes.dart';
 import '../library/library_dialogs.dart' show paperLabels;
 import '../modal.dart';
+import '../settings_sheet.dart';
 import '../theme.dart';
 import 'editor_input.dart';
 import 'editor_view_model.dart';
@@ -179,17 +181,6 @@ class _EditorScreenState extends State<EditorScreen>
     return horizontal
         ? (height - 2 * deskMargin) / content.height
         : (width - 2 * deskMargin) / content.width;
-  }
-
-  String get layerLabel {
-    final index = canvas?.activeLayer() ?? -1;
-    if (index < 0) return 'Choose a layer';
-    final layer = widget.note.document.layers().toDart[index];
-    return '${layer.name}${layer.hidden
-        ? " (hidden)"
-        : layer.locked
-        ? " (locked)"
-        : ""}';
   }
 
   String get saveLabel => drawing
@@ -525,11 +516,12 @@ class _EditorScreenState extends State<EditorScreen>
     if (cut) edit(() => target.deleteSelection());
   }
 
-  Future<void> paste() async {
+  // Pastes at `at` in the view, or at its center.
+  Future<void> paste([Offset? at]) async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     final svg = data?.text;
     if (svg != null && svg.isNotEmpty)
-      edit(() => canvas!.paste(svg, width / 2, height / 2));
+      edit(() => canvas!.paste(svg, at?.dx ?? width / 2, at?.dy ?? height / 2));
   }
 
   void edit(void Function() action) {
@@ -572,10 +564,6 @@ class _EditorScreenState extends State<EditorScreen>
               .clippingSvg(widget.engine, widget.note.root, item.id)
               .toDart)
           .toDart;
-
-  void toggleFingerDrawing() {
-    setState(() => fingerDraws = !fingerDraws);
-  }
 
   // With finger drawing the scroll view ignores touch and InteractiveViewer
   // does not pan, so a one-finger stroke leaves the page still. Two fingers
@@ -840,25 +828,50 @@ class _EditorScreenState extends State<EditorScreen>
     ),
   );
 
+  // One menu per object (docs/specs/tablet-ui.md, Editor): the current page
+  // and the page sequence. Delete page is the last group, alone.
   List<PullDownMenuEntry> pagesMenu() => [
-    PullDownMenuTitle(
-      title: Text('Page ${page + 1} of ${widget.note.document.pageCount()}'),
-    ),
     PullDownMenuItem(
       title: 'Page overview',
       enabled: !drawing,
       onTap: () => run(showPages),
     ),
     PullDownMenuItem(
-      title: 'Previous page',
-      enabled: page > 0,
-      onTap: () => jump(page - 1),
+      title: 'Go to page',
+      enabled: !drawing,
+      onTap: () => run(goToPage),
+    ),
+    const PullDownMenuDivider.large(),
+    PullDownMenuItem(title: 'Add page', enabled: !drawing, onTap: addPage),
+    PullDownMenuItem(
+      title: 'Insert page before',
+      enabled: !drawing,
+      onTap: () => insertPage(page),
     ),
     PullDownMenuItem(
-      title: 'Next page',
-      enabled: page + 1 < widget.note.document.pageCount(),
-      onTap: () => jump(page + 1),
+      title: 'Insert page after',
+      enabled: !drawing,
+      onTap: () => insertPage(page + 1),
     ),
+    const PullDownMenuDivider.large(),
+    PullDownMenuItem(
+      title: 'Select page',
+      onTap: () => canvas?.selectAll(page),
+    ),
+    PullDownMenuItem(
+      title: 'Clear page',
+      enabled: !drawing && canvas != null,
+      onTap: () {
+        canvas!.selectAll(page);
+        edit(() => canvas!.deleteSelection());
+      },
+    ),
+    PullDownMenuItem(
+      title: 'Paper for new pages',
+      enabled: !drawing,
+      onTap: () => run(paperMenu),
+    ),
+    const PullDownMenuDivider.large(),
     PullDownMenuItem(title: 'Bookmarks', onTap: () => run(bookmarks)),
     PullDownMenuItem(
       title: 'Add bookmark',
@@ -872,22 +885,16 @@ class _EditorScreenState extends State<EditorScreen>
     ),
     PullDownMenuItem(
       title: 'Layers',
-      subtitle: layerLabel,
       enabled: !drawing && canvas != null,
       onTap: () =>
           run(() => manageLayers(context, widget.note.document, canvas!, edit)),
     ),
     const PullDownMenuDivider.large(),
-    PullDownMenuItem(title: 'Add page', enabled: !drawing, onTap: addPage),
     PullDownMenuItem(
-      title: 'Insert page before',
-      enabled: !drawing,
-      onTap: () => insertPage(page),
-    ),
-    PullDownMenuItem(
-      title: 'Insert page after',
-      enabled: !drawing,
-      onTap: () => insertPage(page + 1),
+      title: 'Delete page',
+      isDestructive: true,
+      enabled: !drawing && widget.note.document.pageCount() > 1,
+      onTap: deletePage,
     ),
   ];
 
@@ -915,6 +922,8 @@ class _EditorScreenState extends State<EditorScreen>
     ...widget.workspaceMenu(),
   ];
 
+  // The document: save, share, export, versions; then closing it and the app
+  // settings.
   List<PullDownMenuEntry> moreMenu() => [
     PullDownMenuItem(
       title: widget.note.saver.state.status == 'error' ? 'Retry save' : 'Save',
@@ -922,11 +931,6 @@ class _EditorScreenState extends State<EditorScreen>
       onTap: () => run(() async {
         await widget.note.saver.save().toDart;
       }),
-    ),
-    PullDownMenuItem(
-      title: 'Paper for new pages',
-      enabled: !drawing,
-      onTap: () => run(paperMenu),
     ),
     PullDownMenuItem(
       title: 'Share',
@@ -939,56 +943,41 @@ class _EditorScreenState extends State<EditorScreen>
       onTap: () => run(() => exportPdf(share: false)),
     ),
     PullDownMenuItem(
+      title: 'Compare versions',
+      enabled: !drawing,
+      onTap: () => run(widget.onConflicts),
+    ),
+    const PullDownMenuDivider.large(),
+    PullDownMenuItem(
       title: 'Close note',
       enabled: !drawing,
       onTap: () => run(widget.onClose),
     ),
     PullDownMenuItem(
-      title: 'Go to page',
-      enabled: !drawing,
-      onTap: () => run(goToPage),
-    ),
-    PullDownMenuItem(
-      title: 'Select page',
-      onTap: () => canvas?.selectAll(page),
-    ),
-    PullDownMenuItem(
-      title: 'Clear page',
-      enabled: !drawing && canvas != null,
-      onTap: () {
-        canvas!.selectAll(page);
-        edit(() => canvas!.deleteSelection());
-      },
-    ),
-    PullDownMenuItem(
-      title: 'Delete page',
-      isDestructive: true,
-      enabled: !drawing && widget.note.document.pageCount() > 1,
-      onTap: deletePage,
-    ),
-    const PullDownMenuDivider.large(),
-    PullDownMenuItem.selectable(
-      title: 'Draw with finger',
-      selected: fingerDraws,
-      onTap: toggleFingerDrawing,
-    ),
-    PullDownMenuItem(
-      title: 'Customize toolbar',
-      onTap: () => run(customizeToolbar),
-    ),
-    const PullDownMenuDivider.large(),
-    PullDownMenuItem(title: 'Paste', onTap: () => run(paste)),
-    PullDownMenuItem(
-      title: 'Compare versions',
-      enabled: !drawing,
-      onTap: () => run(widget.onConflicts),
-    ),
-    PullDownMenuItem.selectable(
-      title: 'Follow links',
-      selected: tool == 'navigate',
-      onTap: () => chooseTool(tool == 'navigate' ? pen : 'navigate'),
+      title: 'Settings',
+      onTap: () => run(
+        () => showSettings(
+          context,
+          followsLinks: () => tool == 'navigate',
+          onFollowLinks: (on) => chooseTool(on ? 'navigate' : pen),
+        ),
+      ),
     ),
   ];
+
+  // The page context menu (docs/specs/tablet-ui.md, Editor): a long press or
+  // a secondary click on the page pastes there.
+  Future<void> pageMenu(Offset local, Offset global) => showPullDownMenu(
+    context: context,
+    position: Rect.fromCenter(center: global, width: 1, height: 1),
+    items: [
+      PullDownMenuItem(
+        title: 'Paste',
+        enabled: !drawing && canvas != null,
+        onTap: () => run(() => paste(local)),
+      ),
+    ],
+  );
 
   // Returns to the unzoomed page and keeps the line at the top of the view,
   // or in horizontal scroll the column at its left edge.
@@ -1259,6 +1248,20 @@ class _EditorScreenState extends State<EditorScreen>
                                         onPointerSignal: (event) =>
                                             transform.held = false,
                                         child: GestureDetector(
+                                          onLongPressStart: fingerDraws
+                                              ? null
+                                              : (details) => run(
+                                                  () => pageMenu(
+                                                    details.localPosition,
+                                                    details.globalPosition,
+                                                  ),
+                                                ),
+                                          onSecondaryTapUp: (details) => run(
+                                            () => pageMenu(
+                                              details.localPosition,
+                                              details.globalPosition,
+                                            ),
+                                          ),
                                           onTapUp: tool == 'navigate'
                                               ? (details) => run(
                                                   () => followAt(

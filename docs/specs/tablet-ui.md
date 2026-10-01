@@ -71,17 +71,21 @@ toolbar and the tool popovers:
     bookmark; layers. Delete page is the last group, alone.
   - **View** (the layout of the pages): fit width or height; vertical
     scroll, horizontal scroll, or two-page layout; split view.
-  - **⋯** (the document): save; share and export PDF; compare versions.
+  - **⋯** (the document): save; share and export PDF; compare versions;
+    close the note; Settings.
   Navigation between pages belongs to scrolling, swipe, and the page
   counter, not to menu rows.
 - **Tabs**: a tab strip under the top bar while two or more notes are open,
   one tab per note with a close button. The active tab is marked by label
   color and selected semantics.
 - **Settings sheet**, from ⋯ and from the library's Settings: draw with
-  finger; follow links; customize the toolbar; show the tab strip.
-- **Page context menu** (long press on the page or a selection): paste;
-  save to clippings.
-- **Toolbar**: a vertical rail with a shadow on the left edge of the editor.
+  finger; follow links; show the tab strip; one switch per toolbar tool; in
+  the library, the notes folder.
+- **Page context menu** (long press or secondary click on the page): paste
+  at that page; save to clippings.
+- **Delete page** shows a toast with **Undo**.
+- **Toolbar**: a vertical rail with a separator edge on the left edge of the
+  editor.
   The page area starts to the right of the rail, so the rail covers no
   writing. Icons without text labels, in separated groups: the tools (pen,
   marker, highlighter, eraser, lasso); the inserters (text, image, insert
@@ -147,9 +151,10 @@ or white. One blue accent (#2F6FEB, approximately) fills primary buttons and
 marks selection; text in the accent hue uses a lighter tone of it. Every
 text color meets 4.5:1 contrast on its surface. Paper is warm off-white.
 
-Elevation has two levels: floating controls (the rail, popovers, menus) and
-modals (sheets, dialogs). Each level has one shadow. A modal blurs and dims
-what is behind it.
+Elevation has two levels: floating controls (popovers, menus) and modals
+(sheets, dialogs). Each level has one shadow. A modal dims what is behind it
+with one navy scrim; a dialog also blurs it. A sheet does not blur, so the
+page beside it stays legible.
 
 Type: Inter for the interface, Noto Sans for text on the page. The interface
 uses one scale of named roles from the theme; no interface text is smaller

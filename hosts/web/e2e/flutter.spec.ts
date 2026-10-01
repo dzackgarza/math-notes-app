@@ -27,6 +27,13 @@ async function save(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Save", exact: true }).click();
 }
 
+async function goToPage(page: Page, number: number): Promise<void> {
+  await page.getByRole("button", { name: "Pages", exact: true }).click();
+  await page.getByRole("button", { name: "Go to page", exact: true }).click();
+  await enterText(page.getByRole("textbox"), `${number}`);
+  await page.getByRole("button", { name: "Go", exact: true }).click();
+}
+
 async function closeNote(page: Page): Promise<void> {
   await page.getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("button", { name: "Close note", exact: true }).click();
@@ -164,7 +171,6 @@ test("Flutter moves, finds, trashes, and restores a note with its metadata", asy
 
   // A tag made from the sidebar, then given to the note with its description
   // from the card menu; the sidebar tag lists the note.
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: "New tag", exact: true }).click();
   await enterText(page.getByRole("textbox", { name: "Tag name", exact: true }), "geometry");
   await page.getByRole("button", { name: "Add tag", exact: true }).click();
@@ -243,8 +249,7 @@ test("Flutter reconnects a saved folder and retains edits on every page", async 
   await draw(box.y + 180);
   await page.getByRole("button", { name: "Pages", exact: true }).click();
   await page.getByRole("button", { name: "Add page", exact: true }).click();
-  await page.getByRole("button", { name: "Pages", exact: true }).click();
-  await page.getByRole("button", { name: "Next page", exact: true }).click();
+  await goToPage(page, 2);
   await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
   await draw(box.y + 260);
   await save(page);
@@ -369,8 +374,7 @@ test("Flutter opens another note from the Open note button and preserves each ta
   });
   await page.getByRole("button", { name: "Pages", exact: true }).click();
   await page.getByRole("button", { name: "Add page", exact: true }).click();
-  await page.getByRole("button", { name: "Pages", exact: true }).click();
-  await page.getByRole("button", { name: "Next page", exact: true }).click();
+  await goToPage(page, 2);
   await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Open note", exact: true }).click();
@@ -607,7 +611,7 @@ test("Flutter modal dialogs block pen ink underneath them, and a cancelled pen s
   const box = await canvas.boundingBox();
   if (!box) throw new Error("Notebook canvas has no bounds");
 
-  await page.getByRole("button", { name: "More", exact: true }).click();
+  await page.getByRole("button", { name: "Pages", exact: true }).click();
   await page.getByRole("button", { name: "Go to page", exact: true }).click();
   await expect(page.getByText("Go to page", { exact: true })).toBeVisible();
 
@@ -746,7 +750,9 @@ test("Flutter erases with the pen side button and eraser end and draws with a fi
   expect(await strokes(), "the eraser end of the pen erases").toBe(0);
 
   await page.getByRole("button", { name: "More", exact: true }).click();
-  await page.getByRole("button", { name: "Draw with finger", exact: true }).click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("switch", { name: "Draw with finger", exact: true }).click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   const finger = (id: number, x: number, y: number) => ({ id, x: box.x + x, y: box.y + y });
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [finger(1, 160, 250)] });
   for (const x of [200, 260, 320]) {
@@ -769,8 +775,8 @@ test("Flutter erases with the pen side button and eraser end and draws with a fi
   await page.getByRole("button", { name: "Open Fingers", exact: false }).click();
   await canvas.waitFor({ timeout: 30_000 });
   await page.getByRole("button", { name: "More", exact: true }).click();
-  // The selected item carries the checkmark glyph in its name.
-  await expect(page.getByRole("button", { name: /^\S+ Draw with finger$/ })).toHaveAttribute("aria-current", "true");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(page.getByRole("switch", { name: "Draw with finger", exact: true })).toBeChecked();
 });
 
 test("Flutter partial and whole-stroke erases each undo and redo", async ({ page }) => {
@@ -928,8 +934,7 @@ test("Flutter writes on three pages and returns to page one", async ({ page }) =
     await page.getByRole("button", { name: "Pages", exact: true }).click();
     await page.getByRole("button", { name: "Add page", exact: true }).click();
     await expect(page.getByText(`${pageNumber - 1} / ${pageNumber}`, { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "Pages", exact: true }).click();
-    await page.getByRole("button", { name: "Next page", exact: true }).click();
+    await goToPage(page, pageNumber);
     await expect(page.getByText(`${pageNumber} / ${pageNumber}`, { exact: true })).toBeVisible();
     await draw((pageNumber - 1) * 30);
   }
@@ -1352,7 +1357,7 @@ test("Flutter lasso moves, cuts, pastes, copies, and deletes handwriting", async
   await shot("cut");
   expect(await inked()).toEqual([false, false, false]);
   const paste = async () => {
-    await page.getByRole("button", { name: "More", exact: true }).click();
+    await page.mouse.click(written.x, written.y, { button: "right" });
     await page.getByRole("button", { name: "Paste", exact: true }).click();
   };
   await paste();
@@ -1760,8 +1765,7 @@ test("Flutter imports a PDF, annotates its pages, and exports them with the anno
   await button("Undo").click();
   await expect.poll(() => marginInk(note), { message: "undo restores the pen stroke" }).toBeGreaterThan(80);
 
-  await button("Pages").click();
-  await button("Next page").click();
+  await goToPage(page, 2);
   await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
   let second = first;
   await expect(async () => {
@@ -1819,8 +1823,7 @@ test("Flutter imports a PDF, annotates its pages, and exports them with the anno
     expect(await bar(), "page 1 returns after a reload").toEqual(first);
     expect(await marginInk(note)).toBeGreaterThan(80);
   }).toPass({ timeout: 15_000 });
-  await button("Pages").click();
-  await button("Next page").click();
+  await goToPage(page, 2);
   await expect(async () => {
     expect(await bar(), "page 2 returns after a reload").toEqual(second);
     expect(await marginInk(secondNote)).toBeGreaterThan(80);
@@ -2137,9 +2140,8 @@ test("Flutter places the tool rail on the left edge beside the page and hides to
   }
 
   await button("More").click();
-  await button("Customize toolbar").click();
-  // One switch per tool kind, in rail order; Insert space is the eighth.
-  await page.getByRole("switch").nth(7).click();
+  await button("Settings").click();
+  await page.getByRole("switch", { name: "Insert space", exact: true }).click();
   await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(button("Insert space")).toHaveCount(0);
 
@@ -2378,8 +2380,7 @@ test("Flutter notebook retains pen input and pages after save and reopen", async
   await page.getByRole("button", { name: "Open Lecture", exact: false }).click();
   await expect(canvas).toBeVisible();
   await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Pages", exact: true }).click();
-  await page.getByRole("button", { name: "Next page", exact: true }).click();
+  await goToPage(page, 2);
   await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.getByRole("button", { name: "New note", exact: true }).click();
@@ -2583,7 +2584,7 @@ test("Flutter inserts pages before and after a page, deletes a page, and sizes n
     await button(item).click();
   };
   const goTo = async (number: number) => {
-    await choose("More", "Go to page");
+    await choose("Pages", "Go to page");
     await enterText(page.getByRole("textbox"), `${number}`);
     await page.screenshot({ path: info.outputPath("go-to-page.png") });
     await button("Go").click();
@@ -2602,14 +2603,12 @@ test("Flutter inserts pages before and after a page, deletes a page, and sizes n
     { file: "pages/0003.svg", strokes: 0 },
   ]);
   const strokes = async () => (await savedPages(page, "Inserts")).map(({ strokes }) => strokes);
-  await choose("More", "Clear page");
+  await choose("Pages", "Clear page");
   expect(await strokes(), "Clear page removes the handwriting of the current page").toEqual([0, 0, 0]);
   await button("Undo").click();
   expect(await strokes(), "undo restores the cleared page").toEqual([0, 1, 0]);
-  await choose("Pages", "Previous page");
-  await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
-  await choose("Pages", "Next page");
-  await expect(page.getByText("2 / 3", { exact: true })).toBeVisible();
+  await goTo(1);
+  await goTo(2);
 
   const a4 = [595.28, 841.89], letter = [612, 792];
   // One control changes at a time: the sheet shows the current size and
@@ -2621,7 +2620,7 @@ test("Flutter inserts pages before and after a page, deletes a page, and sizes n
     ["Portrait", a4],
   ];
   for (const [index, [control]] of papers.entries()) {
-    await choose("More", "Paper for new pages");
+    await choose("Pages", "Paper for new pages");
     await expect(button("Done")).toBeVisible();
     if (index === 1) await page.screenshot({ path: info.outputPath("paper-sheet.png") });
     await button(control).click();
@@ -2634,21 +2633,24 @@ test("Flutter inserts pages before and after a page, deletes a page, and sizes n
   await goTo(4);
   await page.screenshot({ path: info.outputPath("letter-landscape.png") });
 
-  await choose("More", "Delete page");
+  await choose("Pages", "Delete page");
   await expect(page.getByText(/^\d \/ 6$/)).toBeVisible();
   expect((await savedPages(page, "Inserts")).map(({ size }) => size), "the landscape Letter page is deleted")
     .toEqual([a4, a4, a4, ...papers.slice(1).map(([, size]) => size)]);
-  await button("Undo").click();
+  await page.screenshot({ path: info.outputPath("delete-toast.png") });
+  // The toast's Undo restores the page.
+  await expect(page.getByText("Page 4 deleted", { exact: true })).toBeVisible();
+  await button("Undo").last().click();
   await expect(page.getByText(/^\d \/ 7$/)).toBeVisible();
   await goTo(2);
-  await choose("More", "Delete page");
+  await choose("Pages", "Delete page");
   await expect(page.getByText("2 / 6", { exact: true })).toBeVisible();
   expect((await savedPages(page, "Inserts")).map(({ strokes }) => strokes), "the written page is deleted").toEqual([0, 0, 0, 0, 0, 0]);
 
   // The paper style of new pages; the pages that exist keep theirs.
   const rulings = async () => (await savedPages(page, "Inserts")).map(({ ruling }) => ruling);
   const before = await rulings();
-  await choose("More", "Paper for new pages");
+  await choose("Pages", "Paper for new pages");
   await button("Lined Paper").click();
   await button("Done").click();
   await choose("Pages", "Add page");
@@ -3111,8 +3113,7 @@ test("Flutter insert space moves the handwriting with the pen in each mode, and 
   await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
   await paper.find(Math.round(box.y + 120));
   await shows(3, [60, 440, 600], "the first page reopens with its words in place");
-  await button("Pages").click();
-  await button("Next page").click();
+  await goToPage(page, 2);
   await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath("reopened.png") });
   // The push put the word three lines below the top of the page, below the tool bar.
@@ -3327,7 +3328,7 @@ test("Flutter menus, alerts, action sheets, and sheets blur the handwriting behi
   const blurred = (x: number, top: number, bottom: number, surface: string) =>
     expect.poll(() => sharpestStep(page, x, top, bottom), `${surface} blurs the lines behind it`).toBeLessThan(8);
 
-  await button("More").click();
+  await button("Pages").click();
   const item = await boxOf(button("Go to page"));
   await blurred(item.x + 0.7 * item.width, item.y + 4, item.y + item.height - 4, "the menu");
 
@@ -3338,7 +3339,7 @@ test("Flutter menus, alerts, action sheets, and sheets blur the handwriting behi
   await page.screenshot({ path: info.outputPath("alert.png") });
   await button("Cancel").click();
 
-  await button("More").click();
+  await button("Pages").click();
   await button("Paper for new pages").click();
   const action = await boxOf(button("Grid Paper"));
   await blurred(action.x + 0.6 * action.width, action.y + 4, action.y + action.height - 4, "the action sheet");
@@ -3512,8 +3513,7 @@ test("Flutter lifetime: first launch, folder choice, three written pages, restar
     await button("Pages").click();
     await button("Add page").click();
     await expect(page.getByText(`${number - 1} / ${number}`, { exact: true })).toBeVisible();
-    await button("Pages").click();
-    await button("Next page").click();
+    await goToPage(page, number);
     await expect(page.getByText(`${number} / ${number}`, { exact: true })).toBeVisible();
   };
   await addPage(2);
@@ -3563,12 +3563,10 @@ test("Flutter lifetime: first launch, folder choice, three written pages, restar
   await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
   expect(await boxOf(canvas), "the canvas keeps its place after a restart").toEqual(box);
   expect(await inked()).toEqual([true, false, false, true]);
-  await button("Pages").click();
-  await button("Next page").click();
+  await goToPage(page, 2);
   await expect(page.getByText("2 / 3", { exact: true })).toBeVisible();
   expect(await inked()).toEqual([true, true, false, false]);
-  await button("Pages").click();
-  await button("Next page").click();
+  await goToPage(page, 3);
   await expect(page.getByText("3 / 3", { exact: true })).toBeVisible();
   expect(await inked()).toEqual([false, false, true, false]);
   expect(await strokes()).toEqual([3, 2, 1]);
@@ -3641,7 +3639,6 @@ test("Flutter lifetime: first launch, folder choice, three written pages, restar
   await expect(page.getByText("This notebook has no notes yet.", { exact: true })).toBeVisible();
   await button("Back to library").click();
 
-  await button("Settings").click();
   await button("New tag").click();
   await enterText(page.getByRole("textbox", { name: "Tag name", exact: true }), "geometry");
   await button("Add tag").click();

@@ -225,10 +225,45 @@ extension _EditorDialogs on _EditorScreenState {
 
   void insertPage(int at) => edit(() => widget.note.document.insertPage(at));
 
-  void deletePage() => edit(() {
-    widget.note.document.deletePage(page);
-    page = page.clamp(0, widget.note.document.pageCount() - 1);
-  });
+  // Deletes the current page and offers its undo in a toast.
+  void deletePage() {
+    final number = page + 1;
+    edit(() {
+      widget.note.document.deletePage(page);
+      page = page.clamp(0, widget.note.document.pageCount() - 1);
+    });
+    toastification.showCustom(
+      alignment: Alignment.bottomCenter,
+      autoCloseDuration: const Duration(seconds: 6),
+      builder: (context, toast) => Center(
+        child: Container(
+          margin: const EdgeInsets.all(16),
+          padding: const EdgeInsets.only(left: 16),
+          decoration: BoxDecoration(
+            color: surface2,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: floatingShadow,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Semantics(
+                liveRegion: true,
+                child: Text('Page $number deleted', style: callout),
+              ),
+              CupertinoButton(
+                onPressed: () {
+                  toastification.dismiss(toast);
+                  history(false);
+                },
+                child: Text('Undo', style: subhead.copyWith(color: accentText)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   Future<void> showPages() async {
     final chosen = await overviewPages(
@@ -276,38 +311,6 @@ extension _EditorDialogs on _EditorScreenState {
     text.dispose();
     if (chosen != null) jump(chosen);
   }
-
-  Future<void> customizeToolbar() => showModalSheet<void>(
-    context: context,
-    builder: (context) => StatefulBuilder(
-      builder: (context, update) => CupertinoActionSheet(
-        title: const Text('Customize toolbar'),
-        message: Column(
-          children: [
-            for (final (kind, label, icon) in toolKinds)
-              Row(
-                children: [
-                  Icon(icon),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text(label, textAlign: TextAlign.start)),
-                  CupertinoSwitch(
-                    value: !hiddenTools.contains(kind),
-                    onChanged: (shown) {
-                      update(() {});
-                      tools.setToolVisible(kind, shown);
-                    },
-                  ),
-                ],
-              ),
-          ],
-        ),
-        cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Done'),
-        ),
-      ),
-    ),
-  );
 
   // The page range and layers of a PDF, which goes to a download or to the
   // system share sheet.

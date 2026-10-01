@@ -28,10 +28,6 @@ class WorkspaceScreen extends StatelessWidget {
 
     List<PullDownMenuEntry> workspaceMenu() => [
       PullDownMenuItem(
-        title: session.tabsHidden ? 'Show tab bar' : 'Hide tab bar',
-        onTap: () => session.hideTabs(!session.tabsHidden),
-      ),
-      PullDownMenuItem(
         title: session.secondary == null ? 'Split view' : 'Close split view',
         onTap: () => run(() async => session.toggleSplit()),
       ),

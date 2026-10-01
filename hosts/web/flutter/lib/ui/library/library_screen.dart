@@ -11,6 +11,7 @@ import '../../data/open_notes.dart';
 import '../../host.dart' as native;
 import '../../note_thumbnail.dart';
 import '../notes_ui.dart';
+import '../settings_sheet.dart';
 import '../theme.dart';
 import 'library_dialogs.dart';
 import 'library_view_model.dart';
@@ -223,7 +224,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         child: first != null
             ? ClipRRect(
                 borderRadius: BorderRadius.circular(4),
-                child: ColoredBox(color: label, child: thumbnail(first)),
+                child: ColoredBox(color: paper, child: thumbnail(first)),
               )
             : Align(
                 alignment: Alignment.topLeft,
@@ -502,14 +503,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
           onTap: () => vm.setFilter('tag', tag.name),
         ),
     ],
-  ];
-
-  List<PullDownMenuEntry> settingsMenu() => [
-    PullDownMenuItem(title: 'New tag', onTap: () => run(addTag)),
-    PullDownMenuItem(
-      title: 'Choose notes folder',
-      onTap: () => run(vm.chooseRoot),
-    ),
   ];
 
   List<Widget> notebooksContent() {
@@ -860,12 +853,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   ),
                 ),
               ),
-              PullDownButton(
-                itemBuilder: (_) => settingsMenu(),
-                buttonBuilder: (context, showMenu) => sidebarRow(
-                  leading: const Icon(CupertinoIcons.settings),
-                  text: 'Settings',
-                  onPressed: showMenu,
+              sidebarRow(
+                leading: const Icon(CupertinoIcons.settings),
+                text: 'Settings',
+                onPressed: () => run(
+                  () => showSettings(
+                    context,
+                    onChooseFolder: () => run(vm.chooseRoot),
+                  ),
                 ),
               ),
             ],
