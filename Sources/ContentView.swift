@@ -14,6 +14,7 @@ struct ContentView: View {
   @State private var showingFolderPicker = false
   @State private var restoredRoot = false
   @State private var errorMessage: String?
+  @State private var selectedTool: EditorTool = .pen
 
   var body: some View {
     NavigationStack {
@@ -21,6 +22,7 @@ struct ContentView: View {
         if let session {
           InkEditorView(
             document: session.document,
+            tool: $selectedTool,
             onEditCommitted: saveOpenNotebook,
             onError: { errorMessage = $0.localizedDescription })
             .navigationTitle(session.reference.name)

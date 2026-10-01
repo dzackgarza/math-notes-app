@@ -50,12 +50,7 @@ final class InkCanvasView: UIView {
     }
     canvas = engineCanvas
 
-    var tool = InkToolSettings()
-    tool.brush = UInt32(INK_BRUSH_PRESSURE_PEN.rawValue)
-    tool.rgb = 0x1A1A1A
-    tool.size = 1.6
-    tool.opacity = 1
-    check(ink_canvas_set_tool(engineCanvas, &tool), operation: "ink_canvas_set_tool")
+    applyTool(.pen, pens: .defaults)
 
     let link = UIUpdateLink(view: self) { [weak self] _, _ in
       self?.render()
@@ -87,6 +82,41 @@ final class InkCanvasView: UIView {
     super.layoutSubviews()
     metalLayer.frame = bounds
     updateSurfaceSize()
+  }
+
+  func applyTool(_ tool: EditorTool, pens: EditorPenSet) {
+    guard let canvas else { return }
+
+    func setEraser(active: Bool) {
+      check(
+        ink_canvas_set_eraser(canvas, INK_ERASER_STROKE, active ? 1 : 0),
+        operation: "ink_canvas_set_eraser")
+    }
+
+    func setLasso(active: Bool) {
+      check(
+        ink_canvas_set_selector(canvas, INK_SELECTOR_LASSO, active ? 1 : 0),
+        operation: "ink_canvas_set_selector")
+    }
+
+    switch tool {
+    case .eraser:
+      setLasso(active: false)
+      setEraser(active: true)
+    case .lasso:
+      setEraser(active: false)
+      setLasso(active: true)
+    case .pen, .marker, .highlighter:
+      setEraser(active: false)
+      setLasso(active: false)
+      var settings = switch tool {
+      case .pen: pens.pen
+      case .marker: pens.marker
+      case .highlighter: pens.highlighter
+      case .eraser, .lasso: pens.pen
+      }
+      check(ink_canvas_set_tool(canvas, &settings), operation: "ink_canvas_set_tool")
+    }
   }
 
   func setViewTransform(_ transform: CGAffineTransform) {

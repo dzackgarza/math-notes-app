@@ -15,6 +15,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate {
     onEditCommitted: onEditCommitted)
   private var documentSize: CGSize
   private var setInitialZoom = false
+  private var appliedTool: EditorTool = .pen
+  private var documentRevision = 0
 
   private var pullGate = HeldPullGate()
   private var pullReadyTimer: Timer?
@@ -102,6 +104,22 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate {
 
     updateContentInsets()
     syncCanvasTransform()
+  }
+
+  func applyHostState(tool: EditorTool, pens: EditorPenSet, revision: Int) {
+    loadViewIfNeeded()
+
+    if tool != appliedTool {
+      canvasView.applyTool(tool, pens: pens)
+      appliedTool = tool
+    }
+
+    guard revision != documentRevision else { return }
+    documentRevision = revision
+    let nextSize = document.contentSize()
+    if nextSize != documentSize {
+      refreshDocumentGeometry()
+    }
   }
 
   func viewForZooming(in scrollView: UIScrollView) -> UIView? {
@@ -248,20 +266,12 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate {
 }
 
 @MainActor
-struct InkEditorView: UIViewControllerRepresentable {
+private struct InkEditorHost: UIViewControllerRepresentable {
   let document: EngineDocument
+  let tool: EditorTool
+  let revision: Int
   let onEditCommitted: () -> Void
   let onError: (Error) -> Void
-
-  init(
-    document: EngineDocument,
-    onEditCommitted: @escaping () -> Void = {},
-    onError: @escaping (Error) -> Void = { _ in }
-  ) {
-    self.document = document
-    self.onEditCommitted = onEditCommitted
-    self.onError = onError
-  }
 
   func makeUIViewController(context: Context) -> InkEditorViewController {
     InkEditorViewController(
@@ -270,5 +280,52 @@ struct InkEditorView: UIViewControllerRepresentable {
       onError: onError)
   }
 
-  func updateUIViewController(_ uiViewController: InkEditorViewController, context: Context) {}
+  func updateUIViewController(_ uiViewController: InkEditorViewController, context: Context) {
+    uiViewController.applyHostState(
+      tool: tool,
+      pens: .defaults,
+      revision: revision)
+  }
+}
+
+@MainActor
+struct InkEditorView: View {
+  let document: EngineDocument
+  @Binding var tool: EditorTool
+  let onEditCommitted: () -> Void
+  let onError: (Error) -> Void
+
+  @State private var documentRevision = 0
+
+  var body: some View {
+    ZStack(alignment: .topLeading) {
+      InkEditorHost(
+        document: document,
+        tool: tool,
+        revision: documentRevision,
+        onEditCommitted: onEditCommitted,
+        onError: onError)
+
+      EditorToolRail(
+        tool: $tool,
+        undo: { history(redo: false) },
+        redo: { history(redo: true) })
+    }
+  }
+
+  private func history(redo: Bool) {
+    do {
+      let moved: Bool
+      if redo {
+        moved = try document.redo()
+      } else {
+        moved = try document.undo()
+      }
+      guard moved else { return }
+      documentRevision &+= 1
+      onEditCommitted()
+    } catch {
+      onError(error)
+    }
+  }
 }

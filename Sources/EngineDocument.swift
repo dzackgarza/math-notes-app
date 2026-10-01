@@ -61,6 +61,20 @@ final class EngineDocument {
     try check(ink_document_insert_page(pointer, count), operation: "Add notebook page")
   }
 
+  func undo() throws -> Bool {
+    var moved: Int32 = 0
+    var page: Int32 = -1
+    try check(ink_undo(pointer, &moved, &page), operation: "Undo")
+    return moved != 0
+  }
+
+  func redo() throws -> Bool {
+    var moved: Int32 = 0
+    var page: Int32 = -1
+    try check(ink_redo(pointer, &moved, &page), operation: "Redo")
+    return moved != 0
+  }
+
   func loadNotebook(_ data: Data) throws {
     let status = withBytes(data) { bytes, count in
       ink_document_load_notebook(pointer, bytes, count)
