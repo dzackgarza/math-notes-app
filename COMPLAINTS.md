@@ -222,3 +222,93 @@ What the live checks changed:
 Still not measurable here: `dynamic-type` (no system text-size setting reaches Flutter in Chrome), `reduced-motion` and animation timing (a CanvasKit screenshot takes ~400 ms, longer than any transition), `form-autosave`.
 
 Totals: 39 violate, 13 conform, 4 not measurable.
+
+# Audit against anthropics/skills `frontend-design`
+
+Guidance: `anthropics/skills` at `8a1541c` (2026-09-28), `skills/frontend-design/SKILL.md`. It is a design-direction skill, not a rule list: it asks whether choices are specific to the subject or are defaults, and names the current tells of generated design. Evidence: the same screenshots `01`–`21` and live captures. The brief here is `docs/specs/tablet-ui.md`, which pins dark navy chrome, one blue accent `#2F6FEB`, warm off-white paper, Noteful-style popovers; per the skill, "the brief's own words always win" on those axes.
+
+## Grounding in the subject matter
+
+| Principle | Observed | Verdict |
+| --- | --- | --- |
+| "The subject's industry, materials, and vernacular are where distinctive visual choices come from" | The subject is handwritten mathematics on paper. The only subject-specific element on any screen is the dotted paper texture (`08`) and the dot-paper preview in the creation sheet (`02`). Chrome, sheets, menus, cards, and the notebook cover (a flat pastel rectangle with typed text, `20`) would serve a to-do app unchanged | Fails: the design is grounded in Flutter's defaults, not in paper, ink, or mathematics |
+| "Open with the most characteristic thing in the subject's world" (first screen) | First screen: an empty dark panel with one centered sentence and a blue button (`01`) | Fails: nothing on the first screen says handwriting or mathematics |
+| "Build with the brief's real content" | Tour content is real ("Niemeier lattices"), but the cover shows only a title; no page thumbnail, no ink preview | Partial |
+
+## Typography
+
+| Principle | Observed | Verdict |
+| --- | --- | --- |
+| "Choose your typefaces deliberately, not the default families" | UI face is Roboto by fallback, not by choice; it carries SF Pro's tracking | Fails |
+| "One family or two, and if two, make them clearly distinct" | Roboto (UI) and Noto Sans (note text): two neutral grotesques that differ only in details | Fails |
+| "A clear type scale … with intentional weights, widths, and spacing" | 12, 13, 14, 16, 18, 20, 22 with no ratio; weights are default Cupertino bold/regular only | Fails |
+| "When type is a headline, use the treatment itself as part of the design" | "Notebooks", "Math Notes", "Lattices" are default bold labels; the notebook title on the cover is typed in the UI face | Fails |
+| Line lengths under 80 characters | Helper text, menu items, and sheet labels are short; the empty-state sentence is 46 characters | Conforms |
+| Avoid: accenting one word in a headline; all-caps labels | None observed | Conforms |
+| Avoid: "unnecessary typographic labels above content" | "Preview" over the only preview; "Notebook Details" over a block that repeats the form; "Tags" over a single "New tag" row; "Pages" over one thumbnail (`02`, `01`, `15`) | Fails |
+
+## Visual structure is information
+
+| Principle | Observed | Verdict |
+| --- | --- | --- |
+| "Outlines, borders, dividers, labels encode useful information rather than decorate" | Menu dividers: thick dark bands serve as both group gap and single separator, so they encode nothing (`12`–`14`). Toolbar: one hairline between tools and history/colors, so three groups read as two (`08`). Page overview: a 2 px bright-blue border on the only thumbnail, marking "selected" among one (`15`). Tab strip: a blue block with "×" for a single open note (`08`) | Fails |
+| Numbered markers only for real sequences | The page counter "1 / 1" is a real sequence; no decorative numbering | Conforms |
+
+## Motion
+
+| Principle | Observed | Verdict |
+| --- | --- | --- |
+| "Use non-user-triggered motion sparingly"; no fade-up entrances or hover transitions on every card | No entrance animation; no hover effects (hover and idle captures identical). Menus and sheets animate in response to taps | Conforms |
+
+## Calibration: the generated-design tells
+
+| Tell | Present | Note |
+| --- | --- | --- |
+| 1. Warm cream + serif display + terracotta accent | No | Paper is cream, but no serif and no clay accent |
+| 2. Near-black background + one bright accent | Yes | `#151B2B` chrome with `#2F6FEB`. Pinned by the brief, so permitted; but the brief pins the hue, not the practice of using it for every sidebar row, every link, and the tab fill |
+| 3. Broadsheet hairlines, zero radius | No | |
+| 4. SaaS-card kit: identical rounded cards, one radius, one soft shadow, gradient washes | No | No shadows or gradients exist; the opposite problem, no depth at all |
+| 5. Template chrome: all-caps eyebrows, middle dots, "WORD — fragment", tinted near-black for black, monospace data labels, "→" on buttons | Partly | None of the typographic tells. Tinted near-black does appear: `#1E1E1E`, `#333`, `#3A3A3A` sheets and menus, and pure `#000` text fields, all Flutter defaults rather than choices |
+
+## Process: a token system with "4–6 named hex values" and type roles
+
+| Principle | Observed | Verdict |
+| --- | --- | --- |
+| Compact palette of 4–6 named values | `theme.dart` names 4. The screens use at least 10 neutrals because every unnamed surface falls back to Cupertino defaults | Fails: the palette in use is not the palette that was designed |
+| Named type roles | None; sizes are set per widget | Fails |
+| Layout concept with alignment guidance | Sheets are a 900×800 box with a two-column form and an empty quadrant; nothing indicates an alignment system (`02`, `06`) | Fails |
+
+## Restraint and quality floor
+
+| Principle | Observed | Verdict |
+| --- | --- | --- |
+| "Spend your boldness in one place; let one element be the memorable thing" | The memorable element should be the page. The most colorful object on screen is the toolbar: five saturated swatches plus the accent (`08`). The page has no edge, margin, or shadow, so it reads as background | Fails |
+| "Remove one accessory" | The tab strip for one note, the "Notebook Details" block, "Previous/Next page" as disabled menu rows, "Save as template" under an unexplained field | Fails |
+| Quality floor: visible keyboard focus | Present (accent ring) | Conforms |
+| Quality floor: visually accessible | 9 of 26 text pairs below 4.5:1; editor controls unreachable by keyboard | Fails |
+| Quality floor: harmonious palette | Navy chrome against warm-gray sheets and menus | Fails |
+| Quality floor: reduced motion | Not measurable here | — |
+| Quality floor: responsive to mobile | Not a target (web in Chrome on Linux, iPad) | — |
+
+## Writing
+
+| Principle | Observed | Verdict |
+| --- | --- | --- |
+| "Name things by what users will understand, not how the system is built" | "Drawing mode" (the curve icon), "Insert space" (↕), "Clippings", "Compare versions", "Follow links", a "Settings name" placeholder under a "Starting Template" label, a "Notebook save Saved" status string | Fails |
+| "A CTA says exactly what happens" | "Create Notebook", "Create Note", "Save as Draft", "Add tag" | Conforms |
+| "An action keeps the same name through the whole flow" | Button "New Notebook" → sheet "New Notebook" → CTA "Create Notebook"; same for notes | Fails: two verbs for one action |
+| "Sentence case" | Library and sheets use Title Case ("Notebook Title", "Cover Style", "Paper Style", "Save as Draft", "Notebook Details"); editor menus use sentence case ("Add bookmark", "Delete page", "Draw with finger") | Fails, and inconsistently |
+| "An empty screen is an invitation to act" | "No notebooks. Tap New Notebook to make one." names the action; the action is 400 px away in the top-right corner, not in the empty state | Partial |
+| "Errors explain what went wrong and how to fix it" | No error state was reached in the tour | Not measured |
+| "Let each written element do exactly one job" | "Save as template" is gray text that is neither a label nor a visible control (`06`); the "Notebook Details" block restates three fields already on screen | Fails |
+
+## Totals
+
+| Verdict | Items |
+| --- | --- |
+| Fails | 20 |
+| Conforms | 7 |
+| Partial | 2 |
+| Not measured | 3 |
+
+The two audits agree on the cause and differ on the remedy. ui-ux-pro-max says the app breaks platform rules (contrast, targets, focus order, navigation hierarchy). frontend-design says that even with those fixed, nothing in the app was chosen for handwritten mathematics: the typeface, the neutrals, the sheets, the cover, and the empty state are all what the framework produced unprompted, and the one choice the brief did make (navy plus one blue) is spent on every row and link instead of on the page.
