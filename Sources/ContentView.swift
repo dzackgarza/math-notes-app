@@ -19,6 +19,9 @@ struct ContentView: View {
   @State private var currentPage = 0
   @State private var documentRevision = 0
   @State private var sharePayload: SharePayload?
+  @State private var showingNewNote = false
+  @State private var newNoteFolders: [FolderReference] = []
+  @State private var newNoteTemplates: [String] = []
 
   var body: some View {
     NavigationStack {
@@ -77,6 +80,13 @@ struct ContentView: View {
     }
     .sheet(item: $sharePayload) { payload in
       ActivityShareSheet(url: payload.url)
+    }
+    .sheet(isPresented: $showingNewNote) {
+      NewNoteSheet(
+        folders: newNoteFolders,
+        templates: newNoteTemplates,
+        onCreate: createNewNote,
+        onCancel: { showingNewNote = false })
     }
     .alert(
       "Math Notes",
@@ -197,7 +207,12 @@ struct ContentView: View {
 
   @ToolbarContentBuilder
   private var libraryToolbar: some ToolbarContent {
-    ToolbarItem(placement: .topBarTrailing) {
+    ToolbarItemGroup(placement: .topBarTrailing) {
+      Button {
+        prepareNewNote()
+      } label: {
+        Label("New Note", systemImage: "square.and.pencil")
+      }
       Button {
         showingFolderPicker = true
       } label: {
@@ -240,6 +255,40 @@ struct ContentView: View {
 
     do {
       notebooks = try root.notebooks()
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func prepareNewNote() {
+    guard let root else { return }
+    do {
+      newNoteFolders = try root.folders()
+      newNoteTemplates = try root.templateNames()
+      guard !newNoteTemplates.isEmpty else {
+        throw NotebookStorageError.missingTemplate("blank")
+      }
+      showingNewNote = true
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func createNewNote(_ request: NewNoteRequest) {
+    guard let root else { return }
+    do {
+      let (reference, document) = try root.createNote(
+        title: request.title,
+        parent: request.parent,
+        template: request.template,
+        pageSize: request.pageSize,
+        orientation: request.orientation)
+      showingNewNote = false
+      selectedTool = .pen
+      currentPage = 0
+      documentRevision = 0
+      session = NotebookSession(reference: reference, document: document)
+      refreshLibrary()
     } catch {
       errorMessage = error.localizedDescription
     }

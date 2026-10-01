@@ -1,4 +1,5 @@
 import Foundation
+import InkEngine
 import XCTest
 @testable import MathNotes
 
@@ -42,6 +43,46 @@ final class NotebookStorageTests: XCTestCase {
 
     XCTAssertGreaterThan(pdf.count, 5)
     XCTAssertEqual(String(decoding: pdf.prefix(5), as: UTF8.self), "%PDF-")
+  }
+
+  @MainActor
+  func testBuiltinTemplateFactoryMatchesTheSharedCreationPath() throws {
+    XCTAssertEqual(
+      try EngineDocument.builtinTemplateNames(),
+      [
+        "blank",
+        "lined-wide",
+        "lined-medium",
+        "lined-narrow",
+        "grid-coarse",
+        "grid-medium",
+        "grid-fine",
+        "dotted",
+      ])
+
+    let template = try EngineDocument.builtinTemplate(name: "dotted", seed: 23)
+    let templateChanges = try template.dirtyFiles()
+    let pageChange = try XCTUnwrap(
+      templateChanges.first { $0.path == "pages/0001.svg" })
+    guard case let .write(page) = pageChange.kind else {
+      return XCTFail("The built-in template page was not writable data")
+    }
+
+    let note = try EngineDocument.createFromTemplate(
+      seed: 29,
+      name: "dotted",
+      page: page,
+      pageSize: INK_PAGE_A4,
+      orientation: INK_PORTRAIT)
+    let noteIndex = try XCTUnwrap(
+      try note.dirtyFiles().first { $0.path == "notebook.json" })
+    guard case let .write(indexBytes) = noteIndex.kind else {
+      return XCTFail("The new notebook index was not writable data")
+    }
+    let index = try XCTUnwrap(
+      JSONSerialization.jsonObject(with: indexBytes) as? [String: Any])
+    XCTAssertEqual(index["template"] as? String, "dotted")
+    XCTAssertEqual(index["pageSize"] as? String, "A4")
   }
 
   func testWritesAssetsThenPagesThenNotebookMetadataThenDeletes() {

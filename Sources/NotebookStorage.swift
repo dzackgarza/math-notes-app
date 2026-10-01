@@ -1,4 +1,12 @@
 import Foundation
+import InkEngine
+
+struct FolderReference: Hashable, Identifiable {
+  let path: [String]
+
+  var id: String { path.joined(separator: "/") }
+  var name: String { path.isEmpty ? "My Notes" : path.joined(separator: " / ") }
+}
 
 struct NotebookReference: Hashable, Identifiable {
   let path: [String]
@@ -10,6 +18,9 @@ struct NotebookReference: Hashable, Identifiable {
 enum NotebookStorageError: LocalizedError {
   case cannotAccessRoot
   case coordinationFailed(String)
+  case invalidName(String)
+  case entryExists(String)
+  case missingTemplate(String)
 
   var errorDescription: String? {
     switch self {
@@ -17,6 +28,12 @@ enum NotebookStorageError: LocalizedError {
       return "Math Notes no longer has access to the selected notes folder."
     case let .coordinationFailed(path):
       return "File coordination did not provide access to \(path)."
+    case let .invalidName(message):
+      return message
+    case let .entryExists(name):
+      return "\(name) already exists in that folder."
+    case let .missingTemplate(name):
+      return "Template \(name) has no pages/0001.svg."
     }
   }
 }
@@ -152,6 +169,122 @@ final class NotesRootAccess {
     }
   }
 
+  func folders() throws -> [FolderReference] {
+    try coordinatedRead(at: url) { root in
+      let fileManager = FileManager.default
+      var folders = [FolderReference(path: [])]
+
+      func visit(_ directory: URL, path: [String]) throws {
+        let children = try fileManager.contentsOfDirectory(
+          at: directory,
+          includingPropertiesForKeys: [.isDirectoryKey],
+          options: [.skipsHiddenFiles])
+        for child in children {
+          let name = child.lastPathComponent
+          guard !name.hasPrefix("."),
+            try child.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true
+          else { continue }
+          if fileManager.fileExists(
+            atPath: child.appendingPathComponent("notebook.json").path)
+          {
+            continue
+          }
+          let childPath = path + [name]
+          folders.append(FolderReference(path: childPath))
+          try visit(child, path: childPath)
+        }
+      }
+
+      try visit(root, path: [])
+      return folders.sorted { left, right in
+        if left.path.isEmpty { return true }
+        if right.path.isEmpty { return false }
+        return left.id.localizedStandardCompare(right.id) == .orderedAscending
+      }
+    }
+  }
+
+  @MainActor
+  func ensureBuiltinTemplates() throws {
+    for name in try EngineDocument.builtinTemplateNames() {
+      let reference = NotebookReference(path: [".templates", name])
+      if try itemExists(at: reference.path + ["notebook.json"]) { continue }
+      try ensureDirectory(path: reference.path)
+      let document = try EngineDocument.builtinTemplate(
+        name: name,
+        seed: UInt64.random(in: 1...UInt64.max))
+      try save(document, notebook: reference)
+    }
+  }
+
+  @MainActor
+  func templateNames() throws -> [String] {
+    try ensureBuiltinTemplates()
+    let templatesURL = url.appendingPathComponent(".templates", isDirectory: true)
+    return try coordinatedRead(at: templatesURL) { directory in
+      try FileManager.default.contentsOfDirectory(
+        at: directory,
+        includingPropertiesForKeys: [.isDirectoryKey],
+        options: [.skipsHiddenFiles])
+        .filter { candidate in
+          (try? candidate.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true &&
+            FileManager.default.fileExists(
+              atPath: candidate.appendingPathComponent("notebook.json").path)
+        }
+        .map(\.lastPathComponent)
+        .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+  }
+
+  @MainActor
+  func createNote(
+    title: String,
+    parent: FolderReference,
+    template: String,
+    pageSize: InkPageSize,
+    orientation: InkOrientation
+  ) throws -> (NotebookReference, EngineDocument) {
+    let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !name.isEmpty else {
+      throw NotebookStorageError.invalidName("Enter a note title.")
+    }
+    guard !name.contains("/"), !name.contains("\\"), !name.hasPrefix(".") else {
+      throw NotebookStorageError.invalidName("A note title cannot start with a dot or contain / or \\.")
+    }
+
+    try ensureBuiltinTemplates()
+    let reference = NotebookReference(path: parent.path + [name])
+    let notebookURL = urlForNotebook(reference)
+    let templatePageURL = url
+      .appendingPathComponent(".templates", isDirectory: true)
+      .appendingPathComponent(template, isDirectory: true)
+      .appendingPathComponent("pages", isDirectory: true)
+      .appendingPathComponent("0001.svg")
+    guard try itemExists(at: [".templates", template, "pages", "0001.svg"]) else {
+      throw NotebookStorageError.missingTemplate(template)
+    }
+    let page = try coordinatedRead(at: templatePageURL) { try Data(contentsOf: $0) }
+    let document = try EngineDocument.createFromTemplate(
+      seed: UInt64.random(in: 1...UInt64.max),
+      name: template,
+      page: page,
+      pageSize: pageSize,
+      orientation: orientation)
+
+    try createNewDirectory(path: reference.path, name: name)
+    do {
+      try save(document, notebook: reference)
+      return (reference, document)
+    } catch {
+      try? coordinatedWrite(at: notebookURL, options: .forDeleting) { coordinatedURL in
+        if FileManager.default.fileExists(atPath: coordinatedURL.path) {
+          try FileManager.default.removeItem(at: coordinatedURL)
+        }
+      }
+      throw error
+    }
+  }
+
   @MainActor
   func load(_ reference: NotebookReference) throws -> EngineDocument {
     let notebookURL = urlForNotebook(reference)
@@ -209,6 +342,40 @@ final class NotesRootAccess {
     }
 
     try document.markSaved()
+  }
+
+  private func itemExists(at path: [String]) throws -> Bool {
+    try coordinatedRead(at: url) { root in
+      let target = path.reduce(root) { partial, component in
+        partial.appendingPathComponent(component)
+      }
+      return FileManager.default.fileExists(atPath: target.path)
+    }
+  }
+
+  private func createNewDirectory(path: [String], name: String) throws {
+    try coordinatedWrite(at: url, options: .forMerging) { root in
+      let directory = path.reduce(root) { partial, component in
+        partial.appendingPathComponent(component, isDirectory: true)
+      }
+      guard !FileManager.default.fileExists(atPath: directory.path) else {
+        throw NotebookStorageError.entryExists(name)
+      }
+      try FileManager.default.createDirectory(
+        at: directory,
+        withIntermediateDirectories: false)
+    }
+  }
+
+  private func ensureDirectory(path: [String]) throws {
+    try coordinatedWrite(at: url, options: .forMerging) { root in
+      let directory = path.reduce(root) { partial, component in
+        partial.appendingPathComponent(component, isDirectory: true)
+      }
+      try FileManager.default.createDirectory(
+        at: directory,
+        withIntermediateDirectories: true)
+    }
   }
 
   private static func saveBookmark(for url: URL) throws {

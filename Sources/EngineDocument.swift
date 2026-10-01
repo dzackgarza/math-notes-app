@@ -27,6 +27,10 @@ enum EngineDocumentError: LocalizedError {
 final class EngineDocument {
   let pointer: OpaquePointer
 
+  private init(pointer: OpaquePointer) {
+    self.pointer = pointer
+  }
+
   init(seed: UInt64 = 1) {
     var document: OpaquePointer?
     let status = ink_document_create(seed, &document)
@@ -38,6 +42,62 @@ final class EngineDocument {
 
   deinit {
     ink_document_free(pointer)
+  }
+
+  static func builtinTemplateNames() throws -> [String] {
+    var count = 0
+    let countStatus = ink_builtin_template_count(&count)
+    guard countStatus == INK_OK else {
+      throw EngineDocumentError.operation("List built-in templates", lastError())
+    }
+
+    return try (0..<count).map { index in
+      var name: UnsafePointer<CChar>?
+      let status = ink_builtin_template_name(index, &name)
+      guard status == INK_OK, let name else {
+        throw EngineDocumentError.operation("Read built-in template name", lastError())
+      }
+      return String(cString: name)
+    }
+  }
+
+  static func builtinTemplate(name: String, seed: UInt64) throws -> EngineDocument {
+    var document: OpaquePointer?
+    let status = name.withCString { nameBytes in
+      ink_builtin_template_create(nameBytes, seed, &document)
+    }
+    guard status == INK_OK, let document else {
+      throw EngineDocumentError.operation("Create built-in template", lastError())
+    }
+    return EngineDocument(pointer: document)
+  }
+
+  static func createFromTemplate(
+    seed: UInt64,
+    name: String,
+    page: Data,
+    pageSize: InkPageSize,
+    orientation: InkOrientation
+  ) throws -> EngineDocument {
+    var document: OpaquePointer?
+    let status = name.withCString { nameBytes in
+      page.withUnsafeBytes { raw in
+        ink_document_create_from_template(
+          seed,
+          nameBytes,
+          raw.baseAddress?.assumingMemoryBound(to: UInt8.self),
+          raw.count,
+          pageSize,
+          orientation,
+          0,
+          0,
+          &document)
+      }
+    }
+    guard status == INK_OK, let document else {
+      throw EngineDocumentError.operation("Create notebook from template", lastError())
+    }
+    return EngineDocument(pointer: document)
   }
 
   func contentSize() -> CGSize {
