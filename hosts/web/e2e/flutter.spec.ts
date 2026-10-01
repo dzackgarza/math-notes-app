@@ -4146,6 +4146,7 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   await button("Create").click();
   await expect(page.getByRole("heading", { name: "Proofs", exact: true })).toBeVisible();
   await button("Clippings").click();
+  await clipping(5);
   await button("Insert clipping 5").click();
   await button("Clippings").click();
   let other = await saved(proofs);
