@@ -397,31 +397,34 @@ Future<CreationForm?> askCreation(
                       '#E6C8F1': 'Purple',
                       '#F2D0BA': 'Peach',
                     }.entries)
-                      Semantics(
-                        label: color.value,
-                        selected: coverColor == color.key,
-                        button: true,
-                        child: CupertinoButton(
-                          padding: EdgeInsets.zero,
-                          minimumSize: const Size(44, 44),
-                          onPressed: () => update(() => coverColor = color.key),
-                          child: Container(
-                            padding: const EdgeInsets.all(3),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: coverColor == color.key
-                                    ? accentText
-                                    : const Color(0x00000000),
-                                width: 2,
-                              ),
-                            ),
+                      MergeSemantics(
+                        child: Semantics(
+                          label: color.value,
+                          selected: coverColor == color.key,
+                          button: true,
+                          child: CupertinoButton(
+                            padding: EdgeInsets.zero,
+                            minimumSize: const Size(44, 44),
+                            onPressed: () =>
+                                update(() => coverColor = color.key),
                             child: Container(
-                              width: 28,
-                              height: 28,
+                              padding: const EdgeInsets.all(3),
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: hexColor(color.key),
+                                border: Border.all(
+                                  color: coverColor == color.key
+                                      ? accentText
+                                      : const Color(0x00000000),
+                                  width: 2,
+                                ),
+                              ),
+                              child: Container(
+                                width: 28,
+                                height: 28,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: hexColor(color.key),
+                                ),
                               ),
                             ),
                           ),

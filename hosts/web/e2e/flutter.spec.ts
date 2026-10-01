@@ -82,7 +82,7 @@ test("Flutter creation sheets close on Escape and ask before they discard a chan
   const title = page.getByRole("textbox", { name: "Notebook title", exact: true });
 
   await button("New notebook").click();
-  await expect(title).toBeVisible();
+  await title.waitFor();
   await page.keyboard.press("Escape");
   await expect(title, "an unchanged sheet closes at once").toHaveCount(0);
 
@@ -1996,7 +1996,8 @@ async function closePopover(page: Page): Promise<void> {
 // The rail's current-color dot opens the Colors popover: the swatches, the
 // palette editor, and the saved pens.
 async function openColors(page: Page): Promise<void> {
-  await page.getByRole("button", { name: "Colors", exact: true }).click();
+  // The accessible name carries the current color: "Colors #1a1a1a".
+  await page.getByRole("button", { name: /^Colors\b/ }).click();
   await expect(page.getByRole("button", { name: "Edit colors", exact: true })).toBeVisible();
 }
 
@@ -2142,7 +2143,11 @@ test("Flutter palette edits a swatch on the HSV wheel, and adds and removes swat
 async function tabOrder(page: Page, presses: number): Promise<string[]> {
   const names: string[] = [];
   for (let i = 0; i < presses; i++) {
+    // Flutter creates a text field's input element after its focus moves, so
+    // each press waits for the document focus to move.
+    const before = await page.evaluateHandle(() => document.activeElement);
     await page.keyboard.press("Tab");
+    await page.waitForFunction((element) => document.activeElement !== element, before);
     names.push(await page.evaluate(() => {
       const focused = document.activeElement;
       return (focused?.getAttribute("aria-label") ?? focused?.textContent ?? "").trim();

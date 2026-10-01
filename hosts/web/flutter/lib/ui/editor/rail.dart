@@ -16,27 +16,29 @@ extension _EditorRail on _EditorScreenState {
     void Function(BuildContext anchor)? onPressed,
     VoidCallback? onLongPress,
   }) => Builder(
-    builder: (anchor) => Semantics(
-      label: label,
-      selected: selected,
-      button: true,
-      enabled: onPressed != null,
-      child: CupertinoButton(
-        padding: EdgeInsets.zero,
-        minimumSize: const Size(44, 44),
-        onPressed: onPressed == null ? null : () => onPressed(anchor),
-        onLongPress: onLongPress,
-        child: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: selected ? selectedFill : null,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Icon(
-            icon,
-            color: onPressed == null ? tertiaryLabel : color,
-            size: 24,
+    builder: (anchor) => MergeSemantics(
+      child: Semantics(
+        label: label,
+        selected: selected,
+        button: true,
+        enabled: onPressed != null,
+        child: CupertinoButton(
+          padding: EdgeInsets.zero,
+          minimumSize: const Size(44, 44),
+          onPressed: onPressed == null ? null : () => onPressed(anchor),
+          onLongPress: onLongPress,
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: selected ? selectedFill : null,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              icon,
+              color: onPressed == null ? tertiaryLabel : color,
+              size: 24,
+            ),
           ),
         ),
       ),
@@ -86,22 +88,26 @@ extension _EditorRail on _EditorScreenState {
   Widget colorDot() {
     final rgb = pens == null ? null : penTool.rgb;
     return Builder(
-      builder: (anchor) => Semantics(
-        label: 'Colors',
-        value: rgb == null ? null : hex(rgb),
-        button: true,
-        enabled: rgb != null,
-        child: CupertinoButton(
-          padding: EdgeInsets.zero,
-          minimumSize: const Size(44, 44),
-          onPressed: rgb == null ? null : () => run(() => colorPopover(anchor)),
-          child: Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: rgb == null ? surface3 : Color(0xFF000000 | rgb),
-              border: Border.all(color: label, width: 2),
+      builder: (anchor) => MergeSemantics(
+        child: Semantics(
+          label: 'Colors',
+          value: rgb == null ? null : hex(rgb),
+          button: true,
+          enabled: rgb != null,
+          child: CupertinoButton(
+            padding: EdgeInsets.zero,
+            minimumSize: const Size(44, 44),
+            onPressed: rgb == null
+                ? null
+                : () => run(() => colorPopover(anchor)),
+            child: Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: rgb == null ? surface3 : Color(0xFF000000 | rgb),
+                border: Border.all(color: label, width: 2),
+              ),
             ),
           ),
         ),
@@ -117,26 +123,28 @@ extension _EditorRail on _EditorScreenState {
   ) {
     final current = penTool.rgb == color;
     return Builder(
-      builder: (anchor) => Semantics(
-        label: 'Color ${hex(color)}',
-        selected: current,
-        button: true,
-        child: CupertinoButton(
-          padding: EdgeInsets.zero,
-          minimumSize: const Size(44, 44),
-          onPressed: () => run(() async {
-            await tapSwatch(popover, anchor, index);
-            if (popover.mounted) update(() {});
-          }),
-          child: Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Color(0xFF000000 | color),
-              border: Border.all(
-                color: current ? accentText : separator,
-                width: current ? 3 : 1,
+      builder: (anchor) => MergeSemantics(
+        child: Semantics(
+          label: 'Color ${hex(color)}',
+          selected: current,
+          button: true,
+          child: CupertinoButton(
+            padding: EdgeInsets.zero,
+            minimumSize: const Size(44, 44),
+            onPressed: () => run(() async {
+              await tapSwatch(popover, anchor, index);
+              if (popover.mounted) update(() {});
+            }),
+            child: Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0xFF000000 | color),
+                border: Border.all(
+                  color: current ? accentText : separator,
+                  width: current ? 3 : 1,
+                ),
               ),
             ),
           ),
@@ -230,21 +238,23 @@ extension _EditorRail on _EditorScreenState {
             }),
           ),
           railGap(),
-          UndoDial(
-            enabled: !drawing,
-            onStep: (direction) => history(direction > 0),
-            child: Semantics(
-              label: 'Undo',
-              button: true,
+          MergeSemantics(
+            child: UndoDial(
               enabled: !drawing,
-              onTap: () => history(false),
-              excludeSemantics: true,
-              child: SizedBox(
-                width: 44,
-                height: 44,
-                child: Icon(
-                  LucideIcons.undo2,
-                  color: drawing ? tertiaryLabel : label,
+              onStep: (direction) => history(direction > 0),
+              child: Semantics(
+                label: 'Undo',
+                button: true,
+                enabled: !drawing,
+                onTap: () => history(false),
+                excludeSemantics: true,
+                child: SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Icon(
+                    LucideIcons.undo2,
+                    color: drawing ? tertiaryLabel : label,
+                  ),
                 ),
               ),
             ),

@@ -809,20 +809,22 @@ class _EditorScreenState extends State<EditorScreen>
     List<PullDownMenuEntry> Function() items,
   ) => PullDownButton(
     itemBuilder: (_) => items(),
-    buttonBuilder: (context, showMenu) => Semantics(
-      label: label,
-      button: true,
-      child: CupertinoButton(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        onPressed: showMenu,
-        child: ExcludeSemantics(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            spacing: 4,
-            children: [
-              Icon(icon, size: 20),
-              Text(label, style: callout.copyWith(color: accentText)),
-            ],
+    buttonBuilder: (context, showMenu) => MergeSemantics(
+      child: Semantics(
+        label: label,
+        button: true,
+        child: CupertinoButton(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          onPressed: showMenu,
+          child: ExcludeSemantics(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 4,
+              children: [
+                Icon(icon, size: 20),
+                Text(label, style: callout.copyWith(color: accentText)),
+              ],
+            ),
           ),
         ),
       ),
@@ -1125,13 +1127,15 @@ class _EditorScreenState extends State<EditorScreen>
         autofocus: true,
         child: CupertinoPageScaffold(
           navigationBar: CupertinoNavigationBar(
-            leading: Semantics(
-              label: 'Library',
-              button: true,
-              child: CupertinoButton(
-                padding: EdgeInsets.zero,
-                onPressed: () => run(widget.onLibrary),
-                child: const Icon(LucideIcons.chevronLeft),
+            leading: MergeSemantics(
+              child: Semantics(
+                label: 'Library',
+                button: true,
+                child: CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: () => run(widget.onLibrary),
+                  child: const Icon(LucideIcons.chevronLeft),
+                ),
               ),
             ),
             middle: Text(widget.note.name),
@@ -1151,13 +1155,15 @@ class _EditorScreenState extends State<EditorScreen>
                       ),
                     ),
                   ),
-                  Semantics(
-                    label: 'Open note',
-                    button: true,
-                    child: CupertinoButton(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      onPressed: () => run(widget.onOpenNote),
-                      child: const Icon(LucideIcons.filePlus2, size: 20),
+                  MergeSemantics(
+                    child: Semantics(
+                      label: 'Open note',
+                      button: true,
+                      child: CupertinoButton(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        onPressed: () => run(widget.onOpenNote),
+                        child: const Icon(LucideIcons.filePlus2, size: 20),
+                      ),
                     ),
                   ),
                   menuButton('Pages', LucideIcons.layoutGrid, pagesMenu),

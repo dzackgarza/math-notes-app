@@ -882,19 +882,21 @@ class _LibraryScreenState extends State<LibraryScreen> {
             ? null
             // The sidebar's Library row has the visible name too; the
             // accessible name tells the two apart.
-            : Semantics(
-                label: 'Back to library',
-                button: true,
-                child: CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: () => vm.showNotebook(null),
-                  child: const ExcludeSemantics(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(CupertinoIcons.chevron_left),
-                        Text('Library'),
-                      ],
+            : MergeSemantics(
+                child: Semantics(
+                  label: 'Back to library',
+                  button: true,
+                  child: CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: () => vm.showNotebook(null),
+                    child: const ExcludeSemantics(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(CupertinoIcons.chevron_left),
+                          Text('Library'),
+                        ],
+                      ),
                     ),
                   ),
                 ),

@@ -41,22 +41,24 @@ class TagEditor extends StatelessWidget {
           runSpacing: 4,
           children: [
             for (final tag in tags)
-              Semantics(
-                label: 'Remove tag $tag',
-                button: true,
-                child: CupertinoButton.tinted(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  onPressed: () => controller.value = tags
-                      .where((value) => value != tag)
-                      .toList(),
-                  child: ExcludeSemantics(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Flexible(child: Text(tag)),
-                        const SizedBox(width: 8),
-                        const Icon(CupertinoIcons.xmark, size: 14),
-                      ],
+              MergeSemantics(
+                child: Semantics(
+                  label: 'Remove tag $tag',
+                  button: true,
+                  child: CupertinoButton.tinted(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    onPressed: () => controller.value = tags
+                        .where((value) => value != tag)
+                        .toList(),
+                    child: ExcludeSemantics(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(child: Text(tag)),
+                          const SizedBox(width: 8),
+                          const Icon(CupertinoIcons.xmark, size: 14),
+                        ],
+                      ),
                     ),
                   ),
                 ),

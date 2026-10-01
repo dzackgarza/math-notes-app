@@ -50,30 +50,32 @@ extension _EditorPopovers on _EditorScreenState {
     IconData icon,
     bool selected,
     VoidCallback onPressed,
-  ) => Semantics(
-    label: caption,
-    button: true,
-    selected: selected,
-    child: CupertinoButton(
-      padding: EdgeInsets.zero,
-      minimumSize: const Size(64, 72),
-      onPressed: onPressed,
-      child: ExcludeSemantics(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: selected ? accent : surface3,
+  ) => MergeSemantics(
+    child: Semantics(
+      label: caption,
+      button: true,
+      selected: selected,
+      child: CupertinoButton(
+        padding: EdgeInsets.zero,
+        minimumSize: const Size(64, 72),
+        onPressed: onPressed,
+        child: ExcludeSemantics(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: selected ? accent : surface3,
+                ),
+                child: Icon(icon, size: 22, color: selected ? onAccent : label),
               ),
-              child: Icon(icon, size: 22, color: selected ? onAccent : label),
-            ),
-            const SizedBox(height: 4),
-            Text(caption, style: footnote.copyWith(color: secondaryLabel)),
-          ],
+              const SizedBox(height: 4),
+              Text(caption, style: footnote.copyWith(color: secondaryLabel)),
+            ],
+          ),
         ),
       ),
     ),
@@ -222,44 +224,46 @@ extension _EditorPopovers on _EditorScreenState {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 for (final (i, value) in presets.indexed)
-                  Semantics(
-                    label: '$value pt',
-                    button: true,
-                    selected: (size - value).abs() < 0.05,
-                    child: CupertinoButton(
-                      padding: EdgeInsets.zero,
-                      minimumSize: const Size(56, 56),
-                      onPressed: () => update(() => size = value),
-                      child: ExcludeSemantics(
-                        child: Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: (size - value).abs() < 0.05
-                                  ? accentText
-                                  : paperEdge,
-                              width: 2,
+                  MergeSemantics(
+                    child: Semantics(
+                      label: '$value pt',
+                      button: true,
+                      selected: (size - value).abs() < 0.05,
+                      child: CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(56, 56),
+                        onPressed: () => update(() => size = value),
+                        child: ExcludeSemantics(
+                          child: Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: (size - value).abs() < 0.05
+                                    ? accentText
+                                    : paperEdge,
+                                width: 2,
+                              ),
+                              color: paper,
                             ),
-                            color: paper,
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              Container(
-                                width: 3.0 + 4 * i,
-                                height: 3.0 + 4 * i,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Color(0xFF000000 | rgb),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                Container(
+                                  width: 3.0 + 4 * i,
+                                  height: 3.0 + 4 * i,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Color(0xFF000000 | rgb),
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                '$value pt',
-                                style: footnote.copyWith(color: coverInk),
-                              ),
-                            ],
+                                Text(
+                                  '$value pt',
+                                  style: footnote.copyWith(color: coverInk),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -467,25 +471,27 @@ extension _EditorPopovers on _EditorScreenState {
             runSpacing: 4,
             children: [
               for (final (i, color) in colors.indexed)
-                Semantics(
-                  label: 'Remove color ${hex(color)}',
-                  button: true,
-                  child: CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    minimumSize: const Size(36, 36),
-                    onPressed: () => update(() => colors.removeAt(i)),
-                    child: Container(
-                      width: 30,
-                      height: 30,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Color(0xFF000000 | color),
-                        border: Border.all(color: separator),
-                      ),
-                      child: const Icon(
-                        LucideIcons.x,
-                        size: 14,
-                        color: onAccent,
+                MergeSemantics(
+                  child: Semantics(
+                    label: 'Remove color ${hex(color)}',
+                    button: true,
+                    child: CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(36, 36),
+                      onPressed: () => update(() => colors.removeAt(i)),
+                      child: Container(
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Color(0xFF000000 | color),
+                          border: Border.all(color: separator),
+                        ),
+                        child: const Icon(
+                          LucideIcons.x,
+                          size: 14,
+                          color: onAccent,
+                        ),
                       ),
                     ),
                   ),

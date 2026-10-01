@@ -66,14 +66,18 @@ class NotesFolder extends ChangeNotifier {
   }
 
   // Reads overlap when the user acts during a read. Only the newest read
-  // replaces the library, so an older read cannot show stale notes.
+  // replaces the library, so an older read cannot show stale notes. A read
+  // waits for the app's writes: a move copies and then deletes, and a read
+  // between the two lists the note at a path that is about to go.
   int reads = 0;
   Future<void> refresh() async {
     final read = ++reads;
-    final result = await deadline(
-      'Reading the notes folder',
-      const Duration(seconds: 60),
-      native.host.library(root!).toDart,
+    final result = await serial(
+      () => deadline(
+        'Reading the notes folder',
+        const Duration(seconds: 60),
+        native.host.library(root!).toDart,
+      ),
     );
     if (read != reads) return;
     library = result;
