@@ -6,7 +6,10 @@ Before the first usable v1, work directly on `main`. Complete the web app
 first: build its full UI, connect the specified features, and resolve their
 product-level failures in the deployed browser. Then write end-to-end tests
 for user stories. Add narrower tests when the architecture they would test
-is substantially present. Port the working web product to iPad after that.
+is substantially present. Port the working web product to iPad after that,
+unless the owner explicitly requests iPad work earlier: such a request
+authorizes the iPad work it names, on the branch it names, and v1 sequencing
+still governs everything else.
 The GitHub issue tree rooted at #11 records requirements and gaps.
 
 Implementation ownership: read [docs/ARCHITECTURE.md#component-ownership](docs/ARCHITECTURE.md#component-ownership) before changing a plan or implementation. Standard application behavior belongs to a mature framework or platform API, including scroll physics and edge motion; a missing standard detail is evidence to check the owner, not a custom feature request. Writing and editing notebook ink are reasonable app responsibilities. For a new domain capability, first seek a dependency that owns the whole problem, then a reference implementation. Only necessary residue with neither may use new ungrounded code. A new subsystem or expanded core boundary needs a linked decision with actual dependency searches, candidate evidence, the exact integration gap, and explicit user approval. Evaluate complete frameworks, SDKs, and forks, including large dependencies. An existing working domain capability does not require replacement merely because a broader dependency exists.
