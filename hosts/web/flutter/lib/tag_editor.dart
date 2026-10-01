@@ -69,6 +69,7 @@ class TagEditor extends StatelessWidget {
           children: [
             Expanded(
               child: CupertinoTextField(
+                cursorOpacityAnimates: false,
                 controller: controller.input,
                 placeholder: 'Add a tag…',
                 textInputAction: TextInputAction.done,

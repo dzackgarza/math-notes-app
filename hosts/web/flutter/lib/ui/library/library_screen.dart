@@ -905,7 +905,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (tasks > 0) const CupertinoActivityIndicator(),
+            // Under a dialog the action waits for the user, not for work,
+            // and a turning spinner redraws the blurred screen each frame.
+            if (tasks > 0 && ModalRoute.isCurrentOf(context)!)
+              const CupertinoActivityIndicator(),
             if (connected && notebook != null)
               actionsButton(
                 '${notebook.name} notebook actions',

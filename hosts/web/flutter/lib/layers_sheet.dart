@@ -37,6 +37,7 @@ Future<void> manageLayers(
             builder: (context) => CupertinoAlertDialog(
               title: Text(index == null ? 'New layer' : 'Rename layer'),
               content: CupertinoTextField(
+                cursorOpacityAnimates: false,
                 controller: name,
                 autofocus: true,
                 placeholder: 'Layer name',

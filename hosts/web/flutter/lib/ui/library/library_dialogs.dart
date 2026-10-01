@@ -47,6 +47,7 @@ Future<({String name, String color})?> askNewTag(BuildContext context) async {
         content: Column(
           children: [
             CupertinoTextField(
+              cursorOpacityAnimates: false,
               controller: name,
               placeholder: 'Tag name',
               autofocus: true,
@@ -109,6 +110,7 @@ Future<bool> editNoteDetails(
         children: [
           const SizedBox(height: 16),
           CupertinoTextField(
+            cursorOpacityAnimates: false,
             controller: description,
             placeholder: 'Description',
             minLines: 2,
@@ -162,6 +164,7 @@ Future<bool> editFolderDetails(
           children: [
             const SizedBox(height: 16),
             CupertinoTextField(
+              cursorOpacityAnimates: false,
               controller: description,
               placeholder: 'Description',
               minLines: 2,
@@ -215,6 +218,7 @@ Future<String?> askName(BuildContext context, String name) async {
     builder: (context) => CupertinoAlertDialog(
       title: const Text('Rename'),
       content: CupertinoTextField(
+        cursorOpacityAnimates: false,
         controller: controller,
         placeholder: 'Name',
         autofocus: true,
@@ -358,6 +362,7 @@ Future<CreationForm?> askCreation(
               Text(isFolder ? 'Notebook title' : 'Title', style: subhead),
               const SizedBox(height: 6),
               CupertinoTextField(
+                cursorOpacityAnimates: false,
                 controller: title,
                 placeholder: isFolder ? 'Notebook title' : 'Title',
                 autofocus: true,
@@ -368,6 +373,7 @@ Future<CreationForm?> askCreation(
                 Text('Description (optional)', style: subhead),
                 const SizedBox(height: 6),
                 CupertinoTextField(
+                  cursorOpacityAnimates: false,
                   controller: description,
                   placeholder: 'Description',
                   minLines: 2,
@@ -547,6 +553,7 @@ Future<CreationForm?> askCreation(
                     children: [
                       Expanded(
                         child: CupertinoTextField(
+                          cursorOpacityAnimates: false,
                           controller: templateName,
                           placeholder: 'Template name',
                           autofocus: true,

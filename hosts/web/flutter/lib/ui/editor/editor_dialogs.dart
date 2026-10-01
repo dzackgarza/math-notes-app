@@ -25,6 +25,7 @@ extension _EditorDialogs on _EditorScreenState {
                 Text('Text', style: footnote.copyWith(color: secondaryLabel)),
                 const SizedBox(height: 6),
                 CupertinoTextField(
+                  cursorOpacityAnimates: false,
                   controller: controller,
                   autofocus: true,
                   placeholder: 'Text',
@@ -44,6 +45,7 @@ extension _EditorDialogs on _EditorScreenState {
                 ),
                 const SizedBox(height: 12),
                 CupertinoTextField(
+                  cursorOpacityAnimates: false,
                   controller: boxWidth,
                   prefix: const Padding(
                     padding: EdgeInsets.all(8),
@@ -288,6 +290,7 @@ extension _EditorDialogs on _EditorScreenState {
         content: Padding(
           padding: const EdgeInsets.only(top: 16),
           child: CupertinoTextField(
+            cursorOpacityAnimates: false,
             controller: text,
             autofocus: true,
             placeholder: '1 to $count',
@@ -345,6 +348,7 @@ extension _EditorDialogs on _EditorScreenState {
               children: [
                 const SizedBox(height: 16),
                 CupertinoTextField(
+                  cursorOpacityAnimates: false,
                   controller: first,
                   placeholder: 'First page',
                   keyboardType: TextInputType.number,
@@ -352,6 +356,7 @@ extension _EditorDialogs on _EditorScreenState {
                 ),
                 const SizedBox(height: 12),
                 CupertinoTextField(
+                  cursorOpacityAnimates: false,
                   controller: last,
                   placeholder: 'Last page',
                   keyboardType: TextInputType.number,
@@ -458,6 +463,7 @@ extension _EditorDialogs on _EditorScreenState {
         builder: (context) => CupertinoAlertDialog(
           title: const Text('Link destination'),
           content: CupertinoTextField(
+            cursorOpacityAnimates: false,
             controller: text,
             autofocus: true,
             placeholder: 'https://… or ../../Note/pages/0001.svg',

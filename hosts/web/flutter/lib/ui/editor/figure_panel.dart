@@ -11,6 +11,7 @@ extension _FigurePanel on _EditorScreenState {
           Text('TikZ figure', style: subhead),
           Expanded(
             child: CupertinoTextField(
+              cursorOpacityAnimates: false,
               controller: figureText,
               readOnly: true,
               maxLines: null,
