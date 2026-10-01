@@ -21,7 +21,8 @@ struct ContentView: View {
         if let session {
           InkEditorView(
             document: session.document,
-            onEditCommitted: saveOpenNotebook)
+            onEditCommitted: saveOpenNotebook,
+            onError: { errorMessage = $0.localizedDescription })
             .navigationTitle(session.reference.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

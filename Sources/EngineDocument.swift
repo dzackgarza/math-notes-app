@@ -50,6 +50,17 @@ final class EngineDocument {
     return CGSize(width: width, height: height)
   }
 
+  func pageCount() throws -> Int {
+    var count = 0
+    try check(ink_document_page_count(pointer, &count), operation: "Count notebook pages")
+    return count
+  }
+
+  func appendPage() throws {
+    let count = try pageCount()
+    try check(ink_document_insert_page(pointer, count), operation: "Add notebook page")
+  }
+
   func loadNotebook(_ data: Data) throws {
     let status = withBytes(data) { bytes, count in
       ink_document_load_notebook(pointer, bytes, count)

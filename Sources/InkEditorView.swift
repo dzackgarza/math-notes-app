@@ -1,3 +1,5 @@
+import MJRefresh
+import QuartzCore
 import SwiftUI
 import UIKit
 
@@ -7,21 +9,39 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate {
   private let scrollView = UIScrollView()
   private let documentView = UIView()
   private let onEditCommitted: () -> Void
+  private let onError: (Error) -> Void
   private lazy var canvasView = InkCanvasView(
     document: document,
     onEditCommitted: onEditCommitted)
-  private let documentSize: CGSize
+  private var documentSize: CGSize
   private var setInitialZoom = false
 
-  init(document: EngineDocument, onEditCommitted: @escaping () -> Void = {}) {
+  private var pullGate = HeldPullGate()
+  private var pullReadyTimer: Timer?
+  private var footerWasPulling = false
+  private var releasedPullWasArmed = false
+  private lazy var addPageFooter = MJRefreshBackNormalFooter(refreshingBlock: { [weak self] in
+    self?.completeBottomPull()
+  })
+
+  init(
+    document: EngineDocument,
+    onEditCommitted: @escaping () -> Void = {},
+    onError: @escaping (Error) -> Void = { _ in }
+  ) {
     self.document = document
     self.onEditCommitted = onEditCommitted
+    self.onError = onError
     documentSize = document.contentSize()
     super.init(nibName: nil, bundle: nil)
   }
 
   required init?(coder: NSCoder) {
     fatalError("init(coder:) is not supported")
+  }
+
+  deinit {
+    pullReadyTimer?.invalidate()
   }
 
   override func viewDidLoad() {
@@ -67,6 +87,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate {
       canvasView.topAnchor.constraint(equalTo: scrollView.frameLayoutGuide.topAnchor),
       canvasView.bottomAnchor.constraint(equalTo: scrollView.frameLayoutGuide.bottomAnchor),
     ])
+
+    configureBottomPull()
   }
 
   override func viewDidLayoutSubviews() {
@@ -87,12 +109,114 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate {
   }
 
   func scrollViewDidScroll(_ scrollView: UIScrollView) {
+    trackBottomPull()
     syncCanvasTransform()
   }
 
   func scrollViewDidZoom(_ scrollView: UIScrollView) {
     updateContentInsets()
     syncCanvasTransform()
+  }
+
+  func scrollViewWillEndDragging(
+    _ scrollView: UIScrollView,
+    withVelocity velocity: CGPoint,
+    targetContentOffset: UnsafeMutablePointer<CGPoint>
+  ) {
+    releasedPullWasArmed =
+      addPageFooter.state == .pulling &&
+      pullGate.release(at: CACurrentMediaTime())
+    cancelPullReadyTimer()
+  }
+
+  private func configureBottomPull() {
+    addPageFooter.setTitle("Pull and hold to add a page", for: .idle)
+    addPageFooter.setTitle("Hold to add a page", for: .pulling)
+    addPageFooter.setTitle("Adding page…", for: .refreshing)
+    scrollView.mj_footer = addPageFooter
+  }
+
+  private func trackBottomPull() {
+    let pulling = addPageFooter.state == .pulling
+    guard pulling != footerWasPulling else { return }
+    footerWasPulling = pulling
+
+    if pulling {
+      pullGate.becameReady(at: CACurrentMediaTime())
+      addPageFooter.setTitle("Hold to add a page", for: .pulling)
+      pullReadyTimer = Timer.scheduledTimer(
+        withTimeInterval: HeldPullGate.holdDuration,
+        repeats: false
+      ) { [weak self] _ in
+        guard let self, self.addPageFooter.state == .pulling else { return }
+        self.addPageFooter.setTitle("Release to add a page", for: .pulling)
+      }
+      return
+    }
+
+    cancelPullReadyTimer()
+    if addPageFooter.state != .refreshing {
+      pullGate.leftReady()
+    }
+  }
+
+  private func completeBottomPull() {
+    let shouldAdd = releasedPullWasArmed
+    releasedPullWasArmed = false
+    footerWasPulling = false
+    pullGate.leftReady()
+    cancelPullReadyTimer()
+
+    guard shouldAdd else {
+      addPageFooter.endRefreshing()
+      return
+    }
+
+    do {
+      try document.appendPage()
+      refreshDocumentGeometry()
+      onEditCommitted()
+      addPageFooter.endRefreshing()
+      DispatchQueue.main.async { [weak self] in
+        self?.scrollToDocumentEnd()
+      }
+    } catch {
+      addPageFooter.endRefreshing()
+      onError(error)
+    }
+  }
+
+  private func cancelPullReadyTimer() {
+    pullReadyTimer?.invalidate()
+    pullReadyTimer = nil
+  }
+
+  private func refreshDocumentGeometry() {
+    let zoom = scrollView.zoomScale
+    if zoom != 1 {
+      scrollView.setZoomScale(1, animated: false)
+    }
+
+    documentSize = document.contentSize()
+    documentView.frame = CGRect(origin: .zero, size: documentSize)
+    scrollView.contentSize = documentSize
+
+    if zoom != 1 {
+      scrollView.setZoomScale(zoom, animated: false)
+    }
+    updateContentInsets()
+    syncCanvasTransform()
+  }
+
+  private func scrollToDocumentEnd() {
+    let minimumY = -scrollView.adjustedContentInset.top
+    let maximumY = max(
+      minimumY,
+      scrollView.contentSize.height - scrollView.bounds.height +
+        scrollView.adjustedContentInset.bottom)
+    scrollView.setContentOffset(
+      CGPoint(x: scrollView.contentOffset.x, y: maximumY),
+      animated: true)
   }
 
   private func updateContentInsets() {
@@ -127,14 +251,23 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate {
 struct InkEditorView: UIViewControllerRepresentable {
   let document: EngineDocument
   let onEditCommitted: () -> Void
+  let onError: (Error) -> Void
 
-  init(document: EngineDocument, onEditCommitted: @escaping () -> Void = {}) {
+  init(
+    document: EngineDocument,
+    onEditCommitted: @escaping () -> Void = {},
+    onError: @escaping (Error) -> Void = { _ in }
+  ) {
     self.document = document
     self.onEditCommitted = onEditCommitted
+    self.onError = onError
   }
 
   func makeUIViewController(context: Context) -> InkEditorViewController {
-    InkEditorViewController(document: document, onEditCommitted: onEditCommitted)
+    InkEditorViewController(
+      document: document,
+      onEditCommitted: onEditCommitted,
+      onError: onError)
   }
 
   func updateUIViewController(_ uiViewController: InkEditorViewController, context: Context) {}

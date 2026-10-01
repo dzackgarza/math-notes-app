@@ -3,6 +3,20 @@ import XCTest
 @testable import MathNotes
 
 final class NotebookStorageTests: XCTestCase {
+  @MainActor
+  func testAppendPageUsesTheSharedDocumentAndBecomesDirty() throws {
+    let document = EngineDocument(seed: 7)
+    XCTAssertEqual(try document.pageCount(), 1)
+    try document.markSaved()
+
+    try document.appendPage()
+
+    XCTAssertEqual(try document.pageCount(), 2)
+    XCTAssertEqual(
+      try document.dirtyFiles().map(\.path),
+      ["notebook.json", "pages/0002.svg"])
+  }
+
   func testWritesAssetsThenPagesThenNotebookMetadataThenDeletes() {
     let changes = [
       EngineFileChange(path: "pages/0002.svg", kind: .delete),

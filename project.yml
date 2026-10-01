@@ -3,6 +3,11 @@ name: MathNotes
 options:
   bundleIdPrefix: dev.zack
 
+packages:
+  MJRefresh:
+    url: https://github.com/CoderMJLee/MJRefresh
+    exactVersion: 3.7.9
+
 targets:
   MathNotes:
     type: application
@@ -13,6 +18,7 @@ targets:
     dependencies:
       - framework: build/InkEngine.xcframework
         embed: false
+      - package: MJRefresh
       - sdk: libc++.tbd
     info:
       path: Sources/Info.plist
