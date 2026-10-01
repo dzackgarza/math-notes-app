@@ -1178,11 +1178,13 @@ async function openNewNote(page: Page, title: string, paper?: string): Promise<{
   return { box, cdp: await page.context().newCDPSession(page) };
 }
 
-// The editor leaves a desk margin around the pages at zoom 1 (deskMargin in
-// editor_screen.dart). The first page's screen rectangle in a canvas.
+// The editor leaves a desk margin around the pages at zoom 1 (deskMargin and
+// deskLeft in editor_screen.dart); on the left it clears the floating rail.
+// The first page's screen rectangle in a canvas.
 const DESK_MARGIN = 16;
+const DESK_LEFT = 8 + 60 + DESK_MARGIN;
 function pageIn(canvas: Box): Box {
-  return { x: canvas.x + DESK_MARGIN, y: canvas.y + DESK_MARGIN, width: canvas.width - 2 * DESK_MARGIN, height: canvas.height - DESK_MARGIN };
+  return { x: canvas.x + DESK_LEFT, y: canvas.y + DESK_MARGIN, width: canvas.width - DESK_LEFT - DESK_MARGIN, height: canvas.height - DESK_MARGIN };
 }
 
 // WCAG relative luminance: https://www.w3.org/TR/WCAG22/#dfn-relative-luminance
@@ -2249,20 +2251,21 @@ test("Flutter Tab reaches every editor control and finishes each library region 
   expect(editor.indexOf("More"), "Tab finishes the top bar before the rail").toBeLessThan(editor.indexOf("Pen"));
 });
 
-test("Flutter places the tool rail on the left edge beside the page and hides tools from the menus", async ({ page }, info) => {
+test("Flutter floats the tool rail at the left edge beside the page and hides tools from the menus", async ({ page }, info) => {
   test.setTimeout(120_000);
   const { box } = await openNewNote(page, "Chrome");
   const button = (name: string) => page.getByRole("button", { name, exact: true });
 
-  // The rail is a dark column at the left edge. Each tool and history
-  // control is in it, and none of them covers the page.
+  // The rail is a dark panel that floats over the desk at the left edge of
+  // the canvas. Each tool and history control is in it, and at zoom 1 none
+  // of them covers the page.
   const pen = await boxOf(button("Pen"));
-  expect(pen.x, "the rail is on the left edge").toBeLessThan(16);
+  expect(pen.x - box.x, "the rail is at the left edge of the canvas").toBeLessThan(24);
   const controls = ["Pen", "Lasso", "Insert space", "Undo", "Redo"].map((name) => [name, button(name)] as const);
   for (const [name, locator] of [...controls, ["Colors", page.getByRole("button", { name: COLORS })] as const]) {
     const control = await boxOf(locator);
     expect(control.width, `${name} is a 44 px target`).toBeGreaterThanOrEqual(44);
-    expect(control.x + control.width, `${name} does not cover the page`).toBeLessThanOrEqual(box.x);
+    expect(control.x + control.width, `${name} does not cover the page`).toBeLessThanOrEqual(pageIn(box).x);
   }
   // The whole rail fits the 720 px window without scrolling, 8 px between targets.
   const marker = await boxOf(button("Marker"));
@@ -2271,8 +2274,13 @@ test("Flutter places the tool rail on the left edge beside the page and hides to
   if (!colors) throw new Error("Colors has no bounds");
   expect(colors.y + colors.height, "the rail fits the window").toBeLessThanOrEqual(720);
   expect(pen.y, "the rail starts below the top bar").toBeGreaterThanOrEqual(box.y);
-  const rail = await centerPixel(page, { x: 4, y: pen.y + pen.height / 2 });
+  const rail = await centerPixel(page, { x: pen.x - 4, y: pen.y + pen.height / 2 });
   expect(brightness(rail), "the rail is dark").toBeLessThan(150);
+  // The rail floats: the desk, darkened only by the rail's shadow, shows on
+  // each side of it and below it.
+  for (const at of [{ x: box.x + 3, y: pen.y + pen.height / 2 }, { x: pen.x + pen.width + 14, y: pen.y + pen.height / 2 }, { x: pen.x + pen.width / 2, y: colors.y + colors.height + 30 }]) {
+    expect(brightness(await centerPixel(page, at)), `the desk shows around the rail at ${at.x}, ${at.y}`).toBeGreaterThan(500);
+  }
   // A hovered rail button shows a tint behind its icon.
   const tint = { x: marker.x + marker.width / 2, y: marker.y + 4 };
   const idle = brightness(await centerPixel(page, tint));
@@ -2285,7 +2293,7 @@ test("Flutter places the tool rail on the left edge beside the page and hides to
   const firstRow = await centerPixel(page, { x: box.x + 100, y: box.y + 100 });
   expect(brightness(firstRow), "the first writing row of the page is clear").toBeGreaterThan(600);
   // The page is a sheet on the desk: a desk margin shows on each side.
-  for (const at of [{ x: box.x + 4, y: box.y + 200 }, { x: box.x + box.width - 4, y: box.y + 200 }, { x: box.x + 200, y: box.y + 4 }]) {
+  for (const at of [{ x: box.x + box.width - 4, y: box.y + 200 }, { x: box.x + 200, y: box.y + 4 }]) {
     const desk = await centerPixel(page, at);
     expect(desk.every((channel, i) => Math.abs(channel - [233, 235, 239][i]) < 6), `the desk shows at ${at.x}, ${at.y}: ${desk}`).toBe(true);
   }
@@ -3499,7 +3507,7 @@ test("Flutter menus, alerts, action sheets, and sheets blur the handwriting behi
   // The closing menu still holds a "Go to page" label.
   const title = await boxOf(page.getByRole("alertdialog").getByText("Go to page", { exact: true }));
   await blurred(title.x - 10, title.y - 6, title.y + title.height + 6, "the alert");
-  await blurred(box.x + 60, title.y - 20, title.y + 40, "the scrim beside the alert");
+  await blurred(box.x + 120, title.y - 20, title.y + 40, "the scrim beside the alert");
   expect(await capture(page, { x: title.x - 10, y: title.y + title.height / 2, width: 1, height: 1 }), "the alert is surface2, not Cupertino gray").toEqual([[0x28, 0x32, 0x47]]);
   await page.screenshot({ path: info.outputPath("alert.png") });
   await button("Cancel").click();
@@ -4488,7 +4496,7 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   await button("Highlighter").click();
   await penStroke(cdp, line(box.x + 200, box.x + 500, box.y + 200), 0.6);
   await button("Pen").click();
-  await penStroke(cdp, line(box.x + 40, box.x + 140, box.y + 350), 0.6);
+  await penStroke(cdp, line(box.x + 120, box.x + 220, box.y + 350), 0.6);
   expect((await savedPages(page, "paper", notebook)).map((p) => p.strokes), "the highlight and the note are saved").toEqual([2, 0]);
   await shot("paper");
   await button(title).click();

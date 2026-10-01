@@ -178,14 +178,16 @@ class _EditorScreenState extends State<EditorScreen> {
   bool get horizontal => arrangement.value == 1;
   // The desk shows around the pages (docs/specs/tablet-ui.md, "Pages in the
   // editor"): a margin in view pixels at zoom 1 that zooms with the pages.
+  // On the left the margin also clears the floating rail.
   static const deskMargin = 16.0;
+  static const deskLeft = railInset + railWidth + deskMargin;
   // Horizontal scroll fits the page height to the view; the others fit the
-  // content width. Both leave the desk margin on each side.
+  // content width. Both leave the desk margins.
   double get fit {
     final content = widget.note.document.contentSize();
     return horizontal
         ? (height - 2 * deskMargin) / content.height
-        : (width - 2 * deskMargin) / content.width;
+        : (width - deskLeft - deskMargin) / content.width;
   }
 
   String get saveLabel => drawing
@@ -362,9 +364,7 @@ class _EditorScreenState extends State<EditorScreen> {
       0,
       0,
       fit * scale,
-      matrix.storage[12] +
-          deskMargin * scale -
-          (horizontal ? offset * scale : 0),
+      matrix.storage[12] + deskLeft * scale - (horizontal ? offset * scale : 0),
       matrix.storage[13] +
           deskMargin * scale -
           (horizontal ? 0 : offset * scale),
@@ -1073,7 +1073,7 @@ class _EditorScreenState extends State<EditorScreen> {
     final x =
         (position.dx -
                 matrix.storage[12] -
-                deskMargin * scale +
+                deskLeft * scale +
                 (horizontal ? along : 0)) /
             (fit * scale) -
         rect.x;
@@ -1224,7 +1224,6 @@ class _EditorScreenState extends State<EditorScreen> {
                 Expanded(
                   child: Row(
                     children: [
-                      FocusTraversalGroup(child: rail()),
                       Expanded(
                         child: LayoutBuilder(
                           builder: (context, constraints) {
@@ -1397,7 +1396,8 @@ class _EditorScreenState extends State<EditorScreen> {
                                                                         .contentSize()
                                                                         .width *
                                                                     fit +
-                                                                2 * deskMargin
+                                                                deskLeft +
+                                                                deskMargin
                                                           : width,
                                                       height: horizontal
                                                           ? height
@@ -1430,6 +1430,18 @@ class _EditorScreenState extends State<EditorScreen> {
                                           ),
                                         ),
                                       ),
+                                    Positioned(
+                                      left: railInset,
+                                      top: railInset,
+                                      child: ConstrainedBox(
+                                        constraints: BoxConstraints(
+                                          maxHeight: height - 2 * railInset,
+                                        ),
+                                        child: FocusTraversalGroup(
+                                          child: rail(),
+                                        ),
+                                      ),
+                                    ),
                                     ...overlays(),
                                   ],
                                 ),

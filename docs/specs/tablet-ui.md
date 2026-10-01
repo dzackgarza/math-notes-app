@@ -88,16 +88,17 @@ toolbar and the tool popovers:
 - **Page context menu** (long press or secondary click on the page): paste
   at that page; save to clippings.
 - **Delete page** shows a toast with **Undo**.
-- **Toolbar**: a vertical rail with a separator edge on the left edge of the
-  editor.
-  The page area starts to the right of the rail, so the rail covers no
-  writing. Icons without text labels, in separated groups: the tools (pen,
+- **Toolbar**: a floating vertical rail: a rounded panel with the floating
+  shadow, inset 8 px from the left and top edges of the canvas. The canvas
+  and the desk continue behind and around it. At zoom 1 the desk margin on
+  the left of the page clears the rail, so the rail covers no writing; a
+  zoomed or panned page passes under it. Icons without text labels, in separated groups: the tools (pen,
   marker, highlighter, eraser, lasso); the inserters (text, image, insert
   space, drawing mode, clippings); history (undo, redo); and one dot showing
   the current color. Each target is 44 × 44 pt with 8 pt between targets;
   between groups, the separator line sits in that gap. All targets fit a
-  720 px high window. The rail scrolls vertically when its content is taller
-  than the editor.
+  720 px high window. The rail is as tall as its content and scrolls
+  vertically when its content is taller than the canvas.
 - **Tool popover**: a tap on the selected tool opens its popover. The
   popover edits the settings of that tool only and never changes the tool.
   - Pen, marker, and highlighter: a stroke sample drawn by the engine; five
@@ -118,14 +119,15 @@ toolbar and the tool popovers:
   button turns a rewind dial around the button, as in Write
   (`ButtonDragDial` in `syncscribble/touchwidgets.cpp`): each dial step
   undoes or redoes one edit.
-- **Page** area: under the top bar and to the right of the rail. Fit width
+- **Page** area: the canvas under the top bar, behind the rail. Fit width
   keeps the current scroll position.
 
 ## Pages in the editor
 
 - Pages have a 6 pt desk-colored gap between them. Each page is a sheet with
   a shadow on the desk color. In the default view a page fills the canvas
-  width less a desk margin on each side.
+  width less a desk margin on each side; the left margin also clears the
+  rail.
 - One finger pans the pages. Two fingers pinch to zoom. Pen input draws.
 - Flutter with Cupertino owns the complete web GUI and its input, focus,
   navigation, and controls. UIKit owns the independent iPad GUI.

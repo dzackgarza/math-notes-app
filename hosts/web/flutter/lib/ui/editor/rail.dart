@@ -1,6 +1,8 @@
 part of 'editor_screen.dart';
 
 const railWidth = 60.0;
+// The gap between the floating rail and the canvas edges.
+const railInset = 8.0;
 
 // The writing tools, the inserters, and history, in the rail's groups
 // (docs/specs/tablet-ui.md, Editor).
@@ -216,16 +218,20 @@ extension _EditorRail on _EditorScreenState {
         : null,
   );
 
-  // The rail on the left edge of the page area: tools, inserters, history,
-  // and the current color. Popovers open to its right, over the page.
+  // The rail floats over the desk at the left edge of the canvas: tools,
+  // inserters, history, and the current color. Popovers open to its right,
+  // over the page.
   Widget rail() => Container(
     width: railWidth,
-    decoration: const BoxDecoration(
+    clipBehavior: Clip.antiAlias,
+    decoration: BoxDecoration(
       color: surface1,
-      border: Border(right: BorderSide(color: separator)),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: separator),
+      boxShadow: floatingShadow,
     ),
     child: SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Column(
         children: [
           for (final (i, group) in [
