@@ -203,11 +203,13 @@ extension _EditorRail on _EditorScreenState {
     ),
   );
 
-  Widget railGap() => Container(
-    width: 28,
-    height: 1,
-    margin: const EdgeInsets.symmetric(vertical: 8),
-    color: separator,
+  // 8 pt between targets. Between groups the separator line sits in that
+  // gap, so 13 targets fit a 720 px window (docs/specs/tablet-ui.md).
+  Widget railGap({bool line = false}) => SizedBox(
+    height: 8,
+    child: line
+        ? Center(child: Container(width: 28, height: 1, color: separator))
+        : null,
   );
 
   // The rail on the left edge of the page area: tools, inserters, history,
@@ -219,53 +221,63 @@ extension _EditorRail on _EditorScreenState {
       border: Border(right: BorderSide(color: separator)),
     ),
     child: SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 2),
       child: Column(
-        spacing: 8,
         children: [
-          for (final kind in _railTools)
-            if (!hiddenTools.contains(kind)) kindButton(kind),
-          railGap(),
-          for (final kind in _railInserters)
-            if (!hiddenTools.contains(kind)) kindButton(kind),
-          toolButton(
-            'Clippings',
-            LucideIcons.inbox,
-            selected: clippingsOpen,
-            onPressed: (_) => run(() async {
-              if (!clippingsOpen) await refreshClippings();
-              clippingsOpen = !clippingsOpen;
-            }),
-          ),
-          railGap(),
-          MergeSemantics(
-            child: UndoDial(
-              enabled: !drawing,
-              onStep: (direction) => history(direction > 0),
-              child: Semantics(
-                label: 'Undo',
-                button: true,
-                enabled: !drawing,
-                onTap: () => history(false),
-                excludeSemantics: true,
-                child: SizedBox(
-                  width: 44,
-                  height: 44,
-                  child: Icon(
-                    LucideIcons.undo2,
-                    color: drawing ? tertiaryLabel : label,
+          for (final (i, group) in [
+            [
+              for (final kind in _railTools)
+                if (!hiddenTools.contains(kind)) kindButton(kind),
+            ],
+            [
+              for (final kind in _railInserters)
+                if (!hiddenTools.contains(kind)) kindButton(kind),
+              toolButton(
+                'Clippings',
+                LucideIcons.inbox,
+                selected: clippingsOpen,
+                onPressed: (_) => run(() async {
+                  if (!clippingsOpen) await refreshClippings();
+                  clippingsOpen = !clippingsOpen;
+                }),
+              ),
+            ],
+            [
+              MergeSemantics(
+                child: UndoDial(
+                  enabled: !drawing,
+                  onStep: (direction) => history(direction > 0),
+                  child: Semantics(
+                    label: 'Undo',
+                    button: true,
+                    enabled: !drawing,
+                    onTap: () => history(false),
+                    excludeSemantics: true,
+                    child: SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: Icon(
+                        LucideIcons.undo2,
+                        color: drawing ? tertiaryLabel : label,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
-          toolButton(
-            'Redo',
-            LucideIcons.redo2,
-            onPressed: drawing ? null : (_) => history(true),
-          ),
-          railGap(),
-          colorDot(),
+              toolButton(
+                'Redo',
+                LucideIcons.redo2,
+                onPressed: drawing ? null : (_) => history(true),
+              ),
+            ],
+            [colorDot()],
+          ].where((group) => group.isNotEmpty).indexed) ...[
+            if (i > 0) railGap(line: true),
+            for (final (j, control) in group.indexed) ...[
+              if (j > 0) railGap(),
+              control,
+            ],
+          ],
         ],
       ),
     ),

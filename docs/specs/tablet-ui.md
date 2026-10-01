@@ -93,9 +93,10 @@ toolbar and the tool popovers:
   writing. Icons without text labels, in separated groups: the tools (pen,
   marker, highlighter, eraser, lasso); the inserters (text, image, insert
   space, drawing mode, clippings); history (undo, redo); and one dot showing
-  the current color. Each target is 44 × 44 pt with at least 8 pt between
-  targets. The rail scrolls vertically when its content is taller than the
-  editor.
+  the current color. Each target is 44 × 44 pt with 8 pt between targets;
+  between groups, the separator line sits in that gap. All targets fit a
+  720 px high window. The rail scrolls vertically when its content is taller
+  than the editor.
 - **Tool popover**: a tap on the selected tool opens its popover. The
   popover edits the settings of that tool only and never changes the tool.
   - Pen, marker, and highlighter: a stroke sample drawn by the engine; five

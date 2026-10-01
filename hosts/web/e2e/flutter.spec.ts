@@ -2206,7 +2206,14 @@ test("Flutter places the tool rail on the left edge beside the page and hides to
     expect(control.width, `${name} is a 44 px target`).toBeGreaterThanOrEqual(44);
     expect(control.x + control.width, `${name} does not cover the page`).toBeLessThanOrEqual(box.x);
   }
-  const rail = await centerPixel(page, { x: 4, y: pen.y + pen.height / 2 });
+  // The whole rail fits the 720 px window without scrolling, 8 px between targets.
+  const marker = await boxOf(button("Marker"));
+  expect(marker.y - (pen.y + pen.height), "8 px between targets").toBeGreaterThanOrEqual(8);
+  const colors = await page.getByRole("button", { name: COLORS }).boundingBox();
+  if (!colors) throw new Error("Colors has no bounds");
+  expect(colors.y + colors.height, "the rail fits the window").toBeLessThanOrEqual(720);
+  expect(pen.y, "the rail starts below the top bar").toBeGreaterThanOrEqual(box.y);
+  const rail =await centerPixel(page, { x: 4, y: pen.y + pen.height / 2 });
   expect(brightness(rail), "the rail is dark").toBeLessThan(150);
   const library = await boxOf(button("Library"));
   const topBar = await centerPixel(page, { x: 300, y: library.y + library.height / 2 });
