@@ -46,6 +46,9 @@ function render(engine: Engine, json: Uint8Array<ArrayBuffer>, page: { path: str
 }
 
 const pending = new Map<string, Promise<Blob | null>>();
+// The last load for each note path. Loads for one path run one after
+// another, because each removes the cache entries of the one before.
+const latest = new Map<string, Promise<Blob | null>>();
 // The last thumbnail loaded for each note path, shown while a rescan checks
 // the cache again.
 const shown = new Map<string, Blob>();
@@ -83,8 +86,18 @@ function imagePaths(file: string, svg: string): string[] {
 }
 
 async function load(engine: Engine, root: FileSystemDirectoryHandle, note: Note): Promise<Blob | null> {
-  const dir = await directoryAt(root, note.path);
-  const json = new Uint8Array(await (await (await dir.getFileHandle("notebook.json")).getFile()).arrayBuffer());
+  // A note that moved or went to the trash after the library listed it has
+  // no thumbnail at that path; the next listing asks for its new path.
+  let dir: FileSystemDirectoryHandle;
+  try {
+    dir = await directoryAt(root, note.path);
+  } catch (e) {
+    if (notFound(e)) return null;
+    throw e;
+  }
+  const notebook = await fileAt(dir, "notebook.json");
+  if (!notebook) return null;
+  const json = new Uint8Array(await notebook.arrayBuffer());
   const { pages } = JSON.parse(new TextDecoder().decode(json)) as { pages?: { file: string }[] };
   const first = pages?.[0]?.file;
   if (!first) return null;
@@ -125,17 +138,26 @@ async function load(engine: Engine, root: FileSystemDirectoryHandle, note: Note)
 // The thumbnail of `note`'s page 1, or null for a note without one. Requests
 // for one note while its thumbnail loads share the load.
 export function noteThumbnail(engine: Engine, root: FileSystemDirectoryHandle, note: Note): Promise<Blob | null> {
-  const id = `${pathKey(note.path)}@${note.modified}`;
+  const path = pathKey(note.path);
+  const id = `${path}@${note.modified}`;
   let request = pending.get(id);
   if (!request) {
-    request = load(engine, root, note)
+    // The previous load's failure went to its own caller.
+    const previous = (latest.get(path) ?? Promise.resolve(null)).catch(() => null);
+    const current: Promise<Blob | null> = previous
+      .then(() => load(engine, root, note))
       .then((blob) => {
-        if (blob) shown.set(pathKey(note.path), blob);
-        else shown.delete(pathKey(note.path));
+        if (blob) shown.set(path, blob);
+        else shown.delete(path);
         return blob;
       })
-      .finally(() => pending.delete(id));
+      .finally(() => {
+        pending.delete(id);
+        if (latest.get(path) === current) latest.delete(path);
+      });
+    request = current;
     pending.set(id, request);
+    latest.set(path, request);
   }
   return request;
 }
