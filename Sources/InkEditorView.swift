@@ -389,7 +389,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private func syncCanvasTransform() {
     guard canvasView.bounds.width > 0, canvasView.bounds.height > 0 else { return }
 
-    let origin = documentView.convert(.zero, to: canvasView)
+    let origin = documentView.convert(CGPoint.zero, to: canvasView)
     let xUnit = documentView.convert(CGPoint(x: 1, y: 0), to: canvasView)
     let yUnit = documentView.convert(CGPoint(x: 0, y: 1), to: canvasView)
     canvasView.setViewTransform(
