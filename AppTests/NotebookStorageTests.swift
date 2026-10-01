@@ -34,6 +34,16 @@ final class NotebookStorageTests: XCTestCase {
     XCTAssertEqual(try document.pageCount(), 3)
   }
 
+  @MainActor
+  func testPDFExportUsesTheSharedDocument() throws {
+    let document = EngineDocument(seed: 17)
+
+    let pdf = try document.exportPDF(title: "Export Test")
+
+    XCTAssertGreaterThan(pdf.count, 5)
+    XCTAssertEqual(String(decoding: pdf.prefix(5), as: UTF8.self), "%PDF-")
+  }
+
   func testWritesAssetsThenPagesThenNotebookMetadataThenDeletes() {
     let changes = [
       EngineFileChange(path: "pages/0002.svg", kind: .delete),

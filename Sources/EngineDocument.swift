@@ -142,6 +142,33 @@ final class EngineDocument {
     }
   }
 
+  func exportPDF(
+    title: String,
+    firstPage: Int = 0,
+    pageCount requestedPageCount: Int? = nil
+  ) throws -> Data {
+    let count: Int
+    if let requestedPageCount {
+      count = requestedPageCount
+    } else {
+      count = try pageCount() - firstPage
+    }
+    var spec = InkPdfExportSpec()
+    spec.first_page = firstPage
+    spec.page_count = count
+    spec.include_links = 1
+    spec.include_hidden_layers = 0
+
+    var bytes: UnsafePointer<UInt8>?
+    var size = 0
+    let status = title.withCString { titleBytes in
+      ink_export_pdf(pointer, titleBytes, &spec, &bytes, &size)
+    }
+    try check(status, operation: "Export PDF")
+    guard size > 0, let bytes else { return Data() }
+    return Data(bytes: bytes, count: size)
+  }
+
   func markSaved() throws {
     try check(ink_document_mark_saved(pointer), operation: "Mark notebook saved")
   }

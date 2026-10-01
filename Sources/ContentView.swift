@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 @MainActor
@@ -17,6 +18,7 @@ struct ContentView: View {
   @State private var selectedTool: EditorTool = .pen
   @State private var currentPage = 0
   @State private var documentRevision = 0
+  @State private var sharePayload: SharePayload?
 
   var body: some View {
     NavigationStack {
@@ -42,6 +44,9 @@ struct ContentView: View {
               }
               ToolbarItem(placement: .topBarTrailing) {
                 pagesMenu(session)
+              }
+              ToolbarItem(placement: .topBarTrailing) {
+                documentMenu(session)
               }
             }
         } else if let root {
@@ -70,6 +75,9 @@ struct ContentView: View {
           showingFolderPicker = false
         })
     }
+    .sheet(item: $sharePayload) { payload in
+      ActivityShareSheet(url: payload.url)
+    }
     .alert(
       "Math Notes",
       isPresented: Binding(
@@ -86,6 +94,25 @@ struct ContentView: View {
     }
     .task {
       restoreSavedRoot()
+    }
+  }
+
+  @ViewBuilder
+  private func documentMenu(_ session: NotebookSession) -> some View {
+    Menu {
+      Button("Save", systemImage: "square.and.arrow.down") {
+        saveOpenNotebook()
+      }
+      Button("Share PDF", systemImage: "square.and.arrow.up") {
+        sharePDF(session)
+      }
+      Divider()
+      Button("Close note", systemImage: "xmark") {
+        self.session = nil
+        refreshLibrary()
+      }
+    } label: {
+      Label("More", systemImage: "ellipsis")
     }
   }
 
@@ -231,6 +258,21 @@ struct ContentView: View {
     }
   }
 
+  private func sharePDF(_ session: NotebookSession) {
+    do {
+      try saveOpenNotebookThrowing()
+      let data = try session.document.exportPDF(title: session.reference.name)
+      let safeName = session.reference.name.replacingOccurrences(of: "/", with: "-")
+      let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent(safeName)
+        .appendingPathExtension("pdf")
+      try data.write(to: url, options: .atomic)
+      sharePayload = SharePayload(url: url)
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
   private func editPages(
     _ session: NotebookSession,
     _ action: (EngineDocument) throws -> Void
@@ -244,10 +286,14 @@ struct ContentView: View {
     }
   }
 
-  private func saveOpenNotebook() {
+  private func saveOpenNotebookThrowing() throws {
     guard let root, let session else { return }
+    try root.save(session.document, notebook: session.reference)
+  }
+
+  private func saveOpenNotebook() {
     do {
-      try root.save(session.document, notebook: session.reference)
+      try saveOpenNotebookThrowing()
     } catch {
       errorMessage = error.localizedDescription
     }
