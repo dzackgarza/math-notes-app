@@ -13,11 +13,24 @@ test.afterEach(async ({ page }, info) => {
   await info.attach("pointers.txt", { body: log.join("\n"), contentType: "text/plain" });
 });
 
+// Two animation frames: Flutter has drawn and sent what the last input
+// changed.
+async function frames(page: Page): Promise<void> {
+  await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
+}
+
 // Flutter activates its text input channel after semantic focus is delivered.
 // Use actual keyboard input after clicking, rather than fill's synchronous DOM
 // value assignment. See Flutter web_ui semantics/text_field.dart, activate.
-async function enterText(field: Locator, value: string): Promise<void> {
+// The framework then sends the caret of the click to the input; a select-all
+// before that arrives is undone (TRAPS.md).
+async function focusText(field: Locator): Promise<void> {
   await field.click();
+  await frames(field.page());
+}
+
+async function enterText(field: Locator, value: string): Promise<void> {
+  await focusText(field);
   await field.press("ControlOrMeta+a");
   await field.pressSequentially(value);
 }
@@ -1209,7 +1222,7 @@ async function contrastIn(page: Page, locator: Locator): Promise<number> {
 // was drawn at that point (TRAPS.md).
 async function inView(locator: Locator): Promise<Locator> {
   await locator.scrollIntoViewIfNeeded();
-  await locator.page().evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
+  await frames(locator.page());
   return locator;
 }
 
@@ -1730,7 +1743,7 @@ test("Flutter places typed text boxes, wraps them at a width, and edits and dele
 
   // A box with no text is deleted; undo restores it.
   await edit({ x: lemma.left + 30, y: lemma.top + 10 }, "Lemma", "300");
-  await text.click();
+  await focusText(text);
   await text.press("ControlOrMeta+a");
   await text.press("Backspace");
   await done();
@@ -2092,7 +2105,9 @@ test("Flutter tool popovers set size, opacity, and the brush of each pen type", 
 
   await tool("Pen").click();
   await tool("Advanced").click();
-  const opacity = page.getByRole("slider", { name: "Opacity", exact: true });
+  // Flutter web puts a slider's label on its semantics host, not on the
+  // range input that has the slider role (TRAPS.md).
+  const opacity = page.getByLabel("Opacity", { exact: true });
   const track = await boxOf(opacity);
   // A Cupertino slider moves by a drag of its thumb, here at 100%.
   const middle = track.y + track.height / 2;
