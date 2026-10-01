@@ -200,3 +200,25 @@ Not measurable with this setup: `dynamic-type` (Chrome has no system text-size s
 | Not measurable | 4 |
 
 Every CRITICAL-tier failure traces to four root causes: the accent used as text on dark surfaces (contrast), icon controls with no visible label and no exposed state, the editor's nav bar and toolbar left out of the keyboard focus order, and the 18-control pill (targets). The HIGH-tier style failures trace to the four-color theme override and the absent elevation scale; the navigation failures trace to the missing object model.
+
+# Live checks
+
+Yes. The "Not inspected" list is now measured in the deployed app and the audit is updated (`5385a7b`). The Chrome extension dropped Tab key events and reported a 940×103 viewport, so the measurements came from Playwright against the same deployment.
+
+What the live checks changed:
+
+| Rule | Result |
+| --- | --- |
+| `aria-labels` | Conforms. Every control has a name: ↕ is "Insert space", the curve is "Drawing mode", "+" is "Edit colors", "Saved" is a status role |
+| `icon-context` | Fails. No tool exposes `aria-pressed`/`aria-selected`; the active tool is a fill only |
+| `keyboard-nav` | Fails. Library Tab order interleaves sidebar and top bar (Library → search field → All → Sort → New Notebook → Search → Recent). In the editor only the tab strip and "Open note" have `tabindex=0`; Pages, View, More and all 18 toolbar controls are unreachable by keyboard |
+| `focus-states` | Conforms: accent ring on the focused control |
+| `press-feedback` | Conforms: pressed icon dims, then takes the selected fill |
+| Hover state | None: hover and idle captures are pixel-identical |
+| `confirmation-dialogs` / `undo-support` | Delete page deletes at once with no confirmation or toast; toolbar Undo restores it (1/2 → 1/1 → 1/2) |
+| `sheet-dismiss-confirm` | Cancel discards a typed title silently; Escape does nothing |
+| `input-labels` | Corrected: the creation sheets do label every field. Only the Insert-text field is placeholder-only, and the note sheet's "Starting Template" label sits over a "Settings name" field |
+
+Still not measurable here: `dynamic-type` (no system text-size setting reaches Flutter in Chrome), `reduced-motion` and animation timing (a CanvasKit screenshot takes ~400 ms, longer than any transition), `form-autosave`.
+
+Totals: 39 violate, 13 conform, 4 not measurable.
