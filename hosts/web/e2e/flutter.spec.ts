@@ -557,7 +557,7 @@ test("Flutter creation resumes a draft and applies saved note settings, includin
   await openTestNotebook(page);
   await page.getByRole("button", { name: "New note", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Title", exact: true })).toHaveValue("Seminar");
-  await page.getByRole("button", { name: "Save as template", exact: true }).click();
+  await (await inView(page.getByRole("button", { name: "Save as template", exact: true }))).click();
   await enterText(page.getByRole("textbox", { name: "Template name", exact: true }), "Proof paper");
   await page.getByRole("button", { name: "Save template", exact: true }).click();
   await expect(page.getByRole("status", { name: "Template saved", exact: true })).toBeVisible();
@@ -566,7 +566,7 @@ test("Flutter creation resumes a draft and applies saved note settings, includin
   await page.getByRole("button", { name: "New note", exact: true }).click();
   await page.getByRole("button", { name: "Plain Paper", exact: true }).click();
   await addTag(page, "temporary");
-  await page.getByRole("button", { name: "Proof paper", exact: false }).click();
+  await (await inView(page.getByRole("button", { name: "Proof paper", exact: false }))).click();
   await expect(page.getByRole("img", { name: "First page preview", exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath("settings-selected.png") });
   await expect(page.getByRole("button", { name: "Remove tag analysis", exact: true })).toBeVisible();
@@ -1199,8 +1199,18 @@ async function contrastIn(page: Page, locator: Locator): Promise<number> {
   return (await textIn(page, { x: box.x + 4, y: box.y + 4, width: box.width - 8, height: box.height - 8 })).contrast;
 }
 
-async function boxOf(locator: Locator): Promise<Box> {
+// Scrolls a control into view and waits until Flutter has drawn the scroll.
+// Playwright scrolls the semantics DOM at once; Flutter scrolls its content
+// in a later frame, and a click before that frame lands on the control that
+// was drawn at that point (TRAPS.md).
+async function inView(locator: Locator): Promise<Locator> {
   await locator.scrollIntoViewIfNeeded();
+  await locator.page().evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
+  return locator;
+}
+
+async function boxOf(locator: Locator): Promise<Box> {
+  await inView(locator);
   const box = await locator.boundingBox();
   if (!box) throw new Error("The element has no bounds");
   return box;
@@ -1250,7 +1260,9 @@ test("Flutter library shows dark chrome, cover colors, aligned creation controls
   const swatch = async (name: string) => {
     const box = await boxOf(button(name));
     const pixels = await capture(page, { x: Math.round(box.x), y: Math.round(box.y), width: 44, height: 44 });
-    return { center: pixels[22 * 44 + 22], ring: pixels.filter(isAccent).length };
+    // The ring lies outside the 28 px fill, whose blue edge pixels pass isAccent.
+    const ring = pixels.filter((rgb, i) => Math.hypot((i % 44) - 21.5, Math.floor(i / 44) - 21.5) > 15.5 && isAccent(rgb));
+    return { center: pixels[22 * 44 + 22], ring: ring.length };
   };
   for (const [name, color] of Object.entries(covers)) {
     expect((await swatch(name)).center, `the ${name} swatch shows its color`).toEqual(color);
@@ -1282,7 +1294,7 @@ test("Flutter library shows dark chrome, cover colors, aligned creation controls
   }
   expect(save.y - (heading.y + heading.height), "Save as template is under the Starting template heading").toBeGreaterThanOrEqual(0);
   expect(save.y - (heading.y + heading.height)).toBeLessThan(30);
-  await button("Save as template").click();
+  await (await inView(button("Save as template"))).click();
   await enterText(page.getByRole("textbox", { name: "Template name", exact: true }), "Proof paper");
   await button("Save template").click();
   await expect(page.getByRole("status", { name: "Template saved", exact: true })).toBeVisible();
@@ -2748,10 +2760,12 @@ test("Flutter inserts pages before and after a page, deletes a page, and sizes n
   await goTo(4);
   await page.screenshot({ path: info.outputPath("letter-landscape.png") });
 
-  await choose("Pages", "Delete page");
+  await button("Pages").click();
+  expect(await contrastIn(page, button("Delete page")), "Delete page is legible").toBeGreaterThan(4.5);
+  await button("Delete page").click();
   await expect(page.getByText(/^\d \/ 6$/)).toBeVisible();
   // The pointer rests on the toast, which holds it open.
-  const toast = page.getByText("Page 4 deleted", { exact: true });
+  const toast = page.getByRole("status", { name: "Page 4 deleted", exact: true });
   await toast.hover();
   expect((await savedPages(page, "Inserts")).map(({ size }) => size), "the landscape Letter page is deleted")
     .toEqual([a4, a4, a4, ...papers.slice(1).map(([, size]) => size)]);
@@ -3451,7 +3465,6 @@ test("Flutter menus, alerts, action sheets, and sheets blur the handwriting behi
   await button("Pages").click();
   const item = await boxOf(button("Go to page"));
   await blurred(item.x + 0.7 * item.width, item.y + 4, item.y + item.height - 4, "the menu");
-  expect(await contrastIn(page, button("Delete page")), "Delete page is legible").toBeGreaterThan(4.5);
 
   await button("Go to page").click();
   const title = await boxOf(page.getByText("Go to page", { exact: true }));
