@@ -13,12 +13,12 @@ The [Write assessment](ink-reflow-owners.md) is input to a post-v1 refactoring
 decision. [Targets and versions](../AGENTS.md#targets-and-versions) gives the
 order: v1 is the web app, v2 is the iPad port.
 
-Earlier architecture sketches listed candidate libraries for ink, text, SVG,
-PDF, indexing, sync, and recognition. They were options to test, not required
-dependencies. Later subsystem decisions and working integrations set the v1
-owners. Optional services enter when their feature is built. The hosts use
-native iPad UI and a browser UI; the document, ink, and rendering engine is
-shared across them.
+The [initial dependency proposal](source/initial-dependency-proposal.md)
+records the earlier component ideas. The [v1 ownership map](V1_OWNERSHIP_MAP.md)
+connects each active requirement to a selected pin, API, adapter, and
+product-specific rule. Later subsystem decisions and working integrations set
+the v1 owners. The hosts use native iPad UI and a browser UI; the document,
+ink, and rendering engine is shared across them.
 
 The look and the
 everyday interaction patterns (page layout, scrolling, adding pages, tool
@@ -26,9 +26,12 @@ chrome, colors, paper) follow GoodNotes and Noteful and the tablet spec
 ([specs/tablet-ui.md](specs/tablet-ui.md)); nothing visual is taken from
 Write.
 
-Work order and milestones: the GitHub issue tree rooted at
+The GitHub issue tree rooted at
 [#11](https://github.com/dzackgarza/math-notes-app/issues/11)
-(`itree next dzackgarza/math-notes-app` gives the next work unit).
+records requirements and gaps. MVP work lands on `main`. The web host
+establishes the complete working product before the iPad port. Build the web
+UI and its feature paths first, then encode user stories as end-to-end tests.
+Add narrower tests after most of the architecture exists.
 
 ```text
        Existing C++20 document and editing engine
@@ -106,8 +109,9 @@ record candidates for specific gaps. They do not change the engine owner.
 - Notebook-wide layers map stable IDs, names, order, visibility, and lock
   state from `notebook.json` to page SVG groups. The app owns this notebook
   rule and uses its existing document history for grouped edits.
-- New features go in the engine or in a host service that both hosts
-  supply, never in one host only. Layers belong to the document model.
+- New domain features go in the shared engine when they change document
+  semantics. Implement host services in the web app first, then supply their
+  iPad counterparts during the port. Layers belong to the document model.
 - Every custom implementation links its ownership decision from the source.
   A justified upstream adaptation also cites the source file, symbol, pinned
   commit, and license.
@@ -193,17 +197,17 @@ call site already uses them. Source evidence and exact pins are in
 | Drag-and-drop and selection manipulation | Flutter owns web input sessions and in-app drag targets; UIKit owns native interaction and external transfers. The current engine owns selection membership and committed object transforms. App adapters map accepted interactions to document coordinates. |
 | Split panes | Flutter owns web layout and input; UIKit/SwiftUI own native panes. #28 composes framework controls and mature Flutter packages where needed for resize behavior and keyboard access. Math Notes stores proportions and links document positions. |
 | History | The existing `DocumentHistory` and Immer document values own undo/redo. The notebook model tracks saved-file identity. |
-| Ink editing | Google Ink owns brush and stroke geometry. The current engine owns document edits, selection, erasure, and notebook mapping. #30 and #31 add ruled tools and reflow at this boundary, using the [Write assessment](ink-reflow-owners.md) as reference evidence. |
-| Persistence and offline lifecycle | File System Access, IndexedDB/idb-keyval, and Apple file coordination own storage mechanisms. #56 integrates offline asset caching and updates with the Flutter web build. The notebook-format and save-transaction adapters retain interruption and conflict behavior. |
+| Ink editing | Google Ink owns brush and stroke geometry. The current engine owns document edits, selection, erasure, and notebook mapping. The [v1 ruled-editing decision](v1-ruled-editing-decision.md) selects a bounded port of pinned Write algorithms for #30 and #31 and names the fixed-page residue. |
+| Persistence and offline lifecycle | File System Access, IndexedDB/idb-keyval, Apple file coordination, and Vite PWA/Workbox own their respective platform mechanisms. #3, #5, and #7 define the minimum notebook-format and save-transaction adapters, including interruption and conflict behavior. |
 | Source syntax and graphics | pugixml 1.16 maps page SVG and InkML/namespaced metadata; nlohmann-json at vcpkg baseline `10541e31` owns notebook JSON syntax. Skia renders the current document. `@tikz-editor/core` owns TikZ syntax and source patches. The adapter maps documented fields and preserves authored source. |
 | Mathematical figures | The [TikZ mode contract](specs/tikz-drawing-mode.md) extracts a geometric TikZ skeleton for external figure refinement. The [permanent product boundary](../AGENTS.md#product-boundary-handwritten-drafts) keeps handwriting as ink and typesetting in external tools. FreeTikZ owns capture, TikZ Editor supplies supported geometry/source operations, and the app owns persistence and Copy TikZ. |
 
 ### Ink reflow owner survey
 
 Issues #30 and #31 deliver ruled selection, erasure, insert space, and reflow
-within the current engine. The [ink assessment](ink-reflow-owners.md) provides
-reference algorithms and a candidate for later ownership review. It does not
-select a v1 engine replacement.
+within the current engine. The [v1 decision](v1-ruled-editing-decision.md)
+selects the source algorithms, engine boundary, and product-owned residue.
+The [whole-editor assessment](ink-reflow-owners.md) is post-v1 work.
 
 ## Dependencies
 
