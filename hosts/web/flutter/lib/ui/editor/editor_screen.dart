@@ -7,7 +7,6 @@ import 'dart:ui_web' as ui_web;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/gestures.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flex_color_picker/flex_color_picker.dart' show ColorWheelPicker;
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -78,8 +77,7 @@ class EditorScreen extends StatefulWidget {
   State<EditorScreen> createState() => _EditorScreenState();
 }
 
-class _EditorScreenState extends State<EditorScreen>
-    with SingleTickerProviderStateMixin {
+class _EditorScreenState extends State<EditorScreen> {
   final scroll = ScrollController();
   final focus = FocusNode();
   bool applyingViewport = false;
@@ -92,7 +90,9 @@ class _EditorScreenState extends State<EditorScreen>
   ui.Image? still;
   bool capturing = false;
   ModalRoute<Object?>? route;
-  late final Ticker ticker;
+  // The pending browser animation frame of the canvas loop, or null while a
+  // TickerMode above the editor turns the loop off.
+  int? frameRequest;
   late final String viewType;
   EditorViewModel get editor => context.read<EditorViewModel>();
   ToolsViewModel get tools => context.read<ToolsViewModel>();
@@ -212,30 +212,6 @@ class _EditorScreenState extends State<EditorScreen>
     transform.addListener(updateView);
     widget.viewport.addListener(receiveViewport);
     widget.destination.addListener(receiveDestination);
-    ticker = createTicker((_) {
-      final covered = !(route?.isCurrent ?? true);
-      if (covered && still == null && !capturing) canvas?.invalidate();
-      final drew = canvas?.render() ?? false;
-      if (covered && drew) unawaited(run(capture));
-      if (!covered && still != null) showStill(null);
-      final next = canvas?.selection();
-      if (next?.count != selection?.count ||
-          next?.x != selection?.x ||
-          next?.y != selection?.y ||
-          next?.width != selection?.width ||
-          next?.height != selection?.height) {
-        setState(() => selection = next);
-        if (!drawing && canvas!.selectedFigure().isNotEmpty) {
-          setState(
-            () => figureSource = native.host.figureSource(
-              widget.note,
-              canvas!,
-              false,
-            ),
-          );
-        }
-      }
-    })..start();
     unawaited(
       run(() async {
         canvas = await native.host.mountCanvas(widget.note, element).toDart;
@@ -263,6 +239,44 @@ class _EditorScreenState extends State<EditorScreen>
   void didChangeDependencies() {
     super.didChangeDependencies();
     route = ModalRoute.of(context);
+    final ticking = TickerMode.valuesOf(context).enabled;
+    if (ticking && frameRequest == null) {
+      frameRequest = web.window.requestAnimationFrame(frame.toJS);
+    }
+    if (!ticking && frameRequest != null) {
+      web.window.cancelAnimationFrame(frameRequest!);
+      frameRequest = null;
+    }
+  }
+
+  // One step of the canvas loop, in a browser animation frame
+  // (MDN, Window.requestAnimationFrame). A Flutter ticker would make Flutter
+  // composite a frame each vsync, and under a dialog's BackdropFilter each
+  // composite takes 300 to 400 ms on SwiftShader.
+  void frame(double _) {
+    frameRequest = web.window.requestAnimationFrame(frame.toJS);
+    final covered = !(route?.isCurrent ?? true);
+    if (covered && still == null && !capturing) canvas?.invalidate();
+    final drew = canvas?.render() ?? false;
+    if (covered && drew) unawaited(run(capture));
+    if (!covered && still != null) showStill(null);
+    final next = canvas?.selection();
+    if (next?.count != selection?.count ||
+        next?.x != selection?.x ||
+        next?.y != selection?.y ||
+        next?.width != selection?.width ||
+        next?.height != selection?.height) {
+      setState(() => selection = next);
+      if (!drawing && canvas!.selectedFigure().isNotEmpty) {
+        setState(
+          () => figureSource = native.host.figureSource(
+            widget.note,
+            canvas!,
+            false,
+          ),
+        );
+      }
+    }
   }
 
   // Reads the frame that the canvas drew in this task: the drawing buffer
@@ -1077,7 +1091,7 @@ class _EditorScreenState extends State<EditorScreen>
     arrangement.removeListener(arrange);
     pullTimer?.cancel();
     focus.dispose();
-    ticker.dispose();
+    if (frameRequest != null) web.window.cancelAnimationFrame(frameRequest!);
     still?.dispose();
     scroll.dispose();
     transform.dispose();
