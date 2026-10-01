@@ -90,7 +90,11 @@ Guidance: `nextlevelbuilder/ui-ux-pro-max-skill` at `09170ee` (2026-09-27): `SKI
 | Rule | Guidance | Observed |
 | --- | --- | --- |
 | `color-contrast`, `color-accessible-pairs` | 4.5:1 normal text, 3:1 large and non-text | 9 of 26 sampled text pairs fail 4.5:1; 4 fail 3:1 (table below) |
-| `aria-labels`, `icon-context`, `nav-label-icon` | Icon-only controls need a name; nav items need icon and label | Nav bar: grid, split, ellipsis with no labels (`08`). Toolbar: ↕ and the curve have no label and no obvious meaning (`08`) |
+| `aria-labels` | Icon-only controls need an accessible name | Conforms: the accessibility tree names every control (Pages, View, More, Pen … Insert space, Drawing mode, Edit colors) and exposes "Saved" as a status |
+| `icon-context` | Icon controls expose selected/pressed state | Fails: no toolbar button carries `aria-pressed` or `aria-selected`; the active tool is a visual fill only |
+| `nav-label-icon` | Nav items need icon and visible text label | Nav bar: grid, split, ellipsis with no visible labels (`08`). Toolbar: ↕ ("Insert space") and the curve ("Drawing mode") have no visible meaning (`08`) |
+| `keyboard-nav` | Tab order matches visual order; full keyboard support | Library: Tab goes Library → search field → All → Sort → New Notebook → Search → Recent …, interleaving the sidebar with the top bar. Editor: only the tab strip and "Open note" have `tabindex=0`; Pages, View, More, and all 18 toolbar controls are unreachable by keyboard |
+| `focus-states` | Visible focus ring | Conforms: accent-blue ring on the focused control |
 | `color-not-only`, `color-not-decorative-only` | Meaning never by color alone | "Delete page" is distinguished only by red, and that red measures 1.57:1 against the menu (`12`) |
 | `escape-routes`, `modal-escape` | Cancel/back in modals | Conforms: Cancel on both creation sheets (`02`, `06`) |
 
@@ -157,7 +161,11 @@ The accent `#2F6FEB` fails as text on every dark surface in the app (3.31:1 on `
 
 | Rule | Guidance | Observed |
 | --- | --- | --- |
-| `input-labels` | Visible label per input, not placeholder-only | "Description", "Settings name", "Text" are placeholder-only fields (`02`, `06`, `17`) |
+| `input-labels` | Visible label per input, not placeholder-only | The creation sheets label every field. The Insert-text field has only the placeholder "Text" (`17`). The note sheet's "Starting Template" label sits over a field whose placeholder reads "Settings name" (`06`): the label and the field describe different things |
+| `confirmation-dialogs`, `undo-support` | Confirm destructive actions; allow undo | Delete page removes the page at once with no confirmation and no undo toast; the toolbar Undo does restore it (1 / 2 → 1 / 1 → 1 / 2). With a single page the item is disabled but still listed |
+| `sheet-dismiss-confirm` | Confirm before discarding unsaved input | Cancel on a creation sheet with a typed title discards it with no confirmation; Escape does nothing |
+| `press-feedback` | Pressed feedback within 80–150 ms | Conforms: the pressed icon dims, then takes the selected fill (`live/press-row.png`) |
+| hover state (`--design-system` output: 200–250 ms hover) | Subtle hover on interactive items | No hover state on sidebar rows or toolbar buttons: hover and idle captures are pixel-identical |
 | `input-helper-text` | Persistent helper text below complex inputs | Conforms where present: "You can move this notebook later.", "Use 0 for the full text width." |
 | `field-grouping` | Related fields grouped | Creation sheet repeats the form as a "Notebook Details" block instead of grouping it (`02`) |
 | `progressive-disclosure` | Reveal complex options progressively | Cover style, paper, and template options all shown at once on a 900×800 sheet (`02`, `06`) |
@@ -177,16 +185,18 @@ The accent `#2F6FEB` fails as text on every dark surface in the app (3.31:1 on `
 | `avoid-mixed-patterns` | Do not mix tab + sidebar + bar at one level | Editor: tab strip, nav bar, and floating pill at one level (`08`) |
 | `search-accessible` | Search reachable from the top bar | Conforms: search field in the library bar (`01`) |
 
-## Not inspected
+## Live checks
 
-Rules that screenshots cannot evidence: `focus-states`, `press-feedback`, `reduced-motion`, `dynamic-type`, `keyboard-nav`, `voiceover-sr` (web accessibility tree), animation timing (§7), `confirmation-dialogs` and `undo-support` for Delete page, `form-autosave`, `sheet-dismiss-confirm`.
+Interaction rules were measured in the deployed app with Playwright (`scratchpad/tabs.mjs`, `live.mjs`, `live2.mjs`; captures in `scratchpad/live/`): the accessibility tree, Tab traversal, pointer press, hover, Escape and Cancel on a dirty sheet, Delete page with two pages, and Undo. The results are in the tables above.
+
+Not measurable with this setup: `dynamic-type` (Chrome has no system text-size setting that reaches Flutter), `reduced-motion` and animation timing (§7) (a CanvasKit screenshot takes about 400 ms, longer than any transition), `form-autosave`.
 
 ## Totals
 
 | Verdict | Rules |
 | --- | --- |
-| Violates | 34 |
-| Conforms | 10 |
-| Not inspected | 11 |
+| Violates | 39 |
+| Conforms | 13 |
+| Not measurable | 4 |
 
-Every CRITICAL-tier failure traces to three root causes already in `COMPLAINTS.md`: the accent used as text on dark surfaces (contrast), unlabeled icon controls (names), and the 18-control pill (targets). The HIGH-tier style failures trace to the four-color theme override and the absent elevation scale; the navigation failures trace to the missing object model.
+Every CRITICAL-tier failure traces to four root causes: the accent used as text on dark surfaces (contrast), icon controls with no visible label and no exposed state, the editor's nav bar and toolbar left out of the keyboard focus order, and the 18-control pill (targets). The HIGH-tier style failures trace to the four-color theme override and the absent elevation scale; the navigation failures trace to the missing object model.
