@@ -68,3 +68,125 @@ So "page" operations are split across two menus by no rule; "⋯" is a 15-item j
 **The nav bar gives no entry point.** "Saved" is a status word next to three icons without labels; the user has to open all three to learn what the app can do, and then finds that the answer is "anything, anywhere".
 
 The fix is an information architecture pass, not a reshuffle: one object model (document / page / selection / view / settings), each action lives with its object, settings leave the menus, navigation leaves the menus, and each surface gets the Cupertino component for its kind.
+
+# Audit against ui-ux-pro-max-skill
+
+Guidance: `nextlevelbuilder/ui-ux-pro-max-skill` at `09170ee` (2026-09-27): `SKILL.md` priority table, `references/quick-reference.md` rule IDs, `references/pro-rules.md` (app polish), `data/products.csv` rows 93 and 128, and `scripts/search.py --design-system` for "handwriting notes stylus notebook drawing tablet dark mode". Evidence: screenshots `01`–`21` at 1366×1024 and portrait. Contrast ratios are computed from screenshot pixels with the WCAG 2.2 formula (glyph core vs. most common surrounding pixel).
+
+## What the guidance prescribes for this product
+
+| Source | Prescription | App |
+| --- | --- | --- |
+| Row 128 Drawing & Sketching Canvas | Minimalism & Swiss + Dark Mode; "neutral canvas + tool panel dark" | Conforms: dark navy chrome, cream paper |
+| Row 93 Notes & Writing App | Minimalism & Swiss + Flat; "clean white/cream + minimal accent"; typography-first | Conforms on paper and accent count; fails on typography (below) |
+| `--design-system` output | Inter; dark neutral palette with low-alpha borders; sharp shadows if any; no pure-white surfaces | Fails on font and on the pure-white pen/marker popovers (`09`, `10`) |
+| `no-emoji-icons`, `icon-style-consistent` | SVG icons, one icon family | Conforms: one outline family in the toolbar |
+| `system-controls` | Native/system controls | Conforms in kind (Cupertino menus, segmented controls, sheets); fails in theming (below) |
+
+## Violations by priority
+
+### 1. Accessibility (CRITICAL)
+
+| Rule | Guidance | Observed |
+| --- | --- | --- |
+| `color-contrast`, `color-accessible-pairs` | 4.5:1 normal text, 3:1 large and non-text | 9 of 26 sampled text pairs fail 4.5:1; 4 fail 3:1 (table below) |
+| `aria-labels`, `icon-context`, `nav-label-icon` | Icon-only controls need a name; nav items need icon and label | Nav bar: grid, split, ellipsis with no labels (`08`). Toolbar: ↕ and the curve have no label and no obvious meaning (`08`) |
+| `color-not-only`, `color-not-decorative-only` | Meaning never by color alone | "Delete page" is distinguished only by red, and that red measures 1.57:1 against the menu (`12`) |
+| `escape-routes`, `modal-escape` | Cancel/back in modals | Conforms: Cancel on both creation sheets (`02`, `06`) |
+
+Measured contrast (text on surface):
+
+| Ratio | Sample | Screenshot | Threshold |
+| --- | --- | --- | --- |
+| 1.57 | "Delete page" red on menu gray | 12 | 4.5 fail |
+| 2.09 | "Niemeier lattices" accent blue on blue-tinted tab | 08 | 4.5 fail |
+| 2.23 | "Description" and "Text" placeholders on `#000` fields | 02, 17 | 4.5 fail |
+| 2.45 | "Save as template" on sheet | 06 | 4.5 fail |
+| 3.31 | Accent-blue sidebar links, "Cancel", "Save as Draft" on chrome/sheet | 01, 02, 06 | 4.5 fail |
+| 3.44 | "Size" label on white popover | 09 | 4.5 fail |
+| 3.56 | "Ink" sublabel in Pages menu | 14 | 4.5 fail |
+| 4.31 | "Page 1 of 1" header | 14 | 4.5 fail |
+| 5.05–5.97 | 12 px metadata, "Tags", helper line, placeholder in search field | 01, 02, 20 | pass |
+| 9.4–21 | White item text, chip labels, page counter | 08, 12, 15, 17 | pass |
+
+The accent `#2F6FEB` fails as text on every dark surface in the app (3.31:1 on `#1E2638`, 3.31:1 on `#252629`). The guidance's `color-dark-mode` rule says dark mode uses lighter tonal variants of the brand color; the app uses the same blue for fills and for text.
+
+### 2. Touch & Interaction (CRITICAL)
+
+| Rule | Guidance | Observed |
+| --- | --- | --- |
+| `touch-target-size`, `touch-spacing` | 44×44 pt targets, 8 px between them | Toolbar pill: 48 px tall, 44 px control pitch, 38 px visible selection box (`08`). Either the hit area is 38 px (fails size) or it fills the pitch (fails spacing); both cannot pass |
+| `touch-density`, `no-precision-required` | Not cramped; no precision taps | 18 controls in 740 px; five 30 px color dots at 44 px pitch |
+| `safe-area-awareness` | Primary targets away from screen edges | Tab "×" and "+" sit at the viewport edges (`08`) |
+
+### 4. Style Selection (HIGH)
+
+| Rule | Guidance | Observed |
+| --- | --- | --- |
+| `platform-adaptive`, `system-controls` | iOS idioms for navigation and controls | Opaque gray menus with hard full-width dividers and thick section bands (`12`–`14`); browser-tab strip with "×" (`08`); 50% flat scrim (`15`, `17`) |
+| `effects-match-style`, `elevation-consistent` | One elevation scale matching the style | No elevation scale at all: no shadow or blur on popover, menu, sheet, or paper (`03`); the only "depth" is the scrim |
+| `blur-purpose` | Blur marks a dismissable background | No blur under any modal |
+| `consistency`, token-driven theming (pro-rules) | One theme, semantic tokens across all surfaces | Navy chrome vs. default warm-gray sheets `#1E1E1E`/`#333`/`#3A3A3A` and `#000` fields (`02`, `12`, `15`, `17`); white popovers in a dark app (`09`, `10`) |
+| `primary-action` | One primary CTA per screen; secondary subordinate | Toolbar carries five saturated swatches plus the accent; every sidebar row is accent blue (`01`) |
+| `state-clarity` | Selected/disabled states distinct and on-style | Selected sidebar row is a gray fill while unselected rows are blue text, inverting the iOS convention (`01`); disabled menu items at 3.85:1 look like enabled secondary text (`14`) |
+
+### 5. Layout & Responsive (HIGH)
+
+| Rule | Guidance | Observed |
+| --- | --- | --- |
+| `visual-hierarchy` | Hierarchy by size, spacing, contrast | Menus: every item the same 44 px row and 16 px white; the only hierarchy cue is a thick dark band (`12`) |
+| `fixed-element-offset` | Fixed bars reserve space for content | Floating pill covers the first writing row of the page (`08`) |
+| `spacing-scale`, pro-rules "8dp rhythm" | 4/8 pt increments | Three stacked bars totalling about 160 px with a 15 px pill offset (`08`) |
+| `content-priority` | Core content first | 160 px of chrome precedes the paper in landscape; worse in portrait (`21`) |
+| pro-rules "Readable text measure" | Keep sheet content width predictable | 900×800 sheets with an empty lower-right quadrant (`02`, `06`) |
+
+### 6. Typography & Color (MEDIUM)
+
+| Rule | Guidance | Observed |
+| --- | --- | --- |
+| `letter-spacing` | Respect platform default tracking | SF Pro negative tracking applied to Roboto: "Algebraic Geometry", "Notebooks", "New Notebook" collide (`crop-title.png`) |
+| `text-styles-system` | Platform type styles (iOS Dynamic Type roles) | 8 ad-hoc `fontSize` values; 12 px used 9 times |
+| `font-scale` | One consistent scale | 12, 13, 14, 16, 18, 20, 22 with no ratio |
+| `readable-font-size` | 16 px minimum body on mobile | Segmented-control labels at 12 px in a 400 px control (`06`); popover chip labels 12 px (`09`) |
+| `font-pairing` | Heading and body match | UI in Roboto, note text in Noto Sans: two neutral grotesques |
+| `color-semantic` | Semantic tokens, no raw hex in components | Four theme overrides; everything else is default Cupertino gray |
+| `number-tabular` and "Modified 2026-10-01 14:47" | Human-readable data formatting | Raw ISO timestamp as card metadata (`20`) |
+| `whitespace-balance` | Whitespace groups related items | Toolbar groups separated by one hairline; sheets group nothing |
+
+### 8. Forms & Feedback (MEDIUM)
+
+| Rule | Guidance | Observed |
+| --- | --- | --- |
+| `input-labels` | Visible label per input, not placeholder-only | "Description", "Settings name", "Text" are placeholder-only fields (`02`, `06`, `17`) |
+| `input-helper-text` | Persistent helper text below complex inputs | Conforms where present: "You can move this notebook later.", "Use 0 for the full text width." |
+| `field-grouping` | Related fields grouped | Creation sheet repeats the form as a "Notebook Details" block instead of grouping it (`02`) |
+| `progressive-disclosure` | Reveal complex options progressively | Cover style, paper, and template options all shown at once on a 900×800 sheet (`02`, `06`) |
+| `empty-states` | Message plus action | Library empty state is one sentence with no action (`01`) |
+| `destructive-emphasis` | Red and spatially separated from primary actions | "Delete page" is red but sits between "Clear page" and "Draw with finger" (`12`) |
+| `disabled-states` | Reduced opacity, non-interactive | "Previous/Next page" are disabled rows that still occupy the menu (`14`) |
+
+### 9. Navigation Patterns (HIGH)
+
+| Rule | Guidance | Observed |
+| --- | --- | --- |
+| `nav-hierarchy` | Primary vs. secondary nav clearly separated | Page operations split across Pages and ⋯; View mixes layout with chrome placement (menu table in the previous section) |
+| `overflow-menu` | Overflow holds what does not fit, not everything | ⋯ is a 15-item list holding document actions, destructive page actions, input settings, chrome settings, clipboard, and two unexplained items |
+| `destructive-nav-separation` | Dangerous actions spatially separated | Delete page adjacent to Draw with finger |
+| `drawer-usage` | Sidebar for secondary navigation | Conforms: library sidebar holds navigation only (`01`) |
+| `nav-state-active` | Current location highlighted | Conforms in the sidebar (gray fill); fails on the tab strip, where the single tab's accent text measures 2.09:1 on its own fill |
+| `avoid-mixed-patterns` | Do not mix tab + sidebar + bar at one level | Editor: tab strip, nav bar, and floating pill at one level (`08`) |
+| `search-accessible` | Search reachable from the top bar | Conforms: search field in the library bar (`01`) |
+
+## Not inspected
+
+Rules that screenshots cannot evidence: `focus-states`, `press-feedback`, `reduced-motion`, `dynamic-type`, `keyboard-nav`, `voiceover-sr` (web accessibility tree), animation timing (§7), `confirmation-dialogs` and `undo-support` for Delete page, `form-autosave`, `sheet-dismiss-confirm`.
+
+## Totals
+
+| Verdict | Rules |
+| --- | --- |
+| Violates | 34 |
+| Conforms | 10 |
+| Not inspected | 11 |
+
+Every CRITICAL-tier failure traces to three root causes already in `COMPLAINTS.md`: the accent used as text on dark surfaces (contrast), unlabeled icon controls (names), and the 18-control pill (targets). The HIGH-tier style failures trace to the four-color theme override and the absent elevation scale; the navigation failures trace to the missing object model.
