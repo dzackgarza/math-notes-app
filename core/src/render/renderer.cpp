@@ -381,11 +381,11 @@ void Renderer::Draw(SkCanvas *screen, const LiveInk *live, const SelectionOverla
   ++stats_.frames;
 }
 
-// The selection marks in the accent color of docs/specs/tablet-ui.md ("Visual
-// style"): dashed lasso, rectangle and frame, round handles, as GoodNotes and
-// Noteful draw them. Sizes are in view units.
+// The selection marks in the ribbon color of docs/reports/Visual direction.md,
+// which marks the current selection only: dashed lasso, rectangle and frame,
+// round handles, as GoodNotes and Noteful draw them. Sizes are in view units.
 void Renderer::DrawOverlay(SkCanvas *screen, const SelectionOverlay &overlay) {
-  const Rgb accent{0x2F, 0x6F, 0xEB};
+  const Rgb accent{0x9E, 0x2A, 0x2B};
   const float unit = float(1 / overlay.view_scale);  // one view unit in pt
   SkPaint dashed = StrokePaint(accent, 1.5 * unit);
   const float intervals[] = {5 * unit, 4 * unit};
