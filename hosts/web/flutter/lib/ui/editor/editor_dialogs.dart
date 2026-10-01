@@ -257,22 +257,32 @@ extension _EditorDialogs on _EditorScreenState {
             borderRadius: BorderRadius.circular(12),
             boxShadow: floatingShadow,
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Semantics(
-                role: SemanticsRole.status,
-                liveRegion: true,
-                child: Text('Page $number deleted', style: callout),
-              ),
-              CupertinoButton(
-                onPressed: () {
-                  toastification.dismiss(toast);
-                  history(false);
-                },
-                child: Text('Undo', style: subhead.copyWith(color: accentText)),
-              ),
-            ],
+          // The status and the Undo button are separate nodes. Without
+          // container, the toast was one status node named "Page 4 deleted
+          // Undo", with no Undo button.
+          child: Semantics(
+            explicitChildNodes: true,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Semantics(
+                  container: true,
+                  role: SemanticsRole.status,
+                  liveRegion: true,
+                  child: Text('Page $number deleted', style: callout),
+                ),
+                CupertinoButton(
+                  onPressed: () {
+                    toastification.dismiss(toast);
+                    history(false);
+                  },
+                  child: Text(
+                    'Undo',
+                    style: subhead.copyWith(color: accentText),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
