@@ -72,6 +72,14 @@ async function cacheApp(): Promise<void> {
 // _PointerAdapter._convertEventsToPointerData. Retain the original batch until
 // Flutter accepts its hit target. Reading browser events never sends ink.
 const rawEvents = new Map<number, PointerEvent>();
+// The microsecond stamp Flutter gives a browser event: it truncates the
+// milliseconds and the fraction separately (pointer_binding.dart,
+// _BaseAdapter._eventTimeStampToDuration). Math.trunc(timeStamp * 1000)
+// rounds the product first and can be 1 µs higher.
+function flutterStamp(timeStamp: number): number {
+  const milliseconds = Math.trunc(timeStamp);
+  return milliseconds * 1000 + Math.trunc((timeStamp - milliseconds) * 1000);
+}
 const consumed = new WeakSet<PointerEvent>();
 const sampleIds = { next: 0 };
 // With ?root=opfs: the last pen events the browser sent and the last stamps
@@ -89,10 +97,10 @@ for (const type of [...sampleEvents, "pointerleave", "pointerout"]) {
   window.addEventListener(type, (event) => {
     if (!(event instanceof PointerEvent) || event.pointerType === "mouse") return;
     const target = event.target instanceof Element ? event.target.tagName.toLowerCase() : "";
-    logPointer(`browser ${event.type} ${Math.trunc(event.timeStamp * 1000)} id=${event.pointerId} buttons=${event.buttons} on ${target}`);
+    logPointer(`browser ${event.type} ${flutterStamp(event.timeStamp)} id=${event.pointerId} buttons=${event.buttons} on ${target}`);
     if (!sampleEvents.includes(event.type)) return;
     const events = event.getCoalescedEvents();
-    for (const sample of [event, ...events]) rawEvents.set(Math.trunc(sample.timeStamp * 1000), event);
+    for (const sample of [event, ...events]) rawEvents.set(flutterStamp(sample.timeStamp), event);
     // Only recent browser batches can be dispatched by Flutter. Entries for
     // rejected targets expire without touching the engine.
     for (const [stamp] of rawEvents) if (stamp < event.timeStamp * 1000 - 5_000_000) rawEvents.delete(stamp);
