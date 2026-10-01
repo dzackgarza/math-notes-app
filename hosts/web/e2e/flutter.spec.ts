@@ -281,7 +281,7 @@ test("Flutter reconnects a saved folder and retains edits on every page", async 
   await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
   await draw(box.y + 260);
   await save(page);
-  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
 
   await page.addInitScript(() => {
     Object.defineProperty(window, "mathNotes", {
@@ -472,7 +472,7 @@ test("Flutter finds an image note through persistent tags and its page thumbnail
   await (await chooser).setFiles("../../core/tests/fixtures/render/full/0001.png");
   await expect(page.getByRole("button", { name: "Delete selection", exact: true })).toBeAttached();
   await save(page);
-  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
   await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.reload();
   await page.getByRole("button", { name: /^topology/ }).click();
@@ -535,7 +535,7 @@ test("Flutter adds a page only after a held edge pull and preserves keyboard his
   await page.keyboard.press("Control+Shift+z");
   await expect(page.getByText(/^[12] \/ 2$/)).toBeVisible();
   await page.keyboard.press("Control+s");
-  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
   const manifest = await page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
     const notebook = await root.getDirectoryHandle("Test Notebook");
@@ -613,7 +613,7 @@ test("Flutter ignores a palm that drags during a pen stroke", async ({ page }) =
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, x: box.x + 235, y: box.y + 187, ...pen });
   await save(page);
-  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
   const trace = await page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
     const notebook = await root.getDirectoryHandle("Test Notebook");
@@ -661,7 +661,7 @@ test("Flutter modal dialogs block pen ink underneath them, and a cancelled pen s
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   const strokes = async () => {
     await save(page);
-    await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+    await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
     return page.evaluate(async () => {
       const root = await navigator.storage.getDirectory();
       const notebook = await root.getDirectoryHandle("Test Notebook");
@@ -707,7 +707,7 @@ test("Flutter undoes on a two-finger tap and redoes on a three-finger tap", asyn
   await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, x: box.x + 240, y: box.y + 190, ...pen });
   const strokes = async () => {
     await save(page);
-    await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+    await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
     return page.evaluate(async () => {
       const root = await navigator.storage.getDirectory();
       const notebook = await root.getDirectoryHandle("Test Notebook");
@@ -740,7 +740,7 @@ test("Flutter erases with the pen side button and eraser end and draws with a fi
   const cdp = await page.context().newCDPSession(page);
   const strokes = async () => {
     await save(page);
-    await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+    await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
     return page.evaluate(async () => {
       const root = await navigator.storage.getDirectory();
       const notebook = await root.getDirectoryHandle("Test Notebook");
@@ -918,7 +918,7 @@ test("Flutter page overview duplicates, deletes, reorders, and opens pages", asy
   await tile(2).click();
   await expect(page.getByText("2 / 3", { exact: true })).toBeVisible();
   await save(page);
-  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
   const manifest = await page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
     const notebook = await root.getDirectoryHandle("Test Notebook");
@@ -972,7 +972,7 @@ test("Flutter writes on three pages and returns to page one", async ({ page }) =
   await page.getByRole("button", { name: "Page 1", exact: true }).click();
   await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
   await save(page);
-  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
 
   const strokeCounts = await page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
@@ -1019,7 +1019,7 @@ test("Flutter recolors a lasso selection from the palette and keeps the pen colo
   await expect(page.getByRole("button", { name: "Delete selection", exact: true })).toHaveCount(0);
   await gesture([[160, 350], [200, 370], [240, 390]]);
   await save(page);
-  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
   const fills = await page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
     const notebook = await root.getDirectoryHandle("Test Notebook");
@@ -1320,7 +1320,9 @@ test("Flutter library shows dark chrome, cover colors, aligned creation controls
 
   await button("Back to library").click();
   const card = await boxOf(page.getByRole("button", { name: "Open Covers", exact: false }));
-  expect(await centerPixel(page, { x: card.x + card.width / 2, y: card.y + card.height / 3 }), "the card has the chosen cover color")
+  // The card shows the trashed note's thumbnail until the library lists the
+  // notebook again.
+  await expect.poll(() => centerPixel(page, { x: card.x + card.width / 2, y: card.y + card.height / 3 }), { message: "the card has the chosen cover color" })
     .toEqual(covers.Peach);
   expect(brightness(await centerPixel(page, { x: 105, y: 560 })), "the sidebar is dark").toBeLessThan(150);
   expect((await textIn(page, await boxOf(text("Math Notes")))).contrast, "the sidebar title is legible").toBeGreaterThan(4.5);
@@ -1625,7 +1627,7 @@ test("Flutter inserts a JPEG figure, moves, resizes, and deletes it, and keeps i
   expect(await square(), "undo restores the image").toEqual(halved);
 
   await save(page);
-  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
   const asset = await page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
     const notebook = await root.getDirectoryHandle("Plain Paper");
@@ -1751,7 +1753,7 @@ test("Flutter places typed text boxes, wraps them at a width, and edits and dele
   expect(lastRtlLine.left, "the last line starts away from the left edge").toBeGreaterThan(tap.x + 50);
 
   await save(page);
-  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
   await page.reload();
   await openTestNotebook(page, "Plain Paper");
   await page.getByRole("button", { name: "Open Typed", exact: false }).click();
@@ -1843,7 +1845,7 @@ test("Flutter imports a PDF, annotates its pages, and exports them with the anno
   expect(await marginInk(secondNote), "the pen writes on page 2").toBeGreaterThan(80);
   await page.screenshot({ path: info.outputPath("second-page.png") });
   await save(page);
-  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
 
   await button("More").click();
   await button("Export PDF").click();
@@ -2385,7 +2387,7 @@ test("Flutter pen color and width changes affect only later strokes", async ({ p
 
   await draw(box.y + 260);
   await save(page);
-  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
   const strokes = await page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
     const notebook = await root.getDirectoryHandle("Test Notebook");
@@ -2424,7 +2426,7 @@ test("Chrome opens a saved page SVG directly with the same stroke", async ({ pag
     type: "mouseReleased", button: "left", clickCount: 1, x: box.x + 250, y: box.y + 220, ...pen,
   });
   await save(page);
-  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
 
   const saved = await page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
@@ -2480,7 +2482,7 @@ test("Flutter notebook retains pen input and pages after save and reopen", async
   await page.getByRole("button", { name: "Pages", exact: true }).click();
   await page.getByRole("button", { name: "Add page", exact: true }).click();
   await save(page);
-  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
   const saved = await page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
     const notebook = await root.getDirectoryHandle("Test Notebook");
@@ -2543,7 +2545,7 @@ test("Flutter notebook retains pen input and pages after save and reopen", async
   await page.getByRole("button", { name: "Pages", exact: true }).click();
   await page.getByRole("button", { name: "Add page", exact: true }).click();
   await save(page);
-  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
   await page.reload();
   await openTestNotebook(page);
   await page.getByRole("button", { name: "Open Lecture", exact: false }).click();
@@ -2641,7 +2643,7 @@ test("Flutter two-page layout puts pen input on the right page and shares a PDF"
   await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: x + 80, y, ...pen, buttons: 1 });
   await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", clickCount: 1, x: x + 80, y, ...pen, buttons: 0 });
   await save(page);
-  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
   const counts = await page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
     const notebook = await root.getDirectoryHandle("Test Notebook");
@@ -2707,7 +2709,7 @@ function storedPages(page: Page, title: string, notebook = "Test Notebook") {
 
 async function savedPages(page: Page, title: string, notebook = "Test Notebook") {
   await save(page);
-  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
   return storedPages(page, title, notebook);
 }
 
@@ -2865,7 +2867,7 @@ test("Flutter renames a note with its pages, sorts the notes, and search lists t
   const card = (title: string) => page.getByRole("button", { name: `Open ${title}`, exact: false });
   await penStroke(cdp, line(box.x + 150, box.x + 300, box.y + 250), 0.6);
   await save(page);
-  await expect(page.getByRole("status")).toHaveAccessibleName("Notebook save Saved");
+  await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
   await button("Library").click();
   await button("New note").click();
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Fields");
