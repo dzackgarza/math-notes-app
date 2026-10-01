@@ -38,3 +38,33 @@ Every sidebar row is accent blue, so the selected row (gray fill) and the four u
 The creation sheets are 900×800 with the right column ending at a "Notebook Details" block that repeats the form; the lower right quarter is empty (`02`, `06`). "Save as template" is gray text under a borderless "Settings name" field. The page-overview sheet is a near-full-screen `#333` box holding one thumbnail with a 2 px bright-blue border (`15`).
 
 Item 1 and item 2 are each one change in `theme.dart`/`main.dart` and remove most of the "unpolished" impression; items 3 to 7 are per-screen work. Say which you want and I will start.
+
+# Menu organization
+
+Yes, and it is visible in the three menu screenshots alone.
+
+**The three menus are not three categories.** The nav bar offers three unlabeled icons (grid, split, ellipsis). Opening them shows the same kinds of items in all three:
+
+| Item | Where it is | Where the user looks |
+| --- | --- | --- |
+| Page overview, Previous page, Next page, Add page, Insert page before/after | Pages | Pages |
+| Go to page, Select page, Clear page, Delete page, Paper for new pages | ⋯ | Pages |
+| Fit width, Vertical/Horizontal scroll, Two pages | View | View |
+| Toolbar at top/bottom, Hide tab bar, Split view | View | Settings or ⋯ |
+| Bookmarks, Add bookmark, Layers | Pages | nowhere else, fine |
+| Save, Share, Export PDF | ⋯ | document actions, fine |
+| Draw with finger, Customize toolbar | ⋯ | Settings |
+| Paste, Clippings | ⋯ | the selection / long-press on the page |
+| Compare versions, Follow links | ⋯ | unknown; the names describe no visible object |
+
+So "page" operations are split across two menus by no rule; "⋯" is a 15-item junk drawer holding document actions, destructive page actions, input settings, chrome settings, clipboard, and two mystery items; "View" mixes how the page is laid out with where the chrome sits.
+
+**Within a menu there is no hierarchy.** Every item is the same 44 px row in the same white 16 px text. Separators are thick dark bands, so a group gap and a single divider look alike. "Delete page" is red but sits between "Clear page" and "Draw with finger". "Previous page" and "Next page" are disabled gray and still take two rows of a menu, for an action that is a swipe. "Layers" has a second line "Ink" in 12 px gray, the only two-line item anywhere. "Page 1 of 1" is a 12 px header on one menu only.
+
+**Actions sit in menus; settings sit in menus; navigation sits in menus.** iOS separates them: actions in a pull-down or context menu, settings in a settings sheet, navigation by gesture or a page control. Here everything that was not a tool became a menu row, which is why the ⋯ menu is as long as the screen.
+
+**The toolbar has the same problem.** The pill holds tools (pen to lasso), inserters (text, image, insert space, drawing mode), history (undo, redo), and five colors in one strip with one divider. Two of its icons (↕ and the curve) have no obvious meaning, and nothing in the strip says which group an icon belongs to.
+
+**The nav bar gives no entry point.** "Saved" is a status word next to three icons without labels; the user has to open all three to learn what the app can do, and then finds that the answer is "anything, anywhere".
+
+The fix is an information architecture pass, not a reshuffle: one object model (document / page / selection / view / settings), each action lives with its object, settings leave the menus, navigation leaves the menus, and each surface gets the Cupertino component for its kind.
