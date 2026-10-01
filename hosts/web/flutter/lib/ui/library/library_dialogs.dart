@@ -48,6 +48,7 @@ Future<({String name, String color})?> askNewTag(BuildContext context) async {
           children: [
             CupertinoTextField(
               cursorOpacityAnimates: false,
+              decoration: fieldDecoration,
               placeholderStyle: placeholderText,
               controller: name,
               placeholder: 'Tag name',
@@ -112,6 +113,7 @@ Future<bool> editNoteDetails(
           const SizedBox(height: 16),
           CupertinoTextField(
             cursorOpacityAnimates: false,
+            decoration: fieldDecoration,
             placeholderStyle: placeholderText,
             controller: description,
             placeholder: 'Description',
@@ -167,6 +169,7 @@ Future<bool> editFolderDetails(
             const SizedBox(height: 16),
             CupertinoTextField(
               cursorOpacityAnimates: false,
+              decoration: fieldDecoration,
               placeholderStyle: placeholderText,
               controller: description,
               placeholder: 'Description',
@@ -178,6 +181,8 @@ Future<bool> editFolderDetails(
             TagEditor(controller: tags),
             const SizedBox(height: 12),
             CupertinoSlidingSegmentedControl<String>(
+              backgroundColor: surface3,
+              thumbColor: segmentThumb,
               groupValue: paper,
               children: const {
                 'dotted': Text('Dot'),
@@ -222,6 +227,7 @@ Future<String?> askName(BuildContext context, String name) async {
       title: const Text('Rename'),
       content: CupertinoTextField(
         cursorOpacityAnimates: false,
+        decoration: fieldDecoration,
         placeholderStyle: placeholderText,
         controller: controller,
         placeholder: 'Name',
@@ -368,6 +374,7 @@ Future<CreationForm?> askCreation(
               const SizedBox(height: 6),
               CupertinoTextField(
                 cursorOpacityAnimates: false,
+                decoration: fieldDecoration,
                 placeholderStyle: placeholderText,
                 controller: title,
                 placeholder: isFolder ? 'Notebook title' : 'Title',
@@ -380,6 +387,7 @@ Future<CreationForm?> askCreation(
                 const SizedBox(height: 6),
                 CupertinoTextField(
                   cursorOpacityAnimates: false,
+                  decoration: fieldDecoration,
                   placeholderStyle: placeholderText,
                   controller: description,
                   placeholder: 'Description',
@@ -391,6 +399,8 @@ Future<CreationForm?> askCreation(
                 Text('Cover style', style: subhead),
                 const SizedBox(height: 6),
                 CupertinoSlidingSegmentedControl<String>(
+                  backgroundColor: surface3,
+                  thumbColor: segmentThumb,
                   groupValue: coverStyle,
                   children: const {
                     'classic': Text('Classic'),
@@ -450,6 +460,8 @@ Future<CreationForm?> askCreation(
               Text('Paper style', style: subhead),
               const SizedBox(height: 6),
               CupertinoSlidingSegmentedControl<String>(
+                backgroundColor: surface3,
+                thumbColor: segmentThumb,
                 groupValue: paper,
                 children: isFolder
                     ? const {
@@ -500,6 +512,8 @@ Future<CreationForm?> askCreation(
                 Text('Page size', style: subhead),
                 const SizedBox(height: 6),
                 CupertinoSlidingSegmentedControl<String>(
+                  backgroundColor: surface3,
+                  thumbColor: segmentThumb,
                   groupValue: size,
                   children: const {'a4': Text('A4'), 'letter': Text('Letter')},
                   onValueChanged: (value) {
@@ -510,6 +524,8 @@ Future<CreationForm?> askCreation(
                 Text('Orientation', style: subhead),
                 const SizedBox(height: 6),
                 CupertinoSlidingSegmentedControl<String>(
+                  backgroundColor: surface3,
+                  thumbColor: segmentThumb,
                   groupValue: orientation,
                   children: const {
                     'portrait': Text('Portrait'),
@@ -561,6 +577,7 @@ Future<CreationForm?> askCreation(
                       Expanded(
                         child: CupertinoTextField(
                           cursorOpacityAnimates: false,
+                          decoration: fieldDecoration,
                           placeholderStyle: placeholderText,
                           controller: templateName,
                           placeholder: 'Template name',

@@ -12,6 +12,7 @@ extension _FigurePanel on _EditorScreenState {
           Expanded(
             child: CupertinoTextField(
               cursorOpacityAnimates: false,
+              decoration: fieldDecoration,
               placeholderStyle: placeholderText,
               controller: figureText,
               readOnly: true,

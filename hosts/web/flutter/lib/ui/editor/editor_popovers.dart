@@ -296,6 +296,8 @@ extension _EditorPopovers on _EditorScreenState {
           if (!highlighter) ...[
             const SizedBox(height: 12),
             CupertinoSlidingSegmentedControl<bool>(
+              backgroundColor: surface3,
+              thumbColor: segmentThumb,
               groupValue: advanced,
               children: {
                 false: Semantics(

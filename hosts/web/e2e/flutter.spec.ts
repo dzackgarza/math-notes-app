@@ -84,6 +84,8 @@ test("Flutter creation sheets close on Escape and ask before they discard a chan
   await button("New notebook").click();
   await title.waitFor();
   expect(await contrastIn(page, page.getByRole("textbox", { name: "Description", exact: true })), "the Description placeholder is legible").toBeGreaterThan(4.5);
+  const field = await boxOf(page.getByRole("textbox", { name: "Description", exact: true }));
+  expect(await capture(page, { x: field.x + 4, y: field.y + 4, width: 1, height: 1 }), "the field is filled with surface3, not black").toEqual([[0x33, 0x3e, 0x56]]);
   expect(await contrastIn(page, button("Cancel")), "Cancel is legible").toBeGreaterThan(4.5);
   await page.keyboard.press("Escape");
   await expect(title, "an unchanged sheet closes at once").toHaveCount(0);
@@ -1289,7 +1291,7 @@ test("Flutter library shows dark chrome, cover colors, aligned creation controls
     .toBeCloseTo((await textIn(page, await boxOf(text("Notebook")))).left, -1);
   const heading = await boxOf(text("Starting template"));
   const save = await boxOf(button("Save as template"));
-  for (const name of ["Save as template", "Save as draft", "Cancel"]) {
+  for (const name of ["Save as template", "Save as draft", "Cancel", "Portrait", "Landscape"]) {
     expect(await contrastIn(page, button(name)), `${name} is legible`).toBeGreaterThan(4.5);
   }
   expect(save.y - (heading.y + heading.height), "Save as template is under the Starting template heading").toBeGreaterThanOrEqual(0);

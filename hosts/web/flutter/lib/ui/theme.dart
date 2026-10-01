@@ -37,6 +37,17 @@ const placeholderText = TextStyle(
   color: secondaryLabel,
 );
 
+// Text fields: surface3 with a hairline edge. Cupertino's dark field fill is
+// black. label is 9.7:1 on it.
+const fieldDecoration = BoxDecoration(
+  color: surface3,
+  border: Border.fromBorderSide(BorderSide(color: separator)),
+  borderRadius: BorderRadius.all(Radius.circular(8)),
+);
+// The thumb of a segmented control on its surface3 track: label is 5.5:1 on
+// it, and it is 1.8:1 against the track. Cupertino's dark thumb is gray.
+const segmentThumb = Color(0xFF56637F);
+
 // Elevation: one shadow per level.
 const floatingShadow = [
   BoxShadow(color: Color(0x59000000), blurRadius: 16, offset: Offset(0, 4)),

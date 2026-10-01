@@ -26,6 +26,7 @@ extension _EditorDialogs on _EditorScreenState {
                 const SizedBox(height: 6),
                 CupertinoTextField(
                   cursorOpacityAnimates: false,
+                  decoration: fieldDecoration,
                   placeholderStyle: placeholderText,
                   controller: controller,
                   autofocus: true,
@@ -47,6 +48,7 @@ extension _EditorDialogs on _EditorScreenState {
                 const SizedBox(height: 12),
                 CupertinoTextField(
                   cursorOpacityAnimates: false,
+                  decoration: fieldDecoration,
                   placeholderStyle: placeholderText,
                   controller: boxWidth,
                   prefix: const Padding(
@@ -181,6 +183,8 @@ extension _EditorDialogs on _EditorScreenState {
                   ),
                 heading('Page Size'),
                 CupertinoSlidingSegmentedControl<int>(
+                  backgroundColor: surface3,
+                  thumbColor: segmentThumb,
                   groupValue: current.size == 2 ? null : current.size,
                   children: const {0: Text('A4'), 1: Text('Letter')},
                   onValueChanged: (size) {
@@ -203,6 +207,8 @@ extension _EditorDialogs on _EditorScreenState {
                   ),
                 heading('Orientation'),
                 CupertinoSlidingSegmentedControl<int>(
+                  backgroundColor: surface3,
+                  thumbColor: segmentThumb,
                   groupValue: current.orientation,
                   children: const {0: Text('Portrait'), 1: Text('Landscape')},
                   onValueChanged: (orientation) {
@@ -294,6 +300,7 @@ extension _EditorDialogs on _EditorScreenState {
           padding: const EdgeInsets.only(top: 16),
           child: CupertinoTextField(
             cursorOpacityAnimates: false,
+            decoration: fieldDecoration,
             placeholderStyle: placeholderText,
             controller: text,
             autofocus: true,
@@ -353,6 +360,7 @@ extension _EditorDialogs on _EditorScreenState {
                 const SizedBox(height: 16),
                 CupertinoTextField(
                   cursorOpacityAnimates: false,
+                  decoration: fieldDecoration,
                   placeholderStyle: placeholderText,
                   controller: first,
                   placeholder: 'First page',
@@ -362,6 +370,7 @@ extension _EditorDialogs on _EditorScreenState {
                 const SizedBox(height: 12),
                 CupertinoTextField(
                   cursorOpacityAnimates: false,
+                  decoration: fieldDecoration,
                   placeholderStyle: placeholderText,
                   controller: last,
                   placeholder: 'Last page',
@@ -470,6 +479,7 @@ extension _EditorDialogs on _EditorScreenState {
           title: const Text('Link destination'),
           content: CupertinoTextField(
             cursorOpacityAnimates: false,
+            decoration: fieldDecoration,
             placeholderStyle: placeholderText,
             controller: text,
             autofocus: true,
