@@ -23,6 +23,21 @@ class _ScrimDialogRoute<T> extends CupertinoDialogRoute<T> {
   ImageFilter? get filter => _scrimFilter;
 }
 
+// A sheet's surface: CupertinoPopupSurface on surface2. Cupertino's own
+// fill is a translucent gray (_kDialogColor in
+// flutter/lib/src/cupertino/dialog.dart).
+class ModalSurface extends StatelessWidget {
+  const ModalSurface({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => CupertinoPopupSurface(
+    isSurfacePainted: false,
+    child: ColoredBox(color: surface2, child: child),
+  );
+}
+
 // showCupertinoDialog with the scrim.
 Future<T?> showModalDialog<T>({
   required BuildContext context,

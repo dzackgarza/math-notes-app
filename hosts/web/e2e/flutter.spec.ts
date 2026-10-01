@@ -86,6 +86,8 @@ test("Flutter creation sheets close on Escape and ask before they discard a chan
   expect(await contrastIn(page, page.getByRole("textbox", { name: "Description", exact: true })), "the Description placeholder is legible").toBeGreaterThan(4.5);
   const field = await boxOf(page.getByRole("textbox", { name: "Description", exact: true }));
   expect(await capture(page, { x: field.x + 4, y: field.y + 4, width: 1, height: 1 }), "the field is filled with surface3, not black").toEqual([[0x33, 0x3e, 0x56]]);
+  const heading = await boxOf(page.getByRole("heading", { name: "New notebook", exact: true }));
+  expect(await capture(page, { x: heading.x - 6, y: heading.y + heading.height / 2, width: 1, height: 1 }), "the sheet is surface2, not Cupertino gray").toEqual([[0x28, 0x32, 0x47]]);
   expect(await contrastIn(page, button("Cancel")), "Cancel is legible").toBeGreaterThan(4.5);
   await page.keyboard.press("Escape");
   await expect(title, "an unchanged sheet closes at once").toHaveCount(0);

@@ -74,7 +74,7 @@ Future<int?> overviewPages(
           padding: const EdgeInsets.all(24),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 900),
-            child: CupertinoPopupSurface(
+            child: ModalSurface(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [

@@ -20,7 +20,7 @@ Future<native.NavigationMark?> chooseDestination(
   });
   return showModalSheet<native.NavigationMark>(
     context: context,
-    builder: (context) => CupertinoPopupSurface(
+    builder: (context) => ModalSurface(
       child: SafeArea(
         top: false,
         child: SizedBox(

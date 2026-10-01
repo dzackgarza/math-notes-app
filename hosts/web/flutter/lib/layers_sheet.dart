@@ -79,7 +79,7 @@ Future<void> manageLayers(
             padding: const EdgeInsets.all(24),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 600, maxHeight: 700),
-              child: CupertinoPopupSurface(
+              child: ModalSurface(
                 child: Column(
                   children: [
                     Row(

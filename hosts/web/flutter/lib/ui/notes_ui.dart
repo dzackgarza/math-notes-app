@@ -186,7 +186,7 @@ Future<native.Note?> chooseNote(
   final picked = await showModalSheet<native.Note>(
     context: context,
     builder: (context) => StatefulBuilder(
-      builder: (context, update) => CupertinoPopupSurface(
+      builder: (context, update) => ModalSurface(
         child: SafeArea(
           top: false,
           child: SizedBox(

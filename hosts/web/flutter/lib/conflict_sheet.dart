@@ -42,7 +42,7 @@ Future<String?> compareVersions(
         padding: const EdgeInsets.all(24),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1100, maxHeight: 740),
-          child: CupertinoPopupSurface(
+          child: ModalSurface(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(

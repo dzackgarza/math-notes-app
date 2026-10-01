@@ -6,6 +6,7 @@ import 'package:flutter/cupertino.dart';
 
 import 'errors.dart';
 import 'host.dart' as native;
+import 'ui/modal.dart' show ModalSurface;
 
 class CreationSheet extends StatelessWidget {
   const CreationSheet({
@@ -36,7 +37,7 @@ class CreationSheet extends StatelessWidget {
             namesRoute: true,
             explicitChildNodes: true,
             label: title,
-            child: CupertinoPopupSurface(
+            child: ModalSurface(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
