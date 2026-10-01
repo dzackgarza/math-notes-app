@@ -1435,7 +1435,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                       top: railInset,
                                       child: ConstrainedBox(
                                         constraints: BoxConstraints(
-                                          maxHeight: height - 2 * railInset,
+                                          maxHeight: height - railInset,
                                         ),
                                         child: FocusTraversalGroup(
                                           child: rail(),

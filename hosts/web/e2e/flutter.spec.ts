@@ -2271,6 +2271,7 @@ test("Flutter floats the tool rail at the left edge beside the page and hides to
   for (const [name, locator] of [...controls, ["Colors", page.getByRole("button", { name: COLORS })] as const]) {
     const control = await boxOf(locator);
     expect(control.width, `${name} is a 44 px target`).toBeGreaterThanOrEqual(44);
+    expect(control.height, `${name} is a whole 44 px target`).toBeGreaterThanOrEqual(44);
     expect(control.x + control.width, `${name} does not cover the page`).toBeLessThanOrEqual(pageIn(box).x);
   }
   // The whole rail fits the 720 px window without scrolling, 8 px between targets.
@@ -2278,15 +2279,13 @@ test("Flutter floats the tool rail at the left edge beside the page and hides to
   expect(marker.y - (pen.y + pen.height), "8 px between targets").toBeGreaterThanOrEqual(8);
   const colors = await page.getByRole("button", { name: COLORS }).boundingBox();
   if (!colors) throw new Error("Colors has no bounds");
-  expect(colors.y + colors.height, "the rail fits the window").toBeLessThanOrEqual(720);
+  expect(colors.y + colors.height, "the rail fits the window").toBeLessThanOrEqual(box.y + box.height);
   expect(pen.y, "the rail starts below the top bar").toBeGreaterThanOrEqual(box.y);
   const rail = await centerPixel(page, { x: pen.x - 4, y: pen.y + pen.height / 2 });
   expect(rail, "the rail is leaf").toEqual([0xee, 0xf0, 0xea]);
-  // The rail floats: the desk, darkened only by the rail's shadow, shows on
-  // each side of it and below it.
-  // The left point is the middle of the 8 px inset between the canvas edge
-  // and the rail.
-  for (const at of [{ x: box.x + 4, y: pen.y + pen.height / 2 },{ x: pen.x + pen.width + 14, y: pen.y + pen.height / 2 }, { x: pen.x + pen.width / 2, y: colors.y + colors.height + 30 }]) {
+  // The rail floats: the desk, darkened only by the rail's shadow, shows in
+  // the 8 px insets to its left and above it, and to its right.
+  for (const at of [{ x: box.x + 4, y: pen.y + pen.height / 2 }, { x: pen.x + pen.width / 2, y: box.y + 4 }, { x: pen.x + pen.width + 14, y: pen.y + pen.height / 2 }]) {
     expect(brightness(await centerPixel(page, at)), `the desk shows around the rail at ${at.x}, ${at.y}`).toBeGreaterThan(500);
   }
   // A hovered rail button shows a tint behind its icon.
