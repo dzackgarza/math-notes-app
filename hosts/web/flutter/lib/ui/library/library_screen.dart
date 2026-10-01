@@ -893,7 +893,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         leading: notebook == null
             ? null
             // The sidebar's Library row has the visible name too; the
-            // accessible name tells the two apart.
+            // label gives the workflows a distinct selector.
             : MergeSemantics(
                 child: Semantics(
                   label: 'Back to library',
