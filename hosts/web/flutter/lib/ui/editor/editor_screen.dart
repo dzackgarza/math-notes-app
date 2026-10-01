@@ -679,23 +679,30 @@ class _EditorScreenState extends State<EditorScreen> {
                         style: callout.copyWith(color: secondaryLabel),
                       ),
                     ),
-                  CupertinoButton(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    minimumSize: const Size(36, 36),
-                    onPressed: drawing ? toggleDrawing : () => chooseTool(pen),
-                    child: drawing
-                        ? const Text('Complete')
-                        : Semantics(
-                            label: 'Close $mode',
-                            button: true,
-                            excludeSemantics: true,
-                            child: const Icon(
-                              LucideIcons.x,
-                              color: label,
-                              size: 18,
-                            ),
+                  if (drawing)
+                    CupertinoButton(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      minimumSize: const Size(36, 36),
+                      onPressed: toggleDrawing,
+                      child: const Text('Complete'),
+                    )
+                  else
+                    MergeSemantics(
+                      child: Semantics(
+                        label: 'Close $mode',
+                        button: true,
+                        child: CupertinoButton(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          minimumSize: const Size(36, 36),
+                          onPressed: () => chooseTool(pen),
+                          child: const Icon(
+                            LucideIcons.x,
+                            color: label,
+                            size: 18,
                           ),
-                  ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),

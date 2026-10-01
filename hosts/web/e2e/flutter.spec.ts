@@ -4058,9 +4058,22 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   await button("Lasso").click();
   await lasso(box.y + 130, box.y + 390);
   await button("Clippings").click();
-  for (const number of [1, 2, 3, 4]) await expect(button(`Insert clipping ${number}`)).toBeVisible();
+  // The panel lists the clippings in a scroll view; one off screen has no
+  // semantics node until the wheel scrolls it in.
+  const clipping = async (number: number) => {
+    const target = button(`Insert clipping ${number}`);
+    const panel = await boxOf(button("Save selected content"));
+    await expect(async () => {
+      if ((await target.count()) === 0) {
+        await page.mouse.move(panel.x + panel.width / 2, panel.y + 250);
+        await page.mouse.wheel(0, 200);
+      }
+      await expect(target).toBeVisible({ timeout: 500 });
+    }).toPass({ timeout: 10_000 });
+  };
+  for (const number of [1, 2, 3, 4]) await clipping(number);
   await button("Save selected content").click();
-  await expect(button("Insert clipping 5")).toBeVisible();
+  await clipping(5);
   await shot("clipping-saved");
   const clippings = await storedNote(page, [".clippings"]);
   expect(clippings.pages).toHaveLength(5);
@@ -4078,7 +4091,8 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   await write(rows[0]);
   await button("Pages").click();
   await button("Add bookmark").click();
-  await expect(page.getByText("Tap the line to mark.", { exact: true })).toBeVisible();
+  // The banner is one semantics node, labeled with its mode and its hint.
+  await expect(page.getByLabel("Add bookmark\nTap the line to mark.", { exact: true })).toBeVisible();
   await page.mouse.click(rows[0].x, rows[0].y);
   await button("Close Add bookmark").click();
   await button("Clear selection").click();
