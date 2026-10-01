@@ -312,10 +312,9 @@ packages:
   toastification:
     dependency: "direct main"
     description:
-      name: toastification
-      sha256: "66c96678e3dece8ba24de3ea31634bd65a80aaecb8105f9bafe946e5f0d7590a"
-      url: "https://pub.dev"
-    source: hosted
+      path: "third_party/toastification"
+      relative: true
+    source: path
     version: "3.2.0"
   typed_data:
     dependency: transitive

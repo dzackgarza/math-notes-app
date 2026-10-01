@@ -16,7 +16,8 @@ dependencies:
   flex_color_picker: 4.0.0
   pull_down_button: 0.10.2
   lucide_icons_flutter: ^3.1.20
-  toastification: 3.2.0
+  toastification:
+    path: third_party/toastification
   provider: 6.1.5
   intl: 0.20.3
 dev_dependencies:
