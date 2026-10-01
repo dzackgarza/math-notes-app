@@ -3598,8 +3598,9 @@ test("Flutter at a LAN address says the address is not secure and names the loca
   const error = page.getByLabel(/is not a secure address/);
   await expect(error).toBeVisible();
   await expect(error).toHaveAccessibleName(new RegExp(`Open http://localhost${new URL(baseURL).pathname} on this machine`));
-  // The title names the error; the message does not repeat it.
-  await expect(error).toHaveAccessibleName(/^Error\nhttp:/);
+  // The title names the error; the message does not repeat it. The
+  // accessible name folds the line break into a space.
+  await expect(error).toHaveAccessibleName(/^Error http:/);
   await expect(page.getByLabel(/reading 'controller'/), "the service worker failure is not a second error").toHaveCount(0);
   await expect(page.getByLabel(/showDirectoryPicker/)).toHaveCount(0);
   await page.screenshot({ path: info.outputPath("lan-address.png") });
