@@ -47,6 +47,7 @@ class EditorScreen extends StatefulWidget {
     required this.engine,
     required this.onLibrary,
     required this.onConflicts,
+    required this.conflictCount,
     required this.active,
     required this.onCaptureChanged,
     required this.viewport,
@@ -62,6 +63,8 @@ class EditorScreen extends StatefulWidget {
   final native.Engine engine;
   final Future<void> Function() onLibrary;
   final Future<void> Function() onConflicts;
+  // Conflict copies a sync client left beside the note's files.
+  final Future<int> Function() conflictCount;
   final bool active;
   final ValueChanged<bool> onCaptureChanged;
   final ValueNotifier<NotebookViewport?> viewport;
@@ -94,6 +97,7 @@ class _EditorScreenState extends State<EditorScreen> {
   // TickerMode above the editor turns the loop off.
   int? frameRequest;
   late final String viewType;
+  int conflicts = 0;
   EditorViewModel get editor => context.read<EditorViewModel>();
   ToolsViewModel get tools => context.read<ToolsViewModel>();
   native.Canvas? get canvas => editor.canvas;
@@ -823,8 +827,9 @@ class _EditorScreenState extends State<EditorScreen> {
   Widget menuButton(
     String label,
     IconData icon,
-    List<PullDownMenuEntry> Function() items,
-  ) => PullDownButton(
+    List<PullDownMenuEntry> Function() items, {
+    Future<void> Function()? prepare,
+  }) => PullDownButton(
     itemBuilder: (_) => items(),
     buttonBuilder: (context, showMenu) => MergeSemantics(
       child: Semantics(
@@ -832,7 +837,12 @@ class _EditorScreenState extends State<EditorScreen> {
         button: true,
         child: CupertinoButton(
           padding: const EdgeInsets.symmetric(horizontal: 8),
-          onPressed: showMenu,
+          onPressed: prepare == null
+              ? showMenu
+              : () => run(() async {
+                  await prepare();
+                  showMenu();
+                }),
           child: ExcludeSemantics(
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -942,7 +952,7 @@ class _EditorScreenState extends State<EditorScreen> {
     ...widget.workspaceMenu(),
   ];
 
-  // The document: save, share, export, versions; then closing it and the app
+  // The document: save, share, export, conflict copies; then closing it and the app
   // settings.
   List<PullDownMenuEntry> moreMenu() => [
     PullDownMenuItem(
@@ -962,11 +972,12 @@ class _EditorScreenState extends State<EditorScreen> {
       enabled: !drawing,
       onTap: () => run(() => exportPdf(share: false)),
     ),
-    PullDownMenuItem(
-      title: 'Compare versions',
-      enabled: !drawing,
-      onTap: () => run(widget.onConflicts),
-    ),
+    if (conflicts > 0)
+      PullDownMenuItem(
+        title: 'Compare conflicting versions',
+        enabled: !drawing,
+        onTap: () => run(widget.onConflicts),
+      ),
     const PullDownMenuDivider.large(),
     PullDownMenuItem(
       title: 'Close note',
@@ -1185,7 +1196,13 @@ class _EditorScreenState extends State<EditorScreen> {
                   ),
                   menuButton('Pages', LucideIcons.layoutGrid, pagesMenu),
                   menuButton('View', LucideIcons.layoutPanelLeft, viewMenu),
-                  menuButton('More', LucideIcons.circleEllipsis, moreMenu),
+                  menuButton(
+                    'More',
+                    LucideIcons.circleEllipsis,
+                    moreMenu,
+                    prepare: () async =>
+                        conflicts = await widget.conflictCount(),
+                  ),
                 ],
               ),
             ),

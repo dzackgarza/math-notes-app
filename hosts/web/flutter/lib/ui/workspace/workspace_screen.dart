@@ -113,6 +113,7 @@ class WorkspaceScreen extends StatelessWidget {
         onLibrary: () => run(session.showLibrary),
         onConflicts: () =>
             run(() => reviewConflicts(context, folder, session, note)),
+        conflictCount: () => folder.conflictCount(note.dir),
       ),
     );
 

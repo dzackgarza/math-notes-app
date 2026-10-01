@@ -74,7 +74,8 @@ toolbar and the tool popovers:
     bookmark; layers. Delete page is the last group, alone.
   - **View** (the layout of the pages): fit width or height; vertical
     scroll, horizontal scroll, or two-page layout; split view.
-  - **⋯** (the document): save; share and export PDF; compare versions;
+  - **⋯** (the document): save; share and export PDF; compare conflicting versions, shown only
+    when a sync client left a conflict copy of the note;
     close the note; Settings.
   Navigation between pages belongs to scrolling, swipe, and the page
   counter, not to menu rows.

@@ -361,6 +361,7 @@ extension type Host(JSObject value) implements JSObject {
     String id,
     String action,
   );
+  external JSPromise<JSNumber> conflictCount(Directory dir);
   external JSPromise<JSArray<NoteConflict>> noteConflicts(
     Engine engine,
     Directory dir,

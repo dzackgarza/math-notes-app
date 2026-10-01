@@ -95,6 +95,11 @@ function load(engine: Engine, files: NotebookFiles, conflict?: ConflictName, cop
   }
 }
 
+// The count alone, for a menu that shows the comparison only when it exists.
+export async function conflictCount(dir: FileSystemDirectoryHandle): Promise<number> {
+  return (await conflictNames(dir, decode(await readFile(dir, "notebook.json")).pages)).length;
+}
+
 export async function noteConflicts(engine: Engine, dir: FileSystemDirectoryHandle): Promise<NoteConflict[]> {
   const files = await readNotebook(dir);
   const index = decode(files.notebookJson);

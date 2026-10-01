@@ -14,7 +14,7 @@ import { emptyFolder, emptyNote, moveNotes, readMetadata, writeMetadata, TAG_COL
 import { noteThumbnail } from "./storage/thumbnails.ts";
 import { ensurePens, readPens, writePens } from "./storage/pens.ts";
 import { importPdf } from "./editor/pdf.ts";
-import { noteConflicts, resolveConflict } from "./storage/conflicts.ts";
+import { conflictCount, noteConflicts, resolveConflict } from "./storage/conflicts.ts";
 import { listClippings, saveClipping, clippingSvg, changeClipping } from "./editor/clippings.ts";
 import { mountFigureEditor } from "./editor/figure-editor.ts";
 
@@ -253,7 +253,7 @@ async function insertImage(note: OpenNotebook, canvas: Canvas, page: number, x: 
 const api = {
   mountFigureEditor,
   listClippings, saveClipping, clippingSvg, changeClipping,
-  noteConflicts: reading(noteConflicts), resolveConflict,
+  conflictCount: reading(conflictCount), noteConflicts: reading(noteConflicts), resolveConflict,
   importPdf,
   applyTemplate: reading(applyTemplate), listTemplates: reading(listTemplates), finishFigure, figureSource,
   thumbnail: reading(thumbnail), tagColors: TAG_COLORS,

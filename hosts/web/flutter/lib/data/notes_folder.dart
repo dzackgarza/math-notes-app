@@ -262,6 +262,9 @@ class NotesFolder extends ChangeNotifier {
     }
   }
 
+  Future<int> conflictCount(native.Directory dir) async =>
+      (await native.host.conflictCount(dir).toDart).toDartInt;
+
   Future<List<native.NoteConflict>> conflicts(native.Directory dir) async =>
       (await native.host.noteConflicts(engine!, dir).toDart).toDart;
 
