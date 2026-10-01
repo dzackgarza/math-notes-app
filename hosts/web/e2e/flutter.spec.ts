@@ -3575,11 +3575,12 @@ test("Flutter at a LAN address says the address is not secure and names the loca
   if (!baseURL) throw new Error("The Playwright configuration has no baseURL");
   await page.goto(lanAddress(baseURL));
   expect(await page.evaluate(() => window.isSecureContext), "the LAN address is not a secure context").toBe(false);
-  const error = page.getByRole("button", { name: /is not a secure address/ });
+  // The error toast is one semantics node, labeled with its title and message.
+  const error = page.getByLabel(/is not a secure address/);
   await expect(error).toBeVisible();
   await expect(error).toHaveAccessibleName(new RegExp(`Open http://localhost${new URL(baseURL).pathname} on this machine`));
-  await expect(page.getByRole("button", { name: /reading 'controller'/ }), "the service worker failure is not a second error").toHaveCount(0);
-  await expect(page.getByRole("button", { name: /showDirectoryPicker/ })).toHaveCount(0);
+  await expect(page.getByLabel(/reading 'controller'/), "the service worker failure is not a second error").toHaveCount(0);
+  await expect(page.getByLabel(/showDirectoryPicker/)).toHaveCount(0);
   await page.screenshot({ path: info.outputPath("lan-address.png") });
 });
 
@@ -4081,11 +4082,14 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   // semantics node until the wheel scrolls it in.
   const clipping = async (number: number) => {
     const target = button(`Insert clipping ${number}`);
-    const hint = await boxOf(page.getByText("Drop a selection here to save it. Drag a clipping onto the page.", { exact: true }));
     await expect(async () => {
       if ((await target.count()) === 0) {
-        await page.mouse.move(hint.x + hint.width / 2, hint.y + hint.height + 150);
-        await page.mouse.wheel(0, 200);
+        // Wheel toward the number: up while it is below the first one shown.
+        let first = 1;
+        while (first < 50 && (await button(`Insert clipping ${first}`).count()) === 0) first++;
+        const anchor = await boxOf(button(`Insert clipping ${first}`));
+        await page.mouse.move(anchor.x + anchor.width / 2, anchor.y + anchor.height / 2);
+        await page.mouse.wheel(0, number < first ? -200 : 200);
       }
       await expect(target).toBeVisible({ timeout: 500 });
     }).toPass({ timeout: 10_000 });
@@ -4656,7 +4660,8 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   const pdfInfo = execFileSync("pdfinfo", [pdfPath], { encoding: "utf8" });
   expect(pdfInfo).toMatch(/Pages:\s+4/);
   expect(pdfInfo).toMatch(/\(A4\)/);
-  expect(execFileSync("pdftotext", [pdfPath, "-"], { encoding: "utf8" })).toContain("Definition 1");
+  // The text box sets "fi" as a ligature; NFKC reads it as two letters.
+  expect(execFileSync("pdftotext", [pdfPath, "-"], { encoding: "utf8" }).normalize("NFKC")).toContain("Definition 1");
   const prefix = info.outputPath("lecture-1");
   execFileSync("pdftoppm", ["-r", "72", "-png", "-f", "1", "-l", "1", "-singlefile", pdfPath, prefix]);
   const exported = await pngPixels(page, await readFile(`${prefix}.png`));

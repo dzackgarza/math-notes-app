@@ -72,24 +72,28 @@ extension _ClippingsPanel on _EditorScreenState {
                               height: 100,
                               child: Image.memory(item.png.toDart),
                             ),
-                            child: withEnabledState(
-                              CupertinoButton(
-                                onPressed: drawing
-                                    ? null
-                                    : () => run(() async {
-                                        final svg = await clippingSource(item);
-                                        edit(
-                                          () => canvas!.paste(
-                                            svg,
-                                            width / 2,
-                                            height / 2,
-                                            true,
-                                          ),
-                                        );
-                                      }),
-                                child: Image.memory(
-                                  item.png.toDart,
-                                  semanticLabel: 'Insert clipping ${i + 1}',
+                            child: MergeSemantics(
+                              child: withEnabledState(
+                                CupertinoButton(
+                                  onPressed: drawing
+                                      ? null
+                                      : () => run(() async {
+                                          final svg = await clippingSource(
+                                            item,
+                                          );
+                                          edit(
+                                            () => canvas!.paste(
+                                              svg,
+                                              width / 2,
+                                              height / 2,
+                                              true,
+                                            ),
+                                          );
+                                        }),
+                                  child: Image.memory(
+                                    item.png.toDart,
+                                    semanticLabel: 'Insert clipping ${i + 1}',
+                                  ),
                                 ),
                               ),
                             ),
