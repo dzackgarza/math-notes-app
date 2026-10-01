@@ -30,6 +30,13 @@ const coverInk = Color(0xFF1C2230);
 const paper = Color(0xFFFFFFFF);
 const paperEdge = Color(0xFFD5D9E2);
 
+// Text field placeholders. Cupertino's placeholderText is 2.2:1 on surface3;
+// secondaryLabel is 5.0 or more on every surface.
+const placeholderText = TextStyle(
+  fontWeight: FontWeight.w400,
+  color: secondaryLabel,
+);
+
 // Elevation: one shadow per level.
 const floatingShadow = [
   BoxShadow(color: Color(0x59000000), blurRadius: 16, offset: Offset(0, 4)),

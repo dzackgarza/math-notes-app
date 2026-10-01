@@ -48,6 +48,7 @@ Future<({String name, String color})?> askNewTag(BuildContext context) async {
           children: [
             CupertinoTextField(
               cursorOpacityAnimates: false,
+              placeholderStyle: placeholderText,
               controller: name,
               placeholder: 'Tag name',
               autofocus: true,
@@ -111,6 +112,7 @@ Future<bool> editNoteDetails(
           const SizedBox(height: 16),
           CupertinoTextField(
             cursorOpacityAnimates: false,
+            placeholderStyle: placeholderText,
             controller: description,
             placeholder: 'Description',
             minLines: 2,
@@ -165,6 +167,7 @@ Future<bool> editFolderDetails(
             const SizedBox(height: 16),
             CupertinoTextField(
               cursorOpacityAnimates: false,
+              placeholderStyle: placeholderText,
               controller: description,
               placeholder: 'Description',
               minLines: 2,
@@ -219,6 +222,7 @@ Future<String?> askName(BuildContext context, String name) async {
       title: const Text('Rename'),
       content: CupertinoTextField(
         cursorOpacityAnimates: false,
+        placeholderStyle: placeholderText,
         controller: controller,
         placeholder: 'Name',
         autofocus: true,
@@ -293,7 +297,8 @@ Future<CreationForm?> askCreation(
   var naming = false;
   final kind = isFolder ? 'notebook' : 'note';
   // The form as it opened; Escape, Cancel, or a tap outside asks before it
-  // discards a change.
+  // discards a change. The check runs at the pop, not at the last build: a
+  // key typed just before Escape may not have rebuilt the sheet yet.
   String state() => [
     title.text,
     description.text,
@@ -309,33 +314,33 @@ Future<CreationForm?> askCreation(
   final action = await showModalDialog<String>(
     context: context,
     builder: (context) => StatefulBuilder(
-      builder: (context, update) => ListenableBuilder(
-        listenable: Listenable.merge([title, description, tags, tags.input]),
-        builder: (context, sheet) => PopScope<String>(
-          canPop: state() == opened,
-          onPopInvokedWithResult: (didPop, _) async {
-            if (didPop) return;
-            final discard = await showModalDialog<bool>(
-              context: context,
-              builder: (context) => CupertinoAlertDialog(
-                title: Text('Discard new $kind?'),
-                actions: [
-                  CupertinoDialogAction(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Keep editing'),
-                  ),
-                  CupertinoDialogAction(
-                    isDestructiveAction: true,
-                    onPressed: () => Navigator.pop(context, true),
-                    child: const Text('Discard'),
-                  ),
-                ],
-              ),
-            );
-            if (discard == true && context.mounted) Navigator.pop(context);
-          },
-          child: sheet!,
-        ),
+      builder: (context, update) => PopScope<String>(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) async {
+          if (didPop) return;
+          if (state() == opened) {
+            Navigator.pop(context);
+            return;
+          }
+          final discard = await showModalDialog<bool>(
+            context: context,
+            builder: (context) => CupertinoAlertDialog(
+              title: Text('Discard new $kind?'),
+              actions: [
+                CupertinoDialogAction(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Keep editing'),
+                ),
+                CupertinoDialogAction(
+                  isDestructiveAction: true,
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Discard'),
+                ),
+              ],
+            ),
+          );
+          if (discard == true && context.mounted) Navigator.pop(context);
+        },
         child: CreationSheet(
           title: isFolder
               ? 'New notebook'
@@ -363,6 +368,7 @@ Future<CreationForm?> askCreation(
               const SizedBox(height: 6),
               CupertinoTextField(
                 cursorOpacityAnimates: false,
+                placeholderStyle: placeholderText,
                 controller: title,
                 placeholder: isFolder ? 'Notebook title' : 'Title',
                 autofocus: true,
@@ -374,6 +380,7 @@ Future<CreationForm?> askCreation(
                 const SizedBox(height: 6),
                 CupertinoTextField(
                   cursorOpacityAnimates: false,
+                  placeholderStyle: placeholderText,
                   controller: description,
                   placeholder: 'Description',
                   minLines: 2,
@@ -554,6 +561,7 @@ Future<CreationForm?> askCreation(
                       Expanded(
                         child: CupertinoTextField(
                           cursorOpacityAnimates: false,
+                          placeholderStyle: placeholderText,
                           controller: templateName,
                           placeholder: 'Template name',
                           autofocus: true,

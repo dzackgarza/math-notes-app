@@ -26,6 +26,7 @@ extension _EditorDialogs on _EditorScreenState {
                 const SizedBox(height: 6),
                 CupertinoTextField(
                   cursorOpacityAnimates: false,
+                  placeholderStyle: placeholderText,
                   controller: controller,
                   autofocus: true,
                   placeholder: 'Text',
@@ -46,6 +47,7 @@ extension _EditorDialogs on _EditorScreenState {
                 const SizedBox(height: 12),
                 CupertinoTextField(
                   cursorOpacityAnimates: false,
+                  placeholderStyle: placeholderText,
                   controller: boxWidth,
                   prefix: const Padding(
                     padding: EdgeInsets.all(8),
@@ -253,6 +255,7 @@ extension _EditorDialogs on _EditorScreenState {
             mainAxisSize: MainAxisSize.min,
             children: [
               Semantics(
+                role: SemanticsRole.status,
                 liveRegion: true,
                 child: Text('Page $number deleted', style: callout),
               ),
@@ -291,6 +294,7 @@ extension _EditorDialogs on _EditorScreenState {
           padding: const EdgeInsets.only(top: 16),
           child: CupertinoTextField(
             cursorOpacityAnimates: false,
+            placeholderStyle: placeholderText,
             controller: text,
             autofocus: true,
             placeholder: '1 to $count',
@@ -349,6 +353,7 @@ extension _EditorDialogs on _EditorScreenState {
                 const SizedBox(height: 16),
                 CupertinoTextField(
                   cursorOpacityAnimates: false,
+                  placeholderStyle: placeholderText,
                   controller: first,
                   placeholder: 'First page',
                   keyboardType: TextInputType.number,
@@ -357,6 +362,7 @@ extension _EditorDialogs on _EditorScreenState {
                 const SizedBox(height: 12),
                 CupertinoTextField(
                   cursorOpacityAnimates: false,
+                  placeholderStyle: placeholderText,
                   controller: last,
                   placeholder: 'Last page',
                   keyboardType: TextInputType.number,
@@ -464,6 +470,7 @@ extension _EditorDialogs on _EditorScreenState {
           title: const Text('Link destination'),
           content: CupertinoTextField(
             cursorOpacityAnimates: false,
+            placeholderStyle: placeholderText,
             controller: text,
             autofocus: true,
             placeholder: 'https://… or ../../Note/pages/0001.svg',

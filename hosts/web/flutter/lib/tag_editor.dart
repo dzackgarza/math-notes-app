@@ -1,5 +1,7 @@
 import 'package:flutter/cupertino.dart';
 
+import 'ui/theme.dart' show placeholderText;
+
 class TagEditingController extends ValueNotifier<List<String>> {
   TagEditingController(super.value);
 
@@ -70,6 +72,7 @@ class TagEditor extends StatelessWidget {
             Expanded(
               child: CupertinoTextField(
                 cursorOpacityAnimates: false,
+                placeholderStyle: placeholderText,
                 controller: controller.input,
                 placeholder: 'Add a tag…',
                 textInputAction: TextInputAction.done,
