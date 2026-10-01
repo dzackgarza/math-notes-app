@@ -54,3 +54,5 @@ esac
 
 bin/gn gen "out/$target" --args="${args[*]}"
 third_party/ninja/ninja -C "out/$target" skia skparagraph skshaper skunicode_core skunicode_icu
+test -s "out/$target/libskia.a"
+find "out/$target" -maxdepth 1 -name '*freetype*.a' -print -quit | grep -q .

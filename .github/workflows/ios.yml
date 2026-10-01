@@ -51,8 +51,8 @@ jobs:
             ${{ env.SKIA_DIR }}/include
             ${{ env.SKIA_DIR }}/modules
             ${{ env.SKIA_DIR }}/src
-            ${{ env.SKIA_DIR }}/out/device/libskia.a
-            ${{ env.SKIA_DIR }}/out/simulator/libskia.a
+            ${{ env.SKIA_DIR }}/out/device/*.a
+            ${{ env.SKIA_DIR }}/out/simulator/*.a
           key: skia-ios-${{ hashFiles('core/scripts/build-skia-ios.sh') }}
 
       - name: Build Skia for iOS
