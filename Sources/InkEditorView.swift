@@ -4,7 +4,7 @@ import SwiftUI
 import UIKit
 
 @MainActor
-final class InkEditorViewController: UIViewController, UIScrollViewDelegate {
+final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIContextMenuInteractionDelegate {
   private let document: EngineDocument
   private let scrollView = UIScrollView()
   private let documentView = UIView()
@@ -12,7 +12,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate {
   private let onError: (Error) -> Void
   private lazy var canvasView = InkCanvasView(
     document: document,
-    onEditCommitted: onEditCommitted)
+    onInteractionEnded: { [weak self] in self?.canvasInteractionEnded() })
+  private let selectionBar = UIStackView()
   private var documentSize: CGSize
   private var setInitialZoom = false
   private var appliedTool: EditorTool = .pen
@@ -91,6 +92,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate {
     ])
 
     configureBottomPull()
+    configureSelectionBar()
+    canvasView.addInteraction(UIContextMenuInteraction(delegate: self))
   }
 
   override func viewDidLayoutSubviews() {
@@ -104,6 +107,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate {
 
     updateContentInsets()
     syncCanvasTransform()
+    refreshSelectionBar()
   }
 
   func applyHostState(tool: EditorTool, pens: EditorPenSet, revision: Int) {
@@ -120,6 +124,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate {
     if nextSize != documentSize {
       refreshDocumentGeometry()
     }
+    refreshSelectionBar()
   }
 
   func viewForZooming(in scrollView: UIScrollView) -> UIView? {
@@ -129,11 +134,13 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate {
   func scrollViewDidScroll(_ scrollView: UIScrollView) {
     trackBottomPull()
     syncCanvasTransform()
+    refreshSelectionBar()
   }
 
   func scrollViewDidZoom(_ scrollView: UIScrollView) {
     updateContentInsets()
     syncCanvasTransform()
+    refreshSelectionBar()
   }
 
   func scrollViewWillEndDragging(
@@ -145,6 +152,133 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate {
       addPageFooter.state == .pulling &&
       pullGate.release(at: CACurrentMediaTime())
     cancelPullReadyTimer()
+  }
+
+  func contextMenuInteraction(
+    _ interaction: UIContextMenuInteraction,
+    configurationForMenuAtLocation location: CGPoint
+  ) -> UIContextMenuConfiguration? {
+    guard let svg = UIPasteboard.general.string, !svg.isEmpty else { return nil }
+    return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
+      let paste = UIAction(
+        title: "Paste",
+        image: UIImage(systemName: "doc.on.clipboard")
+      ) { [weak self] _ in
+        self?.paste(svg, at: location)
+      }
+      return UIMenu(children: [paste])
+    }
+  }
+
+  private func configureSelectionBar() {
+    selectionBar.axis = .horizontal
+    selectionBar.spacing = 2
+    selectionBar.isLayoutMarginsRelativeArrangement = true
+    selectionBar.directionalLayoutMargins = NSDirectionalEdgeInsets(
+      top: 2, leading: 2, bottom: 2, trailing: 2)
+    selectionBar.backgroundColor = .secondarySystemBackground
+    selectionBar.layer.cornerRadius = 12
+    selectionBar.layer.shadowColor = UIColor.black.cgColor
+    selectionBar.layer.shadowOpacity = 0.12
+    selectionBar.layer.shadowRadius = 8
+    selectionBar.layer.shadowOffset = CGSize(width: 0, height: 3)
+    selectionBar.isHidden = true
+
+    selectionBar.addArrangedSubview(selectionButton(
+      label: "Copy", systemImage: "doc.on.doc", action: #selector(copySelection)))
+    selectionBar.addArrangedSubview(selectionButton(
+      label: "Cut", systemImage: "scissors", action: #selector(cutSelection)))
+    selectionBar.addArrangedSubview(selectionButton(
+      label: "Duplicate", systemImage: "plus.square.on.square", action: #selector(duplicateSelection)))
+    selectionBar.addArrangedSubview(selectionButton(
+      label: "Delete selection", systemImage: "trash", action: #selector(deleteSelection)))
+    view.addSubview(selectionBar)
+  }
+
+  private func selectionButton(label: String, systemImage: String, action: Selector) -> UIButton {
+    let button = UIButton(type: .system)
+    button.setImage(UIImage(systemName: systemImage), for: .normal)
+    button.accessibilityLabel = label
+    button.addTarget(self, action: action, for: .touchUpInside)
+    button.widthAnchor.constraint(equalToConstant: 44).isActive = true
+    button.heightAnchor.constraint(equalToConstant: 44).isActive = true
+    return button
+  }
+
+  private func canvasInteractionEnded() {
+    onEditCommitted()
+    refreshSelectionBar()
+  }
+
+  private func refreshSelectionBar() {
+    guard isViewLoaded, let selection = canvasView.selectionFrame() else {
+      selectionBar.isHidden = true
+      return
+    }
+
+    selectionBar.isHidden = false
+    let target = canvasView.convert(selection, to: view)
+    let size = selectionBar.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize)
+    let safe = view.safeAreaLayoutGuide.layoutFrame
+    let minimumX = safe.minX + 8
+    let maximumX = max(minimumX, safe.maxX - size.width - 8)
+    let x = min(max(target.midX - size.width / 2, minimumX), maximumX)
+    var y = target.minY - size.height - 8
+    if y < safe.minY + 8 {
+      y = min(target.maxY + 8, safe.maxY - size.height - 8)
+    }
+    selectionBar.frame = CGRect(origin: CGPoint(x: x, y: y), size: size)
+  }
+
+  @objc private func copySelection() {
+    do {
+      guard let svg = try canvasView.copySelection() else { return }
+      UIPasteboard.general.string = svg
+    } catch {
+      onError(error)
+    }
+  }
+
+  @objc private func cutSelection() {
+    do {
+      guard let svg = try canvasView.copySelection() else { return }
+      UIPasteboard.general.string = svg
+      try canvasView.deleteSelection()
+      onEditCommitted()
+      refreshSelectionBar()
+    } catch {
+      onError(error)
+    }
+  }
+
+  @objc private func duplicateSelection() {
+    do {
+      try canvasView.duplicateSelection()
+      onEditCommitted()
+      refreshSelectionBar()
+    } catch {
+      onError(error)
+    }
+  }
+
+  @objc private func deleteSelection() {
+    do {
+      try canvasView.deleteSelection()
+      onEditCommitted()
+      refreshSelectionBar()
+    } catch {
+      onError(error)
+    }
+  }
+
+  private func paste(_ svg: String, at point: CGPoint) {
+    do {
+      try canvasView.paste(svg, at: point)
+      onEditCommitted()
+      refreshSelectionBar()
+    } catch {
+      onError(error)
+    }
   }
 
   private func configureBottomPull() {

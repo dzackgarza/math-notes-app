@@ -1,3 +1,4 @@
+import Foundation
 import InkEngine
 import Metal
 import QuartzCore
@@ -12,13 +13,13 @@ final class InkCanvasView: UIView {
   private var canvas: OpaquePointer?
   private var updateLink: UIUpdateLink?
   private var sampleIDs = PencilSampleIDs()
-  private let onEditCommitted: () -> Void
+  private let onInteractionEnded: () -> Void
 
   private var metalLayer: CAMetalLayer {
     layer as! CAMetalLayer
   }
 
-  init(document: EngineDocument, onEditCommitted: @escaping () -> Void = {}) {
+  init(document: EngineDocument, onInteractionEnded: @escaping () -> Void = {}) {
     guard let device = MTLCreateSystemDefaultDevice(),
           let queue = device.makeCommandQueue()
     else {
@@ -26,7 +27,7 @@ final class InkCanvasView: UIView {
     }
     self.device = device
     self.queue = queue
-    self.onEditCommitted = onEditCommitted
+    self.onInteractionEnded = onInteractionEnded
 
     super.init(frame: .zero)
 
@@ -138,9 +139,9 @@ final class InkCanvasView: UIView {
   }
 
   override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-    let committed = sendPencilTouches(touches, event: event)
-    if committed {
-      onEditCommitted()
+    let handled = sendPencilTouches(touches, event: event)
+    if handled {
+      onInteractionEnded()
     }
   }
 
@@ -214,6 +215,55 @@ final class InkCanvasView: UIView {
     return status == INK_OK && touches.contains {
       $0.type == .pencil && $0.phase == .ended
     }
+  }
+
+  func selectionFrame() -> CGRect? {
+    guard let canvas else { return nil }
+    var info = InkSelectionInfo()
+    let status = ink_canvas_selection(canvas, &info)
+    check(status, operation: "ink_canvas_selection")
+    guard status == INK_OK, info.count > 0 else { return nil }
+    return CGRect(x: info.x, y: info.y, width: info.width, height: info.height)
+  }
+
+  func copySelection() throws -> String? {
+    guard let canvas else { return nil }
+    var bytes: UnsafePointer<UInt8>?
+    var size = 0
+    try require(
+      ink_canvas_copy_selection(canvas, 0, &bytes, &size),
+      operation: "Copy selection")
+    guard size > 0, let bytes else { return nil }
+    return String(decoding: UnsafeBufferPointer(start: bytes, count: size), as: UTF8.self)
+  }
+
+  func deleteSelection() throws {
+    guard let canvas else { return }
+    try require(ink_canvas_delete_selection(canvas), operation: "Delete selection")
+  }
+
+  func duplicateSelection() throws {
+    guard let canvas else { return }
+    try require(ink_canvas_duplicate_selection(canvas), operation: "Duplicate selection")
+  }
+
+  func paste(_ svg: String, at point: CGPoint) throws {
+    guard let canvas else { return }
+    let data = Data(svg.utf8)
+    let status = data.withUnsafeBytes { raw in
+      ink_canvas_paste(
+        canvas,
+        raw.baseAddress?.assumingMemoryBound(to: UInt8.self),
+        raw.count,
+        point.x,
+        point.y)
+    }
+    try require(status, operation: "Paste selection")
+  }
+
+  private func require(_ status: InkStatus, operation: String) throws {
+    guard status != INK_OK else { return }
+    throw EngineDocumentError.operation(operation, EngineDocument.lastError())
   }
 
   private func updateSurfaceSize() {
