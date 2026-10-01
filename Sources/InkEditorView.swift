@@ -6,12 +6,16 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate {
   private let document: EngineDocument
   private let scrollView = UIScrollView()
   private let documentView = UIView()
-  private lazy var canvasView = InkCanvasView(document: document)
+  private let onEditCommitted: () -> Void
+  private lazy var canvasView = InkCanvasView(
+    document: document,
+    onEditCommitted: onEditCommitted)
   private let documentSize: CGSize
   private var setInitialZoom = false
 
-  init(document: EngineDocument) {
+  init(document: EngineDocument, onEditCommitted: @escaping () -> Void = {}) {
     self.document = document
+    self.onEditCommitted = onEditCommitted
     documentSize = document.contentSize()
     super.init(nibName: nil, bundle: nil)
   }
@@ -122,9 +126,15 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate {
 @MainActor
 struct InkEditorView: UIViewControllerRepresentable {
   let document: EngineDocument
+  let onEditCommitted: () -> Void
+
+  init(document: EngineDocument, onEditCommitted: @escaping () -> Void = {}) {
+    self.document = document
+    self.onEditCommitted = onEditCommitted
+  }
 
   func makeUIViewController(context: Context) -> InkEditorViewController {
-    InkEditorViewController(document: document)
+    InkEditorViewController(document: document, onEditCommitted: onEditCommitted)
   }
 
   func updateUIViewController(_ uiViewController: InkEditorViewController, context: Context) {}

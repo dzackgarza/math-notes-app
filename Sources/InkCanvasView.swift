@@ -12,12 +12,13 @@ final class InkCanvasView: UIView {
   private var canvas: OpaquePointer?
   private var updateLink: UIUpdateLink?
   private var sampleIDs = PencilSampleIDs()
+  private let onEditCommitted: () -> Void
 
   private var metalLayer: CAMetalLayer {
     layer as! CAMetalLayer
   }
 
-  init(document: EngineDocument) {
+  init(document: EngineDocument, onEditCommitted: @escaping () -> Void = {}) {
     guard let device = MTLCreateSystemDefaultDevice(),
           let queue = device.makeCommandQueue()
     else {
@@ -25,6 +26,7 @@ final class InkCanvasView: UIView {
     }
     self.device = device
     self.queue = queue
+    self.onEditCommitted = onEditCommitted
 
     super.init(frame: .zero)
 
@@ -106,7 +108,10 @@ final class InkCanvasView: UIView {
   }
 
   override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-    sendPencilTouches(touches, event: event)
+    let committed = sendPencilTouches(touches, event: event)
+    if committed {
+      onEditCommitted()
+    }
   }
 
   override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -138,8 +143,9 @@ final class InkCanvasView: UIView {
     check(status, operation: "ink_input_update")
   }
 
-  private func sendPencilTouches(_ touches: Set<UITouch>, event: UIEvent?) {
-    guard let canvas else { return }
+  @discardableResult
+  private func sendPencilTouches(_ touches: Set<UITouch>, event: UIEvent?) -> Bool {
+    guard let canvas else { return false }
 
     var samples: [InkPenSample] = []
     for touch in touches where touch.type == .pencil {
@@ -170,11 +176,14 @@ final class InkCanvasView: UIView {
       }
     }
 
-    guard !samples.isEmpty else { return }
+    guard !samples.isEmpty else { return false }
     let status = samples.withUnsafeBufferPointer { buffer in
       ink_input(canvas, buffer.baseAddress, buffer.count)
     }
     check(status, operation: "ink_input")
+    return status == INK_OK && touches.contains {
+      $0.type == .pencil && $0.phase == .ended
+    }
   }
 
   private func updateSurfaceSize() {
