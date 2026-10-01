@@ -3481,6 +3481,7 @@ test("Flutter menus, alerts, action sheets, and sheets blur the handwriting behi
   const title = await boxOf(page.getByText("Go to page", { exact: true }));
   await blurred(title.x - 10, title.y - 6, title.y + title.height + 6, "the alert");
   await blurred(box.x + 60, title.y - 20, title.y + 40, "the scrim beside the alert");
+  expect(await capture(page, { x: title.x - 10, y: title.y + title.height / 2, width: 1, height: 1 }), "the alert is surface2, not Cupertino gray").toEqual([[0x28, 0x32, 0x47]]);
   await page.screenshot({ path: info.outputPath("alert.png") });
   await button("Cancel").click();
 
@@ -3488,6 +3489,8 @@ test("Flutter menus, alerts, action sheets, and sheets blur the handwriting behi
   await button("Paper for new pages").click();
   const action = await boxOf(button("Grid Paper"));
   await blurred(action.x + 0.6 * action.width, action.y + 4, action.y + action.height - 4, "the action sheet");
+  const heading = await boxOf(page.getByText("Paper for new pages", { exact: true }));
+  expect(await capture(page, { x: heading.x - 10, y: heading.y + heading.height / 2, width: 1, height: 1 }), "the action sheet is surface2, not Cupertino gray").toEqual([[0x28, 0x32, 0x47]]);
   await button("Done").click();
 
   await button("Pages").click();

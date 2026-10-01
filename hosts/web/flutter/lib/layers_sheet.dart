@@ -34,7 +34,7 @@ Future<void> manageLayers(
           );
           final accepted = await showModalDialog<bool>(
             context: context,
-            builder: (context) => CupertinoAlertDialog(
+            builder: (context) => Alert(
               title: Text(index == null ? 'New layer' : 'Rename layer'),
               content: CupertinoTextField(
                 cursorOpacityAnimates: false,
@@ -45,11 +45,11 @@ Future<void> manageLayers(
                 placeholder: 'Layer name',
               ),
               actions: [
-                CupertinoDialogAction(
+                AlertAction(
                   onPressed: () => Navigator.pop(context, false),
                   child: const Text('Cancel'),
                 ),
-                CupertinoDialogAction(
+                AlertAction(
                   onPressed: () => Navigator.pop(context, true),
                   child: const Text('Save'),
                 ),
@@ -190,10 +190,10 @@ Future<void> manageLayers(
                                       CupertinoButton(
                                         onPressed: layers.length > 1
                                             ? () async {
-                                                final remove = await showModalDialog<bool>(
-                                                  context: context,
-                                                  builder: (context) =>
-                                                      CupertinoAlertDialog(
+                                                final remove =
+                                                    await showModalDialog<bool>(
+                                                      context: context,
+                                                      builder: (context) => Alert(
                                                         title: Text(
                                                           'Delete ${layers[i].name}?',
                                                         ),
@@ -201,7 +201,7 @@ Future<void> manageLayers(
                                                           'This removes its content from every page. Undo restores the layer.',
                                                         ),
                                                         actions: [
-                                                          CupertinoDialogAction(
+                                                          AlertAction(
                                                             onPressed: () =>
                                                                 Navigator.pop(
                                                                   context,
@@ -211,7 +211,7 @@ Future<void> manageLayers(
                                                               'Cancel',
                                                             ),
                                                           ),
-                                                          CupertinoDialogAction(
+                                                          AlertAction(
                                                             isDestructiveAction:
                                                                 true,
                                                             onPressed: () =>
@@ -225,7 +225,7 @@ Future<void> manageLayers(
                                                           ),
                                                         ],
                                                       ),
-                                                );
+                                                    );
                                                 if (remove == true)
                                                   change(() {
                                                     document.removeLayer(

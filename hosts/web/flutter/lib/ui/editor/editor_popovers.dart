@@ -401,15 +401,15 @@ extension _EditorPopovers on _EditorScreenState {
   Future<void> savedPenMenu(int index) async {
     final remove = await showModalSheet<bool>(
       context: context,
-      builder: (context) => CupertinoActionSheet(
+      builder: (context) => ActionSheet(
         actions: [
-          CupertinoActionSheetAction(
+          SheetAction(
             isDestructiveAction: true,
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Remove saved pen'),
           ),
         ],
-        cancelButton: CupertinoActionSheetAction(
+        cancelButton: SheetAction(
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
         ),

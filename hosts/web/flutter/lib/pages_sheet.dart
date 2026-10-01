@@ -35,21 +35,21 @@ Future<int?> overviewPages(
       Future<void> pageActions(int index) async {
         final action = await showModalSheet<String>(
           context: context,
-          builder: (context) => CupertinoActionSheet(
+          builder: (context) => ActionSheet(
             title: Text('Page ${index + 1}'),
             actions: [
-              CupertinoActionSheetAction(
+              SheetAction(
                 onPressed: () => Navigator.pop(context, 'duplicate'),
                 child: const Text('Duplicate'),
               ),
               if (count > 1)
-                CupertinoActionSheetAction(
+                SheetAction(
                   isDestructiveAction: true,
                   onPressed: () => Navigator.pop(context, 'delete'),
                   child: const Text('Delete'),
                 ),
             ],
-            cancelButton: CupertinoActionSheetAction(
+            cancelButton: SheetAction(
               onPressed: () => Navigator.pop(context),
               child: const Text('Cancel'),
             ),

@@ -29,11 +29,10 @@ const paperLabels = {
   'grid-coarse': 'Grid Paper, coarse',
 };
 
-CupertinoActionSheetAction cancelAction(BuildContext context) =>
-    CupertinoActionSheetAction(
-      onPressed: () => Navigator.pop(context),
-      child: const Text('Cancel'),
-    );
+SheetAction cancelAction(BuildContext context) => SheetAction(
+  onPressed: () => Navigator.pop(context),
+  child: const Text('Cancel'),
+);
 
 // The name and color of a new tag; null when the user cancels.
 Future<({String name, String color})?> askNewTag(BuildContext context) async {
@@ -42,7 +41,7 @@ Future<({String name, String color})?> askNewTag(BuildContext context) async {
   final accepted = await showModalDialog<bool>(
     context: context,
     builder: (context) => StatefulBuilder(
-      builder: (context, update) => CupertinoAlertDialog(
+      builder: (context, update) => Alert(
         title: const Text('New tag'),
         content: Column(
           children: [
@@ -74,11 +73,11 @@ Future<({String name, String color})?> askNewTag(BuildContext context) async {
           ],
         ),
         actions: [
-          CupertinoDialogAction(
+          AlertAction(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
-          CupertinoDialogAction(
+          AlertAction(
             onPressed: name.text.trim().isEmpty
                 ? null
                 : () => Navigator.pop(context, true),
@@ -106,7 +105,7 @@ Future<bool> editNoteDetails(
   );
   final accepted = await showModalDialog<bool>(
     context: context,
-    builder: (context) => CupertinoAlertDialog(
+    builder: (context) => Alert(
       title: Text(title),
       content: Column(
         children: [
@@ -126,11 +125,11 @@ Future<bool> editNoteDetails(
         ],
       ),
       actions: [
-        CupertinoDialogAction(
+        AlertAction(
           onPressed: () => Navigator.pop(context, false),
           child: const Text('Cancel'),
         ),
-        CupertinoDialogAction(
+        AlertAction(
           isDefaultAction: true,
           onPressed: () => Navigator.pop(context, true),
           child: const Text('Save details'),
@@ -162,7 +161,7 @@ Future<bool> editFolderDetails(
   final accepted = await showModalDialog<bool>(
     context: context,
     builder: (context) => StatefulBuilder(
-      builder: (context, update) => CupertinoAlertDialog(
+      builder: (context, update) => Alert(
         title: Text('$title details'),
         content: Column(
           children: [
@@ -197,11 +196,11 @@ Future<bool> editFolderDetails(
           ],
         ),
         actions: [
-          CupertinoDialogAction(
+          AlertAction(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
-          CupertinoDialogAction(
+          AlertAction(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Save details'),
           ),
@@ -223,7 +222,7 @@ Future<String?> askName(BuildContext context, String name) async {
   final controller = TextEditingController(text: name);
   final accepted = await showModalDialog<bool>(
     context: context,
-    builder: (context) => CupertinoAlertDialog(
+    builder: (context) => Alert(
       title: const Text('Rename'),
       content: CupertinoTextField(
         cursorOpacityAnimates: false,
@@ -234,11 +233,11 @@ Future<String?> askName(BuildContext context, String name) async {
         autofocus: true,
       ),
       actions: [
-        CupertinoDialogAction(
+        AlertAction(
           onPressed: () => Navigator.pop(context, false),
           child: const Text('Cancel'),
         ),
-        CupertinoDialogAction(
+        AlertAction(
           onPressed: () => Navigator.pop(context, true),
           child: const Text('Rename'),
         ),
@@ -257,11 +256,11 @@ Future<native.Folder?> chooseFolder(
   String Function(native.Folder) label,
 ) => showModalSheet<native.Folder>(
   context: context,
-  builder: (context) => CupertinoActionSheet(
+  builder: (context) => ActionSheet(
     title: Text(title),
     actions: [
       for (final item in folders)
-        CupertinoActionSheetAction(
+        SheetAction(
           onPressed: () => Navigator.pop(context, item),
           child: Text(label(item)),
         ),
@@ -330,14 +329,14 @@ Future<CreationForm?> askCreation(
           }
           final discard = await showModalDialog<bool>(
             context: context,
-            builder: (context) => CupertinoAlertDialog(
+            builder: (context) => Alert(
               title: Text('Discard new $kind?'),
               actions: [
-                CupertinoDialogAction(
+                AlertAction(
                   onPressed: () => Navigator.pop(context, false),
                   child: const Text('Keep editing'),
                 ),
-                CupertinoDialogAction(
+                AlertAction(
                   isDestructiveAction: true,
                   onPressed: () => Navigator.pop(context, true),
                   child: const Text('Discard'),

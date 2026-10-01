@@ -15,7 +15,7 @@ extension _EditorDialogs on _EditorScreenState {
     final accepted = await showModalDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, update) => CupertinoAlertDialog(
+        builder: (context, update) => Alert(
           title: Text(existing ? 'Edit text' : 'Insert text'),
           content: Padding(
             padding: const EdgeInsets.only(top: 16),
@@ -78,11 +78,11 @@ extension _EditorDialogs on _EditorScreenState {
             ),
           ),
           actions: [
-            CupertinoDialogAction(
+            AlertAction(
               onPressed: () => Navigator.pop(context, false),
               child: const Text('Cancel'),
             ),
-            CupertinoDialogAction(
+            AlertAction(
               isDefaultAction: true,
               onPressed: () {
                 final width = double.tryParse(boxWidth.text);
@@ -153,7 +153,7 @@ extension _EditorDialogs on _EditorScreenState {
       builder: (context) => StatefulBuilder(
         builder: (context, update) {
           final current = widget.note.document.pageSize();
-          return CupertinoActionSheet(
+          return ActionSheet(
             title: const Text('Paper for new pages'),
             message: Column(
               children: [
@@ -226,7 +226,7 @@ extension _EditorDialogs on _EditorScreenState {
                 ),
               ],
             ),
-            cancelButton: CupertinoActionSheetAction(
+            cancelButton: SheetAction(
               onPressed: () => Navigator.pop(context),
               child: const Text('Done'),
             ),
@@ -304,7 +304,7 @@ extension _EditorDialogs on _EditorScreenState {
     final text = TextEditingController(text: '${page + 1}');
     final chosen = await showModalDialog<int>(
       context: context,
-      builder: (context) => CupertinoAlertDialog(
+      builder: (context) => Alert(
         title: const Text('Go to page'),
         content: Padding(
           padding: const EdgeInsets.only(top: 16),
@@ -319,11 +319,11 @@ extension _EditorDialogs on _EditorScreenState {
           ),
         ),
         actions: [
-          CupertinoDialogAction(
+          AlertAction(
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
-          CupertinoDialogAction(
+          AlertAction(
             isDefaultAction: true,
             onPressed: () {
               final number = int.tryParse(text.text);
@@ -363,7 +363,7 @@ extension _EditorDialogs on _EditorScreenState {
               from >= 1 &&
               to >= from &&
               to <= widget.note.document.pageCount();
-          return CupertinoAlertDialog(
+          return Alert(
             title: Text(share ? 'Share PDF' : 'Export PDF'),
             content: Column(
               children: [
@@ -412,11 +412,11 @@ extension _EditorDialogs on _EditorScreenState {
               ],
             ),
             actions: [
-              CupertinoDialogAction(
+              AlertAction(
                 onPressed: () => Navigator.pop(context, false),
                 child: const Text('Cancel'),
               ),
-              CupertinoDialogAction(
+              AlertAction(
                 onPressed: valid ? () => Navigator.pop(context, true) : null,
                 child: Text(share ? 'Share' : 'Export'),
               ),
@@ -450,23 +450,23 @@ extension _EditorDialogs on _EditorScreenState {
   Future<void> linkSelection() async {
     final action = await showModalSheet<String>(
       context: context,
-      builder: (context) => CupertinoActionSheet(
+      builder: (context) => ActionSheet(
         title: const Text('Link selected content'),
         actions: [
-          CupertinoActionSheetAction(
+          SheetAction(
             onPressed: () => Navigator.pop(context, 'page'),
             child: const Text('Page or bookmark'),
           ),
-          CupertinoActionSheetAction(
+          SheetAction(
             onPressed: () => Navigator.pop(context, 'note'),
             child: const Text('Another notebook'),
           ),
-          CupertinoActionSheetAction(
+          SheetAction(
             onPressed: () => Navigator.pop(context, 'url'),
             child: const Text('URL or relative notebook path'),
           ),
         ],
-        cancelButton: CupertinoActionSheetAction(
+        cancelButton: SheetAction(
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
         ),
@@ -485,7 +485,7 @@ extension _EditorDialogs on _EditorScreenState {
       final text = TextEditingController();
       href = await showModalDialog<String>(
         context: context,
-        builder: (context) => CupertinoAlertDialog(
+        builder: (context) => Alert(
           title: const Text('Link destination'),
           content: CupertinoTextField(
             cursorOpacityAnimates: false,
@@ -496,11 +496,11 @@ extension _EditorDialogs on _EditorScreenState {
             placeholder: 'https://… or ../../Note/pages/0001.svg',
           ),
           actions: [
-            CupertinoDialogAction(
+            AlertAction(
               onPressed: () => Navigator.pop(context),
               child: const Text('Cancel'),
             ),
-            CupertinoDialogAction(
+            AlertAction(
               onPressed: () => Navigator.pop(context, text.text.trim()),
               child: const Text('Link'),
             ),
