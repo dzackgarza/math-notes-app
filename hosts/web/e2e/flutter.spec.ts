@@ -1159,6 +1159,13 @@ async function openNewNote(page: Page, title: string, paper?: string): Promise<{
   return { box, cdp: await page.context().newCDPSession(page) };
 }
 
+// The editor leaves a desk margin around the pages at zoom 1 (deskMargin in
+// editor_screen.dart). The first page's screen rectangle in a canvas.
+const DESK_MARGIN = 16;
+function pageIn(canvas: Box): Box {
+  return { x: canvas.x + DESK_MARGIN, y: canvas.y + DESK_MARGIN, width: canvas.width - 2 * DESK_MARGIN, height: canvas.height - DESK_MARGIN };
+}
+
 // WCAG relative luminance: https://www.w3.org/TR/WCAG22/#dfn-relative-luminance
 function luminance(rgb: Rgb): number {
   const [red, green, blue] = rgb.map((channel) => {
@@ -1547,8 +1554,8 @@ test("Flutter inserts a JPEG figure, moves, resizes, and deletes it, and keeps i
     const outline = await pixelBounds(page, region, isOutline);
     return { left: outline.left + 5, right: outline.right - 5, bottom: outline.bottom - 5 };
   };
-  // Screen pixels for each point of the A4 page, which fills the view's width.
-  const scale = box.width / 595;
+  // Screen pixels for each point of the A4 page.
+  const scale = pageIn(box).width / 595;
 
   // The image arrives selected, one point for each of its pixels.
   const chooser = page.waitForEvent("filechooser");
@@ -1616,15 +1623,15 @@ test("Flutter places typed text boxes, wraps them at a width, and edits and dele
   // The page view below the toolbar, split at the middle: the wrapped box is
   // in the left half and the one-word box in the right half.
   const top = Math.round(box.y) + 120;
-  const left = { x: 40, y: top, width: 590, height: 460 };
+  const left = { x: Math.round(box.x) + 20, y: top, width: 610 - Math.round(box.x), height: 460 };
   const right = { x: 630, y: top, width: 610, height: 460 };
   const text = page.getByRole("textbox", { name: "Text", exact: true });
   const boxWidth = page.getByRole("textbox", { name: "Width (pt)", exact: true });
   const done = () => page.getByRole("button", { name: "Done", exact: true }).click();
   const clear = () => page.getByRole("button", { name: "Clear selection", exact: true }).click();
   const sentence = "Every vector space has a basis.";
-  // Screen pixels for each point of the A4 page, which fills the view's width.
-  const scale = box.width / 595;
+  // Screen pixels for each point of the A4 page.
+  const scale = pageIn(box).width / 595;
 
   await page.getByRole("button", { name: "Text", exact: true }).click();
   await expect(page.getByText("Insert text", { exact: true })).toBeVisible();
@@ -1733,26 +1740,27 @@ test("Flutter imports a PDF, annotates its pages, and exports them with the anno
   const canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
   await canvas.waitFor({ timeout: 60_000 });
   await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error("Notebook canvas has no bounds");
+  const canvasBox = await canvas.boundingBox();
+  if (!canvasBox) throw new Error("Notebook canvas has no bounds");
+  const box = pageIn(canvasBox);
   const cdp = await page.context().newCDPSession(page);
   const button = (name: string) => page.getByRole("button", { name, exact: true });
-  // Screen pixels for each point of the Letter page, which fills the view's width.
+  // Screen pixels for each point of the Letter page.
   const scale = box.width / 612;
   // The black bar at the top of a fixture page (paper.tex), 1 cm tall: the
   // first tall dark run in a column through it, and the bar's length along
   // the middle row of that run. The glyphs of the text are shorter runs.
   const bar = async () => {
-    const dark = (await capture(page, { x: 230, y: box.y, width: 1, height: box.height })).map(isInk);
+    const dark = (await capture(page, { x: Math.round(box.x + 0.3 * box.width), y: box.y, width: 1, height: box.height })).map(isInk);
     const top = dark.findIndex((_, row) => row + 40 <= dark.length && dark.slice(row, row + 40).every(Boolean));
     if (top < 0) throw new Error("No bar crosses the column");
     const bottom = dark.indexOf(false, top);
     const y = box.y + (top + bottom) / 2;
-    return { y, height: bottom - top, length: await inkLength(page, y, 0, Math.round(box.width)) };
+    return { y, height: bottom - top, length: await inkLength(page, y, Math.round(box.x), Math.round(box.x + box.width)) };
   };
   // The ink in the left margin of the page around a row. The fixture's margin is blank.
   const marginInk = async (y: number) =>
-    (await capture(page, { x: 40, y: y - 10, width: 140, height: 20 })).filter(isInk).length;
+    (await capture(page, { x: Math.round(box.x) + 10, y: y - 10, width: 140, height: 20 })).filter(isInk).length;
 
   let first = await bar();
   await expect(async () => {
@@ -1764,7 +1772,7 @@ test("Flutter imports a PDF, annotates its pages, and exports them with the anno
 
   const note = first.y + 150;
   expect(await marginInk(note)).toBe(0);
-  await penStroke(cdp, line(60, 160, note), 0.6);
+  await penStroke(cdp, line(box.x + 20, box.x + 120, note), 0.6);
   expect(await marginInk(note), "the pen writes in the margin").toBeGreaterThan(80);
 
   const x = 400;
@@ -1783,7 +1791,7 @@ test("Flutter imports a PDF, annotates its pages, and exports them with the anno
   await button("Eraser").click();
   await button("Stroke").click();
   await closePopover(page);
-  await penStroke(cdp, [-40, 0, 40].map((dy) => ({ x: 110, y: note + dy })), 0.6);
+  await penStroke(cdp, [-40, 0, 40].map((dy) => ({ x: box.x + 70, y: note + dy })), 0.6);
   expect(await marginInk(note), "the eraser removes the pen stroke").toBe(0);
   await penStroke(cdp, [-50, 0, 50].map((dy) => ({ x: 300, y: first.y + dy })), 0.6);
   expect(await bar(), "the eraser leaves the imported page").toEqual(first);
@@ -1799,7 +1807,7 @@ test("Flutter imports a PDF, annotates its pages, and exports them with the anno
   }).toPass({ timeout: 15_000 });
   await button("Pen").click();
   const secondNote = second.y + 150;
-  await penStroke(cdp, line(60, 160, secondNote), 0.6);
+  await penStroke(cdp, line(box.x + 20, box.x + 120, secondNote), 0.6);
   expect(await marginInk(secondNote), "the pen writes on page 2").toBeGreaterThan(80);
   await page.screenshot({ path: info.outputPath("second-page.png") });
   await save(page);
@@ -1835,7 +1843,7 @@ test("Flutter imports a PDF, annotates its pages, and exports them with the anno
       .filter((rgb, i) => i % 612 >= 20 && i % 612 < 86 && brightness(rgb) < 600).length;
     expect(margin, `the pen stroke of exported page ${pageNumber}`).toBeGreaterThan(30);
   }
-  const highlighted = (await exported(1))[612 * (109 - Math.round(45 / scale)) + Math.round(x / scale)];
+  const highlighted = (await exported(1))[612 * (109 - Math.round(45 / scale)) + Math.round((x - box.x) / scale)];
   expect(isInk(highlighted)).toBe(false);
   expect(brightness(highlighted), "the exported highlight").toBeLessThan(735);
 
@@ -1995,9 +2003,11 @@ async function closePopover(page: Page): Promise<void> {
 
 // The rail's current-color dot opens the Colors popover: the swatches, the
 // palette editor, and the saved pens.
+// The current-color dot. Its accessible name carries the color: "Colors #1a1a1a".
+const COLORS = /^Colors #[0-9a-f]{6}$/;
+
 async function openColors(page: Page): Promise<void> {
-  // The accessible name carries the current color: "Colors #1a1a1a".
-  await page.getByRole("button", { name: /^Colors\b/ }).click();
+  await page.getByRole("button", { name: COLORS }).click();
   await expect(page.getByRole("button", { name: "Edit colors", exact: true })).toBeVisible();
 }
 
@@ -2174,9 +2184,10 @@ test("Flutter Tab reaches every editor control and finishes each library region 
   await page.getByRole("button", { name: "Create", exact: true }).click();
   await page.locator('canvas[id^="ink-canvas-"]:visible').waitFor({ timeout: 30_000 });
   const editor = await tabOrder(page, 30);
-  for (const name of ["Library", "Open note", "Pages", "View", "More", "Pen", "Lasso", "Insert space", "Undo", "Redo", "Colors"]) {
+  for (const name of ["Library", "Open note", "Pages", "View", "More", "Pen", "Lasso", "Insert space", "Undo", "Redo"]) {
     expect(editor, `Tab reaches ${name}`).toContain(name);
   }
+  expect(editor.some((name) => COLORS.test(name)), `Tab reaches Colors: ${editor}`).toBe(true);
   expect(editor.indexOf("More"), "Tab finishes the top bar before the rail").toBeLessThan(editor.indexOf("Pen"));
 });
 
@@ -2189,8 +2200,9 @@ test("Flutter places the tool rail on the left edge beside the page and hides to
   // control is in it, and none of them covers the page.
   const pen = await boxOf(button("Pen"));
   expect(pen.x, "the rail is on the left edge").toBeLessThan(16);
-  for (const name of ["Pen", "Lasso", "Insert space", "Undo", "Redo", "Colors"]) {
-    const control = await boxOf(button(name));
+  const controls = ["Pen", "Lasso", "Insert space", "Undo", "Redo"].map((name) => [name, button(name)] as const);
+  for (const [name, locator] of [...controls, ["Colors", page.getByRole("button", { name: COLORS })] as const]) {
+    const control = await boxOf(locator);
     expect(control.width, `${name} is a 44 px target`).toBeGreaterThanOrEqual(44);
     expect(control.x + control.width, `${name} does not cover the page`).toBeLessThanOrEqual(box.x);
   }
@@ -2703,11 +2715,14 @@ test("Flutter inserts pages before and after a page, deletes a page, and sizes n
 
   await choose("Pages", "Delete page");
   await expect(page.getByText(/^\d \/ 6$/)).toBeVisible();
+  // The pointer rests on the toast, which holds it open.
+  const toast = page.getByText("Page 4 deleted", { exact: true });
+  await toast.hover();
   expect((await savedPages(page, "Inserts")).map(({ size }) => size), "the landscape Letter page is deleted")
     .toEqual([a4, a4, a4, ...papers.slice(1).map(([, size]) => size)]);
   await page.screenshot({ path: info.outputPath("delete-toast.png") });
   // The toast's Undo restores the page.
-  await expect(page.getByText("Page 4 deleted", { exact: true })).toBeVisible();
+  await expect(toast).toBeVisible();
   await button("Undo").last().click();
   await expect(page.getByText(/^\d \/ 7$/)).toBeVisible();
   await goTo(2);
@@ -3029,7 +3044,7 @@ test("Flutter insert space moves the handwriting with the pen in each mode, and 
   await canvas.waitFor({ timeout: 30_000 });
   const box = await boxOf(canvas);
   const cdp = await page.context().newCDPSession(page);
-  const paper = await linedPaper(page, cdp, box);
+  const paper = await linedPaper(page, cdp, pageIn(box));
   const { spacing, middle, margin, edge, word, words, shows } = paper;
   // The ink of the lone word, which the vertical and horizontal modes move off the bands.
   const lone = () => pixelBounds(page, {
@@ -3179,7 +3194,7 @@ test("Flutter insert space moves the handwriting with the pen in each mode, and 
   await page.getByRole("button", { name: "Open Space", exact: false }).click();
   await canvas.waitFor({ timeout: 30_000 });
   await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
-  await paper.find(Math.round(box.y + 120));
+  await paper.find(Math.round(pageIn(box).y + 120));
   await shows(3, [60, 440, 600], "the first page reopens with its words in place");
   await goToPage(page, 2);
   await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
@@ -3240,7 +3255,7 @@ test("Flutter ruled lasso and ruled eraser take the words of the lines under the
   await canvas.waitFor({ timeout: 30_000 });
   const box = await boxOf(canvas);
   const cdp = await page.context().newCDPSession(page);
-  const { rules, spacing, middle, margin, word, shows } = await linedPaper(page, cdp, box);
+  const { rules, spacing, middle, margin, word, shows } = await linedPaper(page, cdp, pageIn(box));
   const at = (left: number, band: number) => ({ x: margin + left, y: middle(band) });
   // A tap on the selected tool opens its modes.
   const ruledMode = async (tool: string) => {
