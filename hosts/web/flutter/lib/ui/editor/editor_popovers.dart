@@ -430,16 +430,23 @@ extension _EditorPopovers on _EditorScreenState {
     await choosePenColor(color);
   }
 
+  // The wheel is an image to assistive technology, not a button: Flutter web
+  // turns a press on a tappable semantics node that ends within 200 ms into
+  // a tap (ClickDebouncer in the engine's pointer_binding.dart), so a quick
+  // drag on the wheel did nothing.
   Widget colorWheel(int rgb, ValueChanged<int> changed) => Semantics(
     label: 'Color wheel',
+    image: true,
     child: SizedBox(
       width: 228,
       height: 228,
-      child: ColorWheelPicker(
-        color: Color(0xFF000000 | rgb),
-        onChanged: (color) => changed(color.toARGB32() & 0xFFFFFF),
-        onWheel: (_) {},
-        wheelWidth: 20,
+      child: ExcludeSemantics(
+        child: ColorWheelPicker(
+          color: Color(0xFF000000 | rgb),
+          onChanged: (color) => changed(color.toARGB32() & 0xFFFFFF),
+          onWheel: (_) {},
+          wheelWidth: 20,
+        ),
       ),
     ),
   );
