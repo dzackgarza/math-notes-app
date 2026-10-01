@@ -124,7 +124,7 @@ test("Flutter notebook cards retain their notes and metadata after rename", asyn
   await enterText(page.getByRole("textbox", { name: "Notebook title", exact: true }), "Algebra");
   await enterText(page.getByRole("textbox", { name: "Description", exact: true }), "Lecture notes");
   await addTag(page, "groups");
-  await page.getByRole("button", { name: "Ruled", exact: true }).click();
+  await page.getByRole("button", { name: "Lined", exact: true }).click();
   await page.getByRole("button", { name: "Create", exact: true }).click();
   await page.getByRole("button", { name: "New note", exact: true }).click();
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Rings");
@@ -564,7 +564,7 @@ test("Flutter creation resumes a draft and applies saved note settings, includin
   page.on("console", message => { if (message.type() === "error") console.error(message.text()); });
   await page.goto("?root=opfs");
   await beginTestNote(page, "Seminar");
-  await page.getByRole("button", { name: "Lined Paper", exact: true }).click();
+  await page.getByRole("button", { name: "Lined", exact: true }).click();
   await addTag(page, "analysis");
   await page.getByRole("button", { name: "Letter", exact: true }).click();
   await page.getByRole("button", { name: "Landscape", exact: true }).click();
@@ -581,7 +581,7 @@ test("Flutter creation resumes a draft and applies saved note settings, includin
   await page.reload();
   await openTestNotebook(page);
   await page.getByRole("button", { name: "New note", exact: true }).click();
-  await page.getByRole("button", { name: "Plain Paper", exact: true }).click();
+  await page.getByRole("button", { name: "Plain", exact: true }).click();
   await addTag(page, "temporary");
   await (await inView(page.getByRole("button", { name: "Proof paper", exact: false }))).click();
   await expect(page.getByRole("img", { name: "First page preview", exact: true })).toBeVisible();
@@ -1384,18 +1384,18 @@ test("Flutter shows ruled, grid, dotted, and blank paper as chosen at creation",
       columns: range.filter((x) => range.every((y) => at(x, y))).length,
     };
   };
-  const lined = await pattern("Lined Paper");
+  const lined = await pattern("Lined");
   expect(lined.rows, "lined paper has rules").toBeGreaterThan(0);
   expect(lined.columns, "lined paper has no verticals").toBe(0);
-  for (const paper of ["Grid Paper", "Graph Paper"]) {
+  for (const paper of ["Grid", "Graph"]) {
     const grid = await pattern(paper);
     expect(grid.rows, `${paper} has horizontal lines`).toBeGreaterThan(0);
     expect(grid.columns, `${paper} has vertical lines`).toBeGreaterThan(0);
   }
-  const dotted = await pattern("Dot Paper");
+  const dotted = await pattern("Dot");
   expect(dotted.marks, "dot paper has dots").toBeGreaterThan(0);
   expect(dotted.rows + dotted.columns, "dot paper has no lines").toBe(0);
-  const blank = await pattern("Plain Paper");
+  const blank = await pattern("Plain");
   expect(blank.marks, "plain paper is blank").toBe(0);
 });
 
@@ -1593,7 +1593,7 @@ const isSalmon = ([red, green, blue]: Rgb) => red > 230 && Math.abs(green - 128)
 
 test("Flutter inserts a JPEG figure, moves, resizes, and deletes it, and keeps it after a reload", async ({ page }, info) => {
   test.setTimeout(150_000);
-  const { box, cdp } = await openNewNote(page, "Figure", "Plain Paper");
+  const { box, cdp } = await openNewNote(page, "Figure", "Plain");
   const region = { x: Math.round(box.x) + 100, y: Math.round(box.y) + 80, width: 900, height: 520 };
   const square = () => pixelBounds(page, region, isSalmon);
   const drag = (from: PenPoint, dx: number, dy: number) =>
@@ -1646,7 +1646,7 @@ test("Flutter inserts a JPEG figure, moves, resizes, and deletes it, and keeps i
   await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
   const asset = await page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
-    const notebook = await root.getDirectoryHandle("Plain Paper");
+    const notebook = await root.getDirectoryHandle("Plain");
     const dir = await notebook.getDirectoryHandle("Figure");
     const pages = await dir.getDirectoryHandle("pages");
     const svg = await (await (await pages.getFileHandle("0001.svg")).getFile()).text();
@@ -1659,7 +1659,7 @@ test("Flutter inserts a JPEG figure, moves, resizes, and deletes it, and keeps i
   expect(Buffer.from(asset, "base64")).toEqual(await readFile("e2e/fixtures/figure.jpg"));
 
   await page.reload();
-  await openTestNotebook(page, "Plain Paper");
+  await openTestNotebook(page, "Plain");
   await page.getByRole("button", { name: "Open Figure", exact: false }).click();
   await page.locator('canvas[id^="ink-canvas-"]:visible').waitFor({ timeout: 30_000 });
   await page.getByRole("button", { name: "More", exact: true }).waitFor();
@@ -1669,7 +1669,7 @@ test("Flutter inserts a JPEG figure, moves, resizes, and deletes it, and keeps i
 
 test("Flutter places typed text boxes, wraps them at a width, and edits and deletes them", async ({ page }, info) => {
   test.setTimeout(150_000);
-  const { box } = await openNewNote(page, "Typed", "Plain Paper");
+  const { box } = await openNewNote(page, "Typed", "Plain");
   // The page view below the toolbar, split at the middle: the wrapped box is
   // in the left half and the one-word box in the right half.
   const top = Math.round(box.y) + 120;
@@ -1771,7 +1771,7 @@ test("Flutter places typed text boxes, wraps them at a width, and edits and dele
   await save(page);
   await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
   await page.reload();
-  await openTestNotebook(page, "Plain Paper");
+  await openTestNotebook(page, "Plain");
   await page.getByRole("button", { name: "Open Typed", exact: false }).click();
   await page.locator('canvas[id^="ink-canvas-"]:visible').waitFor({ timeout: 30_000 });
   await page.getByRole("button", { name: "More", exact: true }).waitFor();
@@ -2811,7 +2811,7 @@ test("Flutter inserts pages before and after a page, deletes a page, and sizes n
   const rulings = async () => (await savedPages(page, "Inserts")).map(({ ruling }) => ruling);
   const before = await rulings();
   await choose("Pages", "Paper for new pages");
-  await button("Lined Paper").click();
+  await button("Lined paper").click();
   await button("Done").click();
   await choose("Pages", "Add page");
   await expect(page.getByText("2 / 7", { exact: true })).toBeVisible();
@@ -3117,7 +3117,7 @@ test("Flutter insert space moves the handwriting with the pen in each mode, and 
   await page.goto("?root=opfs");
   await beginTestNote(page, "Space", "Space notes");
   const button = (name: string) => page.getByRole("button", { name, exact: true });
-  await button("Lined Paper").click();
+  await button("Lined").click();
   await button("Landscape").click();
   await button("Create").click();
   const canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
@@ -3328,7 +3328,7 @@ test("Flutter ruled lasso and ruled eraser take the words of the lines under the
   await page.goto("?root=opfs");
   await beginTestNote(page, "Ruled", "Ruled notes");
   const button = (name: string) => page.getByRole("button", { name, exact: true });
-  await button("Lined Paper").click();
+  await button("Lined").click();
   await button("Landscape").click();
   await button("Create").click();
   const canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
@@ -3444,7 +3444,7 @@ test("Flutter ruled lasso and ruled eraser take the words of the lines under the
 
 test("Flutter ruled eraser takes a word on plain paper and keeps the paper plain", async ({ page }) => {
   test.setTimeout(90_000);
-  const { box, cdp } = await openNewNote(page, "Ruled plain", "Plain Paper");
+  const { box, cdp } = await openNewNote(page, "Ruled plain", "Plain");
   // Two words on one row and a word four rows of Write's blank-page lines lower.
   const spots = [{ x: box.x + 235, y: box.y + 200 }, { x: box.x + 395, y: box.y + 200 }, { x: box.x + 235, y: box.y + 320 }];
   const paper: Rgb[][] = [];
@@ -3466,7 +3466,7 @@ test("Flutter ruled eraser takes a word on plain paper and keeps the paper plain
   await penHold(cdp, from, to);
   await expect.poll(shown, "the word under the held eraser is hidden").toEqual([false, true, true]);
   await penRelease(cdp, to);
-  const saved = async () => (await savedPages(page, "Ruled plain", "Plain Paper")).map(({ strokes, ruling }) => ({ strokes, ruling }));
+  const saved = async () => (await savedPages(page, "Ruled plain", "Plain")).map(({ strokes, ruling }) => ({ strokes, ruling }));
   await expect.poll(saved).toEqual([{ strokes: 2, ruling: "blank" }]);
 });
 
@@ -3506,7 +3506,7 @@ test("Flutter menus, alerts, action sheets, and sheets blur the handwriting behi
 
   await button("Pages").click();
   await button("Paper for new pages").click();
-  const action = await boxOf(button("Grid Paper"));
+  const action = await boxOf(button("Grid paper"));
   await blurred(action.x + 0.6 * action.width, action.y + 4, action.y + action.height - 4, "the action sheet");
   const heading = await boxOf(page.getByText("Paper for new pages", { exact: true }));
   expect(await capture(page, { x: heading.x - 10, y: heading.y + heading.height / 2, width: 1, height: 1 }), "the action sheet is surface2, not Cupertino gray").toEqual([[0x28, 0x32, 0x47]]);
@@ -3589,7 +3589,7 @@ test("Flutter lifetime: first launch, folder choice, three written pages, restar
   await enterText(page.getByRole("textbox", { name: "Notebook title", exact: true }), "Analysis");
   await enterText(page.getByRole("textbox", { name: "Description", exact: true }), "Measure theory");
   await addTag(page, "measure");
-  await button("Graph").click();
+  await button("Grid").click();
   await button("Create").click();
   await expect(page.getByRole("heading", { name: "Analysis", exact: true })).toBeVisible();
   await button("New note").click();

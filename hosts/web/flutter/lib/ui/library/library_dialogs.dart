@@ -13,21 +13,23 @@ import '../theme.dart';
 Color hexColor(String value) =>
     Color(int.parse(value.substring(1), radix: 16) | 0xFF000000);
 
+// The segment labels of the papers that the creation sheets offer; the
+// sheet's "Paper style" heading names the noun.
 const papers = {
-  'dotted': 'Dot Paper',
-  'grid-medium': 'Grid Paper',
-  'lined-medium': 'Lined Paper',
-  'blank': 'Plain Paper',
-  'grid-fine': 'Graph Paper',
+  'dotted': 'Dot',
+  'grid-medium': 'Grid',
+  'lined-medium': 'Lined',
+  'blank': 'Plain',
+  'grid-fine': 'Graph',
 };
 
 // The labels of every built-in template: those of `papers`, and the rulings
 // that the creation sheets do not offer.
-const paperLabels = {
-  ...papers,
-  'lined-wide': 'Lined Paper, wide',
-  'lined-narrow': 'Lined Paper, narrow',
-  'grid-coarse': 'Grid Paper, coarse',
+final paperLabels = {
+  for (final paper in papers.entries) paper.key: '${paper.value} paper',
+  'lined-wide': 'Lined paper, wide',
+  'lined-narrow': 'Lined paper, narrow',
+  'grid-coarse': 'Grid paper, coarse',
 };
 
 SheetAction cancelAction(BuildContext context) => SheetAction(
@@ -464,11 +466,14 @@ Future<CreationForm?> askCreation(
                 thumbColor: segmentThumb,
                 groupValue: paper,
                 children: isFolder
-                    ? const {
-                        'dotted': Text('Dot'),
-                        'grid-medium': Text('Graph'),
-                        'blank': Text('Blank'),
-                        'lined-medium': Text('Ruled'),
+                    ? {
+                        for (final paper in const [
+                          'dotted',
+                          'grid-medium',
+                          'blank',
+                          'lined-medium',
+                        ])
+                          paper: Text(papers[paper]!),
                       }
                     : {
                         for (final entry in papers.entries)
@@ -555,7 +560,7 @@ Future<CreationForm?> askCreation(
                       children: [
                         Text(settings.name),
                         Text(
-                          '${papers[settings.paper] ?? settings.paper} · ${settings.pageSize.toUpperCase()} · ${settings.tags.length} tag${settings.tags.length == 1 ? '' : 's'}',
+                          '${paperLabels[settings.paper] ?? settings.paper} · ${settings.pageSize.toUpperCase()} · ${settings.tags.length} tag${settings.tags.length == 1 ? '' : 's'}',
                           style: footnote.copyWith(color: secondaryLabel),
                         ),
                       ],
