@@ -1979,12 +1979,15 @@ test("Flutter rewinds handwriting with Ctrl+Z and the undo dial", async ({ page 
     }
     return lines;
   };
-  expect(await shown()).toEqual([true, true, true]);
+  // A frame shows each undo or redo after the input that caused it.
+  const showsLines = (lines: boolean[]) =>
+    expect(async () => expect(await shown()).toEqual(lines)).toPass({ timeout: 5_000 });
+  await showsLines([true, true, true]);
 
   await page.keyboard.press("Control+z");
-  expect(await shown()).toEqual([true, true, false]);
+  await showsLines([true, true, false]);
   await page.keyboard.press("Control+Shift+z");
-  expect(await shown()).toEqual([true, true, true]);
+  await showsLines([true, true, true]);
 
   // A drag from the undo button turns the dial to the right of it, over the
   // page (undo_dial.dart): each 1/32 turn counterclockwise undoes a step,
@@ -2002,10 +2005,10 @@ test("Flutter rewinds handwriting with Ctrl+Z and the undo dial", async ({ page 
   await page.mouse.down();
   for (let degrees = -4; degrees >= -28; degrees -= 4) await page.mouse.move(at(degrees).x, at(degrees).y);
   await page.screenshot({ path: info.outputPath("dial-rewound.png") });
-  expect(await shown()).toEqual([true, false, false]);
+  await showsLines([true, false, false]);
   for (let degrees = -24; degrees <= -8; degrees += 4) await page.mouse.move(at(degrees).x, at(degrees).y);
   await page.mouse.up();
-  expect(await shown()).toEqual([true, true, false]);
+  await showsLines([true, true, false]);
 });
 
 test("Flutter writes a hard pen stroke visibly thicker than a light one", async ({ page }, info) => {
