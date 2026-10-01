@@ -7,6 +7,7 @@ import 'package:web/web.dart' as web;
 
 import 'errors.dart';
 import 'host.dart' as native;
+import 'ui/theme.dart';
 
 class FigureEditor extends StatefulWidget {
   const FigureEditor({super.key, required this.note, required this.id});
@@ -87,7 +88,7 @@ class _FigureEditorState extends State<FigureEditor> {
                 padding: const EdgeInsets.all(12),
                 child: Text(
                   editor.error,
-                  style: const TextStyle(color: CupertinoColors.systemRed),
+                  style: callout.copyWith(color: destructive),
                 ),
               ),
             if (!editor.ready)

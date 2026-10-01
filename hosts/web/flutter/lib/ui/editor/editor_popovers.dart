@@ -1,52 +1,43 @@
 part of 'editor_screen.dart';
 
 extension _EditorPopovers on _EditorScreenState {
-  // The popover under a ribbon button, on the page side of the ribbon. As
-  // in Noteful, it is a light card with a title, so ink samples read as paper.
+  // The popover beside a toolbar button: a floating card with a title. Ink
+  // samples inside it sit on a paper inset.
   Future<void> popover(
     BuildContext anchor,
     String title,
     double width,
-    Widget Function(BuildContext context, StateSetter update) body,
+    Widget Function(BuildContext context, StateSetter update) content,
   ) async {
     await showPopover<void>(
       context: anchor,
       direction: ribbonBottom ? PopoverDirection.top : PopoverDirection.bottom,
       width: width,
-      backgroundColor: CupertinoColors.white,
+      backgroundColor: surface2,
+      shadow: floatingShadow,
       barrierColor: const Color(0x00000000),
       barrierLabel: 'Close $title',
-      bodyBuilder: (context) => CupertinoTheme(
-        data: const CupertinoThemeData(
-          brightness: Brightness.light,
-          primaryColor: accent,
-        ),
-        child: Builder(
-          builder: (context) => DefaultTextStyle(
-            style: CupertinoTheme.of(context).textTheme.textStyle,
-            child: StatefulBuilder(
-              builder: (context, update) => Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Text(
-                      title,
-                      textAlign: TextAlign.center,
-                      style: CupertinoTheme.of(context)
-                          .textTheme
-                          .navTitleTextStyle,
-                    ),
-                  ),
-                  Container(height: 1, color: CupertinoColors.systemGrey5),
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: body(context, update),
-                  ),
-                ],
+      bodyBuilder: (context) => DefaultTextStyle(
+        style: body,
+        child: StatefulBuilder(
+          builder: (context, update) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: headline,
+                ),
               ),
-            ),
+              Container(height: 1, color: separator),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: content(context, update),
+              ),
+            ],
           ),
         ),
       ),
@@ -55,12 +46,12 @@ extension _EditorPopovers on _EditorScreenState {
 
   // A round icon choice with a caption, as in Noteful's pen type row.
   Widget choice(
-    String label,
+    String caption,
     IconData icon,
     bool selected,
     VoidCallback onPressed,
   ) => Semantics(
-    label: label,
+    label: caption,
     button: true,
     selected: selected,
     excludeSemantics: true,
@@ -76,22 +67,12 @@ extension _EditorPopovers on _EditorScreenState {
             height: 48,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: selected ? accent : CupertinoColors.systemGrey6,
+              color: selected ? accent : surface3,
             ),
-            child: Icon(
-              icon,
-              size: 22,
-              color: selected ? CupertinoColors.white : CupertinoColors.black,
-            ),
+            child: Icon(icon, size: 22, color: selected ? onAccent : label),
           ),
           const SizedBox(height: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              color: CupertinoColors.secondaryLabel,
-            ),
-          ),
+          Text(caption, style: footnote.copyWith(color: secondaryLabel)),
         ],
       ),
     ),
@@ -99,13 +80,7 @@ extension _EditorPopovers on _EditorScreenState {
 
   Widget section(String label) => Padding(
     padding: const EdgeInsets.only(top: 12, bottom: 4),
-    child: Text(
-      label,
-      style: const TextStyle(
-        fontSize: 14,
-        color: CupertinoColors.secondaryLabel,
-      ),
-    ),
+    child: Text(label, style: footnote.copyWith(color: secondaryLabel)),
   );
 
   // The eraser, lasso, and insert space modes.
@@ -221,7 +196,7 @@ extension _EditorPopovers on _EditorScreenState {
             height: 72,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: CupertinoColors.systemGrey6,
+              color: paper,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Image.memory(
@@ -262,10 +237,11 @@ extension _EditorPopovers on _EditorScreenState {
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
                             color: (size - value).abs() < 0.05
-                                ? accent
-                                : const Color(0x00000000),
+                                ? accentText
+                                : paperEdge,
                             width: 2,
                           ),
+                          color: paper,
                         ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -280,10 +256,7 @@ extension _EditorPopovers on _EditorScreenState {
                             ),
                             Text(
                               '$value pt',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: CupertinoColors.label,
-                              ),
+                              style: footnote.copyWith(color: coverInk),
                             ),
                           ],
                         ),
@@ -499,12 +472,12 @@ extension _EditorPopovers on _EditorScreenState {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: Color(0xFF000000 | color),
-                        border: Border.all(color: CupertinoColors.systemGrey4),
+                        border: Border.all(color: separator),
                       ),
                       child: const Icon(
                         LucideIcons.x,
                         size: 14,
-                        color: CupertinoColors.white,
+                        color: onAccent,
                       ),
                     ),
                   ),

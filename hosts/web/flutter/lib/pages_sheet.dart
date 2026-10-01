@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:reorderable_grid/reorderable_grid.dart';
 
 import 'host.dart' as native;
+import 'ui/theme.dart';
 
 /// The notebook's pages as a thumbnail grid. A long press drags a page to a
 /// new position; each page's menu duplicates or deletes it. Returns the page
@@ -124,8 +125,8 @@ Future<int?> overviewPages(
                                         decoration: BoxDecoration(
                                           border: Border.all(
                                             color: index == current
-                                                ? CupertinoColors.activeBlue
-                                                : CupertinoColors.systemGrey4,
+                                                ? accentText
+                                                : paperEdge,
                                             width: index == current ? 3 : 1,
                                           ),
                                         ),

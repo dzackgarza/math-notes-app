@@ -54,7 +54,7 @@ extension _EditorDialogs on _EditorScreenState {
                 if (validation != null)
                   Text(
                     validation!,
-                    style: const TextStyle(color: CupertinoColors.systemRed),
+                    style: callout.copyWith(color: destructive),
                   ),
                 Row(
                   children: [
@@ -116,11 +116,13 @@ extension _EditorDialogs on _EditorScreenState {
   // The paper, size, and orientation of new pages. Each change applies at
   // once, as the toolbar sheet's switches do.
   Future<void> paperMenu() async {
-    final templates = (await native.host.listTemplates(widget.note.root).toDart)
-        .toDart
-        .map((name) => name.toDart)
-        .toList()
-      ..sort((a, b) => (paperLabels[a] ?? a).compareTo(paperLabels[b] ?? b));
+    final templates =
+        (await native.host.listTemplates(widget.note.root).toDart).toDart
+            .map((name) => name.toDart)
+            .toList()
+          ..sort(
+            (a, b) => (paperLabels[a] ?? a).compareTo(paperLabels[b] ?? b),
+          );
     if (!mounted) return;
     Future<void> applyTemplate(String name) async {
       await native.host
@@ -134,7 +136,7 @@ extension _EditorDialogs on _EditorScreenState {
       alignment: Alignment.centerLeft,
       child: Padding(
         padding: const EdgeInsets.only(top: 12, bottom: 6),
-        child: Text(text, style: const TextStyle(fontWeight: FontWeight.w600)),
+        child: Text(text, style: subhead),
       ),
     );
     await showCupertinoModalPopup<void>(

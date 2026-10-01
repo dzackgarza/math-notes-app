@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/gestures.dart';
 
+import 'ui/theme.dart';
+
 /// The undo button with Write's rewind dial (`ButtonDragDial` in
 /// `syncscribble/touchwidgets.cpp`, set up in `mainwindow.cpp`). A tap undoes
 /// one step. A drag turns a dial beside the button: each 1/32 turn clockwise
@@ -147,10 +149,10 @@ class _DialPainter extends CustomPainter {
           false,
         )
         ..close();
-      canvas.drawPath(path, Paint()..color = const Color(0x808080FF));
+      canvas.drawPath(path, Paint()..color = selectedFill);
     }
     final tick = Paint()
-      ..color = const Color(0xFF808080)
+      ..color = tertiaryLabel
       ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.round;
     for (var i = 0; i < 32; i++) {

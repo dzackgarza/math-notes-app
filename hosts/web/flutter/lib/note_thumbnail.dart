@@ -5,6 +5,7 @@ import 'package:flutter/cupertino.dart';
 
 import 'errors.dart';
 import 'host.dart' as native;
+import 'ui/theme.dart';
 
 class NoteThumbnail extends StatefulWidget {
   const NoteThumbnail({
@@ -73,9 +74,21 @@ class _NoteThumbnailState extends State<NoteThumbnail> {
           if (widget.note.conflicts > 0)
             Semantics(
               label: 'Conflicting versions',
-              child: const Icon(
-                CupertinoIcons.exclamationmark_triangle_fill,
-                color: CupertinoColors.systemOrange,
+              // The badge sits on the page image; the surface keeps the
+              // warning color legible on paper.
+              child: const DecoratedBox(
+                decoration: BoxDecoration(
+                  color: surface1,
+                  shape: BoxShape.circle,
+                ),
+                child: Padding(
+                  padding: EdgeInsets.all(4),
+                  child: Icon(
+                    CupertinoIcons.exclamationmark_triangle_fill,
+                    color: warning,
+                    size: 18,
+                  ),
+                ),
               ),
             ),
         ],

@@ -8,10 +8,7 @@ extension _FigurePanel on _EditorScreenState {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            'TikZ figure',
-            style: TextStyle(fontWeight: FontWeight.w600),
-          ),
+          Text('TikZ figure', style: subhead),
           Expanded(
             child: CupertinoTextField(
               controller: figureText,

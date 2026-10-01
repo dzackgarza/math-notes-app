@@ -5,6 +5,7 @@ import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/semantics.dart';
 import 'package:provider/provider.dart';
+import 'package:pull_down_button/pull_down_button.dart';
 import 'package:toastification/toastification.dart';
 import 'package:web/web.dart' as web;
 
@@ -61,16 +62,13 @@ class MathNotes extends StatelessWidget {
         ),
       ),
     ],
-    child: const ToastificationWrapper(
+    child: ToastificationWrapper(
       child: CupertinoApp(
         title: 'Math Notes',
-        theme: CupertinoThemeData(
-          brightness: Brightness.dark,
-          primaryColor: accent,
-          scaffoldBackgroundColor: chrome,
-          barBackgroundColor: chromeBar,
-        ),
-        home: Shell(),
+        theme: cupertinoTheme,
+        builder: (context, child) =>
+            PullDownButtonInheritedTheme(data: pullDownTheme, child: child!),
+        home: const Shell(),
       ),
     ),
   );

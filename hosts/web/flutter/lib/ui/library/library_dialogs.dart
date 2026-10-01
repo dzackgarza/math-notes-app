@@ -6,6 +6,7 @@ import '../../creation_sheet.dart';
 import '../../host.dart' as native;
 import '../../tag_editor.dart';
 import 'library_view_model.dart';
+import '../theme.dart';
 
 Color hexColor(String value) =>
     Color(int.parse(value.substring(1), radix: 16) | 0xFF000000);
@@ -294,10 +295,7 @@ Future<CreationForm?> askCreation(
         preview: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Preview',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
+            Text('Preview', style: headline),
             const SizedBox(height: 12),
             Expanded(
               child: PaperPreview(
@@ -310,10 +308,7 @@ Future<CreationForm?> askCreation(
             ),
             if (isFolder) ...[
               const SizedBox(height: 16),
-              const Text(
-                'Notebook Details',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
+              Text('Notebook Details', style: headline),
               const SizedBox(height: 8),
               Text(
                 'Paper: ${paper == 'grid-medium' ? 'Graph Paper' : papers[paper] ?? paper}',
@@ -332,10 +327,7 @@ Future<CreationForm?> askCreation(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 16),
-            Text(
-              isFolder ? 'Notebook Title' : 'Title',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
+            Text(isFolder ? 'Notebook Title' : 'Title', style: subhead),
             const SizedBox(height: 6),
             CupertinoTextField(
               controller: title,
@@ -345,10 +337,7 @@ Future<CreationForm?> askCreation(
             ),
             if (isFolder) ...[
               const SizedBox(height: 12),
-              const Text(
-                'Description (optional)',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
+              Text('Description (optional)', style: subhead),
               const SizedBox(height: 6),
               CupertinoTextField(
                 controller: description,
@@ -358,10 +347,7 @@ Future<CreationForm?> askCreation(
                 maxLength: 500,
               ),
               const SizedBox(height: 12),
-              const Text(
-                'Cover Style',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
+              Text('Cover Style', style: subhead),
               const SizedBox(height: 6),
               CupertinoSlidingSegmentedControl<String>(
                 groupValue: coverStyle,
@@ -374,10 +360,7 @@ Future<CreationForm?> askCreation(
                 },
               ),
               const SizedBox(height: 12),
-              const Text(
-                'Cover Color',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
+              Text('Cover Color', style: subhead),
               Row(
                 children: [
                   for (final color in const {
@@ -402,7 +385,7 @@ Future<CreationForm?> askCreation(
                             shape: BoxShape.circle,
                             border: Border.all(
                               color: coverColor == color.key
-                                  ? CupertinoTheme.of(context).primaryColor
+                                  ? accentText
                                   : const Color(0x00000000),
                               width: 2,
                             ),
@@ -422,10 +405,7 @@ Future<CreationForm?> askCreation(
               ),
             ],
             const SizedBox(height: 16),
-            const Text(
-              'Paper Style',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
+            Text('Paper Style', style: subhead),
             const SizedBox(height: 6),
             CupertinoSlidingSegmentedControl<String>(
               groupValue: paper,
@@ -445,14 +425,11 @@ Future<CreationForm?> askCreation(
               },
             ),
             const SizedBox(height: 12),
-            const Text('Tags', style: TextStyle(fontWeight: FontWeight.w600)),
+            Text('Tags', style: subhead),
             const SizedBox(height: 6),
             TagEditor(controller: tags),
             const SizedBox(height: 12),
-            Text(
-              isFolder ? 'Location' : 'Notebook',
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
+            Text(isFolder ? 'Location' : 'Notebook', style: subhead),
             CupertinoButton(
               alignment: Alignment.centerLeft,
               padding: EdgeInsets.zero,
@@ -474,17 +451,11 @@ Future<CreationForm?> askCreation(
             if (isFolder)
               Text(
                 'You can move this notebook later.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: CupertinoColors.secondaryLabel.resolveFrom(context),
-                ),
+                style: footnote.copyWith(color: secondaryLabel),
               ),
             if (!isFolder) ...[
               const SizedBox(height: 12),
-              const Text(
-                'Page Size',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
+              Text('Page Size', style: subhead),
               const SizedBox(height: 6),
               CupertinoSlidingSegmentedControl<String>(
                 groupValue: size,
@@ -494,10 +465,7 @@ Future<CreationForm?> askCreation(
                 },
               ),
               const SizedBox(height: 12),
-              const Text(
-                'Orientation',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
+              Text('Orientation', style: subhead),
               const SizedBox(height: 6),
               CupertinoSlidingSegmentedControl<String>(
                 groupValue: orientation,
@@ -510,10 +478,7 @@ Future<CreationForm?> askCreation(
                 },
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Starting Template',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
+              Text('Starting Template', style: subhead),
               for (final settings in metadata.startingTemplates.toDart)
                 CupertinoButton(
                   alignment: Alignment.centerLeft,
@@ -533,12 +498,7 @@ Future<CreationForm?> askCreation(
                       Text(settings.name),
                       Text(
                         '${papers[settings.paper] ?? settings.paper} · ${settings.pageSize.toUpperCase()} · ${settings.tags.length} tag${settings.tags.length == 1 ? '' : 's'}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: CupertinoColors.secondaryLabel.resolveFrom(
-                            context,
-                          ),
-                        ),
+                        style: footnote.copyWith(color: secondaryLabel),
                       ),
                     ],
                   ),

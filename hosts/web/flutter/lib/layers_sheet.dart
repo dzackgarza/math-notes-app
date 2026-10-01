@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 
 import 'errors.dart';
 import 'host.dart' as native;
+import 'ui/theme.dart';
 
 Future<void> manageLayers(
   BuildContext context,
@@ -79,13 +80,10 @@ Future<void> manageLayers(
                   children: [
                     Row(
                       children: [
-                        const Expanded(
+                        Expanded(
                           child: Padding(
-                            padding: EdgeInsets.all(16),
-                            child: Text(
-                              'Layers',
-                              style: TextStyle(fontSize: 22),
-                            ),
+                            padding: const EdgeInsets.all(16),
+                            child: Text('Layers', style: title),
                           ),
                         ),
                         CupertinoButton(

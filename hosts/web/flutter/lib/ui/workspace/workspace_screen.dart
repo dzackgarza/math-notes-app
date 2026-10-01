@@ -123,7 +123,7 @@ class WorkspaceScreen extends StatelessWidget {
       children: [
         if (!session.tabsHidden)
           ColoredBox(
-            color: chromeBar,
+            color: surface1,
             child: SafeArea(
               bottom: false,
               child: Row(
@@ -138,9 +138,9 @@ class WorkspaceScreen extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: session.tab == i
                                     ? selectedFill
-                                    : chromeBar,
+                                    : surface1,
                                 border: const Border(
-                                  right: BorderSide(color: chrome),
+                                  right: BorderSide(color: background),
                                 ),
                               ),
                               child: Row(

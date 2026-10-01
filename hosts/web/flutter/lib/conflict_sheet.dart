@@ -3,6 +3,7 @@ import 'dart:js_interop';
 import 'package:flutter/cupertino.dart';
 
 import 'host.dart' as native;
+import 'ui/theme.dart';
 
 Future<String?> compareVersions(
   BuildContext context,
@@ -47,7 +48,7 @@ Future<String?> compareVersions(
                 children: [
                   Text(
                     '${conflict.provider}: ${conflict.original}',
-                    style: const TextStyle(fontSize: 20),
+                    style: title,
                   ),
                   Expanded(
                     child: Row(

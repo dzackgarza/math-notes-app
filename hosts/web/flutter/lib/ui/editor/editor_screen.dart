@@ -634,7 +634,7 @@ class _EditorScreenState extends State<EditorScreen>
             _ => null,
           };
     final area = selection;
-    const white = TextStyle(color: CupertinoColors.white);
+    final white = callout;
     return [
       Positioned(
         top: ribbonBottom ? null : ribbonMargin,
@@ -652,7 +652,7 @@ class _EditorScreenState extends State<EditorScreen>
             child: Container(
               padding: const EdgeInsets.only(left: 16),
               decoration: BoxDecoration(
-                color: chromeBar,
+                color: surface1,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Row(
@@ -660,11 +660,11 @@ class _EditorScreenState extends State<EditorScreen>
                 children: [
                   Text(mode, style: white),
                   if (tool == 'bookmark' && !drawing)
-                    const Padding(
-                      padding: EdgeInsets.only(left: 8),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
                       child: Text(
                         'Tap the line to mark.',
-                        style: TextStyle(color: CupertinoColors.systemGrey),
+                        style: callout.copyWith(color: secondaryLabel),
                       ),
                     ),
                   CupertinoButton(
@@ -679,7 +679,7 @@ class _EditorScreenState extends State<EditorScreen>
                             excludeSemantics: true,
                             child: const Icon(
                               LucideIcons.x,
-                              color: CupertinoColors.white,
+                              color: label,
                               size: 18,
                             ),
                           ),
@@ -714,13 +714,10 @@ class _EditorScreenState extends State<EditorScreen>
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: chromeBar,
+        color: surface1,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Semantics(
-        container: true,
-        child: Text(text, style: const TextStyle(color: CupertinoColors.white)),
-      ),
+      child: Semantics(container: true, child: Text(text, style: callout)),
     ),
   );
 
@@ -731,7 +728,7 @@ class _EditorScreenState extends State<EditorScreen>
     return Container(
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
-        color: chromeBar,
+        color: surface1,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Wrap(
@@ -739,7 +736,10 @@ class _EditorScreenState extends State<EditorScreen>
           LongPressDraggable<SelectionTransfer>(
             data: SelectionTransfer(() => canvas!.copySelection(false)),
             feedback: const DecoratedBox(
-              decoration: BoxDecoration(color: CupertinoColors.systemGrey5),
+              decoration: BoxDecoration(
+                color: surface3,
+                boxShadow: floatingShadow,
+              ),
               child: Padding(
                 padding: EdgeInsets.all(16),
                 child: Text('Copy selection'),
@@ -751,7 +751,7 @@ class _EditorScreenState extends State<EditorScreen>
               child: const SizedBox(
                 width: 44,
                 height: 44,
-                child: Icon(LucideIcons.grab, color: CupertinoColors.white),
+                child: Icon(LucideIcons.grab, color: label),
               ),
             ),
           ),
@@ -1172,9 +1172,7 @@ class _EditorScreenState extends State<EditorScreen>
                       liveRegion: true,
                       child: Text(
                         widget.note.saver.state.message!,
-                        style: const TextStyle(
-                          color: CupertinoColors.destructiveRed,
-                        ),
+                        style: callout.copyWith(color: destructive),
                       ),
                     ),
                   ),

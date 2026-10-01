@@ -1,18 +1,94 @@
 import 'dart:js_interop';
 
 import 'package:flutter/cupertino.dart';
+import 'package:intl/intl.dart';
 
 import '../conflict_sheet.dart';
 import '../data/notes_folder.dart';
 import '../data/open_notes.dart';
 import '../host.dart' as native;
 import '../note_thumbnail.dart';
+import 'theme.dart';
 
 String noteTitle(native.Note note) =>
     note.conflicts > 0 ? '⚠ ${note.name}' : note.name;
 
-String modifiedLabel(double milliseconds) =>
-    'Modified ${DateTime.fromMillisecondsSinceEpoch(milliseconds.toInt()).toLocal().toString().substring(0, 16)}';
+// "Today 14:47", "Yesterday 09:05", or "1 Oct 2026".
+String modifiedLabel(double milliseconds) {
+  final time = DateTime.fromMillisecondsSinceEpoch(milliseconds.toInt());
+  final now = DateTime.now();
+  final days = DateTime(
+    now.year,
+    now.month,
+    now.day,
+  ).difference(DateTime(time.year, time.month, time.day)).inDays;
+  final clock = DateFormat.Hm().format(time);
+  return switch (days) {
+    0 => 'Today $clock',
+    1 => 'Yesterday $clock',
+    _ => DateFormat.yMMMd().format(time),
+  };
+}
+
+// A card or row that is one tap target: Tab focuses it, Enter or Space
+// activates it, and focus and hover show on it. `onTap` receives the
+// target's context.
+class TapTarget extends StatefulWidget {
+  const TapTarget({
+    super.key,
+    required this.label,
+    required this.onTap,
+    required this.child,
+    this.selected = false,
+  });
+  final String label;
+  final void Function(BuildContext) onTap;
+  final Widget child;
+  final bool selected;
+
+  @override
+  State<TapTarget> createState() => _TapTargetState();
+}
+
+class _TapTargetState extends State<TapTarget> {
+  var focused = false;
+  var hovered = false;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: widget.label,
+    button: true,
+    selected: widget.selected,
+    child: FocusableActionDetector(
+      mouseCursor: SystemMouseCursors.click,
+      onShowFocusHighlight: (value) => setState(() => focused = value),
+      onShowHoverHighlight: (value) => setState(() => hovered = value),
+      actions: {
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (_) => widget.onTap(context),
+        ),
+      },
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => widget.onTap(context),
+        child: DecoratedBox(
+          position: DecorationPosition.foreground,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: focused ? Border.all(color: accentText, width: 2) : null,
+          ),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: hovered ? separator : null,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: widget.child,
+          ),
+        ),
+      ),
+    ),
+  );
+}
 
 // A search field with its clear button beside the text field in the
 // semantics tree. The suffix button of CupertinoSearchTextField splits the
@@ -60,7 +136,7 @@ class SearchField extends StatelessWidget {
                   child: Icon(
                     CupertinoIcons.xmark_circle_fill,
                     size: 20,
-                    color: CupertinoColors.secondaryLabel.resolveFrom(context),
+                    color: secondaryLabel,
                   ),
                 ),
               ),
@@ -90,10 +166,10 @@ Future<native.Note?> chooseNote(
               children: [
                 Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Text('Open note'),
+                        padding: const EdgeInsets.all(16),
+                        child: Text('Open note', style: headline),
                       ),
                     ),
                     CupertinoButton(

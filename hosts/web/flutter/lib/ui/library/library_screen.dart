@@ -11,6 +11,7 @@ import '../../data/open_notes.dart';
 import '../../host.dart' as native;
 import '../../note_thumbnail.dart';
 import '../notes_ui.dart';
+import '../theme.dart';
 import 'library_dialogs.dart';
 import 'library_view_model.dart';
 
@@ -168,7 +169,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 ),
               ),
               const SizedBox(width: 4),
-              Text(name, style: const TextStyle(fontSize: 12)),
+              Text(name, style: footnote.copyWith(color: secondaryLabel)),
             ],
           ),
       ],
@@ -194,59 +195,50 @@ class _LibraryScreenState extends State<LibraryScreen> {
     ),
   );
 
-  // The whole card or row is one tap target. `onTap` receives its context.
-  Widget tappable(
-    String label,
-    void Function(BuildContext) onTap,
-    Widget child,
-  ) => Semantics(
-    label: label,
-    button: true,
-    child: MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: Builder(
-        builder: (context) => GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => onTap(context),
-          child: child,
-        ),
-      ),
-    ),
-  );
-
+  // A notebook cover: the first page of its first note inside the cover
+  // color, as a bound notebook with an edge and a shadow. An empty notebook
+  // shows its title on the cover.
   Widget cover(native.Folder item, {bool titled = true}) {
     final metadata = folder.folderMetadata(item.path);
     final color = hexColor(metadata.coverColor);
+    final edge = Color.lerp(color, coverInk, 0.35)!;
+    final first = item.notes.toDart.firstOrNull;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(10),
-        border: metadata.coverStyle == 'spine'
-            ? Border(
-                left: BorderSide(
-                  color: Color.lerp(color, const Color(0xFF000000), 0.3)!,
-                  width: 10,
-                ),
-              )
-            : null,
+        borderRadius: const BorderRadius.horizontal(
+          left: Radius.circular(4),
+          right: Radius.circular(10),
+        ),
+        border: Border(
+          left: BorderSide(
+            color: edge,
+            width: metadata.coverStyle == 'spine' ? 12 : 4,
+          ),
+        ),
+        boxShadow: floatingShadow,
       ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Align(
-          alignment: Alignment.topLeft,
-          child: titled
-              ? Text(
-                  item.name,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFF1C1C1E),
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                )
-              : null,
-        ),
+        padding: const EdgeInsets.all(8),
+        child: first != null
+            ? ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: ColoredBox(color: label, child: thumbnail(first)),
+              )
+            : Align(
+                alignment: Alignment.topLeft,
+                child: titled
+                    ? Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Text(
+                          item.name,
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: headline.copyWith(color: coverInk),
+                        ),
+                      )
+                    : null,
+              ),
       ),
     );
   }
@@ -255,46 +247,45 @@ class _LibraryScreenState extends State<LibraryScreen> {
       ? 'No notes'
       : '${count(item.notes.length, 'note')} · ${modifiedLabel(item.modified)}';
 
-  Widget notebookCard(native.Folder item) {
-    final secondary = CupertinoColors.secondaryLabel.resolveFrom(context);
-    return tappable(
-      'Open ${item.name}',
-      (_) => vm.showNotebook(item.path),
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(child: cover(item)),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  item.notes.length == 0
-                      ? 'No notes'
-                      : count(item.notes.length, 'note'),
-                ),
+  Widget notebookCard(native.Folder item) => TapTarget(
+    label: 'Open ${item.name}',
+    onTap: (_) => vm.showNotebook(item.path),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: cover(item)),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                item.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: subhead,
               ),
-              actionsButton(
-                '${item.name} notebook actions',
-                () => folderMenu(item),
-              ),
-            ],
-          ),
-          if (item.notes.length > 0)
-            Text(
-              modifiedLabel(item.modified),
-              style: TextStyle(fontSize: 12, color: secondary),
             ),
-          tagList(tagNames(folder.folderMetadata(item.path).tags)),
-        ],
-      ),
-    );
-  }
+            actionsButton(
+              '${item.name} notebook actions',
+              () => folderMenu(item),
+            ),
+          ],
+        ),
+        Text(
+          notebookSummary(item),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: footnote.copyWith(color: secondaryLabel),
+        ),
+        tagList(tagNames(folder.folderMetadata(item.path).tags)),
+      ],
+    ),
+  );
 
-  Widget notebookRow(native.Folder item) => tappable(
-    'Open ${item.name}',
-    (_) => vm.showNotebook(item.path),
-    Padding(
+  Widget notebookRow(native.Folder item) => TapTarget(
+    label: 'Open ${item.name}',
+    onTap: (_) => vm.showNotebook(item.path),
+    child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
@@ -304,16 +295,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  item.name,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
+                Text(item.name, style: headline),
                 Text(
                   notebookSummary(item),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: CupertinoColors.secondaryLabel.resolveFrom(context),
-                  ),
+                  style: footnote.copyWith(color: secondaryLabel),
                 ),
                 tagList(tagNames(folder.folderMetadata(item.path).tags)),
               ],
@@ -346,50 +331,53 @@ class _LibraryScreenState extends State<LibraryScreen> {
       NoteThumbnail(engine: folder.engine!, root: folder.root!, note: item);
 
   // `place` names the notebook when the list mixes notes from many notebooks.
-  Widget noteCard(native.Note item, String? place) {
-    final secondary = CupertinoColors.secondaryLabel.resolveFrom(context);
-    return tappable(
-      'Open ${item.name}',
-      (card) => tapNote(card, item),
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
+  Widget noteCard(native.Note item, String? place) => TapTarget(
+    label: 'Open ${item.name}',
+    onTap: (card) => tapNote(card, item),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: DecoratedBox(
+            decoration: const BoxDecoration(
+              borderRadius: BorderRadius.all(Radius.circular(6)),
+              boxShadow: floatingShadow,
+            ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(6),
               child: thumbnail(item),
             ),
           ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  noteTitle(item),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                noteTitle(item),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: subhead,
               ),
-              actionsButton('${item.name} actions', () => noteMenu(item)),
-            ],
-          ),
-          Text(
-            [?place, modifiedLabel(item.modified)].join(' · '),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 12, color: secondary),
-          ),
-          tagList(tagNames(folder.noteMetadata(item).tags)),
-        ],
-      ),
-    );
-  }
+            ),
+            actionsButton('${item.name} actions', () => noteMenu(item)),
+          ],
+        ),
+        Text(
+          [?place, modifiedLabel(item.modified)].join(' · '),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: footnote.copyWith(color: secondaryLabel),
+        ),
+        tagList(tagNames(folder.noteMetadata(item).tags)),
+      ],
+    ),
+  );
 
-  Widget noteRow(native.Note item, String? place) => tappable(
-    'Open ${item.name}',
-    (card) => tapNote(card, item),
-    Padding(
+  Widget noteRow(native.Note item, String? place) => TapTarget(
+    label: 'Open ${item.name}',
+    onTap: (card) => tapNote(card, item),
+    child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
@@ -399,16 +387,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  noteTitle(item),
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
+                Text(noteTitle(item), style: headline),
                 Text(
                   [?place, modifiedLabel(item.modified)].join(' · '),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: CupertinoColors.secondaryLabel.resolveFrom(context),
-                  ),
+                  style: footnote.copyWith(color: secondaryLabel),
                 ),
                 tagList(tagNames(folder.noteMetadata(item).tags)),
               ],
@@ -424,10 +406,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.only(top: 8, bottom: 12),
-        child: Text(
-          heading,
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-        ),
+        child: Text(heading, style: title),
       ),
     ),
     if (vm.grid)
@@ -540,19 +519,26 @@ class _LibraryScreenState extends State<LibraryScreen> {
       return [
         SliverFillRemaining(
           hasScrollBody: false,
-          child: Center(
-            child: Text(
-              vm.query.isNotEmpty
-                  ? 'Nothing matches "${vm.query}".'
-                  : switch (vm.filter) {
-                      'favorites' => 'No favorite notes.',
-                      'recent' => 'No recent notes.',
-                      'trash' => 'The trash is empty.',
-                      'tag' => 'Nothing has the tag ${vm.selectedTag}.',
-                      _ => 'No notebooks. Tap New Notebook to make one.',
-                    },
-            ),
-          ),
+          child: vm.query.isEmpty && vm.filter == 'all'
+              ? emptyState(
+                  CupertinoIcons.book,
+                  'Your notebooks appear here.',
+                  'Create notebook',
+                  () => run(() => create(true)),
+                )
+              : Center(
+                  child: Text(
+                    vm.query.isNotEmpty
+                        ? 'Nothing matches "${vm.query}".'
+                        : switch (vm.filter) {
+                            'favorites' => 'No favorite notes.',
+                            'recent' => 'No recent notes.',
+                            'trash' => 'The trash is empty.',
+                            _ => 'Nothing has the tag ${vm.selectedTag}.',
+                          },
+                    style: body.copyWith(color: secondaryLabel),
+                  ),
+                ),
         ),
       ];
     final places = vm.places;
@@ -595,10 +581,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ),
         ),
       if (notes.isEmpty)
-        const SliverFillRemaining(
+        SliverFillRemaining(
           hasScrollBody: false,
-          child: Center(
-            child: Text('No notes. Tap New Note to write the first one.'),
+          child: emptyState(
+            CupertinoIcons.pencil_outline,
+            'This notebook has no notes yet.',
+            'Create note',
+            () => run(() => create(false)),
           ),
         )
       else
@@ -608,6 +597,25 @@ class _LibraryScreenState extends State<LibraryScreen> {
         ], 0.6),
     ];
   }
+
+  // An empty view holds the action that fills it.
+  Widget emptyState(
+    IconData icon,
+    String message,
+    String action,
+    VoidCallback onPressed,
+  ) => Center(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 56, color: tertiaryLabel),
+        const SizedBox(height: 16),
+        Text(message, style: body.copyWith(color: secondaryLabel)),
+        const SizedBox(height: 20),
+        CupertinoButton.filled(onPressed: onPressed, child: Text(action)),
+      ],
+    ),
+  );
 
   Widget toolbar(native.Folder? notebook) => Row(
     children: [
@@ -632,7 +640,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       if (notebook == null)
         CupertinoButton.filled(
           onPressed: () => run(() => create(true)),
-          child: const Text('New Notebook'),
+          child: const Text('New notebook'),
         )
       else ...[
         CupertinoButton(
@@ -641,7 +649,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         ),
         CupertinoButton.filled(
           onPressed: () => run(() => create(false)),
-          child: const Text('New Note'),
+          child: const Text('New note'),
         ),
       ],
     ],
@@ -668,9 +676,47 @@ class _LibraryScreenState extends State<LibraryScreen> {
     ),
   );
 
+  // A sidebar row in label color; the accent fills only the selected row.
+  Widget sidebarRow({
+    required Widget leading,
+    required String text,
+    required VoidCallback onPressed,
+    bool selected = false,
+    Widget? trailing,
+  }) {
+    final color = selected ? onAccent : label;
+    return Semantics(
+      selected: selected,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: selected ? accent : null,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: CupertinoButton(
+          alignment: Alignment.centerLeft,
+          minimumSize: const Size(44, 44),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          onPressed: onPressed,
+          child: IconTheme.merge(
+            data: IconThemeData(color: color, size: 20),
+            child: Row(
+              children: [
+                leading,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(text, style: body.copyWith(color: color)),
+                ),
+                ?trailing,
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget sidebar() {
     final tags = vm.library.metadata.tags.toDart;
-    final secondary = CupertinoColors.secondaryLabel.resolveFrom(context);
     final items = [
       (
         label: 'Library',
@@ -727,74 +773,76 @@ class _LibraryScreenState extends State<LibraryScreen> {
         },
       ),
     ];
+    final notes = vm.library.folders.toDart.expand((item) => item.notes.toDart);
     return SizedBox(
-      width: 210,
+      width: 220,
       child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: CupertinoTheme.of(context).barBackgroundColor,
-          border: Border(
-            right: BorderSide(
-              color: CupertinoColors.separator.resolveFrom(context),
-            ),
-          ),
+        decoration: const BoxDecoration(
+          color: surface1,
+          border: Border(right: BorderSide(color: separator)),
         ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(12, 4, 12, 12),
-                child: Text(
-                  'Math Notes',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
+                child: Row(
+                  children: [
+                    const Icon(
+                      CupertinoIcons.pencil_outline,
+                      color: accentText,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 8),
+                    Text('Math Notes', style: title),
+                  ],
                 ),
               ),
               for (final item in items)
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: item.selected
-                        ? CupertinoColors.systemFill.resolveFrom(context)
-                        : null,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: CupertinoButton(
-                    alignment: Alignment.centerLeft,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    onPressed: item.action,
-                    child: Row(
-                      children: [
-                        Icon(item.icon, size: 20),
-                        const SizedBox(width: 10),
-                        Text(item.label),
-                      ],
+                sidebarRow(
+                  leading: Icon(item.icon),
+                  text: item.label,
+                  selected: item.selected,
+                  onPressed: item.action,
+                ),
+              if (tags.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 20, 12, 4),
+                  child: Text(
+                    'Tags',
+                    style: footnote.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: secondaryLabel,
                     ),
                   ),
-                ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 20, 12, 6),
-                child: Text(
-                  'Tags',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: secondary,
-                  ),
-                ),
-              ),
+                )
+              else
+                const SizedBox(height: 12),
               Expanded(
                 child: SingleChildScrollView(
                   child: Column(
                     children: [
                       for (final tag in tags)
-                        CupertinoButton(
-                          alignment: Alignment.centerLeft,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
+                        sidebarRow(
+                          leading: Icon(
+                            CupertinoIcons.circle_fill,
+                            size: 10,
+                            color: hexColor(tag.color),
+                          ),
+                          text: tag.name,
+                          selected:
+                              vm.filter == 'tag' && vm.selectedTag == tag.name,
+                          trailing: Text(
+                            '${notes.where((note) => folder.noteMetadata(note).tags.toDart.any((value) => value.toDart == tag.name)).length}',
+                            style: callout.copyWith(
+                              color:
+                                  vm.filter == 'tag' &&
+                                      vm.selectedTag == tag.name
+                                  ? onAccent
+                                  : secondaryLabel,
+                            ),
                           ),
                           onPressed: () {
                             vm.showNotebook(null);
@@ -802,33 +850,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
                             vm.setQuery('');
                             vm.setFilter('tag', tag.name);
                           },
-                          child: Row(
-                            children: [
-                              Icon(
-                                CupertinoIcons.circle_fill,
-                                size: 9,
-                                color: hexColor(tag.color),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(child: Text(tag.name)),
-                              Text(
-                                '${vm.library.folders.toDart.expand((item) => item.notes.toDart).where((note) => folder.noteMetadata(note).tags.toDart.any((value) => value.toDart == tag.name)).length}',
-                                style: TextStyle(color: secondary),
-                              ),
-                            ],
-                          ),
                         ),
-                      CupertinoButton(
-                        alignment: Alignment.centerLeft,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      sidebarRow(
+                        leading: const Icon(CupertinoIcons.add),
+                        text: 'New tag',
                         onPressed: () => run(addTag),
-                        child: const Row(
-                          children: [
-                            Icon(CupertinoIcons.add, size: 18),
-                            SizedBox(width: 8),
-                            Text('New tag'),
-                          ],
-                        ),
                       ),
                     ],
                   ),
@@ -836,17 +862,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
               ),
               PullDownButton(
                 itemBuilder: (_) => settingsMenu(),
-                buttonBuilder: (context, showMenu) => CupertinoButton(
-                  alignment: Alignment.centerLeft,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                buttonBuilder: (context, showMenu) => sidebarRow(
+                  leading: const Icon(CupertinoIcons.settings),
+                  text: 'Settings',
                   onPressed: showMenu,
-                  child: const Row(
-                    children: [
-                      Icon(CupertinoIcons.settings, size: 20),
-                      SizedBox(width: 10),
-                      Text('Settings'),
-                    ],
-                  ),
                 ),
               ),
             ],
@@ -866,18 +885,25 @@ class _LibraryScreenState extends State<LibraryScreen> {
       navigationBar: CupertinoNavigationBar(
         leading: notebook == null
             ? null
-            : CupertinoButton(
-                padding: EdgeInsets.zero,
-                onPressed: () => vm.showNotebook(null),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(CupertinoIcons.chevron_left),
-                    Text('Notebooks'),
-                  ],
+            // The sidebar's Library row has the visible name too; the
+            // accessible name tells the two apart.
+            : Semantics(
+                label: 'Back to library',
+                button: true,
+                excludeSemantics: true,
+                child: CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: () => vm.showNotebook(null),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(CupertinoIcons.chevron_left),
+                      Text('Library'),
+                    ],
+                  ),
                 ),
               ),
-        middle: Text(notebook?.name ?? 'Notebooks'),
+        middle: notebook == null ? null : Text(notebook.name),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

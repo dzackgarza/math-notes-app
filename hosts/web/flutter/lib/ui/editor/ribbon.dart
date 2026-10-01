@@ -8,7 +8,7 @@ extension _EditorRibbon on _EditorScreenState {
     String label,
     IconData icon, {
     bool selected = false,
-    Color color = CupertinoColors.white,
+    Color color = label,
     void Function(BuildContext anchor)? onPressed,
     VoidCallback? onLongPress,
   }) => Builder(
@@ -82,9 +82,7 @@ extension _EditorRibbon on _EditorScreenState {
               shape: BoxShape.circle,
               color: Color(0xFF000000 | color),
               border: Border.all(
-                color: current
-                    ? CupertinoColors.white
-                    : const Color(0x55FFFFFF),
+                color: current ? label : separator,
                 width: current ? 3 : 1,
               ),
             ),
@@ -105,15 +103,9 @@ extension _EditorRibbon on _EditorScreenState {
   Widget ribbon() => Container(
     height: ribbonHeight,
     decoration: BoxDecoration(
-      color: chromeBar,
+      color: surface1,
       borderRadius: BorderRadius.circular(ribbonHeight / 2),
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x40000000),
-          blurRadius: 12,
-          offset: Offset(0, 4),
-        ),
-      ],
+      boxShadow: floatingShadow,
     ),
     child: SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -135,7 +127,7 @@ extension _EditorRibbon on _EditorScreenState {
             width: 1,
             height: 28,
             margin: const EdgeInsets.symmetric(horizontal: 6),
-            color: const Color(0x33FFFFFF),
+            color: separator,
           ),
           UndoDial(
             enabled: !drawing,
@@ -152,9 +144,7 @@ extension _EditorRibbon on _EditorScreenState {
                 height: 44,
                 child: Icon(
                   LucideIcons.undo2,
-                  color: drawing
-                      ? CupertinoColors.inactiveGray
-                      : CupertinoColors.white,
+                  color: drawing ? tertiaryLabel : label,
                 ),
               ),
             ),

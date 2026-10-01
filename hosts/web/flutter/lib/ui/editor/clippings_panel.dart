@@ -16,9 +16,7 @@ extension _ClippingsPanel on _EditorScreenState {
         await refreshClippings();
       }),
       builder: (context, candidates, rejected) => ColoredBox(
-        color: candidates.isEmpty
-            ? CupertinoColors.systemGrey6.resolveFrom(context)
-            : selectedFill,
+        color: candidates.isEmpty ? surface1 : selectedFill,
         child: Column(
           children: [
             Row(
