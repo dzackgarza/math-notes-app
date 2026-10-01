@@ -4451,7 +4451,9 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   await button("0.6 pt").click();
   await closePopover(page);
   await penStroke(cdp, line(light.x - 60, light.x + 60, light.y), 0.6);
-  // A second device later edits page 2 as it is now (the sync conflict below).
+  // A second device later edits page 2 as it is now (the sync conflict
+  // below), once both strokes are saved.
+  expect(await strokes()).toEqual([5, 2]);
   const remotePage2 = await whenSaved(() => page.evaluate(async ({ notebook, title }) => {
     const dir = await (await (await navigator.storage.getDirectory()).getDirectoryHandle(notebook)).getDirectoryHandle(title);
     return (await (await (await dir.getDirectoryHandle("pages")).getFileHandle("0002.svg")).getFile()).text();
