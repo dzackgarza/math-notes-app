@@ -156,6 +156,7 @@ extension _EditorDialogs on _EditorScreenState {
           return ActionSheet(
             title: const Text('Paper for new pages'),
             message: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 heading('Paper style'),
                 for (final name in templates)
