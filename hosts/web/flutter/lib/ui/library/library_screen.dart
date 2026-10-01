@@ -196,55 +196,18 @@ class _LibraryScreenState extends State<LibraryScreen> {
     ),
   );
 
-  // A notebook cover: a cloth-bound volume in its buckram color, the first
-  // page of its first note set into the cloth, and the title on a printed
-  // paper label. A small cover omits the label.
+  // A notebook cover with the first page of its first note set into the
+  // cloth. A small cover omits the label.
   Widget cover(native.Folder item, {bool titled = true}) {
     final metadata = folder.folderMetadata(item.path);
-    final color = hexColor(metadata.coverColor);
-    final edge = Color.lerp(color, coverInk, 0.35)!;
     final first = item.notes.toDart.firstOrNull;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: const BorderRadius.horizontal(
-          left: Radius.circular(2),
-          right: Radius.circular(6),
-        ),
-        border: Border(
-          left: BorderSide(
-            color: edge,
-            width: metadata.coverStyle == 'spine' ? 12 : 4,
-          ),
-        ),
-        boxShadow: floatingShadow,
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(titled ? 10 : 6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: first != null
-                  ? ColoredBox(color: paper, child: thumbnail(first))
-                  : const SizedBox(),
-            ),
-            if (titled) ...[
-              const SizedBox(height: 10),
-              Container(
-                color: paper,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                child: Text(
-                  item.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: spineTitle.copyWith(color: coverInk),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
+    return coverArt(
+      color: hexColor(metadata.coverColor),
+      style: metadata.coverStyle,
+      title: titled ? item.name : null,
+      page: first != null
+          ? ColoredBox(color: paper, child: thumbnail(first))
+          : const SizedBox(),
     );
   }
 

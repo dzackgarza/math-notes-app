@@ -9,9 +9,15 @@ import 'ui/theme.dart';
 
 // Every failure goes to the browser console with its stack and shows as a
 // toast until the user closes it. The toast sits at the bottom, clear of the
-// tab strip and the navigation bar, on the surface of the undo toast.
+// tab strip and the navigation bar, on the surface of the undo toast. The
+// toast's title names the error, so the message drops the type prefix that
+// toString gives JavaScript errors ("TypeError: ") and Dart exceptions.
 void showError(Object error, [StackTrace? stack]) {
   web.console.error('$error${stack == null ? '' : '\n$stack'}'.toJS);
+  final message = error.toString().replaceFirst(
+    RegExp(r'^\w*(Error|Exception): '),
+    '',
+  );
   toastification.showCustom(
     alignment: Alignment.bottomCenter,
     builder: (context, toast) => Center(
@@ -33,7 +39,7 @@ void showError(Object error, [StackTrace? stack]) {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Error', style: subhead.copyWith(color: destructive)),
-                  Text(error.toString(), style: callout),
+                  Text(message, style: callout),
                 ],
               ),
             ),

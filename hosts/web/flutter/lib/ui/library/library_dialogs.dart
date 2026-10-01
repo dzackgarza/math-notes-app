@@ -13,6 +13,53 @@ import '../theme.dart';
 Color hexColor(String value) =>
     Color(int.parse(value.substring(1), radix: 16) | 0xFF000000);
 
+// A notebook cover: a cloth-bound volume in its buckram color with a page
+// set into the cloth and, when titled, the title on a printed paper label.
+// A spine cover has a wider bound edge.
+Widget coverArt({
+  required Color color,
+  required String style,
+  required Widget page,
+  String? title,
+}) => DecoratedBox(
+  decoration: BoxDecoration(
+    color: color,
+    borderRadius: const BorderRadius.horizontal(
+      left: Radius.circular(2),
+      right: Radius.circular(6),
+    ),
+    border: Border(
+      left: BorderSide(
+        color: Color.lerp(color, coverInk, 0.35)!,
+        width: style == 'spine' ? 12 : 4,
+      ),
+    ),
+    boxShadow: floatingShadow,
+  ),
+  child: Padding(
+    padding: EdgeInsets.all(title != null ? 10 : 6),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: page),
+        if (title != null) ...[
+          const SizedBox(height: 10),
+          Container(
+            color: paper,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            child: Text(
+              title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: spineTitle.copyWith(color: coverInk),
+            ),
+          ),
+        ],
+      ],
+    ),
+  ),
+);
+
 // The segment labels of the papers that the creation sheets offer; the
 // sheet's "Paper style" heading names the noun.
 const papers = {
@@ -358,14 +405,36 @@ Future<CreationForm?> askCreation(
             children: [
               Text('Preview', style: headline),
               const SizedBox(height: 12),
+              // A notebook previews its cover with its first page set in;
+              // a note previews its first page.
               Expanded(
-                child: PaperPreview(
-                  engine: engine,
-                  root: root,
-                  paper: paper,
-                  size: size,
-                  orientation: orientation,
-                ),
+                child: isFolder
+                    ? Center(
+                        child: AspectRatio(
+                          aspectRatio: 0.7,
+                          child: coverArt(
+                            color: hexColor(coverColor),
+                            style: coverStyle,
+                            title: title.text.isEmpty
+                                ? 'Untitled notebook'
+                                : title.text,
+                            page: PaperPreview(
+                              engine: engine,
+                              root: root,
+                              paper: paper,
+                              size: size,
+                              orientation: orientation,
+                            ),
+                          ),
+                        ),
+                      )
+                    : PaperPreview(
+                        engine: engine,
+                        root: root,
+                        paper: paper,
+                        size: size,
+                        orientation: orientation,
+                      ),
               ),
             ],
           ),
@@ -539,7 +608,8 @@ Future<CreationForm?> askCreation(
                   },
                 ),
                 const SizedBox(height: 16),
-                Text('Starting template', style: subhead),
+                // The saved templates to start from, and saving this one.
+                Text('Templates', style: subhead),
                 for (final settings in metadata.startingTemplates.toDart)
                   CupertinoButton(
                     alignment: Alignment.centerLeft,

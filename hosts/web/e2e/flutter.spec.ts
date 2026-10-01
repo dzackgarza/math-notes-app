@@ -1318,6 +1318,13 @@ test("Flutter library shows board chrome, buckram cover colors, aligned creation
   await button("Ochre").click();
   await expect.poll(async () => (await swatch("Ochre")).ring, { message: "the ring moves to the chosen swatch" }).toBeGreaterThan(50);
   expect((await swatch("Navy")).ring).toBe(0);
+  // The preview is the cover: the title on its label, set in the chosen cloth.
+  const label = await boxOf(text("Covers"));
+  await expect(async () => {
+    // The cloth shows in the 10 px gap between the page and the label.
+    const [cloth] = await capture(page, { x: Math.round(label.x + label.width / 2), y: Math.round(label.y) - 9, width: 1, height: 1 });
+    expect(cloth, "the preview cover is in the chosen cloth").toEqual(covers.Ochre);
+  }).toPass({ timeout: 5_000 });
 
   const location = await textIn(page, await boxOf(button("My Notes")));
   expect(location.left, "the location control starts under its heading")
@@ -1337,11 +1344,11 @@ test("Flutter library shows board chrome, buckram cover colors, aligned creation
     .toBeCloseTo((await textIn(page, await boxOf(text("Notebook")))).left, -1);
   // Save as template first: its scroll into view moves the heading.
   const save = await boxOf(button("Save as template"));
-  const heading = await boxOf(text("Starting template"));
+  const heading = await boxOf(text("Templates"));
   for (const name of ["Save as template", "Save as draft", "Cancel", "Portrait", "Landscape"]) {
     expect(await contrastIn(page, button(name)), `${name} is legible`).toBeGreaterThan(4.5);
   }
-  expect(save.y - (heading.y + heading.height), "Save as template is under the Starting template heading").toBeGreaterThanOrEqual(0);
+  expect(save.y - (heading.y + heading.height), "Save as template is under the Templates heading").toBeGreaterThanOrEqual(0);
   expect(save.y - (heading.y + heading.height)).toBeLessThan(30);
   await (await inView(button("Save as template"))).click();
   await enterText(page.getByRole("textbox", { name: "Template name", exact: true }), "Proof paper");
@@ -3591,6 +3598,8 @@ test("Flutter at a LAN address says the address is not secure and names the loca
   const error = page.getByLabel(/is not a secure address/);
   await expect(error).toBeVisible();
   await expect(error).toHaveAccessibleName(new RegExp(`Open http://localhost${new URL(baseURL).pathname} on this machine`));
+  // The title names the error; the message does not repeat it.
+  await expect(error).toHaveAccessibleName(/^Error\nhttp:/);
   await expect(page.getByLabel(/reading 'controller'/), "the service worker failure is not a second error").toHaveCount(0);
   await expect(page.getByLabel(/showDirectoryPicker/)).toHaveCount(0);
   await page.screenshot({ path: info.outputPath("lan-address.png") });
