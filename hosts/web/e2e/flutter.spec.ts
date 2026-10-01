@@ -1289,8 +1289,9 @@ test("Flutter library shows dark chrome, cover colors, aligned creation controls
   const change = await textIn(page, await boxOf(button("Change notebook · Covers")));
   expect(change.left, "the notebook control starts under its heading")
     .toBeCloseTo((await textIn(page, await boxOf(text("Notebook")))).left, -1);
-  const heading = await boxOf(text("Starting template"));
+  // Save as template first: its scroll into view moves the heading.
   const save = await boxOf(button("Save as template"));
+  const heading = await boxOf(text("Starting template"));
   for (const name of ["Save as template", "Save as draft", "Cancel", "Portrait", "Landscape"]) {
     expect(await contrastIn(page, button(name)), `${name} is legible`).toBeGreaterThan(4.5);
   }
@@ -2126,7 +2127,7 @@ test("Flutter palette edits a swatch on the HSV wheel, and adds and removes swat
   // A short drag at an offset from the wheel's center: the hue ring is the outer
   // 20 px of the 228 px wheel, and the saturation and value square is inside it.
   const wheelDrag = async (dx: number, dy: number) => {
-    const bounds = await page.getByRole("button", { name: "Color wheel", exact: true }).boundingBox();
+    const bounds = await page.getByRole("img", { name: "Color wheel", exact: true }).boundingBox();
     if (!bounds) throw new Error("The color wheel has no bounds");
     const x = bounds.x + bounds.width / 2 + dx;
     const y = bounds.y + bounds.height / 2 + dy;
@@ -2309,6 +2310,8 @@ test("Flutter saved pen in the color menu restores its color and width after a r
   await write(plain.y);
   await openColors(page);
   await saved.click();
+  // The pen waits for the popover to close (TRAPS.md).
+  await expect(page.getByRole("button", { name: "Library", exact: true })).toBeVisible();
   const shortcut = { x: box.x + 240, y: box.y + 260 };
   await write(shortcut.y);
   await plainPen();
@@ -2319,6 +2322,8 @@ test("Flutter saved pen in the color menu restores its color and width after a r
   await page.locator('canvas[id^="ink-canvas-"]:visible').waitFor({ timeout: 30_000 });
   await openColors(page);
   await saved.click();
+  // The pen waits for the popover to close (TRAPS.md).
+  await expect(page.getByRole("button", { name: "Library", exact: true })).toBeVisible();
   const reloaded = { x: box.x + 240, y: box.y + 340 };
   await write(reloaded.y);
   await page.screenshot({ path: info.outputPath("saved-pens.png") });
@@ -2803,6 +2808,7 @@ test("Flutter horizontal scroll puts the pages side by side, pans across them, a
   }
   await button("View").click();
   await button("Horizontal scroll").click();
+  await expect(button("Library"), "the menu closes before the pen writes (TRAPS.md)").toBeVisible();
   const strokes = async () => (await savedPages(page, "Sideways")).map((saved) => saved.strokes);
   // A page fits the view height, so the view holds more than two A4 pages.
   const pageWidth = box.height * 595.28 / 841.89;
