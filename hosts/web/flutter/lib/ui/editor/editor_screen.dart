@@ -31,7 +31,7 @@ import 'tools_view_model.dart';
 
 import 'package:provider/provider.dart';
 
-part 'ribbon.dart';
+part 'rail.dart';
 part 'editor_popovers.dart';
 part 'editor_dialogs.dart';
 part 'clippings_panel.dart';
@@ -52,6 +52,8 @@ class EditorScreen extends StatefulWidget {
     required this.onFollowLink,
     required this.onChooseNotebookLink,
     required this.workspaceMenu,
+    required this.onOpenNote,
+    required this.onClose,
   });
   final native.OpenNote note;
   final native.Engine engine;
@@ -66,6 +68,8 @@ class EditorScreen extends StatefulWidget {
   final Future<String?> Function(int page) onChooseNotebookLink;
   // The View menu entries that the workspace owns: the tab bar and the split.
   final List<PullDownMenuEntry> Function() workspaceMenu;
+  final Future<void> Function() onOpenNote;
+  final Future<void> Function() onClose;
   @override
   State<EditorScreen> createState() => _EditorScreenState();
 }
@@ -150,8 +154,6 @@ class _EditorScreenState extends State<EditorScreen>
   final taps = FingerTap();
   bool get fingerDraws => tools.fingerDraws;
   set fingerDraws(bool value) => tools.fingerDraws = value;
-  bool get ribbonBottom => tools.ribbonBottom;
-  set ribbonBottom(bool value) => tools.ribbonBottom = value;
   Set<String> get hiddenTools => tools.hiddenTools;
   // The touch that draws the stroke in progress.
   int? fingerStroke;
@@ -634,18 +636,10 @@ class _EditorScreenState extends State<EditorScreen>
             _ => null,
           };
     final area = selection;
-    final white = callout;
     return [
-      Positioned(
-        top: ribbonBottom ? null : ribbonMargin,
-        bottom: ribbonBottom ? ribbonMargin : null,
-        left: ribbonMargin,
-        right: ribbonMargin,
-        child: Center(child: ribbon()),
-      ),
       if (mode != null)
         Positioned(
-          top: ribbonTopInset + 8,
+          top: 8,
           left: 0,
           right: 0,
           child: Center(
@@ -654,11 +648,12 @@ class _EditorScreenState extends State<EditorScreen>
               decoration: BoxDecoration(
                 color: surface1,
                 borderRadius: BorderRadius.circular(20),
+                boxShadow: floatingShadow,
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(mode, style: white),
+                  Text(mode, style: callout),
                   if (tool == 'bookmark' && !drawing)
                     Padding(
                       padding: const EdgeInsets.only(left: 8),
@@ -693,16 +688,13 @@ class _EditorScreenState extends State<EditorScreen>
         Positioned(
           top: area.y + area.height + 60 < height
               ? area.y + area.height + 8
-              : (area.y - 60).clamp(
-                  ribbonTopInset + 8,
-                  height - ribbonBottomInset - 60,
-                ),
+              : (area.y - 60).clamp(8.0, height - 60),
           left: 0,
           right: 0,
           child: Center(child: selectionMenu()),
         ),
       Positioned(
-        bottom: ribbonBottomInset + 12,
+        bottom: 12,
         right: 12,
         child: statusLabel('${page + 1} / ${widget.note.document.pageCount()}'),
       ),
@@ -826,7 +818,14 @@ class _EditorScreenState extends State<EditorScreen>
       child: CupertinoButton(
         padding: const EdgeInsets.symmetric(horizontal: 8),
         onPressed: showMenu,
-        child: Icon(icon),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 4,
+          children: [
+            Icon(icon, size: 20),
+            Text(label, style: callout.copyWith(color: accentText)),
+          ],
+        ),
       ),
     ),
   );
@@ -903,19 +902,6 @@ class _EditorScreenState extends State<EditorScreen>
         },
       ),
     const PullDownMenuDivider.large(),
-    for (final bottom in [false, true])
-      PullDownMenuItem.selectable(
-        title: bottom ? 'Toolbar at bottom' : 'Toolbar at top',
-        selected: ribbonBottom == bottom,
-        onTap: () {
-          setState(() => ribbonBottom = bottom);
-          web.window.localStorage.setItem(
-            'ribbonEdge',
-            bottom ? 'bottom' : 'top',
-          );
-        },
-      ),
-    const PullDownMenuDivider.large(),
     ...widget.workspaceMenu(),
   ];
 
@@ -941,6 +927,11 @@ class _EditorScreenState extends State<EditorScreen>
       title: 'Export PDF',
       enabled: !drawing,
       onTap: () => run(() => exportPdf(share: false)),
+    ),
+    PullDownMenuItem(
+      title: 'Close note',
+      enabled: !drawing,
+      onTap: () => run(widget.onClose),
     ),
     PullDownMenuItem(
       title: 'Go to page',
@@ -977,14 +968,6 @@ class _EditorScreenState extends State<EditorScreen>
     ),
     const PullDownMenuDivider.large(),
     PullDownMenuItem(title: 'Paste', onTap: () => run(paste)),
-    PullDownMenuItem.selectable(
-      title: 'Clippings',
-      selected: clippingsOpen,
-      onTap: () => run(() async {
-        if (!clippingsOpen) await refreshClippings();
-        setState(() => clippingsOpen = !clippingsOpen);
-      }),
-    ),
     PullDownMenuItem(
       title: 'Compare versions',
       enabled: !drawing,
@@ -1154,7 +1137,23 @@ class _EditorScreenState extends State<EditorScreen>
                   role: SemanticsRole.status,
                   liveRegion: true,
                   label: 'Notebook save',
-                  child: Text(saveLabel),
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Text(
+                      saveLabel,
+                      style: footnote.copyWith(color: secondaryLabel),
+                    ),
+                  ),
+                ),
+                Semantics(
+                  label: 'Open note',
+                  button: true,
+                  excludeSemantics: true,
+                  child: CupertinoButton(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    onPressed: () => run(widget.onOpenNote),
+                    child: const Icon(LucideIcons.filePlus2, size: 20),
+                  ),
                 ),
                 menuButton('Pages', LucideIcons.layoutGrid, pagesMenu),
                 menuButton('View', LucideIcons.layoutPanelLeft, viewMenu),
@@ -1179,6 +1178,7 @@ class _EditorScreenState extends State<EditorScreen>
                 Expanded(
                   child: Row(
                     children: [
+                      rail(),
                       Expanded(
                         child: LayoutBuilder(
                           builder: (context, constraints) {
@@ -1355,7 +1355,7 @@ class _EditorScreenState extends State<EditorScreen>
                                     ),
                                     if (atEnd)
                                       Positioned(
-                                        bottom: ribbonBottomInset + 12,
+                                        bottom: 12,
                                         left: 0,
                                         right: 0,
                                         child: Center(

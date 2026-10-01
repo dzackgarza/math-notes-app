@@ -13,13 +13,10 @@ class UndoDial extends StatefulWidget {
   const UndoDial({
     super.key,
     required this.enabled,
-    required this.pageAbove,
     required this.onStep,
     required this.child,
   });
   final bool enabled;
-  // The dial opens on the page side of the ribbon.
-  final bool pageAbove;
   // Undoes (-1) or redoes (1) one step and tells whether a step happened.
   final bool Function(int direction) onStep;
   final Widget child;
@@ -36,6 +33,7 @@ class _UndoDialState extends State<UndoDial> {
   double indAngle = 0;
   int indCount = 0;
   bool moved = false;
+  bool focused = false;
 
   double angle(Offset global) {
     final p = global - dial.center;
@@ -53,14 +51,17 @@ class _UndoDialState extends State<UndoDial> {
   void down(PointerDownEvent event) {
     if (!widget.enabled) return;
     // Write's dial is five button heights square, 130% of the button size
-    // away from the button and centered on it.
+    // away from the button and centered on it. The dial opens on the page
+    // side of the rail, to the right.
     final box = context.findRenderObject()! as RenderBox;
     final button = box.localToGlobal(Offset.zero) & box.size;
     final side = 5 * button.height;
-    final top = widget.pageAbove
-        ? button.top - 0.3 * button.height - side
-        : button.top + 1.3 * button.height;
-    dial = Rect.fromLTWH(button.center.dx - side / 2, top, side, side);
+    dial = Rect.fromLTWH(
+      button.left + 1.3 * button.width,
+      button.center.dy - side / 2,
+      side,
+      side,
+    );
     moved = false;
     indCount = 0;
     prevAngle = angle(event.position);
@@ -102,22 +103,39 @@ class _UndoDialState extends State<UndoDial> {
         ),
       ),
     ),
-    // The button claims its pointer so the ribbon does not scroll while
-    // the dial turns.
-    child: RawGestureDetector(
-      gestures: {
-        EagerGestureRecognizer:
-            GestureRecognizerFactoryWithHandlers<EagerGestureRecognizer>(
-              EagerGestureRecognizer.new,
-              (instance) {},
-            ),
+    // The button claims its pointer so the rail does not scroll while the
+    // dial turns. Tab focuses it and Enter or Space undoes one step.
+    child: FocusableActionDetector(
+      enabled: widget.enabled,
+      mouseCursor: SystemMouseCursors.click,
+      onShowFocusHighlight: (value) => setState(() => focused = value),
+      actions: {
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (_) => step(-1),
+        ),
       },
-      child: Listener(
-        onPointerDown: down,
-        onPointerMove: move,
-        onPointerUp: up,
-        onPointerCancel: up,
-        child: widget.child,
+      child: DecoratedBox(
+        position: DecorationPosition.foreground,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          border: focused ? Border.all(color: accentText, width: 2) : null,
+        ),
+        child: RawGestureDetector(
+          gestures: {
+            EagerGestureRecognizer:
+                GestureRecognizerFactoryWithHandlers<EagerGestureRecognizer>(
+                  EagerGestureRecognizer.new,
+                  (instance) {},
+                ),
+          },
+          child: Listener(
+            onPointerDown: down,
+            onPointerMove: move,
+            onPointerUp: up,
+            onPointerCancel: up,
+            child: widget.child,
+          ),
+        ),
       ),
     ),
   );

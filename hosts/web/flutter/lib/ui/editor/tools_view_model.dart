@@ -28,8 +28,6 @@ class ToolsViewModel extends ChangeNotifier {
   int _selector = 0;
   int _spaceMode = 6;
   bool _fingerDraws = web.window.localStorage.getItem('fingerDraws') == 'true';
-  bool _ribbonBottom =
-      web.window.localStorage.getItem('ribbonEdge') == 'bottom';
   final Set<String> _hiddenTools = {
     ...?web.window.localStorage.getItem('hiddenTools')?.split(','),
   }..remove('');
@@ -91,14 +89,6 @@ class ToolsViewModel extends ChangeNotifier {
     if (_fingerDraws == value) return;
     _fingerDraws = value;
     web.window.localStorage.setItem('fingerDraws', '$value');
-    notifyListeners();
-  }
-
-  bool get ribbonBottom => _ribbonBottom;
-  set ribbonBottom(bool value) {
-    if (_ribbonBottom == value) return;
-    _ribbonBottom = value;
-    web.window.localStorage.setItem('ribbonEdge', value ? 'bottom' : 'top');
     notifyListeners();
   }
 

@@ -27,6 +27,11 @@ async function save(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Save", exact: true }).click();
 }
 
+async function closeNote(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "More", exact: true }).click();
+  await page.getByRole("button", { name: "Close note", exact: true }).click();
+}
+
 // A read of a saved file while the app may be saving it again. `getFile()`
 // snapshots the file, and Chromium refuses the snapshot with NotReadableError
 // once the app's writable stream has swapped a new file in (storage/browser/
@@ -117,7 +122,7 @@ test("Flutter moves, finds, trashes, and restores a note with its metadata", asy
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Movable");
   await addTag(page, "algebra");
   await page.getByRole("button", { name: "Create Note", exact: true }).click();
-  await page.getByRole("button", { name: "Close Movable", exact: true }).click();
+  await closeNote(page);
   await expect(page.getByRole("heading", { name: "Inbox", exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Back to library", exact: true }).click();
@@ -294,7 +299,7 @@ test("Flutter opens a library note on the first tap without a delayed canvas", a
   await page.getByRole("button", { name: "New note", exact: true }).click();
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Immediate");
   await page.getByRole("button", { name: "Create Note", exact: true }).click();
-  await page.getByRole("button", { name: "Close Immediate", exact: true }).click();
+  await closeNote(page);
 
   for (let attempt = 0; attempt < 3; attempt++) {
     const card = page.getByRole("button", { name: "Open Immediate", exact: false });
@@ -309,21 +314,21 @@ test("Flutter opens a library note on the first tap without a delayed canvas", a
       timeout: 2_000,
     });
     expect(Date.now() - started).toBeLessThan(2_000);
-    await page.getByRole("button", { name: "Close Immediate", exact: true }).click();
+    await closeNote(page);
     await expect(
       page.getByRole("heading", { name: "Open timing", exact: true }),
     ).toBeVisible();
   }
 });
 
-test("Flutter opens another note from the tab plus and preserves each tab state", async ({ page }) => {
+test("Flutter opens another note from the Open note button and preserves each tab state", async ({ page }) => {
   test.setTimeout(120_000);
   await page.goto("?root=opfs");
   await createTestNotebook(page);
   await page.getByRole("button", { name: "New note", exact: true }).click();
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Second");
   await page.getByRole("button", { name: "Create Note", exact: true }).click();
-  await page.getByRole("button", { name: "Close Second", exact: true }).click();
+  await closeNote(page);
   await expect(
     page.getByRole("heading", { name: "Test Notebook", exact: true }),
   ).toBeVisible();
@@ -973,7 +978,7 @@ test("Flutter recolors a lasso selection from the palette and keeps the pen colo
   await page.getByRole("button", { name: "Lasso", exact: true }).click();
   await gesture([[130, 120], [200, 115], [270, 120], [275, 170], [270, 220], [200, 225], [130, 220], [125, 170], [130, 120]]);
   await expect(page.getByRole("button", { name: "Delete selection", exact: true })).toBeAttached();
-  await page.getByRole("button", { name: "Color #d92d39", exact: true }).click();
+  await pickColor(page, "#d92d39");
   await page.getByRole("button", { name: "Pen", exact: true }).click();
   // A pen-down away from a selection only clears it (Write, clearSelOnly).
   await gesture([[600, 500], [600, 500]]);
@@ -1239,7 +1244,7 @@ test("Flutter library shows dark chrome, cover colors, aligned creation controls
   expect(summary.contrast, "the template summary is legible").toBeGreaterThan(4.5);
   await page.screenshot({ path: info.outputPath("new-note.png") });
   await button("Create Note").click();
-  await button("Close Rings").click();
+  await closeNote(page);
 
   const noteMenu = ["Add favorite", "Details and tags", "Rename", "Move", "Move to trash"].map(button);
   await openMenuAt(button("Rings actions"), noteMenu);
@@ -1884,15 +1889,16 @@ test("Flutter rewinds handwriting with Ctrl+Z and the undo dial", async ({ page 
   await page.keyboard.press("Control+Shift+z");
   expect(await shown()).toEqual([true, true, true]);
 
-  // A drag from the undo button turns the dial below it (undo_dial.dart):
-  // each 1/32 turn counterclockwise undoes a step, clockwise redoes one.
+  // A drag from the undo button turns the dial to the right of it, over the
+  // page (undo_dial.dart): each 1/32 turn counterclockwise undoes a step,
+  // clockwise redoes one.
   const button = await page.getByRole("button", { name: "Undo", exact: true }).boundingBox();
   if (!button) throw new Error("Undo button has no bounds");
   const start = { x: button.x + button.width / 2, y: button.y + button.height / 2 };
-  const center = { x: start.x, y: button.y + 1.3 * button.height + 2.5 * button.height };
-  const radius = center.y - start.y;
+  const center = { x: button.x + 1.3 * button.width + 2.5 * button.height, y: start.y };
+  const radius = center.x - start.x;
   const at = (degrees: number) => {
-    const angle = -Math.PI / 2 + (degrees * Math.PI) / 180;
+    const angle = Math.PI + (degrees * Math.PI) / 180;
     return { x: center.x + radius * Math.cos(angle), y: center.y + radius * Math.sin(angle) };
   };
   await page.mouse.move(start.x, start.y);
@@ -1956,6 +1962,30 @@ async function closePopover(page: Page): Promise<void> {
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("Page has no viewport");
   await page.mouse.click(viewport.width - 20, viewport.height - 20);
+  await expect(page.getByRole("button", { name: "Library", exact: true })).toBeVisible();
+}
+
+// The rail's current-color dot opens the Colors popover: the swatches, the
+// palette editor, and the saved pens.
+async function openColors(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Colors", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Edit colors", exact: true })).toBeVisible();
+}
+
+// A tap outside a popover that opened over the Colors popover closes only
+// the top one.
+async function backToColors(page: Page): Promise<void> {
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("Page has no viewport");
+  await page.mouse.click(viewport.width - 20, viewport.height - 20);
+  await expect(page.getByRole("button", { name: "Edit colors", exact: true })).toBeVisible();
+}
+
+// A tap on a swatch that is not the current color chooses it and closes the
+// Colors popover.
+async function pickColor(page: Page, hex: string): Promise<void> {
+  await openColors(page);
+  await page.getByRole("button", { name: `Color ${hex}`, exact: true }).click();
   await expect(page.getByRole("button", { name: "Library", exact: true })).toBeVisible();
 }
 
@@ -2043,22 +2073,25 @@ test("Flutter palette edits a swatch on the HSV wheel, and adds and removes swat
   await page.getByRole("button", { name: "3.6 pt", exact: true }).click();
   await closePopover(page);
   // A tap on the pen's current swatch opens the wheel for that swatch.
+  await openColors(page);
   await swatches.first().click();
   await wheelDrag(45, -45);
   await wheelDrag(0, 104);
-  await closePopover(page);
+  await backToColors(page);
   const edited = await swatchColor(0);
+  await closePopover(page);
   expect(saturation(edited), "the wheel makes the gray swatch a saturated color").toBeGreaterThan(100);
   const stroke = { x: box.x + 240, y: box.y + 200 };
   await penStroke(cdp, line(box.x + 140, box.x + 340, stroke.y), 0.6);
   const ink = await darkestPixel(page, stroke);
   expect(near(ink, edited), `the pen writes the swatch color: ink ${ink}, swatch ${edited}`).toBe(true);
 
+  await openColors(page);
   await page.getByRole("button", { name: "Edit colors", exact: true }).click();
   await page.getByRole("button", { name: "Remove color #ffcf26", exact: true }).click();
   await wheelDrag(0, -104);
   await page.getByRole("button", { name: "Add color", exact: true }).click();
-  await closePopover(page);
+  await backToColors(page);
   await expect(page.getByRole("button", { name: "Color #ffcf26", exact: true })).toHaveCount(0);
   await expect(swatches).toHaveCount(5);
   const added = await swatchColor(4);
@@ -2069,50 +2102,38 @@ test("Flutter palette edits a swatch on the HSV wheel, and adds and removes swat
   await openTestNotebook(page);
   await page.getByRole("button", { name: "Open Palette", exact: false }).click();
   await page.locator('canvas[id^="ink-canvas-"]:visible').waitFor({ timeout: 30_000 });
+  await openColors(page);
   await page.screenshot({ path: info.outputPath("palette.png") });
   await expect(swatches).toHaveCount(5);
   expect(near(await swatchColor(0), edited), "the edited swatch persists").toBe(true);
   expect(near(await swatchColor(4), added), "the added swatch persists").toBe(true);
 });
 
-test("Flutter floats the toolbar over the page under dark chrome and moves it from the menus", async ({ page }, info) => {
+test("Flutter places the tool rail on the left edge beside the page and hides tools from the menus", async ({ page }, info) => {
   test.setTimeout(120_000);
   const { box } = await openNewNote(page, "Chrome");
   const button = (name: string) => page.getByRole("button", { name, exact: true });
-  const pageCenter = box.x + box.width / 2;
-  const dark = (rgb: Rgb) => brightness(rgb) < 150;
-  // The dark ribbon on the light page: its middle row in the page's center
-  // column, then its extent along that row.
-  const ribbon = async () => {
-    const column = await capture(page, { x: pageCenter, y: box.y, width: 1, height: box.height });
-    const rows = column.flatMap((rgb, i) => (dark(rgb) ? [i] : []));
-    if (rows.length === 0) throw new Error("No toolbar crosses the page's center column");
-    const y = box.y + (rows[0] + rows[rows.length - 1]) / 2;
-    const row = await capture(page, { x: box.x, y, width: box.width, height: 1 });
-    const columns = row.flatMap((rgb, i) => (dark(rgb) ? [i] : []));
-    return { left: box.x + columns[0], right: box.x + columns[columns.length - 1], y };
-  };
 
-  const topBar = await centerPixel(page, { x: 300, y: 74 });
+  // The rail is a dark column at the left edge. Each tool and history
+  // control is in it, and none of them covers the page.
+  const pen = await boxOf(button("Pen"));
+  expect(pen.x, "the rail is on the left edge").toBeLessThan(16);
+  for (const name of ["Pen", "Lasso", "Insert space", "Undo", "Redo", "Colors"]) {
+    const control = await boxOf(button(name));
+    expect(control.width, `${name} is a 44 px target`).toBeGreaterThanOrEqual(44);
+    expect(control.x + control.width, `${name} does not cover the page`).toBeLessThanOrEqual(box.x);
+  }
+  const rail = await centerPixel(page, { x: 4, y: pen.y + pen.height / 2 });
+  expect(brightness(rail), "the rail is dark").toBeLessThan(150);
+  const library = await boxOf(button("Library"));
+  const topBar = await centerPixel(page, { x: 300, y: library.y + library.height / 2 });
   expect(brightness(topBar), "the top bar is dark").toBeLessThan(150);
-  const top = await ribbon();
-  expect(Math.abs((top.left + top.right) / 2 - pageCenter), "the toolbar is centered on the page").toBeLessThan(4);
-  expect(top.y - box.y, "the toolbar floats over the top edge of the page").toBeLessThan(80);
-  const beside = await centerPixel(page, { x: top.left - 40, y: top.y });
-  expect(brightness(beside), "the page shows beside the toolbar").toBeGreaterThan(600);
-
-  await button("View").click();
-  await button("Toolbar at bottom").click();
-  await expect.poll(async () => (await ribbon()).y, { message: "the toolbar moves to the bottom edge" })
-    .toBeGreaterThan(box.y + box.height - 80);
-
-  await button("Pages").click();
-  await button("Add page").click();
-  await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
+  const firstRow = await centerPixel(page, { x: box.x + 100, y: box.y + 100 });
+  expect(brightness(firstRow), "the first writing row of the page is clear").toBeGreaterThan(600);
 
   await button("More").click();
   await button("Customize toolbar").click();
-  // One switch per tool kind, in toolbar order; Insert space is the eighth.
+  // One switch per tool kind, in rail order; Insert space is the eighth.
   await page.getByRole("switch").nth(7).click();
   await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(button("Insert space")).toHaveCount(0);
@@ -2122,11 +2143,10 @@ test("Flutter floats the toolbar over the page under dark chrome and moves it fr
   await page.getByRole("button", { name: "Open Chrome", exact: false }).click();
   await page.locator('canvas[id^="ink-canvas-"]:visible').waitFor({ timeout: 30_000 });
   await page.screenshot({ path: info.outputPath("chrome.png") });
-  expect((await ribbon()).y, "the toolbar stays at the bottom after a reload").toBeGreaterThan(box.y + box.height - 80);
   await expect(button("Insert space")).toHaveCount(0);
 });
 
-test("Flutter saved pen in the toolbar restores its color and width after a reload", async ({ page }, info) => {
+test("Flutter saved pen in the color menu restores its color and width after a reload", async ({ page }, info) => {
   test.setTimeout(120_000);
   const { box, cdp } = await openNewNote(page, "Saved pens");
   const penSize = async (label: string) => {
@@ -2134,20 +2154,24 @@ test("Flutter saved pen in the toolbar restores its color and width after a relo
     await page.getByRole("button", { name: label, exact: true }).click();
   };
   const plainPen = async () => {
-    await page.getByRole("button", { name: "Color #1a1a1a", exact: true }).click();
+    await pickColor(page, "#1a1a1a");
     await penSize("0.6 pt");
     await closePopover(page);
   };
   const saved = page.getByRole("button", { name: "Saved pen 3.6 pt #d92d39", exact: true });
   const write = (y: number) => penStroke(cdp, line(box.x + 140, box.x + 340, y), 0.6);
 
-  await page.getByRole("button", { name: "Color #d92d39", exact: true }).click();
+  await pickColor(page, "#d92d39");
   await penSize("3.6 pt");
   await page.getByRole("button", { name: "Save pen", exact: true }).click();
+  await closePopover(page);
+  await openColors(page);
   await expect(saved).toBeVisible();
+  await closePopover(page);
   await plainPen();
   const plain = { x: box.x + 240, y: box.y + 180 };
   await write(plain.y);
+  await openColors(page);
   await saved.click();
   const shortcut = { x: box.x + 240, y: box.y + 260 };
   await write(shortcut.y);
@@ -2157,6 +2181,7 @@ test("Flutter saved pen in the toolbar restores its color and width after a relo
   await openTestNotebook(page);
   await page.getByRole("button", { name: "Open Saved pens", exact: false }).click();
   await page.locator('canvas[id^="ink-canvas-"]:visible').waitFor({ timeout: 30_000 });
+  await openColors(page);
   await saved.click();
   const reloaded = { x: box.x + 240, y: box.y + 340 };
   await write(reloaded.y);
@@ -2203,7 +2228,7 @@ test("Flutter pen color and width changes affect only later strokes", async ({ p
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("Page has no viewport");
   await page.mouse.click(viewport.width - 20, viewport.height - 20);
-  await page.getByRole("button", { name: "Color #d92d39", exact: true }).click();
+  await pickColor(page, "#d92d39");
   await expect.poll(() => whenSaved(() => page.evaluate(async () => {
     try {
       const root = await navigator.storage.getDirectory();
@@ -2824,7 +2849,7 @@ test("Flutter creates a note in each page size and orientation", async ({ page }
     await button(paper).click();
     await button(orientation).click();
     await button("Create Note").click();
-    await expect(button(`Close ${title}`)).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible({ timeout: 30_000 });
     expect((await savedPages(page, title)).map((saved) => saved.size), title).toEqual([size]);
     await button("Pages").click();
     await button("Add page").click();

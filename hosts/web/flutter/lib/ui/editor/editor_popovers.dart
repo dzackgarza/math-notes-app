@@ -11,7 +11,7 @@ extension _EditorPopovers on _EditorScreenState {
   ) async {
     await showPopover<void>(
       context: anchor,
-      direction: ribbonBottom ? PopoverDirection.top : PopoverDirection.bottom,
+      direction: PopoverDirection.right,
       width: width,
       backgroundColor: surface2,
       shadow: floatingShadow,
@@ -401,10 +401,16 @@ extension _EditorPopovers on _EditorScreenState {
   }
 
   // A swatch recolors the selection when there is one. Otherwise it sets the
-  // drawing tool's color, and a tap on the current color edits it.
-  Future<void> tapSwatch(BuildContext anchor, int index) async {
+  // drawing tool's color, and a tap on the current color edits it. A choice
+  // closes the color popover.
+  Future<void> tapSwatch(
+    BuildContext popover,
+    BuildContext anchor,
+    int index,
+  ) async {
     final color = palette[index];
     if (selection != null) {
+      Navigator.pop(popover);
       edit(() => canvas!.recolorSelection(color));
       return;
     }
@@ -412,6 +418,7 @@ extension _EditorPopovers on _EditorScreenState {
       await editSwatch(anchor, index);
       return;
     }
+    Navigator.pop(popover);
     await choosePenColor(color);
   }
 

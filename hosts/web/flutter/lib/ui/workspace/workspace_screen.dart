@@ -95,6 +95,7 @@ class WorkspaceScreen extends StatelessWidget {
       Key? key,
       required bool linked,
       required bool active,
+      required Future<void> Function() onClose,
     }) => ChangeNotifierProvider(
       key: key,
       create: (_) => EditorViewModel(note),
@@ -103,6 +104,8 @@ class WorkspaceScreen extends StatelessWidget {
         note: note,
         destination: session.destination,
         workspaceMenu: workspaceMenu,
+        onOpenNote: () => run(pickNote),
+        onClose: () => run(onClose),
         onFollowLink: (href, page) => session.followLink(note, href, page),
         onChooseNotebookLink: (page) => chooseNotebookLink(note, page),
         viewport: session.viewport,
@@ -121,62 +124,57 @@ class WorkspaceScreen extends StatelessWidget {
     final inLibrary = session.inLibrary;
     return Column(
       children: [
-        if (!session.tabsHidden)
+        if (!session.tabsHidden && opened.length >= 2)
           ColoredBox(
-            color: surface1,
+            color: background,
             child: SafeArea(
               bottom: false,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          for (var i = 0; i < opened.length; i++)
-                            DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: session.tab == i
-                                    ? selectedFill
-                                    : surface1,
-                                border: const Border(
-                                  right: BorderSide(color: background),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (var i = 0; i < opened.length; i++)
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: session.tab == i ? surface1 : null,
+                          border: const Border(
+                            right: BorderSide(color: separator),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Semantics(
+                              selected: session.tab == i,
+                              child: CupertinoButton(
+                                onPressed: () =>
+                                    run(() => session.open(opened[i].path)),
+                                child: Text(
+                                  opened[i].name,
+                                  style: callout.copyWith(
+                                    color: session.tab == i
+                                        ? label
+                                        : secondaryLabel,
+                                  ),
                                 ),
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  CupertinoButton(
-                                    onPressed: () =>
-                                        run(() => session.open(opened[i].path)),
-                                    child: Text(opened[i].name),
-                                  ),
-                                  CupertinoButton(
-                                    onPressed: () =>
-                                        run(() => session.close(i)),
-                                    child: Semantics(
-                                      label: 'Close ${opened[i].name}',
-                                      child: const Icon(
-                                        CupertinoIcons.xmark,
-                                        size: 16,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                            ),
+                            CupertinoButton(
+                              onPressed: () => run(() => session.close(i)),
+                              child: Semantics(
+                                label: 'Close ${opened[i].name}',
+                                child: const Icon(
+                                  CupertinoIcons.xmark,
+                                  size: 16,
+                                  color: secondaryLabel,
+                                ),
                               ),
                             ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ),
-                  CupertinoButton(
-                    onPressed: () => run(pickNote),
-                    child: Semantics(
-                      label: 'Open note',
-                      child: const Icon(CupertinoIcons.add),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -206,6 +204,7 @@ class WorkspaceScreen extends StatelessWidget {
                                     !inLibrary &&
                                     i == session.tab &&
                                     !session.rightFocused,
+                                onClose: () => session.close(i),
                               ),
                             ),
                           ),
@@ -232,6 +231,7 @@ class WorkspaceScreen extends StatelessWidget {
                                 key: ValueKey('reference-${session.secondary}'),
                                 linked: session.linkedViews,
                                 active: !inLibrary && session.rightFocused,
+                                onClose: () async => session.closeSplit(),
                               ),
                             ),
                           ),
