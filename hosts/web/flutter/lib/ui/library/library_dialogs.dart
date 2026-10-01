@@ -183,14 +183,14 @@ Future<bool> editFolderDetails(
             TagEditor(controller: tags),
             const SizedBox(height: 12),
             CupertinoSlidingSegmentedControl<String>(
-              backgroundColor: surface3,
+              backgroundColor: segmentTrack,
               thumbColor: segmentThumb,
               groupValue: paper,
               children: const {
-                'dotted': Text('Dot'),
-                'grid-medium': Text('Graph'),
-                'blank': Text('Blank'),
-                'lined-medium': Text('Ruled'),
+                'dotted': Text('Dot', style: segmentLabel),
+                'grid-medium': Text('Graph', style: segmentLabel),
+                'blank': Text('Blank', style: segmentLabel),
+                'lined-medium': Text('Ruled', style: segmentLabel),
               },
               onValueChanged: (value) {
                 if (value != null) update(() => paper = value);
@@ -401,12 +401,12 @@ Future<CreationForm?> askCreation(
                 Text('Cover style', style: subhead),
                 const SizedBox(height: 6),
                 CupertinoSlidingSegmentedControl<String>(
-                  backgroundColor: surface3,
+                  backgroundColor: segmentTrack,
                   thumbColor: segmentThumb,
                   groupValue: coverStyle,
                   children: const {
-                    'classic': Text('Classic'),
-                    'spine': Text('Spine'),
+                    'classic': Text('Classic', style: segmentLabel),
+                    'spine': Text('Spine', style: segmentLabel),
                   },
                   onValueChanged: (value) {
                     if (value != null) update(() => coverStyle = value);
@@ -457,7 +457,7 @@ Future<CreationForm?> askCreation(
               Text('Paper style', style: subhead),
               const SizedBox(height: 6),
               CupertinoSlidingSegmentedControl<String>(
-                backgroundColor: surface3,
+                backgroundColor: segmentTrack,
                 thumbColor: segmentThumb,
                 groupValue: paper,
                 children: isFolder
@@ -468,11 +468,11 @@ Future<CreationForm?> askCreation(
                           'blank',
                           'lined-medium',
                         ])
-                          paper: Text(papers[paper]!),
+                          paper: Text(papers[paper]!, style: segmentLabel),
                       }
                     : {
                         for (final entry in papers.entries)
-                          entry.key: Text(entry.value),
+                          entry.key: Text(entry.value, style: segmentLabel),
                       },
                 onValueChanged: (value) {
                   if (value != null) update(() => paper = value);
@@ -512,10 +512,13 @@ Future<CreationForm?> askCreation(
                 Text('Page size', style: subhead),
                 const SizedBox(height: 6),
                 CupertinoSlidingSegmentedControl<String>(
-                  backgroundColor: surface3,
+                  backgroundColor: segmentTrack,
                   thumbColor: segmentThumb,
                   groupValue: size,
-                  children: const {'a4': Text('A4'), 'letter': Text('Letter')},
+                  children: const {
+                    'a4': Text('A4', style: segmentLabel),
+                    'letter': Text('Letter', style: segmentLabel),
+                  },
                   onValueChanged: (value) {
                     if (value != null) update(() => size = value);
                   },
@@ -524,12 +527,12 @@ Future<CreationForm?> askCreation(
                 Text('Orientation', style: subhead),
                 const SizedBox(height: 6),
                 CupertinoSlidingSegmentedControl<String>(
-                  backgroundColor: surface3,
+                  backgroundColor: segmentTrack,
                   thumbColor: segmentThumb,
                   groupValue: orientation,
                   children: const {
-                    'portrait': Text('Portrait'),
-                    'landscape': Text('Landscape'),
+                    'portrait': Text('Portrait', style: segmentLabel),
+                    'landscape': Text('Landscape', style: segmentLabel),
                   },
                   onValueChanged: (value) {
                     if (value != null) update(() => orientation = value);

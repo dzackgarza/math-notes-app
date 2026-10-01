@@ -53,6 +53,8 @@ const fieldDecoration = BoxDecoration(
 // The thumb of a segmented control: paper on the board-toned track.
 const segmentThumb = Color(0xFFFBFAF6);
 const segmentTrack = Color(0xFFDADDD5);
+// Segment labels at the callout size; the control sets 13 pt and the weight.
+const segmentLabel = TextStyle(fontSize: 16);
 
 // Elevation: one shadow per level.
 const floatingShadow = [

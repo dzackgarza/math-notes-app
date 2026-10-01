@@ -247,7 +247,7 @@ extension _EditorPopovers on _EditorScreenState {
                               border: Border.all(
                                 color: (size - value).abs() < 0.05
                                     ? accentText
-                                    : paperEdge,
+                                    : const Color(0x00000000),
                                 width: 2,
                               ),
                               color: paper,
@@ -306,7 +306,7 @@ extension _EditorPopovers on _EditorScreenState {
           if (!highlighter) ...[
             const SizedBox(height: 12),
             CupertinoSlidingSegmentedControl<bool>(
-              backgroundColor: surface3,
+              backgroundColor: segmentTrack,
               thumbColor: segmentThumb,
               groupValue: advanced,
               children: {

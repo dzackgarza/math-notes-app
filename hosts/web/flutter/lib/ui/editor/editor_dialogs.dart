@@ -184,10 +184,13 @@ extension _EditorDialogs on _EditorScreenState {
                   ),
                 heading('Page size'),
                 CupertinoSlidingSegmentedControl<int>(
-                  backgroundColor: surface3,
+                  backgroundColor: segmentTrack,
                   thumbColor: segmentThumb,
                   groupValue: current.size == 2 ? null : current.size,
-                  children: const {0: Text('A4'), 1: Text('Letter')},
+                  children: const {
+                    0: Text('A4', style: segmentLabel),
+                    1: Text('Letter', style: segmentLabel),
+                  },
                   onValueChanged: (size) {
                     if (size == null) return;
                     edit(
@@ -208,10 +211,13 @@ extension _EditorDialogs on _EditorScreenState {
                   ),
                 heading('Orientation'),
                 CupertinoSlidingSegmentedControl<int>(
-                  backgroundColor: surface3,
+                  backgroundColor: segmentTrack,
                   thumbColor: segmentThumb,
                   groupValue: current.orientation,
-                  children: const {0: Text('Portrait'), 1: Text('Landscape')},
+                  children: const {
+                    0: Text('Portrait', style: segmentLabel),
+                    1: Text('Landscape', style: segmentLabel),
+                  },
                   onValueChanged: (orientation) {
                     if (orientation == null) return;
                     edit(

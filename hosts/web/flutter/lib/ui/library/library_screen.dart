@@ -258,16 +258,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // The title is on the cover label.
         Expanded(child: cover(item)),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
         Row(
           children: [
             Expanded(
               child: Text(
-                item.name,
+                notebookSummary(item),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: subhead,
+                style: footnote.copyWith(color: secondaryLabel),
               ),
             ),
             actionsButton(
@@ -275,12 +276,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
               () => folderMenu(item),
             ),
           ],
-        ),
-        Text(
-          notebookSummary(item),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: footnote.copyWith(color: secondaryLabel),
         ),
         tagList(tagNames(folder.folderMetadata(item.path).tags)),
       ],
@@ -411,7 +406,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     SliverToBoxAdapter(
       child: Padding(
         padding: const EdgeInsets.only(top: 8, bottom: 12),
-        child: Text(heading, style: title),
+        child: Text(heading, style: callout.copyWith(color: secondaryLabel)),
       ),
     ),
     if (vm.grid)
