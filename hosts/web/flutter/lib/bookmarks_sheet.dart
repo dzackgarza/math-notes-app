@@ -47,7 +47,11 @@ Future<native.NavigationMark?> chooseDestination(
                   itemBuilder: (context, index) {
                     final mark = marks[index];
                     return CupertinoListTile(
-                      title: Text('Page ${mark.page + 1}'),
+                      title: Text(
+                        mark.id.isEmpty
+                            ? 'Page ${mark.page + 1}'
+                            : 'Bookmark on page ${mark.page + 1}',
+                      ),
                       leading: Icon(
                         mark.id.isEmpty
                             ? CupertinoIcons.doc

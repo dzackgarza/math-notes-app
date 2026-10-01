@@ -393,17 +393,20 @@ extension _EditorDialogs on _EditorScreenState {
                   child: SingleChildScrollView(
                     child: Column(
                       children: [
+                        // Each switch is named by its layer, as in Settings.
                         for (final layer in layers)
-                          CupertinoListTile(
-                            title: Text(layer.name),
-                            trailing: CupertinoSwitch(
-                              value: included.contains(layer.id),
-                              onChanged: (value) => update(() {
-                                if (value)
-                                  included.add(layer.id);
-                                else
-                                  included.remove(layer.id);
-                              }),
+                          MergeSemantics(
+                            child: CupertinoListTile(
+                              title: Text(layer.name),
+                              trailing: CupertinoSwitch(
+                                value: included.contains(layer.id),
+                                onChanged: (value) => update(() {
+                                  if (value)
+                                    included.add(layer.id);
+                                  else
+                                    included.remove(layer.id);
+                                }),
+                              ),
                             ),
                           ),
                       ],

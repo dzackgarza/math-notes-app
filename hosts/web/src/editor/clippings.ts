@@ -2,11 +2,15 @@ import type { Engine } from "../engine/engine.ts";
 import { openNotebook, Saver, type OpenNotebook } from "./notebook.ts";
 
 export interface Clipping { id: string; png: Uint8Array<ArrayBuffer> }
+// Shapes in the engine's page format (ReadShape in core/src/format/
+// page_svg.cpp): it has an ellipse and no circle, and it reads the stroke
+// from each shape.
+const outline = 'fill="none" stroke="#000000" stroke-width="1.4"';
 const shapes = [
-  '<circle cx="30" cy="30" r="27"/>',
-  '<rect x="3" y="3" width="54" height="54"/>',
-  '<polygon points="30,3 57,57 3,57"/>',
-  '<polygon points="3,30 16.5,6.6 43.5,6.6 57,30 43.5,53.4 16.5,53.4"/>',
+  `<ellipse cx="30" cy="30" rx="27" ry="27" ${outline}/>`,
+  `<rect x="3" y="3" width="54" height="54" ${outline}/>`,
+  `<polygon points="30,3 57,57 3,57" ${outline}/>`,
+  `<polygon points="3,30 16.5,6.6 43.5,6.6 57,30 43.5,53.4 16.5,53.4" ${outline}/>`,
 ];
 
 async function withClippings<T>(engine: Engine, root: FileSystemDirectoryHandle, action: (note: OpenNotebook) => Promise<T>): Promise<T> {
@@ -18,7 +22,7 @@ async function withClippings<T>(engine: Engine, root: FileSystemDirectoryHandle,
       try {
         document.deletePage(0);
         // Write res_ui.cpp:211-254 supplies these first-use geometric clippings.
-        for (const shape of shapes) document.addClipping(`<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60"><g id="clipping" fill="none" stroke="#000000" stroke-width="1.4">${shape}</g></svg>`);
+        for (const shape of shapes) document.addClipping(`<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60"><g id="clipping">${shape}</g></svg>`);
         const dir = await root.getDirectoryHandle(".clippings", { create: true });
         await new Saver(document, dir, []).save();
       } finally { document.free(); }

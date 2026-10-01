@@ -20,6 +20,14 @@ Future<void> manageLayers(
       builder: (context, update) {
         final layers = document.layers().toDart;
         final active = canvas.activeLayer();
+        // A control label that names its layer: every layer row has the same
+        // buttons.
+        Widget named(String action, int index) => Semantics(
+          label: '$action ${layers[index].name}',
+          excludeSemantics: true,
+          child: Text(action),
+        );
+
         void change(void Function() action) {
           try {
             edit(action);
@@ -110,20 +118,26 @@ Future<void> manageLayers(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  CupertinoListTile(
-                                    title: Text(layers[i].name),
-                                    leading: Icon(
-                                      active == i
-                                          ? CupertinoIcons.checkmark_circle_fill
-                                          : CupertinoIcons.circle,
-                                    ),
-                                    onTap: layers[i].hidden || layers[i].locked
-                                        ? null
-                                        : () =>
-                                              change(() => canvas.setLayer(i)),
-                                    trailing: CupertinoButton(
-                                      onPressed: () => nameLayer(i),
-                                      child: const Text('Rename'),
+                                  Semantics(
+                                    selected: active == i,
+                                    child: CupertinoListTile(
+                                      title: Text(layers[i].name),
+                                      leading: Icon(
+                                        active == i
+                                            ? CupertinoIcons
+                                                  .checkmark_circle_fill
+                                            : CupertinoIcons.circle,
+                                      ),
+                                      onTap:
+                                          layers[i].hidden || layers[i].locked
+                                          ? null
+                                          : () => change(
+                                              () => canvas.setLayer(i),
+                                            ),
+                                      trailing: CupertinoButton(
+                                        onPressed: () => nameLayer(i),
+                                        child: named('Rename', i),
+                                      ),
                                     ),
                                   ),
                                   Wrap(
@@ -138,8 +152,9 @@ Future<void> manageLayers(
                                             layers[i].locked,
                                           ),
                                         ),
-                                        child: Text(
+                                        child: named(
                                           layers[i].hidden ? 'Show' : 'Hide',
+                                          i,
                                         ),
                                       ),
                                       CupertinoButton(
@@ -151,8 +166,9 @@ Future<void> manageLayers(
                                             !layers[i].locked,
                                           ),
                                         ),
-                                        child: Text(
+                                        child: named(
                                           layers[i].locked ? 'Unlock' : 'Lock',
+                                          i,
                                         ),
                                       ),
                                       withEnabledState(
@@ -165,7 +181,7 @@ Future<void> manageLayers(
                                                   ),
                                                 )
                                               : null,
-                                          child: const Text('Up'),
+                                          child: named('Up', i),
                                         ),
                                       ),
                                       withEnabledState(
@@ -178,7 +194,7 @@ Future<void> manageLayers(
                                                   ),
                                                 )
                                               : null,
-                                          child: const Text('Down'),
+                                          child: named('Down', i),
                                         ),
                                       ),
                                       withEnabledState(
@@ -191,7 +207,7 @@ Future<void> manageLayers(
                                                     canvas.setLayer(i - 1);
                                                 })
                                               : null,
-                                          child: const Text('Merge down'),
+                                          child: named('Merge down', i),
                                         ),
                                       ),
                                       withEnabledState(
@@ -253,7 +269,7 @@ Future<void> manageLayers(
                                                     });
                                                 }
                                               : null,
-                                          child: const Text('Delete'),
+                                          child: named('Delete', i),
                                         ),
                                       ),
                                     ],

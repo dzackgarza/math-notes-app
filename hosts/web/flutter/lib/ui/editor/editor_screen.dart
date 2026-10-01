@@ -750,7 +750,9 @@ class _EditorScreenState extends State<EditorScreen> {
                 child: Text('Copy selection'),
               ),
             ),
+            // Its own node: a label alone merges into the editor's node.
             child: Semantics(
+              container: true,
               label: 'Drag a copy',
               excludeSemantics: true,
               child: const SizedBox(
