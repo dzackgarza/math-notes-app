@@ -83,6 +83,8 @@ test("Flutter creation sheets close on Escape and ask before they discard a chan
 
   await button("New notebook").click();
   await title.waitFor();
+  expect(await contrastIn(page, page.getByRole("textbox", { name: "Description", exact: true })), "the Description placeholder is legible").toBeGreaterThan(4.5);
+  expect(await contrastIn(page, button("Cancel")), "Cancel is legible").toBeGreaterThan(4.5);
   await page.keyboard.press("Escape");
   await expect(title, "an unchanged sheet closes at once").toHaveCount(0);
 
@@ -1190,6 +1192,13 @@ async function textIn(page: Page, box: Box): Promise<{ left: number; contrast: n
   return { left: region.x + first, contrast: Math.max(...ratios) };
 }
 
+// The contrast of the text inside a control, measured from 4 px inside its
+// rounded corners, where its own fill is the background.
+async function contrastIn(page: Page, locator: Locator): Promise<number> {
+  const box = await boxOf(locator);
+  return (await textIn(page, { x: box.x + 4, y: box.y + 4, width: box.width - 8, height: box.height - 8 })).contrast;
+}
+
 async function boxOf(locator: Locator): Promise<Box> {
   await locator.scrollIntoViewIfNeeded();
   const box = await locator.boundingBox();
@@ -1268,6 +1277,9 @@ test("Flutter library shows dark chrome, cover colors, aligned creation controls
     .toBeCloseTo((await textIn(page, await boxOf(text("Notebook")))).left, -1);
   const heading = await boxOf(text("Starting template"));
   const save = await boxOf(button("Save as template"));
+  for (const name of ["Save as template", "Save as draft", "Cancel"]) {
+    expect(await contrastIn(page, button(name)), `${name} is legible`).toBeGreaterThan(4.5);
+  }
   expect(save.y - (heading.y + heading.height), "Save as template is under the Starting template heading").toBeGreaterThanOrEqual(0);
   expect(save.y - (heading.y + heading.height)).toBeLessThan(30);
   await button("Save as template").click();
@@ -1296,6 +1308,9 @@ test("Flutter library shows dark chrome, cover colors, aligned creation controls
   expect(brightness(await centerPixel(page, { x: 105, y: 560 })), "the sidebar is dark").toBeLessThan(150);
   expect((await textIn(page, await boxOf(text("Math Notes")))).contrast, "the sidebar title is legible").toBeGreaterThan(4.5);
   expect((await textIn(page, await boxOf(text("Tags")))).contrast, "the Tags heading is legible").toBeGreaterThan(4.5);
+  for (const name of ["Library", "Recent", "Trash"]) {
+    expect(await contrastIn(page, button(name)), `the ${name} row is legible`).toBeGreaterThan(4.5);
+  }
   const tag = await boxOf(page.getByRole("button", { name: "groups", exact: false }).first());
   expect((await textIn(page, { ...tag, x: tag.x + tag.width - 40, width: 40 })).contrast, "the tag count is legible").toBeGreaterThan(4.5);
   await page.screenshot({ path: info.outputPath("library.png") });
@@ -2043,6 +2058,7 @@ test("Flutter tool popovers set size, opacity, and the brush of each pen type", 
 
   // The pen is selected, so a tap on it opens its popover.
   await tool("Pen").click();
+  expect((await textIn(page, await boxOf(page.getByText("Size", { exact: true })))).contrast, "the Size heading is legible").toBeGreaterThan(4.5);
   await tool("0.6 pt").click();
   const thinSample = await sampleInk();
   await tool("3.6 pt").click();
@@ -2844,6 +2860,8 @@ test("Flutter renames a note with its pages, sorts the notes, and search lists t
   await expect(card("Rings")).toHaveCount(0);
   await card("Modules").click();
   await expect(button("Close Modules")).toBeVisible();
+  expect(await contrastIn(page, button("Modules")), "the active tab is legible").toBeGreaterThan(4.5);
+  expect(await contrastIn(page, button("Fields")), "the other tab is legible").toBeGreaterThan(4.5);
   const saved = await savedPages(page, "Modules", "Shelf");
   expect(saved.map(({ strokes }) => strokes), "the renamed note keeps its handwriting").toEqual([1]);
   expect(await page.evaluate(async () => {
@@ -3433,6 +3451,7 @@ test("Flutter menus, alerts, action sheets, and sheets blur the handwriting behi
   await button("Pages").click();
   const item = await boxOf(button("Go to page"));
   await blurred(item.x + 0.7 * item.width, item.y + 4, item.y + item.height - 4, "the menu");
+  expect(await contrastIn(page, button("Delete page")), "Delete page is legible").toBeGreaterThan(4.5);
 
   await button("Go to page").click();
   const title = await boxOf(page.getByText("Go to page", { exact: true }));
