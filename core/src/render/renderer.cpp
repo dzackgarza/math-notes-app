@@ -8,10 +8,12 @@
 #include "include/codec/SkCodec.h"
 #include "include/codec/SkPngDecoder.h"
 #include "include/codec/SkJpegDecoder.h"
+#include "include/core/SkBlurTypes.h"
 #include "include/core/SkCanvas.h"
 #include "include/core/SkColorSpace.h"
 #include "include/core/SkFont.h"
 #include "include/core/SkFontTypes.h"
+#include "include/core/SkMaskFilter.h"
 #include "include/core/SkPaint.h"
 #include "include/core/SkPathBuilder.h"
 #include "include/effects/SkDashPathEffect.h"
@@ -23,6 +25,13 @@
 
 namespace ink_engine {
 namespace {
+
+// Each page is a sheet on the desk (docs/specs/tablet-ui.md, "Pages in the
+// editor"): a soft shadow 1 pt below it, blurred with a 1.5 pt sigma. Its
+// extent stays inside kPageGap above the next page.
+constexpr float kShadowSigma = 1.5f;
+constexpr float kShadowOffset = 1;
+constexpr float kShadowExtent = 3 * kShadowSigma + kShadowOffset;
 
 SkMatrix ToSkMatrix(const Transform &t) {
   return SkMatrix::MakeAll(float(t.a), float(t.c), float(t.e), float(t.b), float(t.d), float(t.f),
@@ -228,8 +237,15 @@ void Renderer::Redraw(const SkRegion &region) {
     for (const PagePlacement &placement : layout_) {
       SkRect page_rect = SkRect::MakeXYWH(float(placement.x), float(placement.y),
                                           float(placement.width), float(placement.height));
-      if (!SkRect::Intersects(page_rect, clip_content)) continue;
+      if (!SkRect::Intersects(page_rect.makeOutset(kShadowExtent, kShadowExtent), clip_content)) {
+        continue;
+      }
       canvas->setMatrix(content * SkMatrix::Translate(page_rect.x(), page_rect.y()));
+      SkPaint shadow(SkColor4f::FromColor(SkColorSetARGB(0x40, 0, 0, 0)));
+      shadow.setAntiAlias(true);
+      shadow.setMaskFilter(SkMaskFilter::MakeBlur(kNormal_SkBlurStyle, kShadowSigma));
+      canvas->drawRect(SkRect::MakeXYWH(0, kShadowOffset, page_rect.width(), page_rect.height()),
+                       shadow);
       DrawPage(canvas, *document_->pages[placement.page],
                clip_content.makeOffset(-page_rect.x(), -page_rect.y()));
     }

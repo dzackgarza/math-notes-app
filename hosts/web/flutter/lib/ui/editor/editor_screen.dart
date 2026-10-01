@@ -168,11 +168,16 @@ class _EditorScreenState extends State<EditorScreen>
   );
 
   bool get horizontal => arrangement.value == 1;
+  // The desk shows around the pages (docs/specs/tablet-ui.md, "Pages in the
+  // editor"): a margin in view pixels at zoom 1 that zooms with the pages.
+  static const deskMargin = 16.0;
   // Horizontal scroll fits the page height to the view; the others fit the
-  // content width.
+  // content width. Both leave the desk margin on each side.
   double get fit {
     final content = widget.note.document.contentSize();
-    return horizontal ? height / content.height : width / content.width;
+    return horizontal
+        ? (height - 2 * deskMargin) / content.height
+        : (width - 2 * deskMargin) / content.width;
   }
 
   String get layerLabel {
@@ -346,8 +351,12 @@ class _EditorScreenState extends State<EditorScreen>
       0,
       0,
       fit * scale,
-      matrix.storage[12] - (horizontal ? offset * scale : 0),
-      matrix.storage[13] - (horizontal ? 0 : offset * scale),
+      matrix.storage[12] +
+          deskMargin * scale -
+          (horizontal ? offset * scale : 0),
+      matrix.storage[13] +
+          deskMargin * scale -
+          (horizontal ? 0 : offset * scale),
     );
     final current = target.pageAt(width / 2, height / 2);
     if (current >= 0 && current != page && mounted)
@@ -1041,11 +1050,17 @@ class _EditorScreenState extends State<EditorScreen>
     final scale = matrix.getMaxScaleOnAxis();
     final along = scroll.offset * scale;
     final x =
-        (position.dx - matrix.storage[12] + (horizontal ? along : 0)) /
+        (position.dx -
+                matrix.storage[12] -
+                deskMargin * scale +
+                (horizontal ? along : 0)) /
             (fit * scale) -
         rect.x;
     final y =
-        (position.dy - matrix.storage[13] + (horizontal ? 0 : along)) /
+        (position.dy -
+                matrix.storage[13] -
+                deskMargin * scale +
+                (horizontal ? 0 : along)) /
             (fit * scale) -
         rect.y;
     for (final mark in widget.note.document.navigation().toDart.reversed) {
@@ -1334,16 +1349,18 @@ class _EditorScreenState extends State<EditorScreen>
                                                     child: SizedBox(
                                                       width: horizontal
                                                           ? widget.note.document
-                                                                    .contentSize()
-                                                                    .width *
-                                                                fit
+                                                                        .contentSize()
+                                                                        .width *
+                                                                    fit +
+                                                                2 * deskMargin
                                                           : width,
                                                       height: horizontal
                                                           ? height
                                                           : widget.note.document
-                                                                    .contentSize()
-                                                                    .height *
-                                                                fit,
+                                                                        .contentSize()
+                                                                        .height *
+                                                                    fit +
+                                                                2 * deskMargin,
                                                     ),
                                                   ),
                                                 ),

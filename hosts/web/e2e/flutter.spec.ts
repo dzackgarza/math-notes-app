@@ -2130,6 +2130,11 @@ test("Flutter places the tool rail on the left edge beside the page and hides to
   expect(brightness(topBar), "the top bar is dark").toBeLessThan(150);
   const firstRow = await centerPixel(page, { x: box.x + 100, y: box.y + 100 });
   expect(brightness(firstRow), "the first writing row of the page is clear").toBeGreaterThan(600);
+  // The page is a sheet on the desk: a desk margin shows on each side.
+  for (const at of [{ x: box.x + 4, y: box.y + 200 }, { x: box.x + box.width - 4, y: box.y + 200 }, { x: box.x + 200, y: box.y + 4 }]) {
+    const desk = await centerPixel(page, at);
+    expect(desk.every((channel, i) => Math.abs(channel - [233, 235, 239][i]) < 6), `the desk shows at ${at.x}, ${at.y}: ${desk}`).toBe(true);
+  }
 
   await button("More").click();
   await button("Customize toolbar").click();
