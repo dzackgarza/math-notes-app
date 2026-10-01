@@ -157,7 +157,7 @@ extension _EditorDialogs on _EditorScreenState {
             title: const Text('Paper for new pages'),
             message: Column(
               children: [
-                heading('Paper Style'),
+                heading('Paper style'),
                 for (final name in templates)
                   CupertinoButton(
                     padding: EdgeInsets.zero,
@@ -181,7 +181,7 @@ extension _EditorDialogs on _EditorScreenState {
                       ],
                     ),
                   ),
-                heading('Page Size'),
+                heading('Page size'),
                 CupertinoSlidingSegmentedControl<int>(
                   backgroundColor: surface3,
                   thumbColor: segmentThumb,

@@ -93,6 +93,13 @@ class _TapTargetState extends State<TapTarget> {
 
 // A hover tint behind a button. CupertinoButton shows press and focus but
 // not hover, which a pointer on the web and on the iPad needs.
+// A CupertinoButton with its enabled state in the semantics tree. Its own
+// Semantics sets only the button flag, and its tap recognizer stays
+// registered while it is disabled, so the web engine exposes a disabled
+// button as tappable (TRAPS.md).
+Widget withEnabledState(CupertinoButton button) =>
+    Semantics(enabled: button.enabled, child: button);
+
 class HoverTint extends StatefulWidget {
   const HoverTint({super.key, required this.child, this.radius = 10});
   final Widget child;

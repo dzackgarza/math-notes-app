@@ -25,7 +25,7 @@ import '../../undo_dial.dart';
 import '../../data/open_notes.dart';
 import '../library/library_dialogs.dart' show paperLabels;
 import '../modal.dart';
-import '../notes_ui.dart' show HoverTint;
+import '../notes_ui.dart' show HoverTint, withEnabledState;
 import '../settings_sheet.dart';
 import '../theme.dart';
 import 'editor_input.dart';

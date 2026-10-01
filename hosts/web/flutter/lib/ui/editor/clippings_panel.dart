@@ -72,23 +72,25 @@ extension _ClippingsPanel on _EditorScreenState {
                               height: 100,
                               child: Image.memory(item.png.toDart),
                             ),
-                            child: CupertinoButton(
-                              onPressed: drawing
-                                  ? null
-                                  : () => run(() async {
-                                      final svg = await clippingSource(item);
-                                      edit(
-                                        () => canvas!.paste(
-                                          svg,
-                                          width / 2,
-                                          height / 2,
-                                          true,
-                                        ),
-                                      );
-                                    }),
-                              child: Image.memory(
-                                item.png.toDart,
-                                semanticLabel: 'Insert clipping ${i + 1}',
+                            child: withEnabledState(
+                              CupertinoButton(
+                                onPressed: drawing
+                                    ? null
+                                    : () => run(() async {
+                                        final svg = await clippingSource(item);
+                                        edit(
+                                          () => canvas!.paste(
+                                            svg,
+                                            width / 2,
+                                            height / 2,
+                                            true,
+                                          ),
+                                        );
+                                      }),
+                                child: Image.memory(
+                                  item.png.toDart,
+                                  semanticLabel: 'Insert clipping ${i + 1}',
+                                ),
                               ),
                             ),
                           ),
@@ -96,30 +98,32 @@ extension _ClippingsPanel on _EditorScreenState {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               for (final action in ['up', 'down', 'delete'])
-                                CupertinoButton(
-                                  onPressed:
-                                      (action == 'up' && i == 0) ||
-                                          (action == 'down' &&
-                                              i == clippings.length - 1)
-                                      ? null
-                                      : () => run(() async {
-                                          await native.host
-                                              .changeClipping(
-                                                widget.engine,
-                                                widget.note.root,
-                                                item.id,
-                                                action,
-                                              )
-                                              .toDart;
-                                          await refreshClippings();
-                                        }),
-                                  child: Semantics(
-                                    label: '$action clipping',
-                                    child: Icon(switch (action) {
-                                      'up' => CupertinoIcons.arrow_up,
-                                      'down' => CupertinoIcons.arrow_down,
-                                      _ => CupertinoIcons.trash,
-                                    }),
+                                withEnabledState(
+                                  CupertinoButton(
+                                    onPressed:
+                                        (action == 'up' && i == 0) ||
+                                            (action == 'down' &&
+                                                i == clippings.length - 1)
+                                        ? null
+                                        : () => run(() async {
+                                            await native.host
+                                                .changeClipping(
+                                                  widget.engine,
+                                                  widget.note.root,
+                                                  item.id,
+                                                  action,
+                                                )
+                                                .toDart;
+                                            await refreshClippings();
+                                          }),
+                                    child: Semantics(
+                                      label: '$action clipping',
+                                      child: Icon(switch (action) {
+                                        'up' => CupertinoIcons.arrow_up,
+                                        'down' => CupertinoIcons.arrow_down,
+                                        _ => CupertinoIcons.trash,
+                                      }),
+                                    ),
                                   ),
                                 ),
                             ],

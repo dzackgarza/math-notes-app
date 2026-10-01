@@ -7,6 +7,7 @@ import '../../host.dart' as native;
 import '../../tag_editor.dart';
 import 'library_view_model.dart';
 import '../modal.dart';
+import '../notes_ui.dart' show withEnabledState;
 import '../theme.dart';
 
 Color hexColor(String value) =>
@@ -605,11 +606,14 @@ Future<CreationForm?> askCreation(
                 onPressed: () => Navigator.pop(context, 'draft'),
                 child: const Text('Save as draft'),
               ),
-            CupertinoButton.filled(
-              onPressed: title.text.trim().isEmpty
-                  ? null
-                  : () => Navigator.pop(context, 'create'),
-              child: const Text('Create'),
+            withEnabledState(
+              CupertinoButton.filled(
+                color: accent,
+                onPressed: title.text.trim().isEmpty
+                    ? null
+                    : () => Navigator.pop(context, 'create'),
+                child: const Text('Create'),
+              ),
             ),
           ],
         ),

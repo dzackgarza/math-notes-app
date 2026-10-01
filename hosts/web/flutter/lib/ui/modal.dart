@@ -2,7 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/cupertino.dart';
 
-import 'notes_ui.dart' show HoverTint;
+import 'notes_ui.dart' show HoverTint, withEnabledState;
 import 'theme.dart';
 
 // One scrim under every modal route: the background color dimmed
@@ -188,12 +188,10 @@ class _Action extends StatelessWidget {
         ? destructive
         : accentText;
     final style = (isDefaultAction ? headline : body).copyWith(color: color);
-    // A disabled CupertinoButton still exposes an enabled tap action.
-    return Semantics(
-      enabled: onPressed != null,
-      child: HoverTint(
-        radius: 0,
-        child: CupertinoButton(
+    return HoverTint(
+      radius: 0,
+      child: withEnabledState(
+        CupertinoButton(
           padding: const EdgeInsets.symmetric(horizontal: 10),
           minimumSize: Size(0, height),
           borderRadius: BorderRadius.zero,

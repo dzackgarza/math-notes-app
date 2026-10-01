@@ -5,6 +5,7 @@ import 'package:flutter/cupertino.dart';
 import 'errors.dart';
 import 'host.dart' as native;
 import 'ui/modal.dart';
+import 'ui/notes_ui.dart' show withEnabledState;
 import 'ui/theme.dart';
 
 Future<void> manageLayers(
@@ -154,96 +155,106 @@ Future<void> manageLayers(
                                           layers[i].locked ? 'Unlock' : 'Lock',
                                         ),
                                       ),
-                                      CupertinoButton(
-                                        onPressed: i + 1 < layers.length
-                                            ? () => change(
-                                                () => document.moveLayer(
-                                                  i,
-                                                  i + 1,
-                                                ),
-                                              )
-                                            : null,
-                                        child: const Text('Up'),
+                                      withEnabledState(
+                                        CupertinoButton(
+                                          onPressed: i + 1 < layers.length
+                                              ? () => change(
+                                                  () => document.moveLayer(
+                                                    i,
+                                                    i + 1,
+                                                  ),
+                                                )
+                                              : null,
+                                          child: const Text('Up'),
+                                        ),
                                       ),
-                                      CupertinoButton(
-                                        onPressed: i > 0
-                                            ? () => change(
-                                                () => document.moveLayer(
-                                                  i,
-                                                  i - 1,
-                                                ),
-                                              )
-                                            : null,
-                                        child: const Text('Down'),
+                                      withEnabledState(
+                                        CupertinoButton(
+                                          onPressed: i > 0
+                                              ? () => change(
+                                                  () => document.moveLayer(
+                                                    i,
+                                                    i - 1,
+                                                  ),
+                                                )
+                                              : null,
+                                          child: const Text('Down'),
+                                        ),
                                       ),
-                                      CupertinoButton(
-                                        onPressed:
-                                            i > 0 && !layers[i - 1].locked
-                                            ? () => change(() {
-                                                document.removeLayer(i, true);
-                                                if (canvas.activeLayer() < 0)
-                                                  canvas.setLayer(i - 1);
-                                              })
-                                            : null,
-                                        child: const Text('Merge down'),
+                                      withEnabledState(
+                                        CupertinoButton(
+                                          onPressed:
+                                              i > 0 && !layers[i - 1].locked
+                                              ? () => change(() {
+                                                  document.removeLayer(i, true);
+                                                  if (canvas.activeLayer() < 0)
+                                                    canvas.setLayer(i - 1);
+                                                })
+                                              : null,
+                                          child: const Text('Merge down'),
+                                        ),
                                       ),
-                                      CupertinoButton(
-                                        onPressed: layers.length > 1
-                                            ? () async {
-                                                final remove =
-                                                    await showModalDialog<bool>(
-                                                      context: context,
-                                                      builder: (context) => Alert(
-                                                        title: Text(
-                                                          'Delete ${layers[i].name}?',
-                                                        ),
-                                                        content: const Text(
-                                                          'This removes its content from every page. Undo restores the layer.',
-                                                        ),
-                                                        actions: [
-                                                          AlertAction(
-                                                            onPressed: () =>
-                                                                Navigator.pop(
-                                                                  context,
-                                                                  false,
-                                                                ),
-                                                            child: const Text(
-                                                              'Cancel',
-                                                            ),
+                                      withEnabledState(
+                                        CupertinoButton(
+                                          onPressed: layers.length > 1
+                                              ? () async {
+                                                  final remove =
+                                                      await showModalDialog<
+                                                        bool
+                                                      >(
+                                                        context: context,
+                                                        builder: (context) => Alert(
+                                                          title: Text(
+                                                            'Delete ${layers[i].name}?',
                                                           ),
-                                                          AlertAction(
-                                                            isDestructiveAction:
-                                                                true,
-                                                            onPressed: () =>
-                                                                Navigator.pop(
-                                                                  context,
+                                                          content: const Text(
+                                                            'This removes its content from every page. Undo restores the layer.',
+                                                          ),
+                                                          actions: [
+                                                            AlertAction(
+                                                              onPressed: () =>
+                                                                  Navigator.pop(
+                                                                    context,
+                                                                    false,
+                                                                  ),
+                                                              child: const Text(
+                                                                'Cancel',
+                                                              ),
+                                                            ),
+                                                            AlertAction(
+                                                              isDestructiveAction:
                                                                   true,
-                                                                ),
-                                                            child: const Text(
-                                                              'Delete',
+                                                              onPressed: () =>
+                                                                  Navigator.pop(
+                                                                    context,
+                                                                    true,
+                                                                  ),
+                                                              child: const Text(
+                                                                'Delete',
+                                                              ),
                                                             ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    );
-                                                if (remove == true)
-                                                  change(() {
-                                                    document.removeLayer(
-                                                      i,
-                                                      false,
-                                                    );
-                                                    if (canvas.activeLayer() <
-                                                        0)
-                                                      canvas.setLayer(
-                                                        (i - 1).clamp(
-                                                          0,
-                                                          layers.length - 2,
+                                                          ],
                                                         ),
                                                       );
-                                                  });
-                                              }
-                                            : null,
-                                        child: const Text('Delete'),
+                                                  if (remove == true)
+                                                    change(() {
+                                                      document.removeLayer(
+                                                        i,
+                                                        false,
+                                                      );
+                                                      if (canvas.activeLayer() <
+                                                          0)
+                                                        canvas.setLayer(
+                                                          (i - 1).clamp(
+                                                            0,
+                                                            layers.length - 2,
+                                                          ),
+                                                        );
+                                                    });
+                                                }
+                                              : null,
+                                          child: const Text('Delete'),
+                                        ),
                                       ),
                                     ],
                                   ),

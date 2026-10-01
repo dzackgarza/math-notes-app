@@ -605,7 +605,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
         const SizedBox(height: 16),
         Text(message, style: body.copyWith(color: secondaryLabel)),
         const SizedBox(height: 20),
-        CupertinoButton.filled(onPressed: onPressed, child: Text(action)),
+        CupertinoButton.filled(
+          color: accent,
+          onPressed: onPressed,
+          child: Text(action),
+        ),
       ],
     ),
   );
@@ -632,6 +636,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       const SizedBox(width: 8),
       if (notebook == null)
         CupertinoButton.filled(
+          color: accent,
           onPressed: () => run(() => create(true)),
           child: const Text('New notebook'),
         )
@@ -641,6 +646,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           child: const Text('Import PDF'),
         ),
         CupertinoButton.filled(
+          color: accent,
           onPressed: () => run(() => create(false)),
           child: const Text('New note'),
         ),
@@ -658,13 +664,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
         const SizedBox(height: 24),
         if (folder.reconnect)
           CupertinoButton.filled(
+            color: accent,
             onPressed: () => run(folder.grantPermission),
             child: const Text('Reconnect folder'),
           ),
-        // A disabled CupertinoButton still exposes an enabled tap action.
-        Semantics(
-          enabled: folder.started,
-          child: CupertinoButton(
+        withEnabledState(
+          CupertinoButton(
             onPressed: folder.started ? () => run(vm.chooseRoot) : null,
             child: const Text('Choose notes folder'),
           ),

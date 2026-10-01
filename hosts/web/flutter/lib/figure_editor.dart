@@ -7,6 +7,7 @@ import 'package:web/web.dart' as web;
 
 import 'errors.dart';
 import 'host.dart' as native;
+import 'ui/notes_ui.dart' show withEnabledState;
 import 'ui/theme.dart';
 
 class FigureEditor extends StatefulWidget {
@@ -74,10 +75,8 @@ class _FigureEditorState extends State<FigureEditor> {
       navigationBar: CupertinoNavigationBar(
         automaticallyImplyLeading: false,
         middle: const Text('Figure editor'),
-        // A disabled CupertinoButton still exposes an enabled tap action.
-        trailing: Semantics(
-          enabled: !closing,
-          child: CupertinoButton(
+        trailing: withEnabledState(
+          CupertinoButton(
             padding: EdgeInsets.zero,
             onPressed: closing ? null : close,
             child: Text(closing ? 'Saving…' : 'Save and close'),

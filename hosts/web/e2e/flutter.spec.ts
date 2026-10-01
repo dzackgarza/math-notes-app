@@ -1267,6 +1267,7 @@ test("Flutter library shows dark chrome, cover colors, aligned creation controls
   const button = (name: string) => page.getByRole("button", { name, exact: true });
   const text = (content: string) => page.getByText(content, { exact: true });
 
+  expect(await contrastIn(page, button("New notebook")), "New notebook is legible").toBeGreaterThan(4.5);
   await button("New notebook").click();
   await enterText(page.getByRole("textbox", { name: "Notebook title", exact: true }), "Covers");
   await addTag(page, "groups");
@@ -1296,9 +1297,11 @@ test("Flutter library shows dark chrome, cover colors, aligned creation controls
   const later = await textIn(page, await boxOf(text("You can move this notebook later.")));
   expect(later.contrast, "the location note is legible").toBeGreaterThan(4.5);
   await page.screenshot({ path: info.outputPath("new-notebook.png") });
+  expect(await contrastIn(page, button("Create")), "Create is legible").toBeGreaterThan(4.5);
   await button("Create").click();
 
   // A new notebook opens; its New Note sheet takes the notebook's tags.
+  expect(await contrastIn(page, button("New note")), "New note is legible").toBeGreaterThan(4.5);
   await button("New note").click();
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Rings");
   const change = await textIn(page, await boxOf(button("Change notebook · Covers")));
@@ -3493,7 +3496,8 @@ test("Flutter menus, alerts, action sheets, and sheets blur the handwriting behi
   await blurred(item.x + 0.7 * item.width, item.y + 4, item.y + item.height - 4, "the menu");
 
   await button("Go to page").click();
-  const title = await boxOf(page.getByText("Go to page", { exact: true }));
+  // The closing menu still holds a "Go to page" label.
+  const title = await boxOf(page.getByRole("alertdialog").getByText("Go to page", { exact: true }));
   await blurred(title.x - 10, title.y - 6, title.y + title.height + 6, "the alert");
   await blurred(box.x + 60, title.y - 20, title.y + 40, "the scrim beside the alert");
   expect(await capture(page, { x: title.x - 10, y: title.y + title.height / 2, width: 1, height: 1 }), "the alert is surface2, not Cupertino gray").toEqual([[0x28, 0x32, 0x47]]);
