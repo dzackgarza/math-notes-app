@@ -31,14 +31,15 @@ are the reference for look and interaction.
 
 ![New Notebook](ui/tablet-new-notebook.png)
 
-- **Cancel** at the top left, **Create Notebook** (primary) at the top right.
+- **Cancel** at the top left, **Create** (primary) at the top right.
 - Fields: Notebook Title; Description (optional, 500-character counter);
   Paper Style (Dot, Graph, Blank, Ruled, each with a preview tile); Tags
   (removable chips and "Add a tag…"); Location (a folder menu, "You can move
   this notebook later").
-- **Preview** of the cover, and **Notebook Details** summarizing paper,
-  location and tag count. A cover is a preview of the notebook's first page,
-  here and on every card.
+- **Preview** of the cover. A cover is a preview of the notebook's first
+  page, here and on every card.
+- The sheet sizes to its content. Escape and **Cancel** close it; when a
+  field holds input, they ask before they discard it.
 
 ### New Note
 
@@ -50,29 +51,44 @@ are the reference for look and interaction.
   Template (Blank Note, Theorem / Proof, Grid Sketch, Lecture Notes) with a
   one-line description of the selected template.
 - A large live preview of the first page with the paper and template.
-- **Save as Draft** and **Create Note** (primary) at the bottom right.
+- **Save as draft** and **Create** (primary) at the bottom right.
 
 ### Editor
 
 ![Editor](ui/tablet-editor.png)
 
 The mockup shows the page and the tabs. Noteful is the reference for the
-toolbar and the tool popovers; `noteful-pen-tool.webp` shows its pen popover.
+toolbar and the tool popovers:
 
-- **Top bar**: back to the library; the note title; a tab per open note with
-  close buttons, and **+**. Three pull-down menus at the right:
-  - **Pages**: page overview, bookmarks, and layers.
-  - **View**: vertical scroll, horizontal scroll, or two-page layout;
-    toolbar position (top or bottom); tab bar position (top or hidden).
-  - **⋯**: paper for new pages (style, size, orientation); share and export
-    PDF; go to page; clear page; delete page; gestures (finger drawing);
-    customize the toolbar.
-- **Toolbar**: a rounded ribbon with a shadow that floats over the top or
-  bottom edge of the page, centered. It has icons without text labels, one
-  icon per tool kind: pen, marker, highlighter, eraser, lasso, text, image,
-  insert space, drawing mode. After a divider: undo, redo, saved pens, the
-  color swatches, and **+**. The ribbon scrolls sideways when its content is
-  wider than the page.
+![Noteful pen tool](ui/noteful-pen-tool.webp)
+
+- **Top bar**: back to the library; the note title; **Open note**; the save
+  status as secondary text. Labeled pull-down menus at the right. Each menu
+  holds the actions of one object:
+  - **Pages** (the current page and the page sequence): page overview; go to
+    page; add page; insert page before or after; select page; clear page;
+    paper for new pages (style, size, orientation); bookmarks and add
+    bookmark; layers. Delete page is the last group, alone.
+  - **View** (the layout of the pages): fit width or height; vertical
+    scroll, horizontal scroll, or two-page layout; split view.
+  - **⋯** (the document): save; share and export PDF; compare versions.
+  Navigation between pages belongs to scrolling, swipe, and the page
+  counter, not to menu rows.
+- **Tabs**: a tab strip under the top bar while two or more notes are open,
+  one tab per note with a close button. The active tab is marked by label
+  color and selected semantics.
+- **Settings sheet**, from ⋯ and from the library's Settings: draw with
+  finger; follow links; customize the toolbar; show the tab strip.
+- **Page context menu** (long press on the page or a selection): paste;
+  save to clippings.
+- **Toolbar**: a vertical rail with a shadow on the left edge of the editor.
+  The page area starts to the right of the rail, so the rail covers no
+  writing. Icons without text labels, in separated groups: the tools (pen,
+  marker, highlighter, eraser, lasso); the inserters (text, image, insert
+  space, drawing mode, clippings); history (undo, redo); and one dot showing
+  the current color. Each target is 44 × 44 pt with at least 8 pt between
+  targets. The rail scrolls vertically when its content is taller than the
+  editor.
 - **Tool popover**: a tap on the selected tool opens its popover. The
   popover edits the settings of that tool only and never changes the tool.
   - Pen, marker, and highlighter: a stroke sample drawn by the engine; five
@@ -81,23 +97,26 @@ toolbar and the tool popovers; `noteful-pen-tool.webp` shows its pen popover.
     brush: the pen draws with pressure, the marker with a constant width.
   - Eraser: stroke, partial, or ruled.
   - Lasso: freehand, rectangle, oval, or ruled.
-- **Colors**: a swatch sets the color of the current pen or highlighter, or
-  recolors the lasso selection when there is one. A tap on the selected
-  swatch opens a touch color picker (an HSV wheel) that edits that swatch.
-  **+** edits the list of visible swatches.
-- **Saved pens**: as in Write, a saved pen is a toolbar shortcut that
-  restores its tool (pen, marker, or highlighter) with its size, color, and
-  opacity. It is not a new tool kind.
+- **Colors**: the current-color dot opens the color popover. It holds the
+  swatches, the saved pens, and **+**. A swatch sets the color of the
+  current pen or highlighter, or recolors the lasso selection when there is
+  one. A tap on the selected swatch opens a touch color picker (an HSV
+  wheel) that edits that swatch. **+** edits the list of visible swatches.
+- **Saved pens**: as in Write, a saved pen is a shortcut in the color
+  popover that restores its tool (pen, marker, or highlighter) with its
+  size, color, and opacity. It is not a new tool kind.
 - **Undo and redo**: a tap undoes or redoes one step. A drag from the undo
   button turns a rewind dial around the button, as in Write
   (`ButtonDragDial` in `syncscribble/touchwidgets.cpp`): each dial step
   undoes or redoes one edit.
-- **Page** fills the area under the top bar; the ribbon floats over it. Fit width keeps the current scroll position.
+- **Page** area: under the top bar and to the right of the rail. Fit width
+  keeps the current scroll position.
 
 ## Pages in the editor
 
-- Pages have a 6 pt desk-colored gap between them. In the default view a page
-  fills the full width of the canvas.
+- Pages have a 6 pt desk-colored gap between them. Each page is a sheet with
+  a shadow on the desk color. In the default view a page fills the canvas
+  width less a desk margin on each side.
 - One finger pans the pages. Two fingers pinch to zoom. Pen input draws.
 - Flutter with Cupertino owns the complete web GUI and its input, focus,
   navigation, and controls. UIKit owns the independent iPad GUI.
@@ -121,10 +140,20 @@ components identified in [ARCHITECTURE.md](../ARCHITECTURE.md#component-ownershi
 Apply the colors below through each framework's theme. Math Notes supplies
 product layout and theme values.
 
-Dark theme: the toolbar, bars, menus, popovers, and library panels are dark
-navy and dark gray, so the page stands apart from the controls. One blue
-accent (#2F6FEB, approximately) for primary buttons, selection and links.
-Rounded cards and chips, system sans-serif type. Paper is warm off-white.
+Dark theme: the toolbar, bars, menus, popovers, sheets, fields, and library
+panels take their colors from one navy neutral ramp, so the page stands
+apart from the controls. No surface uses a framework default gray, black,
+or white. One blue accent (#2F6FEB, approximately) fills primary buttons and
+marks selection; text in the accent hue uses a lighter tone of it. Every
+text color meets 4.5:1 contrast on its surface. Paper is warm off-white.
+
+Elevation has two levels: floating controls (the rail, popovers, menus) and
+modals (sheets, dialogs). Each level has one shadow. A modal blurs and dims
+what is behind it.
+
+Type: Inter for the interface, Noto Sans for text on the page. The interface
+uses one scale of named roles from the theme; no interface text is smaller
+than 13 pt. Labels use sentence case. Rounded cards and chips.
 
 ## Relation to the current model
 

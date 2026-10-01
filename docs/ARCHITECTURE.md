@@ -255,7 +255,7 @@ the folder services.
 The Flutter host follows MVVM ownership at the application boundary. One
 app-wide `ToolsViewModel` owns tool configuration that must follow the user
 between notes: pen/marker/highlighter settings and palette, eraser/lasso/space
-modes, finger-drawing behavior, ribbon placement, and toolbar visibility. Each
+modes, finger-drawing behavior, and toolbar visibility. Each
 open editor owns an `EditorViewModel` for note-local canvas, page, drawing
 capture, selection, clippings, figure preview, and save-state observation.
 `OpenNotes` remains the session repository for tabs, split panes, linked
