@@ -20,7 +20,10 @@ extension _EditorDialogs on _EditorScreenState {
           content: Padding(
             padding: const EdgeInsets.only(top: 16),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text('Text', style: footnote.copyWith(color: secondaryLabel)),
+                const SizedBox(height: 6),
                 CupertinoTextField(
                   controller: controller,
                   autofocus: true,

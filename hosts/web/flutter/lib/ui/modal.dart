@@ -12,9 +12,12 @@ import 'theme.dart';
 // view (TRAPS.md).
 final _scrimFilter = ImageFilter.blur(sigmaX: 6, sigmaY: 6);
 
+// Escape dismisses a route only when its barrier does (_DismissModalAction in
+// flutter/lib/src/widgets/routes.dart). A form that must not close holds a
+// PopScope.
 class _ScrimDialogRoute<T> extends CupertinoDialogRoute<T> {
   _ScrimDialogRoute({required super.builder, required super.context})
-    : super(barrierColor: scrim);
+    : super(barrierColor: scrim, barrierDismissible: true);
 
   @override
   ImageFilter? get filter => _scrimFilter;

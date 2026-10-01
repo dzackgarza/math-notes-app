@@ -24,6 +24,8 @@ Future<int?> overviewPages(
         for (var index = 0; index < count; index++)
           document.pagePng(index, 240).toDart,
       ];
+      // The current page is marked only when another page sits beside it.
+      bool marked(int index) => count > 1 && index == current;
       void change(void Function() action) {
         edit(action);
         update(() {});
@@ -70,15 +72,16 @@ Future<int?> overviewPages(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 900, maxHeight: 800),
+            constraints: const BoxConstraints(maxWidth: 900),
             child: CupertinoPopupSurface(
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Row(
                     children: [
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 16),
-                        child: Text('Pages'),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text('Pages', style: headline),
                       ),
                       const Spacer(),
                       CupertinoButton(
@@ -87,8 +90,9 @@ Future<int?> overviewPages(
                       ),
                     ],
                   ),
-                  Expanded(
+                  Flexible(
                     child: ReorderableGrid(
+                      shrinkWrap: true,
                       padding: const EdgeInsets.all(16),
                       gridDelegate:
                           const SliverGridDelegateWithMaxCrossAxisExtent(
@@ -125,10 +129,10 @@ Future<int?> overviewPages(
                                         position: DecorationPosition.foreground,
                                         decoration: BoxDecoration(
                                           border: Border.all(
-                                            color: index == current
+                                            color: marked(index)
                                                 ? accentText
                                                 : paperEdge,
-                                            width: index == current ? 3 : 1,
+                                            width: marked(index) ? 3 : 1,
                                           ),
                                         ),
                                         child: Image.memory(

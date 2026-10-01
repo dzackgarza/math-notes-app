@@ -21,13 +21,15 @@ class CreationSheet extends StatelessWidget {
   final Widget preview;
   final List<Widget> actions;
 
+  // The sheet is as tall as its content, up to the screen. A wide sheet puts
+  // the preview beside the form; a narrow one puts it under the form.
   @override
   Widget build(BuildContext context) => SafeArea(
     child: Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 900, maxHeight: 800),
+          constraints: const BoxConstraints(maxWidth: 720),
           child: Semantics(
             role: SemanticsRole.dialog,
             scopesRoute: true,
@@ -36,9 +38,10 @@ class CreationSheet extends StatelessWidget {
             label: title,
             child: CupertinoPopupSurface(
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
                     child: Semantics(
                       header: true,
                       child: DefaultTextStyle(
@@ -49,33 +52,27 @@ class CreationSheet extends StatelessWidget {
                       ),
                     ),
                   ),
-                  Expanded(
+                  Flexible(
                     child: LayoutBuilder(
                       builder: (context, constraints) {
                         final form = Padding(
-                          padding: const EdgeInsets.all(24),
+                          padding: const EdgeInsets.all(20),
                           child: content,
                         );
-                        if (constraints.maxWidth < 640) {
+                        final shown = Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: SizedBox(height: 280, child: preview),
+                        );
+                        if (constraints.maxWidth < 600) {
                           return SingleChildScrollView(
-                            child: Column(
-                              children: [
-                                form,
-                                SizedBox(height: 260, child: preview),
-                              ],
-                            ),
+                            child: Column(children: [form, shown]),
                           );
                         }
                         return Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(child: SingleChildScrollView(child: form)),
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.all(24),
-                                child: preview,
-                              ),
-                            ),
+                            SizedBox(width: 260, child: shown),
                           ],
                         );
                       },

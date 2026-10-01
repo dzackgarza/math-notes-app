@@ -51,7 +51,10 @@ are the reference for look and interaction.
   Template (Blank Note, Theorem / Proof, Grid Sketch, Lecture Notes) with a
   one-line description of the selected template.
 - A large live preview of the first page with the paper and template.
-- **Save as draft** and **Create** (primary) at the bottom right.
+- **Save as template**, a bordered button under the starting templates,
+  reveals a name field for the new template.
+- **Save as draft** and **Create** (primary) at the bottom right. Escape and
+  **Cancel** behave as in New Notebook.
 
 ### Editor
 
