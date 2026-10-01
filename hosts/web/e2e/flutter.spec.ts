@@ -45,6 +45,9 @@ async function goToPage(page: Page, number: number): Promise<void> {
   await page.getByRole("button", { name: "Go to page", exact: true }).click();
   await enterText(page.getByRole("textbox"), `${number}`);
   await page.getByRole("button", { name: "Go", exact: true }).click();
+  // Pen events before the alert's barrier is gone never reach the page
+  // (TRAPS.md). Split view shows a Library button in each pane.
+  await expect(page.getByRole("button", { name: "Library", exact: true }).first()).toBeVisible();
 }
 
 async function closeNote(page: Page): Promise<void> {
@@ -3522,12 +3525,13 @@ test("Flutter menus, alerts, action sheets, and sheets blur the handwriting behi
 
   await button("Pages").click();
   await page.getByRole("button", { name: /^Layers/ }).click();
-  const hide = await boxOf(button("Hide"));
-  await blurred(hide.x + 10, hide.y + hide.height + 20, hide.y + hide.height + 60, "the layers sheet");
+  // The empty list below the last control of the only layer row.
+  const last = await boxOf(button("Delete Ink"));
+  await blurred(last.x + 10, last.y + last.height + 20, last.y + last.height + 60, "the layers sheet");
   // The page beside the sheet shows a change that the sheet makes.
   const lines = async () => (await capture(page, { x: box.x + 100, y: box.y + 200, width: 1, height: 40 })).some(isInk);
   expect(await lines(), "the lines show beside the sheet").toBe(true);
-  await button("Hide").click();
+  await button("Hide Ink").click();
   await expect.poll(lines, "the lines of the hidden layer show no more beside the sheet").toBe(false);
   await button("Done").click();
   await expect(button("Done")).toHaveCount(0);
@@ -3934,6 +3938,9 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
     await button("Layers").click();
     await action();
     await button("Done").click();
+    // Pen events before the sheet's barrier is gone never reach the page
+    // (TRAPS.md).
+    await expect(button("Library")).toBeVisible();
   };
   const addLayer = async (name: string) => {
     await button("Add").click();
@@ -4096,6 +4103,7 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
     if (on) await expect(toggle).toBeChecked();
     else await expect(toggle).not.toBeChecked();
     await button("Done").click();
+    await expect(button("Library")).toBeVisible();
   };
   await followLinks(true);
   await page.mouse.click(rows[0].x, rows[0].y);
@@ -4316,14 +4324,16 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   await page.keyboard.press("Control+z");
   expect(await strokes(), "Ctrl+Z undoes it").toEqual([4]);
 
-  // The pen's side button erases the light line; the Undo button restores it.
+  // The pen's side button erases with the eraser's mode, still Partial: it
+  // cuts the light line in two. The Undo button restores the line.
   await button("Pen").click();
   const side = { pointerType: "pen" as const, force: 0.6, button: "right" as const, buttons: 2 };
   await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", clickCount: 1, x: light.x, y: light.y - 25, ...side });
   await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: light.x, y: light.y, ...side });
   await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: light.x, y: light.y + 25, ...side });
   await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", clickCount: 1, x: light.x, y: light.y + 25, ...side, buttons: 0 });
-  expect(await strokes(), "the side button erases").toEqual([3]);
+  expect(await strokes(), "the side button cuts the light line in two").toEqual([5]);
+  await expect.poll(() => inkAt(page, light, paper.get(light)!), { message: "the cut shows paper" }).toBeLessThan(0.1 * hardInk);
   await button("Undo").click();
   expect(await strokes()).toEqual([4]);
 
@@ -4350,6 +4360,9 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   await shot("selections");
 
   // A rectangle selection takes the hard line alone; undo brings it back.
+  // The color choice chose the pen, so the first tap chooses the lasso and
+  // the second opens its modes.
+  await button("Lasso").click();
   await button("Lasso").click();
   await button("Rectangle").click();
   await closePopover(page);
@@ -4447,7 +4460,9 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   await tile(1).click();
   await expect(page.getByText("1 / 4", { exact: true })).toBeVisible();
   let saved = await pages();
-  expect(saved.map((p) => p.file)).toEqual(["pages/0001.svg", "pages/0002.svg", "pages/0003.svg", "pages/0005.svg"]);
+  // A new page file takes the number after the highest of the note's pages
+  // (NextPageFile): the copy reuses the number of the deleted page.
+  expect(saved.map((p) => p.file)).toEqual(["pages/0001.svg", "pages/0002.svg", "pages/0003.svg", "pages/0004.svg"]);
   expect(saved.map((p) => p.strokes)).toEqual([5, 2, 1, 5]);
   expect(saved[2].ruling, "page 3 is lined").toBe("lined");
   expect(saved[3].ruling, "the copy keeps the paper of page 1").toBe(saved[0].ruling);
@@ -4522,7 +4537,9 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   await button("View").click();
   await page.getByRole("button", { name: /Fit width$/ }).click();
   await goToPage(page, 1);
-  await expect.poll(() => inkAt(page, hard, paper.get(hard)!), { message: "the first view returns" }).toBeGreaterThan(0.8 * hardInk);
+  // With two notes open, the tab strip moves the canvas and its page down.
+  const lowered = (await boxOf(canvas)).y - box.y;
+  await expect.poll(() => inkAt(page, { x: hard.x, y: hard.y + lowered }, paper.get(hard)!), { message: "the first view returns" }).toBeGreaterThan(0.8 * hardInk);
 
   // A reload: the lecture opens with the same pages, ink, text, and figure.
   await page.reload();
