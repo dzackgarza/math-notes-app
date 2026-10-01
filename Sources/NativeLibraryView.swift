@@ -14,6 +14,10 @@ struct NativeLibraryView: View {
   let setSort: (LibrarySort) -> Void
   let toggleLayout: () -> Void
   let createNote: () -> Void
+  let createFolder: () -> Void
+  let renameEntry: (LibraryEntryTarget) -> Void
+  let moveEntry: (LibraryEntryTarget) -> Void
+  let trashEntry: (LibraryEntryTarget) -> Void
   let refresh: () -> Void
   let chooseRoot: () -> Void
 
@@ -81,6 +85,12 @@ struct NativeLibraryView: View {
         }
 
         Menu {
+          Button(action: createFolder) {
+            Label("New Folder", systemImage: "folder.badge.plus")
+          }
+
+          Divider()
+
           Button {
             setSort(.name)
           } label: {
@@ -125,6 +135,20 @@ struct NativeLibraryView: View {
     }
   }
 
+  @ViewBuilder
+  private func entryActions(_ entry: LibraryEntryTarget) -> some View {
+    Button("Rename", systemImage: "pencil") {
+      renameEntry(entry)
+    }
+    Button("Move", systemImage: "folder") {
+      moveEntry(entry)
+    }
+    Divider()
+    Button("Move to Trash", systemImage: "trash", role: .destructive) {
+      trashEntry(entry)
+    }
+  }
+
   private func folderCard(_ item: LibraryFolderItem) -> some View {
     Button {
       openFolder(item.reference)
@@ -157,6 +181,9 @@ struct NativeLibraryView: View {
     }
     .buttonStyle(.plain)
     .accessibilityLabel("Open \(item.reference.name)")
+    .contextMenu {
+      entryActions(LibraryEntryTarget(path: item.reference.path, kind: .folder))
+    }
   }
 
   private func notebookCard(_ item: LibraryNotebookItem) -> some View {
@@ -183,6 +210,9 @@ struct NativeLibraryView: View {
     }
     .buttonStyle(.plain)
     .accessibilityLabel("Open \(item.reference.name)")
+    .contextMenu {
+      entryActions(LibraryEntryTarget(path: item.reference.path, kind: .note))
+    }
   }
 
   private func folderRow(_ item: LibraryFolderItem) -> some View {
@@ -211,6 +241,9 @@ struct NativeLibraryView: View {
       }
     }
     .buttonStyle(.plain)
+    .contextMenu {
+      entryActions(LibraryEntryTarget(path: item.reference.path, kind: .folder))
+    }
   }
 
   private func notebookRow(_ item: LibraryNotebookItem) -> some View {
@@ -233,6 +266,9 @@ struct NativeLibraryView: View {
       }
     }
     .buttonStyle(.plain)
+    .contextMenu {
+      entryActions(LibraryEntryTarget(path: item.reference.path, kind: .note))
+    }
   }
 }
 

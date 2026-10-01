@@ -85,6 +85,14 @@ final class NotebookStorageTests: XCTestCase {
     XCTAssertEqual(index["pageSize"] as? String, "A4")
   }
 
+  func testLibraryNameValidationMatchesTheWebRules() throws {
+    XCTAssertEqual(try validatedLibraryName("  Stable pairs  "), "Stable pairs")
+    XCTAssertThrowsError(try validatedLibraryName(""))
+    XCTAssertThrowsError(try validatedLibraryName(".trash"))
+    XCTAssertThrowsError(try validatedLibraryName("A/B"))
+    XCTAssertThrowsError(try validatedLibraryName("A\\B"))
+  }
+
   func testWritesAssetsThenPagesThenNotebookMetadataThenDeletes() {
     let changes = [
       EngineFileChange(path: "pages/0002.svg", kind: .delete),

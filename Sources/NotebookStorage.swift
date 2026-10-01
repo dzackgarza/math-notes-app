@@ -290,6 +290,56 @@ final class NotesRootAccess {
     }
   }
 
+  func createFolder(parent: FolderReference, name: String) throws -> FolderReference {
+    let cleanName = try validatedLibraryName(name)
+    let path = parent.path + [cleanName]
+    try createNewDirectory(path: path, name: cleanName)
+    return FolderReference(path: path)
+  }
+
+  func moveEntry(
+    path: [String],
+    toParent parent: FolderReference,
+    name: String
+  ) throws -> [String] {
+    guard !path.isEmpty else {
+      throw NotebookStorageError.invalidName("The notes root cannot be moved.")
+    }
+    let cleanName = try validatedLibraryName(name)
+    let destinationPath = parent.path + [cleanName]
+    if destinationPath == path { return path }
+
+    if parent.path.count >= path.count,
+      Array(parent.path.prefix(path.count)) == path
+    {
+      throw NotebookStorageError.invalidName("A folder cannot move into itself.")
+    }
+
+    let source = urlForPath(path)
+    let destination = urlForPath(destinationPath)
+    try coordinatedMove(from: source, to: destination, name: cleanName)
+    thumbnailCache.removeAll()
+    return destinationPath
+  }
+
+  func moveToTrash(path: [String]) throws -> [String] {
+    guard let name = path.last else {
+      throw NotebookStorageError.invalidName("The notes root cannot be moved to trash.")
+    }
+    try ensureDirectory(path: [".trash"])
+    let taken = Set(try entryNames(at: [".trash"]))
+    var target = name
+    var suffix = 2
+    while taken.contains(target) {
+      target = "\(name) \(suffix)"
+      suffix += 1
+    }
+    return try moveEntry(
+      path: path,
+      toParent: FolderReference(path: [".trash"]),
+      name: target)
+  }
+
   @MainActor
   func thumbnail(_ reference: NotebookReference) throws -> Data? {
     let notebookURL = urlForNotebook(reference)
@@ -447,6 +497,42 @@ final class NotesRootAccess {
     try document.markSaved()
   }
 
+  private func entryNames(at path: [String]) throws -> [String] {
+    let directory = urlForPath(path)
+    return try coordinatedRead(at: directory) { coordinatedDirectory in
+      try FileManager.default.contentsOfDirectory(atPath: coordinatedDirectory.path)
+    }
+  }
+
+  private func coordinatedMove(from source: URL, to destination: URL, name: String) throws {
+    let destinationParent = destination.deletingLastPathComponent()
+    var coordinatorError: NSError?
+    var result: Result<Void, Error>?
+    let coordinator = NSFileCoordinator()
+    coordinator.coordinate(
+      writingItemAt: source,
+      options: .forMoving,
+      writingItemAt: destinationParent,
+      options: .forMerging,
+      error: &coordinatorError
+    ) { coordinatedSource, coordinatedParent in
+      result = Result {
+        let coordinatedDestination = coordinatedParent
+          .appendingPathComponent(destination.lastPathComponent, isDirectory: true)
+        guard !FileManager.default.fileExists(atPath: coordinatedDestination.path) else {
+          throw NotebookStorageError.entryExists(name)
+        }
+        try FileManager.default.moveItem(at: coordinatedSource, to: coordinatedDestination)
+      }
+    }
+
+    if let coordinatorError { throw coordinatorError }
+    guard let result else {
+      throw NotebookStorageError.coordinationFailed(source.path)
+    }
+    try result.get()
+  }
+
   private func itemExists(at path: [String]) throws -> Bool {
     try coordinatedRead(at: url) { root in
       let target = path.reduce(root) { partial, component in
@@ -489,10 +575,14 @@ final class NotesRootAccess {
     UserDefaults.standard.set(data, forKey: bookmarkKey)
   }
 
-  private func urlForNotebook(_ reference: NotebookReference) -> URL {
-    reference.path.reduce(url) {
+  private func urlForPath(_ path: [String]) -> URL {
+    path.reduce(url) {
       $0.appendingPathComponent($1, isDirectory: true)
     }
+  }
+
+  private func urlForNotebook(_ reference: NotebookReference) -> URL {
+    urlForPath(reference.path)
   }
 
   private func ensureParentDirectory(for path: String, notebookURL: URL) throws {
@@ -755,6 +845,20 @@ final class NotesRootAccess {
           data: try Data(contentsOf: url))
       }
   }
+}
+
+func validatedLibraryName(_ name: String) throws -> String {
+  let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+  guard !trimmed.isEmpty else {
+    throw NotebookStorageError.invalidName("Enter a name.")
+  }
+  guard !trimmed.contains("/"), !trimmed.contains("\\") else {
+    throw NotebookStorageError.invalidName("A name cannot contain / or \\.")
+  }
+  guard !trimmed.hasPrefix(".") else {
+    throw NotebookStorageError.invalidName("A name cannot start with a dot.")
+  }
+  return trimmed
 }
 
 func orderedNotebookChanges(_ changes: [EngineFileChange]) -> [EngineFileChange] {

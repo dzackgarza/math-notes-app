@@ -25,6 +25,7 @@ struct ContentView: View {
   @State private var showingNewNote = false
   @State private var newNoteFolders: [FolderReference] = []
   @State private var newNoteTemplates: [String] = []
+  @State private var libraryMutation: LibraryMutationRequest?
 
   var body: some View {
     NavigationStack {
@@ -91,6 +92,14 @@ struct ContentView: View {
         initialParent: libraryFolder,
         onCreate: createNewNote,
         onCancel: { showingNewNote = false })
+    }
+    .sheet(item: $libraryMutation) { request in
+      LibraryMutationSheet(
+        request: request,
+        onApply: { name, parent in
+          applyLibraryMutation(request, name: name, parent: parent)
+        },
+        onCancel: { libraryMutation = nil })
     }
     .alert(
       "Math Notes",
@@ -191,6 +200,10 @@ struct ContentView: View {
       },
       toggleLayout: { libraryGrid.toggle() },
       createNote: prepareNewNote,
+      createFolder: { prepareLibraryMutation(.createFolder) },
+      renameEntry: { prepareLibraryMutation(.rename($0)) },
+      moveEntry: { prepareLibraryMutation(.move($0)) },
+      trashEntry: moveLibraryEntryToTrash,
       refresh: refreshLibrary,
       chooseRoot: { showingFolderPicker = true })
   }
@@ -242,6 +255,80 @@ struct ContentView: View {
           return
         }
       }
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func prepareLibraryMutation(_ mode: LibraryMutationMode) {
+    guard let root else { return }
+    do {
+      let allFolders = try root.folders()
+      let initialParent: FolderReference
+      let folders: [FolderReference]
+
+      switch mode {
+      case .createFolder:
+        initialParent = libraryFolder
+        folders = allFolders
+      case let .rename(entry):
+        initialParent = FolderReference(path: Array(entry.path.dropLast()))
+        folders = allFolders
+      case let .move(entry):
+        initialParent = FolderReference(path: Array(entry.path.dropLast()))
+        if entry.kind == .folder {
+          folders = allFolders.filter { candidate in
+            !(candidate.path.count >= entry.path.count &&
+              Array(candidate.path.prefix(entry.path.count)) == entry.path)
+          }
+        } else {
+          folders = allFolders
+        }
+      }
+
+      libraryMutation = LibraryMutationRequest(
+        mode: mode,
+        folders: folders,
+        initialParent: initialParent)
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func applyLibraryMutation(
+    _ request: LibraryMutationRequest,
+    name: String,
+    parent: FolderReference
+  ) {
+    guard let root else { return }
+    do {
+      switch request.mode {
+      case .createFolder:
+        _ = try root.createFolder(parent: parent, name: name)
+      case let .rename(entry):
+        let currentParent = FolderReference(path: Array(entry.path.dropLast()))
+        _ = try root.moveEntry(
+          path: entry.path,
+          toParent: currentParent,
+          name: name)
+      case let .move(entry):
+        _ = try root.moveEntry(
+          path: entry.path,
+          toParent: parent,
+          name: entry.name)
+      }
+      libraryMutation = nil
+      refreshLibrary()
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func moveLibraryEntryToTrash(_ entry: LibraryEntryTarget) {
+    guard let root else { return }
+    do {
+      _ = try root.moveToTrash(path: entry.path)
+      refreshLibrary()
+    } catch {
       errorMessage = error.localizedDescription
     }
   }
