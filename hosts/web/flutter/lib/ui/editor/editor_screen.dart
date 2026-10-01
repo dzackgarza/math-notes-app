@@ -710,9 +710,13 @@ class _EditorScreenState extends State<EditorScreen> {
         ),
       if (area != null && canvas != null)
         Positioned(
-          top: area.y + area.height + 60 < height
-              ? area.y + area.height + 8
-              : (area.y - 60).clamp(8.0, height - 60),
+          // Below the selection, else above it, and on screen when the
+          // selection extends past the view.
+          top:
+              (area.y + area.height + 60 < height
+                      ? area.y + area.height + 8
+                      : area.y - 60)
+                  .clamp(8.0, height - 60),
           left: 0,
           right: 0,
           child: Center(child: selectionMenu()),

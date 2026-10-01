@@ -22,14 +22,23 @@ async function frames(page: Page): Promise<void> {
 // A long press on `from`, then a drag to `to`. The frames after the hold let
 // Flutter's long-press timer fire before the first move: a busy main thread
 // can deliver queued input ahead of a due timer, and a move inside the hold
-// cancels the drag (DelayedMultiDragGestureRecognizer).
+// cancels the drag (DelayedMultiDragGestureRecognizer). The move runs in
+// steps with frames between them, as a hand moves: drop targets and
+// reorderable grids track the drag per frame, and a release that arrives
+// ahead of those frames drops at a stale slot.
 async function longPressDrag(page: Page, from: Box, to: Box): Promise<void> {
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  const start = { x: from.x + from.width / 2, y: from.y + from.height / 2 };
+  const end = { x: to.x + to.width / 2, y: to.y + to.height / 2 };
+  await page.mouse.move(start.x, start.y);
   await page.mouse.down();
   await page.waitForTimeout(800);
   await frames(page);
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
+  for (let step = 1; step <= 10; step++) {
+    await page.mouse.move(start.x + ((end.x - start.x) * step) / 10, start.y + ((end.y - start.y) * step) / 10, { steps: 2 });
+    await frames(page);
+  }
   await page.waitForTimeout(400);
+  await frames(page);
   await page.mouse.up();
 }
 
@@ -1121,8 +1130,13 @@ function screenPixels(page: Page, center: PenPoint): Promise<Rgb[]> {
 
 const brightness = (rgb: Rgb) => rgb[0] + rgb[1] + rgb[2];
 
+// The ribbon outline and round handles of a selection (#9E2A2B), with their
+// antialiased edges; the salmon test figure is brighter than red 215.
+const isOutline = ([red, green, blue]: Rgb) => red < 215 && red - green > 50 && red - blue > 50;
+
 // Pen ink is near black; the paper, its dots, and its rules are much lighter.
-const isInk = (rgb: Rgb) => brightness(rgb) < 250;
+// The ribbon marks of a selection are as dark, and are not ink.
+const isInk = (rgb: Rgb) => brightness(rgb) < 250 && !isOutline(rgb);
 
 // The screen row of the darkest pixel in a column between two rows.
 async function inkRow(page: Page, x: number, top: number, bottom: number): Promise<number> {
@@ -1158,8 +1172,6 @@ async function pixelBounds(page: Page, region: Box, test: (rgb: Rgb) => boolean)
 
 const size = (bounds: Bounds) => ({ width: bounds.right - bounds.left, height: bounds.bottom - bounds.top });
 
-// The blue outline and round handles of a selection.
-const isOutline = ([red, , blue]: Rgb) => blue - red > 60;
 
 async function darkestPixel(page: Page, center: PenPoint): Promise<Rgb> {
   const pixels = await screenPixels(page, center);
@@ -4078,18 +4090,21 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   await button("Lasso").click();
   await lasso(box.y + 130, box.y + 390);
   await button("Clippings").click();
-  // The panel lists the clippings in a scroll view; one off screen has no
-  // semantics node until the wheel scrolls it in.
+  // The panel lists the clippings in a scroll view; one off screen is hidden
+  // or has no semantics node until the wheel scrolls it in.
   const clipping = async (number: number) => {
     const target = button(`Insert clipping ${number}`);
     await expect(async () => {
-      if ((await target.count()) === 0) {
+      if (!(await target.isVisible())) {
         // Wheel toward the number: up while it is below the first one shown.
+        // None shows while the panel slides in.
         let first = 1;
-        while (first < 50 && (await button(`Insert clipping ${first}`).count()) === 0) first++;
-        const anchor = await boxOf(button(`Insert clipping ${first}`));
-        await page.mouse.move(anchor.x + anchor.width / 2, anchor.y + anchor.height / 2);
-        await page.mouse.wheel(0, number < first ? -200 : 200);
+        while (first < 10 && !(await button(`Insert clipping ${first}`).isVisible())) first++;
+        if (first < 10) {
+          const anchor = await boxOf(button(`Insert clipping ${first}`));
+          await page.mouse.move(anchor.x + anchor.width / 2, anchor.y + anchor.height / 2);
+          await page.mouse.wheel(0, number < first ? -200 : 200);
+        }
       }
       await expect(target).toBeVisible({ timeout: 500 });
     }).toPass({ timeout: 10_000 });
@@ -4167,8 +4182,11 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   expect(pasted.map((s) => s.d).sort()).toEqual(lectureStrokes.map((s) => s.d).sort());
   for (const { id } of pasted) expect(lectureStrokes.map((s) => s.id)).not.toContain(id);
 
-  // The pasted ink stays selected, and links to the bookmark in Lecture.
-  const outline = await pixelBounds(page, { x: Math.round(box.x), y: Math.round(box.y), width: Math.floor(box.width), height: Math.floor(box.height) }, isOutline);
+  // The pasted ink stays selected, and links to the bookmark in Lecture. The
+  // region is the page, clear of the rail and its selected tool.
+  const outline = await pixelBounds(page, {
+    x: Math.ceil(sheet.x), y: Math.round(sheet.y), width: Math.floor(sheet.width) - 1, height: Math.floor(Math.min(sheet.height, 720 - sheet.y)),
+  }, isOutline);
   const pastedCenter = { x: (outline.left + outline.right) / 2, y: (outline.top + outline.bottom) / 2 };
   await button("Link selected content").click();
   await button("Another notebook").click();
