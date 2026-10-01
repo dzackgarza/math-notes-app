@@ -39,7 +39,11 @@ extension _EditorRail on _EditorScreenState {
               ),
               child: Icon(
                 icon,
-                color: onPressed == null ? tertiaryLabel : color,
+                color: onPressed == null
+                    ? tertiaryLabel
+                    : selected
+                    ? accent
+                    : color,
                 size: 24,
               ),
             ),
@@ -225,7 +229,7 @@ extension _EditorRail on _EditorScreenState {
     width: railWidth,
     clipBehavior: Clip.antiAlias,
     decoration: BoxDecoration(
-      color: surface1,
+      color: surface2,
       borderRadius: BorderRadius.circular(16),
       border: Border.all(color: separator),
       boxShadow: floatingShadow,

@@ -98,9 +98,9 @@ test("Flutter creation sheets close on Escape and ask before they discard a chan
   await title.waitFor();
   expect(await contrastIn(page, page.getByRole("textbox", { name: "Description", exact: true })), "the Description placeholder is legible").toBeGreaterThan(4.5);
   const field = await boxOf(page.getByRole("textbox", { name: "Description", exact: true }));
-  expect(await capture(page, { x: field.x + 4, y: field.y + 4, width: 1, height: 1 }), "the field is filled with surface3, not black").toEqual([[0x33, 0x3e, 0x56]]);
+  expect(await capture(page, { x: field.x + 4, y: field.y + 4, width: 1, height: 1 }), "the field is paper").toEqual([[0xfb, 0xfa, 0xf6]]);
   const heading = await boxOf(page.getByRole("heading", { name: "New notebook", exact: true }));
-  expect(await capture(page, { x: heading.x - 6, y: heading.y + heading.height / 2, width: 1, height: 1 }), "the sheet is surface2, not Cupertino gray").toEqual([[0x28, 0x32, 0x47]]);
+  expect(await capture(page, { x: heading.x - 6, y: heading.y + heading.height / 2, width: 1, height: 1 }), "the sheet is leaf").toEqual([[0xee, 0xf0, 0xea]]);
   expect(await contrastIn(page, button("Cancel")), "Cancel is legible").toBeGreaterThan(4.5);
   await page.keyboard.press("Escape");
   await expect(title, "an unchanged sheet closes at once").toHaveCount(0);
@@ -1235,10 +1235,12 @@ async function boxOf(locator: Locator): Promise<Box> {
   return box;
 }
 
-// The accent blue of links, rings, and filled buttons in the dark theme.
-// A selection ring in accentText (#8AAEFF), the accent tone that keeps 3:1 on
-// every surface (WCAG 1.4.11); the Blue cover (#A9C1F5) is redder and greener.
-const isAccent = ([red, green, blue]: Rgb) => blue > 200 && red < 150 && green < 185;
+// The ribbon (#9E2A2B) that marks the current selection; no cover color is
+// as red with as little green and blue.
+// Binder's board (#DADDD5): the desk and the chrome.
+const BOARD: Rgb = [0xda, 0xdd, 0xd5];
+
+const isRibbon = ([red, green, blue]: Rgb) => red > 130 && green < 80 && blue < 80;
 
 // Taps an anchor whose pull-down menu opens at it: the items start within a
 // finger's width of the anchor, and the menu is much narrower than the screen.
@@ -1263,7 +1265,7 @@ async function openMenuAt(anchor: Locator, items: Locator[]): Promise<void> {
   }).toPass({ timeout: 5_000 });
 }
 
-test("Flutter library shows dark chrome, cover colors, aligned creation controls, and card menus at the cards", async ({ page }, info) => {
+test("Flutter library shows board chrome, buckram cover colors, aligned creation controls, and card menus at the cards", async ({ page }, info) => {
   test.setTimeout(150_000);
   await page.goto("?root=opfs");
   const button = (name: string) => page.getByRole("button", { name, exact: true });
@@ -1275,23 +1277,23 @@ test("Flutter library shows dark chrome, cover colors, aligned creation controls
   await addTag(page, "groups");
   await expect(text("Cover color")).toBeVisible();
   const covers: Record<string, Rgb> = {
-    Blue: [0xa9, 0xc1, 0xf5], Green: [0xbf, 0xe8, 0xcc], Purple: [0xe6, 0xc8, 0xf1], Peach: [0xf2, 0xd0, 0xba],
+    Navy: [0x24, 0x32, 0x4a], Oxblood: [0x5b, 0x23, 0x28], Forest: [0x2f, 0x4a, 0x3a], Ochre: [0xa8, 0x7b, 0x2c],
   };
   const swatch = async (name: string) => {
     const box = await boxOf(button(name));
     const pixels = await capture(page, { x: Math.round(box.x), y: Math.round(box.y), width: 44, height: 44 });
-    // The ring lies outside the 28 px fill, whose blue edge pixels pass isAccent.
-    const ring = pixels.filter((rgb, i) => Math.hypot((i % 44) - 21.5, Math.floor(i / 44) - 21.5) > 15.5 && isAccent(rgb));
+    // The ring lies outside the 28 px fill.
+    const ring = pixels.filter((rgb, i) => Math.hypot((i % 44) - 21.5, Math.floor(i / 44) - 21.5) > 15.5 && isRibbon(rgb));
     return { center: pixels[22 * 44 + 22], ring: ring.length };
   };
   for (const [name, color] of Object.entries(covers)) {
     expect((await swatch(name)).center, `the ${name} swatch shows its color`).toEqual(color);
   }
-  expect((await swatch("Blue")).ring, "the ring is on the selected swatch").toBeGreaterThan(50);
-  expect((await swatch("Peach")).ring).toBe(0);
-  await button("Peach").click();
-  await expect.poll(async () => (await swatch("Peach")).ring, { message: "the ring moves to the chosen swatch" }).toBeGreaterThan(50);
-  expect((await swatch("Blue")).ring).toBe(0);
+  expect((await swatch("Navy")).ring, "the ring is on the selected swatch").toBeGreaterThan(50);
+  expect((await swatch("Ochre")).ring).toBe(0);
+  await button("Ochre").click();
+  await expect.poll(async () => (await swatch("Ochre")).ring, { message: "the ring moves to the chosen swatch" }).toBeGreaterThan(50);
+  expect((await swatch("Navy")).ring).toBe(0);
 
   const location = await textIn(page, await boxOf(button("My Notes")));
   expect(location.left, "the location control starts under its heading")
@@ -1341,8 +1343,8 @@ test("Flutter library shows dark chrome, cover colors, aligned creation controls
   // The card shows the trashed note's thumbnail until the library lists the
   // notebook again.
   await expect.poll(() => centerPixel(page, { x: card.x + card.width / 2, y: card.y + card.height / 3 }), { message: "the card has the chosen cover color" })
-    .toEqual(covers.Peach);
-  expect(brightness(await centerPixel(page, { x: 105, y: 560 })), "the sidebar is dark").toBeLessThan(150);
+    .toEqual(covers.Ochre);
+  expect(await centerPixel(page, { x: 105, y: 560 }), "the sidebar is board").toEqual(BOARD);
   expect((await textIn(page, await boxOf(text("Math Notes")))).contrast, "the sidebar title is legible").toBeGreaterThan(4.5);
   expect((await textIn(page, await boxOf(text("Tags")))).contrast, "the Tags heading is legible").toBeGreaterThan(4.5);
   for (const name of ["Library", "Recent", "Trash"]) {
@@ -2236,7 +2238,7 @@ test("Flutter Tab reaches every editor control and finishes each library region 
   const tint = { x: recent.x + recent.width - 6, y: recent.y + recent.height / 2 };
   const idle = brightness(await centerPixel(page, tint));
   await page.getByRole("button", { name: "Recent", exact: true }).hover();
-  await expect.poll(async () => brightness(await centerPixel(page, tint)), "a hovered sidebar row is tinted").toBeGreaterThan(idle + 10);
+  await expect.poll(async () => brightness(await centerPixel(page, tint)), "a hovered sidebar row is tinted").toBeLessThan(idle - 10);
 
   await openTestNotebook(page);
   await page.getByRole("button", { name: "New note", exact: true }).click();
@@ -2256,7 +2258,7 @@ test("Flutter floats the tool rail at the left edge beside the page and hides to
   const { box } = await openNewNote(page, "Chrome");
   const button = (name: string) => page.getByRole("button", { name, exact: true });
 
-  // The rail is a dark panel that floats over the desk at the left edge of
+  // The rail is a leaf panel that floats over the desk at the left edge of
   // the canvas. Each tool and history control is in it, and at zoom 1 none
   // of them covers the page.
   const pen = await boxOf(button("Pen"));
@@ -2275,7 +2277,7 @@ test("Flutter floats the tool rail at the left edge beside the page and hides to
   expect(colors.y + colors.height, "the rail fits the window").toBeLessThanOrEqual(720);
   expect(pen.y, "the rail starts below the top bar").toBeGreaterThanOrEqual(box.y);
   const rail = await centerPixel(page, { x: pen.x - 4, y: pen.y + pen.height / 2 });
-  expect(brightness(rail), "the rail is dark").toBeLessThan(150);
+  expect(rail, "the rail is leaf").toEqual([0xee, 0xf0, 0xea]);
   // The rail floats: the desk, darkened only by the rail's shadow, shows on
   // each side of it and below it.
   for (const at of [{ x: box.x + 3, y: pen.y + pen.height / 2 }, { x: pen.x + pen.width + 14, y: pen.y + pen.height / 2 }, { x: pen.x + pen.width / 2, y: colors.y + colors.height + 30 }]) {
@@ -2285,17 +2287,17 @@ test("Flutter floats the tool rail at the left edge beside the page and hides to
   const tint = { x: marker.x + marker.width / 2, y: marker.y + 4 };
   const idle = brightness(await centerPixel(page, tint));
   await button("Marker").hover();
-  await expect.poll(async () => brightness(await centerPixel(page, tint)), "a hovered rail button is tinted").toBeGreaterThan(idle + 10);
+  await expect.poll(async () => brightness(await centerPixel(page, tint)), "a hovered rail button is tinted").toBeLessThan(idle - 10);
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   const library = await boxOf(button("Library"));
   const topBar = await centerPixel(page, { x: 300, y: library.y + library.height / 2 });
-  expect(brightness(topBar), "the top bar is dark").toBeLessThan(150);
+  expect(topBar, "the top bar is board").toEqual(BOARD);
   const firstRow = await centerPixel(page, { x: box.x + 100, y: box.y + 100 });
   expect(brightness(firstRow), "the first writing row of the page is clear").toBeGreaterThan(600);
   // The page is a sheet on the desk: a desk margin shows on each side.
   for (const at of [{ x: box.x + box.width - 4, y: box.y + 200 }, { x: box.x + 200, y: box.y + 4 }]) {
     const desk = await centerPixel(page, at);
-    expect(desk.every((channel, i) => Math.abs(channel - [233, 235, 239][i]) < 6), `the desk shows at ${at.x}, ${at.y}: ${desk}`).toBe(true);
+    expect(desk.every((channel, i) => Math.abs(channel - BOARD[i]) < 6), `the desk shows at ${at.x}, ${at.y}: ${desk}`).toBe(true);
   }
 
   await button("More").click();
@@ -3508,7 +3510,7 @@ test("Flutter menus, alerts, action sheets, and sheets blur the handwriting behi
   const title = await boxOf(page.getByRole("alertdialog").getByText("Go to page", { exact: true }));
   await blurred(title.x - 10, title.y - 6, title.y + title.height + 6, "the alert");
   await blurred(box.x + 120, title.y - 20, title.y + 40, "the scrim beside the alert");
-  expect(await capture(page, { x: title.x - 10, y: title.y + title.height / 2, width: 1, height: 1 }), "the alert is surface2, not Cupertino gray").toEqual([[0x28, 0x32, 0x47]]);
+  expect(await capture(page, { x: title.x - 10, y: title.y + title.height / 2, width: 1, height: 1 }), "the alert is leaf").toEqual([[0xee, 0xf0, 0xea]]);
   await page.screenshot({ path: info.outputPath("alert.png") });
   await button("Cancel").click();
 
@@ -3517,7 +3519,7 @@ test("Flutter menus, alerts, action sheets, and sheets blur the handwriting behi
   const action = await boxOf(button("Grid paper"));
   await blurred(action.x + 0.6 * action.width, action.y + 4, action.y + action.height - 4, "the action sheet");
   const heading = await boxOf(page.getByText("Paper for new pages", { exact: true }));
-  expect(await capture(page, { x: heading.x - 10, y: heading.y + heading.height / 2, width: 1, height: 1 }), "the action sheet is surface2, not Cupertino gray").toEqual([[0x28, 0x32, 0x47]]);
+  expect(await capture(page, { x: heading.x - 10, y: heading.y + heading.height / 2, width: 1, height: 1 }), "the action sheet is leaf").toEqual([[0xee, 0xf0, 0xea]]);
   await button("Done").click();
 
   await button("Pages").click();

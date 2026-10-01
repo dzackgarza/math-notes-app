@@ -92,7 +92,6 @@ Future<String?> compareVersions(
                       ),
                       if (conflict.page && conflict.originalBytes != null)
                         CupertinoButton.filled(
-                          color: accent,
                           onPressed: () => Navigator.pop(context, 'both'),
                           child: const Text('Keep both pages'),
                         ),

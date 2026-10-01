@@ -196,9 +196,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
     ),
   );
 
-  // A notebook cover: the first page of its first note inside the cover
-  // color, as a bound notebook with an edge and a shadow. An empty notebook
-  // shows its title on the cover.
+  // A notebook cover: a cloth-bound volume in its buckram color, the first
+  // page of its first note set into the cloth, and the title on a printed
+  // paper label. A small cover omits the label.
   Widget cover(native.Folder item, {bool titled = true}) {
     final metadata = folder.folderMetadata(item.path);
     final color = hexColor(metadata.coverColor);
@@ -208,8 +208,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
       decoration: BoxDecoration(
         color: color,
         borderRadius: const BorderRadius.horizontal(
-          left: Radius.circular(4),
-          right: Radius.circular(10),
+          left: Radius.circular(2),
+          right: Radius.circular(6),
         ),
         border: Border(
           left: BorderSide(
@@ -220,26 +220,30 @@ class _LibraryScreenState extends State<LibraryScreen> {
         boxShadow: floatingShadow,
       ),
       child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: first != null
-            ? ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: ColoredBox(color: paper, child: thumbnail(first)),
-              )
-            : Align(
-                alignment: Alignment.topLeft,
-                child: titled
-                    ? Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Text(
-                          item.name,
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                          style: headline.copyWith(color: coverInk),
-                        ),
-                      )
-                    : null,
+        padding: EdgeInsets.all(titled ? 10 : 6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: first != null
+                  ? ColoredBox(color: paper, child: thumbnail(first))
+                  : const SizedBox(),
+            ),
+            if (titled) ...[
+              const SizedBox(height: 10),
+              Container(
+                color: paper,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Text(
+                  item.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: spineTitle.copyWith(color: coverInk),
+                ),
               ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -449,7 +453,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         selected: vm.sort == value,
         onTap: () => vm.setSort(value),
       ),
-    const PullDownMenuDivider.large(),
+    const GroupRule(),
     for (final (value, title)
         in vm.sort == 'name'
             ? const [(true, 'A to Z'), (false, 'Z to A')]
@@ -459,7 +463,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         selected: vm.ascending == value,
         onTap: () => vm.setAscending(value),
       ),
-    const PullDownMenuDivider.large(),
+    const GroupRule(),
     for (final (value, title) in const [(true, 'Grid'), (false, 'List')])
       PullDownMenuItem.selectable(
         title: title,
@@ -476,6 +480,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _ => 'All',
   };
 
+  // The shelf heading names the sidebar row that is selected.
+  String get heading => vm.query.isNotEmpty
+      ? 'Search'
+      : vm.filter == 'all'
+      ? 'Library'
+      : filterLabel;
+
   List<PullDownMenuEntry> filterMenu() => [
     for (final (value, title) in const [
       ('all', 'All'),
@@ -489,7 +500,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         onTap: () => vm.setFilter(value),
       ),
     if (vm.library.metadata.tags.length > 0) ...[
-      const PullDownMenuDivider.large(),
+      const GroupRule(),
       const PullDownMenuTitle(title: Text('Tags')),
       for (final tag in vm.library.metadata.tags.toDart)
         PullDownMenuItem.selectable(
@@ -605,11 +616,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         const SizedBox(height: 16),
         Text(message, style: body.copyWith(color: secondaryLabel)),
         const SizedBox(height: 20),
-        CupertinoButton.filled(
-          color: accent,
-          onPressed: onPressed,
-          child: Text(action),
-        ),
+        CupertinoButton.filled(onPressed: onPressed, child: Text(action)),
       ],
     ),
   );
@@ -636,7 +643,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
       const SizedBox(width: 8),
       if (notebook == null)
         CupertinoButton.filled(
-          color: accent,
           onPressed: () => run(() => create(true)),
           child: const Text('New notebook'),
         )
@@ -646,7 +652,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
           child: const Text('Import PDF'),
         ),
         CupertinoButton.filled(
-          color: accent,
           onPressed: () => run(() => create(false)),
           child: const Text('New note'),
         ),
@@ -664,7 +669,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
         const SizedBox(height: 24),
         if (folder.reconnect)
           CupertinoButton.filled(
-            color: accent,
             onPressed: () => run(folder.grantPermission),
             child: const Text('Reconnect folder'),
           ),
@@ -678,7 +682,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
     ),
   );
 
-  // A sidebar row in label color; the accent fills only the selected row.
+  // A sidebar row in ink. The selected row lies on leaf with the ribbon
+  // along its left edge, as a bookmark.
   Widget sidebarRow({
     required Widget leading,
     required String text,
@@ -686,13 +691,15 @@ class _LibraryScreenState extends State<LibraryScreen> {
     bool selected = false,
     Widget? trailing,
   }) {
-    final color = selected ? onAccent : label;
+    final color = selected ? accent : label;
     return Semantics(
       selected: selected,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: selected ? accent : null,
-          borderRadius: BorderRadius.circular(8),
+          color: selected ? surface2 : null,
+          border: selected
+              ? const Border(left: BorderSide(color: accent, width: 3))
+              : null,
         ),
         child: HoverTint(
           radius: 8,
@@ -708,7 +715,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   leading,
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text(text, style: body.copyWith(color: color)),
+                    child: Text(
+                      text,
+                      style: (selected ? headline : body).copyWith(
+                        color: label,
+                      ),
+                    ),
                   ),
                   ?trailing,
                 ],
@@ -793,17 +805,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
-                child: Row(
-                  children: [
-                    const Icon(
-                      CupertinoIcons.pencil_outline,
-                      color: accentText,
-                      size: 22,
-                    ),
-                    const SizedBox(width: 8),
-                    Text('Math Notes', style: title),
-                  ],
-                ),
+                child: Row(children: [Text('Math Notes', style: title)]),
               ),
               for (final item in items)
                 sidebarRow(
@@ -817,10 +819,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   padding: const EdgeInsets.fromLTRB(12, 20, 12, 4),
                   child: Text(
                     'Tags',
-                    style: footnote.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: secondaryLabel,
-                    ),
+                    style: footnote.copyWith(color: secondaryLabel),
                   ),
                 )
               else
@@ -841,13 +840,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                               vm.filter == 'tag' && vm.selectedTag == tag.name,
                           trailing: Text(
                             '${notes.where((note) => folder.noteMetadata(note).tags.toDart.any((value) => value.toDart == tag.name)).length}',
-                            style: callout.copyWith(
-                              color:
-                                  vm.filter == 'tag' &&
-                                      vm.selectedTag == tag.name
-                                  ? onAccent
-                                  : secondaryLabel,
-                            ),
+                            style: callout.copyWith(color: secondaryLabel),
                           ),
                           onPressed: () {
                             vm.showNotebook(null);
@@ -956,6 +949,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
+                                  if (notebook == null) ...[
+                                    Text(heading, style: volumeTitle),
+                                    const SizedBox(height: 12),
+                                  ],
                                   region(2, toolbar(notebook)),
                                   const SizedBox(height: 16),
                                   Expanded(

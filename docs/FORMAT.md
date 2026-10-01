@@ -329,7 +329,7 @@ a notebook directory (send, archive, download).
       "Algebraic Geometry": {
         "description": "Notes on moduli and geometry.",
         "paper": "grid-medium",
-        "coverColor": "#A9C1F5",
+        "coverColor": "#24324A",
         "coverStyle": "spine",
         "tags": ["Research"]
       }

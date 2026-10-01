@@ -70,10 +70,7 @@ Future<void> showSettings(
                               ),
                               CupertinoButton(
                                 onPressed: () => Navigator.pop(context),
-                                child: Text(
-                                  'Done',
-                                  style: subhead.copyWith(color: accentText),
-                                ),
+                                child: Text('Done', style: subhead),
                               ),
                             ],
                           ),
@@ -137,9 +134,7 @@ Future<void> showSettings(
                                         child: CupertinoListTile(
                                           title: Text(
                                             'Choose notes folder',
-                                            style: body.copyWith(
-                                              color: accentText,
-                                            ),
+                                            style: body,
                                           ),
                                           onTap: () {
                                             Navigator.pop(context);

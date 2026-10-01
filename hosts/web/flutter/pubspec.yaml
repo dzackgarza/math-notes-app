@@ -24,15 +24,16 @@ dev_dependencies:
     sdk: flutter
 flutter:
   fonts:
-    - family: Inter
+    - family: Alegreya Sans
       fonts:
-        - asset: ui_fonts/Inter-Regular.ttf
-        - asset: ui_fonts/Inter-Medium.ttf
+        - asset: ui_fonts/AlegreyaSans-Regular.ttf
+        - asset: ui_fonts/AlegreyaSans-Medium.ttf
           weight: 500
-        - asset: ui_fonts/Inter-SemiBold.ttf
-          weight: 600
-        - asset: ui_fonts/Inter-Bold.ttf
-          weight: 700
+        - asset: ui_fonts/AlegreyaSans-ExtraBold.ttf
+          weight: 800
+    - family: Alegreya
+      fonts:
+        - asset: ui_fonts/Alegreya-Variable.ttf
     - family: NoteText
       fonts:
         - asset: fonts/NotoSans-Regular.ttf
@@ -50,4 +51,5 @@ flutter:
         - asset: generated_fonts/NotoSansSymbols2-Regular.ttf
   assets:
     - fonts/OFL.txt
-    - ui_fonts/OFL.txt
+    - ui_fonts/OFL-AlegreyaSans.txt
+    - ui_fonts/OFL-Alegreya.txt

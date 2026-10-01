@@ -416,12 +416,7 @@ Future<CreationForm?> askCreation(
                 Text('Cover color', style: subhead),
                 Row(
                   children: [
-                    for (final color in const {
-                      '#A9C1F5': 'Blue',
-                      '#BFE8CC': 'Green',
-                      '#E6C8F1': 'Purple',
-                      '#F2D0BA': 'Peach',
-                    }.entries)
+                    for (final color in coverColors.entries)
                       MergeSemantics(
                         child: Semantics(
                           label: color.value,
@@ -613,7 +608,6 @@ Future<CreationForm?> askCreation(
               ),
             withEnabledState(
               CupertinoButton.filled(
-                color: accent,
                 onPressed: title.text.trim().isEmpty
                     ? null
                     : () => Navigator.pop(context, 'create'),

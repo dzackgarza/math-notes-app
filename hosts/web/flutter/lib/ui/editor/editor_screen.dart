@@ -849,7 +849,7 @@ class _EditorScreenState extends State<EditorScreen> {
               spacing: 4,
               children: [
                 Icon(icon, size: 20),
-                Text(label, style: callout.copyWith(color: accentText)),
+                Text(label, style: callout),
               ],
             ),
           ),
@@ -871,7 +871,7 @@ class _EditorScreenState extends State<EditorScreen> {
       enabled: !drawing,
       onTap: () => run(goToPage),
     ),
-    const PullDownMenuDivider.large(),
+    const GroupRule(),
     PullDownMenuItem(title: 'Add page', enabled: !drawing, onTap: addPage),
     PullDownMenuItem(
       title: 'Insert page before',
@@ -883,7 +883,7 @@ class _EditorScreenState extends State<EditorScreen> {
       enabled: !drawing,
       onTap: () => insertPage(page + 1),
     ),
-    const PullDownMenuDivider.large(),
+    const GroupRule(),
     PullDownMenuItem(
       title: 'Select page',
       onTap: () => canvas?.selectAll(page),
@@ -901,7 +901,7 @@ class _EditorScreenState extends State<EditorScreen> {
       enabled: !drawing,
       onTap: () => run(paperMenu),
     ),
-    const PullDownMenuDivider.large(),
+    const GroupRule(),
     PullDownMenuItem(title: 'Bookmarks', onTap: () => run(bookmarks)),
     PullDownMenuItem(
       title: 'Add bookmark',
@@ -919,7 +919,7 @@ class _EditorScreenState extends State<EditorScreen> {
       onTap: () =>
           run(() => manageLayers(context, widget.note.document, canvas!, edit)),
     ),
-    const PullDownMenuDivider.large(),
+    const GroupRule(),
     PullDownMenuItem(
       title: 'Delete page',
       isDestructive: true,
@@ -934,7 +934,7 @@ class _EditorScreenState extends State<EditorScreen> {
       selected: transform.value.getMaxScaleOnAxis() == 1,
       onTap: fitWidth,
     ),
-    const PullDownMenuDivider.large(),
+    const GroupRule(),
     for (final (value, title) in const [
       (0, 'Vertical scroll'),
       (1, 'Horizontal scroll'),
@@ -948,7 +948,7 @@ class _EditorScreenState extends State<EditorScreen> {
           arrangement.value = value;
         },
       ),
-    const PullDownMenuDivider.large(),
+    const GroupRule(),
     ...widget.workspaceMenu(),
   ];
 
@@ -978,7 +978,7 @@ class _EditorScreenState extends State<EditorScreen> {
         enabled: !drawing,
         onTap: () => run(widget.onConflicts),
       ),
-    const PullDownMenuDivider.large(),
+    const GroupRule(),
     PullDownMenuItem(
       title: 'Close note',
       enabled: !drawing,

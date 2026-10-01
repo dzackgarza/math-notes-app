@@ -186,7 +186,7 @@ class _Action extends StatelessWidget {
         ? tertiaryLabel
         : isDestructiveAction
         ? destructive
-        : accentText;
+        : label;
     final style = (isDefaultAction ? headline : body).copyWith(color: color);
     return HoverTint(
       radius: 0,

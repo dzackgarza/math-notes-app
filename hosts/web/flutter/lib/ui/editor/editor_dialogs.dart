@@ -277,10 +277,7 @@ extension _EditorDialogs on _EditorScreenState {
                     toastification.dismiss(toast);
                     history(false);
                   },
-                  child: Text(
-                    'Undo',
-                    style: subhead.copyWith(color: accentText),
-                  ),
+                  child: Text('Undo', style: subhead),
                 ),
               ],
             ),

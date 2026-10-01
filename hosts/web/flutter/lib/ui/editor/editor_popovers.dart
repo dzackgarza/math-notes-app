@@ -68,9 +68,10 @@ extension _EditorPopovers on _EditorScreenState {
                 height: 48,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: selected ? accent : surface3,
+                  color: selected ? selectedFill : null,
+                  border: Border.all(color: selected ? accent : separator),
                 ),
-                child: Icon(icon, size: 22, color: selected ? onAccent : label),
+                child: Icon(icon, size: 22, color: selected ? accent : label),
               ),
               const SizedBox(height: 4),
               Text(caption, style: footnote.copyWith(color: secondaryLabel)),

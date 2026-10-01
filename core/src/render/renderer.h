@@ -30,9 +30,9 @@ class SkCanvas;
 
 namespace ink_engine {
 
-// Behind the scroll view's pages: the web UI's --desk token, a light gray as
-// in Noteful (docs/specs/tablet-ui.md, "Visual style").
-inline constexpr uint32_t kDeskColor = 0xFFE9EBEF;
+// Behind the scroll view's pages: binder's board, the chrome color of the
+// web host (lib/ui/theme.dart, docs/reports/Visual direction.md).
+inline constexpr uint32_t kDeskColor = 0xFFDADDD5;
 
 // Counts of the work done, for tests and the frame-time check.
 struct RenderStats {

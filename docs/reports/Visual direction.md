@@ -28,7 +28,7 @@ on a reading desk.
 | board | `#DADDD5` | Desk and chrome: binder's board, a cool gray-green |
 | leaf | `#EEF0EA` | Sheets, menus, popovers |
 | ink | `#1C2430` | Text and icons: blue-black ink |
-| graphite | `#5D6670` | Secondary text |
+| graphite | `#555D67` | Secondary text; 4.9:1 on board |
 | ribbon | `#9E2A2B` | The current selection only: active tool, selected row, current page |
 | paper | `#FBFAF6` | The page |
 
@@ -38,7 +38,8 @@ Covers use real buckram colors (navy `#24324A`, oxblood `#5B2328`, forest
 Type: Alegreya Sans for the interface, a humanist sans with calligraphic
 origins that sits beside handwriting; Alegreya, its serif partner, only for
 the titles on spine labels and the library heading. Scale on a 1.333 ratio:
-14 / 18 / 24 / 32, weights 400 and 800.
+14 / 18 / 24 / 32, with 16 for secondary lines in rows and menus; weights
+400 and 800.
 
 ```
 +--------------------------------------------------------------+

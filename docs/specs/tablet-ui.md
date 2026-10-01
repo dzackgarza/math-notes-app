@@ -13,15 +13,16 @@ are the reference for look and interaction.
 
 ![Library](ui/tablet-library.png)
 
-- **Sidebar**, always visible: app mark and name; Library, Search, Recent,
+- **Sidebar**, always visible: the app name; Library, Search, Recent,
   Favorites, Trash; a Tags list with a color and a count per tag, and
   **+** to add a tag; Settings at the bottom.
 - **Main pane**: title "Library" and a one-line description; **New Notebook**
   (secondary) and **New Note** (primary) buttons; a search field; a filter
   menu ("All Notebooks"); a sort menu ("Last Modified"); a grid/list toggle.
-- **Notebook cards** in a grid: a thumbnail of handwritten content, the
-  title, the note count, "Modified …", tag chips, and a **⋯** menu. The
-  selected card has a blue outline.
+- **Notebook cards** in a grid: a cloth-bound volume in its cover color,
+  with the first handwritten page set into the cloth and the title on a
+  printed paper label; under it the title, the note count, "Modified …",
+  tag chips, and a **⋯** menu.
 - **Detail pane** for the selected notebook: a large thumbnail, title, note
   count, modified time, tag chips with **+**, **Notes** and **Info** tabs, a
   note search field, and the note list (thumbnail, title, a one-line
@@ -151,21 +152,35 @@ components identified in [ARCHITECTURE.md](../ARCHITECTURE.md#component-ownershi
 Apply the colors below through each framework's theme. Math Notes supplies
 product layout and theme values.
 
-Dark theme: the toolbar, bars, menus, popovers, sheets, fields, and library
-panels take their colors from one navy neutral ramp, so the page stands
-apart from the controls. No surface uses a framework default gray, black,
-or white. One blue accent (#2F6FEB, approximately) fills primary buttons and
-marks selection; text in the accent hue uses a lighter tone of it. Every
-text color meets 4.5:1 contrast on its surface. Paper is warm off-white.
+The theme is "Bound volumes" from [Visual direction](../reports/Visual%20direction.md):
+the library is a shelf of cloth-bound volumes, and the editor is an open
+volume on a reading desk.
 
-Elevation has two levels: floating controls (popovers, menus) and modals
-(sheets, dialogs). Each level has one shadow. A modal dims what is behind it
-with one navy scrim; a dialog also blurs it. A sheet does not blur, so the
-page beside it stays legible.
+| Token | Hex | Role |
+| --- | --- | --- |
+| board | `#DADDD5` | The desk, the bars, and the library panels |
+| leaf | `#EEF0EA` | The rail, menus, popovers, sheets, and the selected sidebar row |
+| ink | `#1C2430` | Text, icons, and primary buttons |
+| graphite | `#555D67` | Secondary text |
+| ribbon | `#9E2A2B` | The current selection only: the active tool, the selected sidebar row's bookmark edge, the chosen swatch; also destructive actions |
+| paper | `#FBFAF6` | The page and text fields |
 
-Type: Inter for the interface, Noto Sans for text on the page. The interface
-uses one scale of named roles from the theme; no interface text is smaller
-than 13 pt. Labels use sentence case. Rounded cards and chips.
+Covers take buckram colors: navy `#24324A`, oxblood `#5B2328`, forest
+`#2F4A3A`, and ochre `#A87B2C`. Nothing on the chrome is brighter than the
+page. Menus are leaf; a hairline rule separates their groups, and items
+within a group have no rules. Every text color meets 4.5:1 contrast on its
+surface.
+
+Elevation has two levels: floating controls (the rail, popovers, menus) and
+modals (sheets, dialogs). Each level has one ink-tinted shadow. A modal dims
+what is behind it with one ink scrim; a dialog also blurs it. A sheet does
+not blur, so the page beside it stays legible.
+
+Type: Alegreya Sans for the interface, at 14, 16, 18, 24, and 32 pt in
+weights 400 and 800; Alegreya, its serif partner, for the library heading
+and the titles on cover labels; Noto Sans for text on the page. The
+interface uses the named roles of the theme. Labels use sentence case and
+are left aligned.
 
 ## Relation to the current model
 
