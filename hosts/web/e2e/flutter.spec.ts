@@ -19,6 +19,20 @@ async function frames(page: Page): Promise<void> {
   await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
 }
 
+// A long press on `from`, then a drag to `to`. The frames after the hold let
+// Flutter's long-press timer fire before the first move: a busy main thread
+// can deliver queued input ahead of a due timer, and a move inside the hold
+// cancels the drag (DelayedMultiDragGestureRecognizer).
+async function longPressDrag(page: Page, from: Box, to: Box): Promise<void> {
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(800);
+  await frames(page);
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
+  await page.waitForTimeout(400);
+  await page.mouse.up();
+}
+
 // Flutter activates its text input channel after semantic focus is delivered.
 // Use actual keyboard input after clicking, rather than fill's synchronous DOM
 // value assignment. See Flutter web_ui semantics/text_field.dart, activate.
@@ -923,12 +937,7 @@ test("Flutter page overview duplicates, deletes, reorders, and opens pages", asy
   const from = await tile(1).boundingBox();
   const to = await tile(3).boundingBox();
   if (!from || !to) throw new Error("Page tiles have no bounds");
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
-  await page.mouse.down();
-  await page.waitForTimeout(800);
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
-  await page.waitForTimeout(400);
-  await page.mouse.up();
+  await longPressDrag(page, from, to);
   await page.screenshot({ path: info.outputPath("page-overview.png") });
 
   await tile(2).click();
@@ -4216,12 +4225,7 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   const handle = page.getByLabel("Drag a copy", { exact: true });
   const from = await boxOf(handle);
   const to = await boxOf(canvas.nth(1));
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
-  await page.mouse.down();
-  await page.waitForTimeout(800);
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
-  await page.waitForTimeout(400);
-  await page.mouse.up();
+  await longPressDrag(page, from, to);
   await shot("dragged-between-panes");
   const row = note.pages[1].groups[0].strokes.map((s) => s.id);
   await expect.poll(async () => (await storedNote(page, proofs)).pages[0].groups.flatMap((group) => group.strokes).length, { timeout: 15_000 }).toBe(3);
@@ -4477,12 +4481,7 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   await expect(tile(4)).toBeVisible();
   const from = await boxOf(tile(2));
   const to = await boxOf(tile(4));
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
-  await page.mouse.down();
-  await page.waitForTimeout(800);
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
-  await page.waitForTimeout(400);
-  await page.mouse.up();
+  await longPressDrag(page, from, to);
   await shot("overview");
   await tile(1).click();
   await expect(page.getByText("1 / 4", { exact: true })).toBeVisible();
