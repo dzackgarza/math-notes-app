@@ -6,6 +6,7 @@ import '../../creation_sheet.dart';
 import '../../host.dart' as native;
 import '../../tag_editor.dart';
 import 'library_view_model.dart';
+import '../modal.dart';
 import '../theme.dart';
 
 Color hexColor(String value) =>
@@ -38,7 +39,7 @@ CupertinoActionSheetAction cancelAction(BuildContext context) =>
 Future<({String name, String color})?> askNewTag(BuildContext context) async {
   final name = TextEditingController();
   var color = native.host.tagColors.toDart.first.toDart;
-  final accepted = await showCupertinoDialog<bool>(
+  final accepted = await showModalDialog<bool>(
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, update) => CupertinoAlertDialog(
@@ -100,7 +101,7 @@ Future<bool> editNoteDetails(
   final tags = TagEditingController(
     metadata.tags.toDart.map((s) => s.toDart).toList(),
   );
-  final accepted = await showCupertinoDialog<bool>(
+  final accepted = await showModalDialog<bool>(
     context: context,
     builder: (context) => CupertinoAlertDialog(
       title: Text(title),
@@ -152,7 +153,7 @@ Future<bool> editFolderDetails(
     values.tags.toDart.map((tag) => tag.toDart).toList(),
   );
   var paper = values.paper;
-  final accepted = await showCupertinoDialog<bool>(
+  final accepted = await showModalDialog<bool>(
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, update) => CupertinoAlertDialog(
@@ -209,7 +210,7 @@ Future<bool> editFolderDetails(
 
 Future<String?> askName(BuildContext context, String name) async {
   final controller = TextEditingController(text: name);
-  final accepted = await showCupertinoDialog<bool>(
+  final accepted = await showModalDialog<bool>(
     context: context,
     builder: (context) => CupertinoAlertDialog(
       title: const Text('Rename'),
@@ -240,7 +241,7 @@ Future<native.Folder?> chooseFolder(
   String title,
   List<native.Folder> folders,
   String Function(native.Folder) label,
-) => showCupertinoModalPopup<native.Folder>(
+) => showModalSheet<native.Folder>(
   context: context,
   builder: (context) => CupertinoActionSheet(
     title: Text(title),
@@ -285,7 +286,7 @@ Future<CreationForm?> askCreation(
   var orientation = draft?.orientation ?? 'portrait';
   var coverColor = defaults.coverColor;
   var coverStyle = defaults.coverStyle;
-  final action = await showCupertinoDialog<String>(
+  final action = await showModalDialog<String>(
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, update) => CreationSheet(

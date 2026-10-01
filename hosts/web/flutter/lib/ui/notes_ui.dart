@@ -8,6 +8,7 @@ import '../data/notes_folder.dart';
 import '../data/open_notes.dart';
 import '../host.dart' as native;
 import '../note_thumbnail.dart';
+import 'modal.dart';
 import 'theme.dart';
 
 String noteTitle(native.Note note) =>
@@ -154,7 +155,7 @@ Future<native.Note?> chooseNote(
   await folder.refresh();
   if (!context.mounted) return null;
   final filter = TextEditingController();
-  final picked = await showCupertinoModalPopup<native.Note>(
+  final picked = await showModalSheet<native.Note>(
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, update) => CupertinoPopupSurface(

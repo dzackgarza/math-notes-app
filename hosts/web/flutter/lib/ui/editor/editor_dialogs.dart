@@ -12,7 +12,7 @@ extension _EditorDialogs on _EditorScreenState {
     );
     final controller = TextEditingController(text: properties?.content ?? '');
     String? validation;
-    final accepted = await showCupertinoDialog<bool>(
+    final accepted = await showModalDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, update) => CupertinoAlertDialog(
@@ -139,7 +139,7 @@ extension _EditorDialogs on _EditorScreenState {
         child: Text(text, style: subhead),
       ),
     );
-    await showCupertinoModalPopup<void>(
+    await showModalSheet<void>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, update) {
@@ -243,7 +243,7 @@ extension _EditorDialogs on _EditorScreenState {
   Future<void> goToPage() async {
     final count = widget.note.document.pageCount();
     final text = TextEditingController(text: '${page + 1}');
-    final chosen = await showCupertinoDialog<int>(
+    final chosen = await showModalDialog<int>(
       context: context,
       builder: (context) => CupertinoAlertDialog(
         title: const Text('Go to page'),
@@ -277,7 +277,7 @@ extension _EditorDialogs on _EditorScreenState {
     if (chosen != null) jump(chosen);
   }
 
-  Future<void> customizeToolbar() => showCupertinoModalPopup<void>(
+  Future<void> customizeToolbar() => showModalSheet<void>(
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, update) => CupertinoActionSheet(
@@ -321,7 +321,7 @@ extension _EditorDialogs on _EditorScreenState {
     final last = TextEditingController(
       text: '${widget.note.document.pageCount()}',
     );
-    final accepted = await showCupertinoDialog<bool>(
+    final accepted = await showModalDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, update) {
@@ -412,7 +412,7 @@ extension _EditorDialogs on _EditorScreenState {
   }
 
   Future<void> linkSelection() async {
-    final action = await showCupertinoModalPopup<String>(
+    final action = await showModalSheet<String>(
       context: context,
       builder: (context) => CupertinoActionSheet(
         title: const Text('Link selected content'),
@@ -447,7 +447,7 @@ extension _EditorDialogs on _EditorScreenState {
       href = await widget.onChooseNotebookLink(selection!.page);
     } else {
       final text = TextEditingController();
-      href = await showCupertinoDialog<String>(
+      href = await showModalDialog<String>(
         context: context,
         builder: (context) => CupertinoAlertDialog(
           title: const Text('Link destination'),

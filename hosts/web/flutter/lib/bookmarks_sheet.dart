@@ -3,6 +3,7 @@ import 'dart:js_interop';
 import 'package:flutter/cupertino.dart';
 
 import 'host.dart' as native;
+import 'ui/modal.dart';
 
 Future<native.NavigationMark?> chooseDestination(
   BuildContext context,
@@ -17,7 +18,7 @@ Future<native.NavigationMark?> chooseDestination(
     final page = a.page.compareTo(b.page);
     return page == 0 ? a.y.compareTo(b.y) : page;
   });
-  return showCupertinoModalPopup<native.NavigationMark>(
+  return showModalSheet<native.NavigationMark>(
     context: context,
     builder: (context) => CupertinoPopupSurface(
       child: SafeArea(

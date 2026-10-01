@@ -3,6 +3,7 @@ import 'dart:js_interop';
 import 'package:flutter/cupertino.dart';
 
 import 'host.dart' as native;
+import 'ui/modal.dart';
 import 'ui/theme.dart';
 
 Future<String?> compareVersions(
@@ -34,7 +35,7 @@ Future<String?> compareVersions(
       ],
     ),
   );
-  final choice = await showCupertinoDialog<String>(
+  final choice = await showModalDialog<String>(
     context: context,
     builder: (context) => Center(
       child: Padding(

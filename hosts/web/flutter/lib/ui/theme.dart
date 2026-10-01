@@ -34,6 +34,8 @@ const paperEdge = Color(0xFFD5D9E2);
 const floatingShadow = [
   BoxShadow(color: Color(0x59000000), blurRadius: 16, offset: Offset(0, 4)),
 ];
+// Under modal routes: the background at Cupertino's barrier opacity (0x7A).
+const scrim = Color(0x7A151B2B);
 const modalShadow = [
   BoxShadow(color: Color(0x80000000), blurRadius: 40, offset: Offset(0, 12)),
 ];

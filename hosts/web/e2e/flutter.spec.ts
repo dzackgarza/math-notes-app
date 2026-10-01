@@ -3313,7 +3313,7 @@ async function sharpestStep(page: Page, x: number, top: number, bottom: number):
   return Math.max(...column.slice(1).map((rgb, i) => Math.abs(brightness(rgb) - brightness(column[i]))));
 }
 
-test("Flutter menus, alerts, action sheets, and sheets blur the handwriting behind them", async ({ page }, info) => {
+test("Flutter menus, alerts, action sheets, and sheets blur the handwriting behind them, and the alert scrim blurs the page", async ({ page }, info) => {
   test.setTimeout(120_000);
   const { box, cdp } = await openNewNote(page, "Frosted");
   const button = (name: string) => page.getByRole("button", { name, exact: true });
@@ -3334,6 +3334,7 @@ test("Flutter menus, alerts, action sheets, and sheets blur the handwriting behi
   await button("Go to page").click();
   const title = await boxOf(page.getByText("Go to page", { exact: true }));
   await blurred(title.x - 10, title.y - 6, title.y + title.height + 6, "the alert");
+  await blurred(box.x + 60, title.y - 20, title.y + 40, "the scrim beside the alert");
   await page.screenshot({ path: info.outputPath("alert.png") });
   await button("Cancel").click();
 

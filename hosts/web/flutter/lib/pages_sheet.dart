@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:reorderable_grid/reorderable_grid.dart';
 
 import 'host.dart' as native;
+import 'ui/modal.dart';
 import 'ui/theme.dart';
 
 /// The notebook's pages as a thumbnail grid. A long press drags a page to a
@@ -14,7 +15,7 @@ Future<int?> overviewPages(
   native.Document document,
   int current,
   void Function(void Function()) edit,
-) => showCupertinoModalPopup<int>(
+) => showModalSheet<int>(
   context: context,
   builder: (context) => StatefulBuilder(
     builder: (context, update) {
@@ -29,7 +30,7 @@ Future<int?> overviewPages(
       }
 
       Future<void> pageActions(int index) async {
-        final action = await showCupertinoModalPopup<String>(
+        final action = await showModalSheet<String>(
           context: context,
           builder: (context) => CupertinoActionSheet(
             title: Text('Page ${index + 1}'),

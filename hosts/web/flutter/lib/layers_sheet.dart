@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 
 import 'errors.dart';
 import 'host.dart' as native;
+import 'ui/modal.dart';
 import 'ui/theme.dart';
 
 Future<void> manageLayers(
@@ -12,7 +13,7 @@ Future<void> manageLayers(
   native.Canvas canvas,
   void Function(void Function()) edit,
 ) async {
-  await showCupertinoModalPopup<void>(
+  await showModalSheet<void>(
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, update) {
@@ -31,7 +32,7 @@ Future<void> manageLayers(
           final name = TextEditingController(
             text: index == null ? '' : layers[index].name,
           );
-          final accepted = await showCupertinoDialog<bool>(
+          final accepted = await showModalDialog<bool>(
             context: context,
             builder: (context) => CupertinoAlertDialog(
               title: Text(index == null ? 'New layer' : 'Rename layer'),
@@ -186,7 +187,7 @@ Future<void> manageLayers(
                                       CupertinoButton(
                                         onPressed: layers.length > 1
                                             ? () async {
-                                                final remove = await showCupertinoDialog<bool>(
+                                                final remove = await showModalDialog<bool>(
                                                   context: context,
                                                   builder: (context) =>
                                                       CupertinoAlertDialog(

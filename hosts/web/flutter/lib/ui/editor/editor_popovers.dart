@@ -381,7 +381,7 @@ extension _EditorPopovers on _EditorScreenState {
   }
 
   Future<void> savedPenMenu(int index) async {
-    final remove = await showCupertinoModalPopup<bool>(
+    final remove = await showModalSheet<bool>(
       context: context,
       builder: (context) => CupertinoActionSheet(
         actions: [
