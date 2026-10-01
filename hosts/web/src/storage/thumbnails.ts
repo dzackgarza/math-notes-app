@@ -119,8 +119,12 @@ async function load(engine: Engine, root: FileSystemDirectoryHandle, note: Note)
   const entry = await cache.getDirectoryHandle(await hex(pathKey(note.path)), { create: true });
   try {
     const cached = await (await entry.getFileHandle(key)).getFile();
-    thumbnailStats.hits++;
-    return cached;
+    // getFileHandle creates the entry empty before the write below, so a
+    // write that a page load ended leaves an empty file. A PNG is never empty.
+    if (cached.size > 0) {
+      thumbnailStats.hits++;
+      return cached;
+    }
   } catch (e) {
     if (!notFound(e)) throw e;
   }
