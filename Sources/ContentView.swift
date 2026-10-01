@@ -15,6 +15,8 @@ struct ContentView: View {
   @State private var restoredRoot = false
   @State private var errorMessage: String?
   @State private var selectedTool: EditorTool = .pen
+  @State private var currentPage = 0
+  @State private var documentRevision = 0
 
   var body: some View {
     NavigationStack {
@@ -23,6 +25,8 @@ struct ContentView: View {
           InkEditorView(
             document: session.document,
             tool: $selectedTool,
+            currentPage: $currentPage,
+            documentRevision: $documentRevision,
             onEditCommitted: saveOpenNotebook,
             onError: { errorMessage = $0.localizedDescription })
             .navigationTitle(session.reference.name)
@@ -35,6 +39,9 @@ struct ContentView: View {
                 } label: {
                   Label("Library", systemImage: "chevron.left")
                 }
+              }
+              ToolbarItem(placement: .topBarTrailing) {
+                pagesMenu(session)
               }
             }
         } else if let root {
@@ -79,6 +86,43 @@ struct ContentView: View {
     }
     .task {
       restoreSavedRoot()
+    }
+  }
+
+  @ViewBuilder
+  private func pagesMenu(_ session: NotebookSession) -> some View {
+    let count = (try? session.document.pageCount()) ?? 0
+    Menu {
+      Button("Add page", systemImage: "plus.rectangle") {
+        editPages(session) { document in
+          try document.appendPage()
+        }
+      }
+      Button("Insert page before", systemImage: "rectangle.badge.plus") {
+        editPages(session) { document in
+          try document.insertPage(at: currentPage)
+        }
+      }
+      Button("Insert page after", systemImage: "rectangle.badge.plus") {
+        editPages(session) { document in
+          try document.insertPage(at: currentPage + 1)
+        }
+      }
+      Button("Duplicate page", systemImage: "plus.square.on.square") {
+        editPages(session) { document in
+          try document.duplicatePage(at: currentPage)
+        }
+      }
+      Divider()
+      Button("Delete page", systemImage: "trash", role: .destructive) {
+        editPages(session) { document in
+          try document.deletePage(at: currentPage)
+          currentPage = min(currentPage, max(0, try document.pageCount() - 1))
+        }
+      }
+      .disabled(count <= 1)
+    } label: {
+      Label("Pages", systemImage: "doc.on.doc")
     }
   }
 
@@ -177,9 +221,24 @@ struct ContentView: View {
   private func openNotebook(_ reference: NotebookReference) {
     guard let root else { return }
     do {
+      currentPage = 0
+      documentRevision = 0
       session = NotebookSession(
         reference: reference,
         document: try root.load(reference))
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func editPages(
+    _ session: NotebookSession,
+    _ action: (EngineDocument) throws -> Void
+  ) {
+    do {
+      try action(session.document)
+      documentRevision &+= 1
+      saveOpenNotebook()
     } catch {
       errorMessage = error.localizedDescription
     }

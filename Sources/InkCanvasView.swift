@@ -217,6 +217,15 @@ final class InkCanvasView: UIView {
     }
   }
 
+  func page(at point: CGPoint) -> Int? {
+    guard let canvas else { return nil }
+    var page: Int32 = -1
+    let status = ink_canvas_page_at(canvas, point.x, point.y, &page)
+    check(status, operation: "ink_canvas_page_at")
+    guard status == INK_OK, page >= 0 else { return nil }
+    return Int(page)
+  }
+
   func selectionFrame() -> CGRect? {
     guard let canvas else { return nil }
     var info = InkSelectionInfo()

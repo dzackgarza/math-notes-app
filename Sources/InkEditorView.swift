@@ -9,6 +9,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private let scrollView = UIScrollView()
   private let documentView = UIView()
   private let onEditCommitted: () -> Void
+  private let onCurrentPageChanged: (Int) -> Void
   private let onError: (Error) -> Void
   private lazy var canvasView = InkCanvasView(
     document: document,
@@ -18,6 +19,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private var setInitialZoom = false
   private var appliedTool: EditorTool = .pen
   private var documentRevision = 0
+  private var reportedPage = -1
 
   private var pullGate = HeldPullGate()
   private var pullReadyTimer: Timer?
@@ -30,10 +32,12 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   init(
     document: EngineDocument,
     onEditCommitted: @escaping () -> Void = {},
+    onCurrentPageChanged: @escaping (Int) -> Void = { _ in },
     onError: @escaping (Error) -> Void = { _ in }
   ) {
     self.document = document
     self.onEditCommitted = onEditCommitted
+    self.onCurrentPageChanged = onCurrentPageChanged
     self.onError = onError
     documentSize = document.contentSize()
     super.init(nibName: nil, bundle: nil)
@@ -396,6 +400,16 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
         d: yUnit.y - origin.y,
         tx: origin.x,
         ty: origin.y))
+    updateCurrentPage()
+  }
+
+  private func updateCurrentPage() {
+    let center = CGPoint(x: canvasView.bounds.midX, y: canvasView.bounds.midY)
+    guard let page = canvasView.page(at: center), page != reportedPage else { return }
+    reportedPage = page
+    DispatchQueue.main.async { [onCurrentPageChanged] in
+      onCurrentPageChanged(page)
+    }
   }
 }
 
@@ -405,12 +419,14 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let tool: EditorTool
   let revision: Int
   let onEditCommitted: () -> Void
+  let onCurrentPageChanged: (Int) -> Void
   let onError: (Error) -> Void
 
   func makeUIViewController(context: Context) -> InkEditorViewController {
     InkEditorViewController(
       document: document,
       onEditCommitted: onEditCommitted,
+      onCurrentPageChanged: onCurrentPageChanged,
       onError: onError)
   }
 
@@ -426,10 +442,10 @@ private struct InkEditorHost: UIViewControllerRepresentable {
 struct InkEditorView: View {
   let document: EngineDocument
   @Binding var tool: EditorTool
+  @Binding var currentPage: Int
+  @Binding var documentRevision: Int
   let onEditCommitted: () -> Void
   let onError: (Error) -> Void
-
-  @State private var documentRevision = 0
 
   var body: some View {
     ZStack(alignment: .topLeading) {
@@ -438,6 +454,7 @@ struct InkEditorView: View {
         tool: tool,
         revision: documentRevision,
         onEditCommitted: onEditCommitted,
+        onCurrentPageChanged: { currentPage = $0 },
         onError: onError)
 
       EditorToolRail(

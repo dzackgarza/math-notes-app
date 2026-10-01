@@ -56,9 +56,20 @@ final class EngineDocument {
     return count
   }
 
+  func insertPage(at index: Int) throws {
+    try check(ink_document_insert_page(pointer, index), operation: "Insert notebook page")
+  }
+
   func appendPage() throws {
-    let count = try pageCount()
-    try check(ink_document_insert_page(pointer, count), operation: "Add notebook page")
+    try insertPage(at: pageCount())
+  }
+
+  func duplicatePage(at index: Int) throws {
+    try check(ink_document_duplicate_page(pointer, index), operation: "Duplicate notebook page")
+  }
+
+  func deletePage(at index: Int) throws {
+    try check(ink_document_delete_page(pointer, index), operation: "Delete notebook page")
   }
 
   func undo() throws -> Bool {

@@ -17,6 +17,23 @@ final class NotebookStorageTests: XCTestCase {
       ["notebook.json", "pages/0002.svg"])
   }
 
+  @MainActor
+  func testPageManagementUsesTheSharedDocumentHistory() throws {
+    let document = EngineDocument(seed: 13)
+
+    try document.insertPage(at: 0)
+    XCTAssertEqual(try document.pageCount(), 2)
+
+    try document.duplicatePage(at: 0)
+    XCTAssertEqual(try document.pageCount(), 3)
+
+    try document.deletePage(at: 1)
+    XCTAssertEqual(try document.pageCount(), 2)
+
+    XCTAssertTrue(try document.undo())
+    XCTAssertEqual(try document.pageCount(), 3)
+  }
+
   func testWritesAssetsThenPagesThenNotebookMetadataThenDeletes() {
     let changes = [
       EngineFileChange(path: "pages/0002.svg", kind: .delete),
