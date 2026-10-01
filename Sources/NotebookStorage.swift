@@ -291,6 +291,23 @@ final class NotesRootAccess {
   }
 
   @MainActor
+  func thumbnail(_ reference: NotebookReference) throws -> Data? {
+    let notebookURL = urlForNotebook(reference)
+    let stamp = try coordinatedRead(at: notebookURL) { coordinatedNotebook in
+      try Self.thumbnailStamp(at: coordinatedNotebook)
+    }
+    guard let stamp else { return nil }
+    if let cached = thumbnailCache[reference.id], cached.stamp == stamp {
+      return cached.data
+    }
+
+    let document = try load(reference)
+    let data = try document.pagePNG(index: 0, width: 240)
+    thumbnailCache[reference.id] = (stamp: stamp, data: data)
+    return data
+  }
+
+  @MainActor
   func ensureBuiltinTemplates() throws {
     for name in try EngineDocument.builtinTemplateNames() {
       let reference = NotebookReference(path: [".templates", name])
@@ -555,7 +572,78 @@ final class NotesRootAccess {
   }
 
   private struct NotebookIndex: Decodable {
+    struct Page: Decodable {
+      let file: String
+    }
+
     let template: String?
+    let pages: [Page]?
+  }
+
+  private final class PageImageParser: NSObject, XMLParserDelegate {
+    var references: [String] = []
+
+    func parser(
+      _ parser: XMLParser,
+      didStartElement elementName: String,
+      namespaceURI: String?,
+      qualifiedName qName: String?,
+      attributes attributeDict: [String: String]
+    ) {
+      guard elementName == "image" else { return }
+      if let href = attributeDict["href"] ?? attributeDict["xlink:href"] {
+        references.append(href)
+      }
+    }
+  }
+
+  private static func thumbnailStamp(at notebookURL: URL) throws -> String? {
+    let indexURL = notebookURL.appendingPathComponent("notebook.json")
+    let indexData = try Data(contentsOf: indexURL)
+    let index = try JSONDecoder().decode(NotebookIndex.self, from: indexData)
+    guard let firstPage = index.pages?.first?.file else { return nil }
+
+    let pageURL = firstPage.split(separator: "/").reduce(notebookURL) { partial, component in
+      partial.appendingPathComponent(String(component))
+    }
+    let pageData = try Data(contentsOf: pageURL)
+    var stamps = [try fileStamp(path: firstPage, url: pageURL)]
+
+    let imageParser = PageImageParser()
+    let parser = XMLParser(data: pageData)
+    parser.delegate = imageParser
+    parser.shouldResolveExternalEntities = false
+    guard parser.parse() else {
+      if let error = parser.parserError { throw error }
+      return stamps.joined(separator: "\n")
+    }
+
+    let pageDirectory = pageURL.deletingLastPathComponent()
+    let rootPath = notebookURL.standardizedFileURL.path
+    let assets = imageParser.references.compactMap { href -> (String, URL)? in
+      guard let components = URLComponents(string: href), components.scheme == nil,
+        let resolved = URL(string: href, relativeTo: pageDirectory)?.standardizedFileURL
+      else { return nil }
+      let assetPath = resolved.path
+      guard assetPath.hasPrefix(rootPath + "/") else { return nil }
+      let relative = String(assetPath.dropFirst(rootPath.count + 1))
+      return (relative, resolved)
+    }
+
+    var seen: Set<String> = []
+    for (path, assetURL) in assets.sorted(by: { $0.0 < $1.0 }) {
+      guard seen.insert(path).inserted,
+        FileManager.default.fileExists(atPath: assetURL.path)
+      else { continue }
+      stamps.append(try fileStamp(path: path, url: assetURL))
+    }
+    return stamps.joined(separator: "\n")
+  }
+
+  private static func fileStamp(path: String, url: URL) throws -> String {
+    let values = try url.resourceValues(
+      forKeys: [.contentModificationDateKey, .fileSizeKey])
+    return "\(path):\(values.contentModificationDate?.timeIntervalSince1970 ?? 0):\(values.fileSize ?? -1)"
   }
 
   private static func notebookModification(at notebookURL: URL) throws -> Date {

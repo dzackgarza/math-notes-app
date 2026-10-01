@@ -10,7 +10,10 @@ private struct NotebookSession {
 @MainActor
 struct ContentView: View {
   @State private var root: NotesRootAccess?
-  @State private var notebooks: [NotebookReference] = []
+  @State private var libraryFolder = FolderReference(path: [])
+  @State private var libraryListing = LibraryListing(folders: [], notebooks: [])
+  @State private var librarySort: LibrarySort = .name
+  @State private var libraryGrid = true
   @State private var session: NotebookSession?
   @State private var showingFolderPicker = false
   @State private var restoredRoot = false
@@ -85,6 +88,7 @@ struct ContentView: View {
       NewNoteSheet(
         folders: newNoteFolders,
         templates: newNoteTemplates,
+        initialParent: libraryFolder,
         onCreate: createNewNote,
         onCancel: { showingNewNote = false })
     }
@@ -165,60 +169,30 @@ struct ContentView: View {
 
   @ViewBuilder
   private func libraryView(root: NotesRootAccess) -> some View {
-    if notebooks.isEmpty {
-      ContentUnavailableView {
-        Label("No Notebooks", systemImage: "book.closed")
-      } description: {
-        Text("No folders containing notebook.json were found in \(root.url.lastPathComponent).")
-      } actions: {
-        Button("Rescan") {
-          refreshLibrary()
-        }
-      }
-      .navigationTitle("Math Notes")
-      .toolbar {
-        libraryToolbar
-      }
-    } else {
-      List(notebooks) { notebook in
-        Button {
-          openNotebook(notebook)
-        } label: {
-          HStack(spacing: 12) {
-            Image(systemName: "book.closed")
-            VStack(alignment: .leading, spacing: 2) {
-              Text(notebook.name)
-              if notebook.path.count > 1 {
-                Text(notebook.path.dropLast().joined(separator: " / "))
-                  .font(.caption)
-                  .foregroundStyle(.secondary)
-              }
-            }
-          }
-        }
-        .buttonStyle(.plain)
-      }
-      .navigationTitle(root.url.lastPathComponent)
-      .toolbar {
-        libraryToolbar
-      }
-    }
-  }
-
-  @ToolbarContentBuilder
-  private var libraryToolbar: some ToolbarContent {
-    ToolbarItemGroup(placement: .topBarTrailing) {
-      Button {
-        prepareNewNote()
-      } label: {
-        Label("New Note", systemImage: "square.and.pencil")
-      }
-      Button {
-        showingFolderPicker = true
-      } label: {
-        Label("Change Folder", systemImage: "folder")
-      }
-    }
+    NativeLibraryView(
+      root: root,
+      folder: libraryFolder,
+      listing: libraryListing,
+      sort: librarySort,
+      grid: libraryGrid,
+      openFolder: { folder in
+        libraryFolder = folder
+        refreshLibrary()
+      },
+      openNotebook: openNotebook,
+      goUp: {
+        guard !libraryFolder.path.isEmpty else { return }
+        libraryFolder = FolderReference(path: Array(libraryFolder.path.dropLast()))
+        refreshLibrary()
+      },
+      setSort: { sort in
+        librarySort = sort
+        refreshLibrary()
+      },
+      toggleLayout: { libraryGrid.toggle() },
+      createNote: prepareNewNote,
+      refresh: refreshLibrary,
+      chooseRoot: { showingFolderPicker = true })
   }
 
   private func restoreSavedRoot() {
@@ -238,6 +212,8 @@ struct ContentView: View {
 
   private func installRoot(_ newRoot: NotesRootAccess) {
     session = nil
+    libraryFolder = FolderReference(path: [])
+    libraryListing = LibraryListing(folders: [], notebooks: [])
     root = newRoot
     newRoot.onChange = {
       Task { @MainActor in
@@ -249,13 +225,23 @@ struct ContentView: View {
 
   private func refreshLibrary() {
     guard let root else {
-      notebooks = []
+      libraryListing = LibraryListing(folders: [], notebooks: [])
       return
     }
 
     do {
-      notebooks = try root.notebooks()
+      libraryListing = try root.library(in: libraryFolder, sort: librarySort)
     } catch {
+      if !libraryFolder.path.isEmpty {
+        libraryFolder = FolderReference(path: [])
+        do {
+          libraryListing = try root.library(in: libraryFolder, sort: librarySort)
+          return
+        } catch {
+          errorMessage = error.localizedDescription
+          return
+        }
+      }
       errorMessage = error.localizedDescription
     }
   }

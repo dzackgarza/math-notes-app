@@ -52,6 +52,7 @@ struct NewNoteSheet: View {
   init(
     folders: [FolderReference],
     templates: [String],
+    initialParent: FolderReference? = nil,
     onCreate: @escaping (NewNoteRequest) -> Void,
     onCancel: @escaping () -> Void
   ) {
@@ -59,7 +60,10 @@ struct NewNoteSheet: View {
     self.templates = templates
     self.onCreate = onCreate
     self.onCancel = onCancel
-    _parent = State(initialValue: folders.first ?? FolderReference(path: []))
+    let chosenParent = initialParent.flatMap { candidate in
+      folders.contains(candidate) ? candidate : nil
+    } ?? folders.first ?? FolderReference(path: [])
+    _parent = State(initialValue: chosenParent)
     let initialTemplate = templates.contains("blank") ? "blank" : (templates.first ?? "blank")
     _template = State(initialValue: initialTemplate)
   }
