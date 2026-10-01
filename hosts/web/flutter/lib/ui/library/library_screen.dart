@@ -682,8 +682,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
     ),
   );
 
-  // A sidebar row in ink. The selected row lies on leaf with the ribbon
-  // along its left edge, as a bookmark.
+  // A sidebar row in ink. The selected row lies on leaf, in bold, with its
+  // icon in the ribbon color.
   Widget sidebarRow({
     required Widget leading,
     required String text,
@@ -697,9 +697,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: selected ? surface2 : null,
-          border: selected
-              ? const Border(left: BorderSide(color: accent, width: 3))
-              : null,
+          borderRadius: BorderRadius.circular(8),
         ),
         child: HoverTint(
           radius: 8,

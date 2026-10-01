@@ -69,7 +69,6 @@ extension _EditorPopovers on _EditorScreenState {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: selected ? selectedFill : null,
-                  border: Border.all(color: selected ? accent : separator),
                 ),
                 child: Icon(icon, size: 22, color: selected ? accent : label),
               ),

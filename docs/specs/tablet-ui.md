@@ -162,7 +162,7 @@ volume on a reading desk.
 | leaf | `#EEF0EA` | The rail, menus, popovers, sheets, and the selected sidebar row |
 | ink | `#1C2430` | Text, icons, and primary buttons |
 | graphite | `#555D67` | Secondary text |
-| ribbon | `#9E2A2B` | The current selection only: the active tool, the selected sidebar row's bookmark edge, the chosen swatch; also destructive actions |
+| ribbon | `#9E2A2B` | The current selection only: the active tool, the selected sidebar row's icon, the chosen swatch; also destructive actions |
 | paper | `#FBFAF6` | The page and text fields |
 
 Covers take buckram colors: navy `#24324A`, oxblood `#5B2328`, forest
