@@ -91,6 +91,34 @@ class _TapTargetState extends State<TapTarget> {
   );
 }
 
+// A hover tint behind a button. CupertinoButton shows press and focus but
+// not hover, which a pointer on the web and on the iPad needs.
+class HoverTint extends StatefulWidget {
+  const HoverTint({super.key, required this.child, this.radius = 10});
+  final Widget child;
+  final double radius;
+
+  @override
+  State<HoverTint> createState() => _HoverTintState();
+}
+
+class _HoverTintState extends State<HoverTint> {
+  var hovered = false;
+
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+    onEnter: (_) => setState(() => hovered = true),
+    onExit: (_) => setState(() => hovered = false),
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        color: hovered ? separator : null,
+        borderRadius: BorderRadius.circular(widget.radius),
+      ),
+      child: widget.child,
+    ),
+  );
+}
+
 // A search field with its clear button beside the text field in the
 // semantics tree. The suffix button of CupertinoSearchTextField splits the
 // semantics node of the text field when it appears, and the web engine then

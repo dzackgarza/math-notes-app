@@ -2177,6 +2177,12 @@ test("Flutter Tab reaches every editor control and finishes each library region 
   expect(sidebar, `the sidebar is in the Tab order: ${library}`).toBeGreaterThanOrEqual(0);
   expect(search, `the toolbar is in the Tab order: ${library}`).toBeGreaterThan(sidebar);
   expect(library.slice(sidebar, search), "Tab finishes the sidebar before the toolbar").toContain("Settings");
+  // A hovered sidebar row shows a tint.
+  const recent = await boxOf(page.getByRole("button", { name: "Recent", exact: true }));
+  const tint = { x: recent.x + recent.width - 6, y: recent.y + recent.height / 2 };
+  const idle = brightness(await centerPixel(page, tint));
+  await page.getByRole("button", { name: "Recent", exact: true }).hover();
+  await expect.poll(async () => brightness(await centerPixel(page, tint)), "a hovered sidebar row is tinted").toBeGreaterThan(idle + 10);
 
   await openTestNotebook(page);
   await page.getByRole("button", { name: "New note", exact: true }).click();
@@ -2213,8 +2219,14 @@ test("Flutter places the tool rail on the left edge beside the page and hides to
   if (!colors) throw new Error("Colors has no bounds");
   expect(colors.y + colors.height, "the rail fits the window").toBeLessThanOrEqual(720);
   expect(pen.y, "the rail starts below the top bar").toBeGreaterThanOrEqual(box.y);
-  const rail =await centerPixel(page, { x: 4, y: pen.y + pen.height / 2 });
+  const rail = await centerPixel(page, { x: 4, y: pen.y + pen.height / 2 });
   expect(brightness(rail), "the rail is dark").toBeLessThan(150);
+  // A hovered rail button shows a tint behind its icon.
+  const tint = { x: marker.x + marker.width / 2, y: marker.y + 4 };
+  const idle = brightness(await centerPixel(page, tint));
+  await button("Marker").hover();
+  await expect.poll(async () => brightness(await centerPixel(page, tint)), "a hovered rail button is tinted").toBeGreaterThan(idle + 10);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   const library = await boxOf(button("Library"));
   const topBar = await centerPixel(page, { x: 300, y: library.y + library.height / 2 });
   expect(brightness(topBar), "the top bar is dark").toBeLessThan(150);

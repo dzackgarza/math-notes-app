@@ -685,22 +685,25 @@ class _LibraryScreenState extends State<LibraryScreen> {
           color: selected ? accent : null,
           borderRadius: BorderRadius.circular(8),
         ),
-        child: CupertinoButton(
-          alignment: Alignment.centerLeft,
-          minimumSize: const Size(44, 44),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          onPressed: onPressed,
-          child: IconTheme.merge(
-            data: IconThemeData(color: color, size: 20),
-            child: Row(
-              children: [
-                leading,
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(text, style: body.copyWith(color: color)),
-                ),
-                ?trailing,
-              ],
+        child: HoverTint(
+          radius: 8,
+          child: CupertinoButton(
+            alignment: Alignment.centerLeft,
+            minimumSize: const Size(44, 44),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            onPressed: onPressed,
+            child: IconTheme.merge(
+              data: IconThemeData(color: color, size: 20),
+              child: Row(
+                children: [
+                  leading,
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(text, style: body.copyWith(color: color)),
+                  ),
+                  ?trailing,
+                ],
+              ),
             ),
           ),
         ),

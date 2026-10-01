@@ -22,22 +22,24 @@ extension _EditorRail on _EditorScreenState {
         selected: selected,
         button: true,
         enabled: onPressed != null,
-        child: CupertinoButton(
-          padding: EdgeInsets.zero,
-          minimumSize: const Size(44, 44),
-          onPressed: onPressed == null ? null : () => onPressed(anchor),
-          onLongPress: onLongPress,
-          child: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: selected ? selectedFill : null,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              icon,
-              color: onPressed == null ? tertiaryLabel : color,
-              size: 24,
+        child: HoverTint(
+          child: CupertinoButton(
+            padding: EdgeInsets.zero,
+            minimumSize: const Size(44, 44),
+            onPressed: onPressed == null ? null : () => onPressed(anchor),
+            onLongPress: onLongPress,
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: selected ? selectedFill : null,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                icon,
+                color: onPressed == null ? tertiaryLabel : color,
+                size: 24,
+              ),
             ),
           ),
         ),
@@ -94,19 +96,21 @@ extension _EditorRail on _EditorScreenState {
           value: rgb == null ? null : hex(rgb),
           button: true,
           enabled: rgb != null,
-          child: CupertinoButton(
-            padding: EdgeInsets.zero,
-            minimumSize: const Size(44, 44),
-            onPressed: rgb == null
-                ? null
-                : () => run(() => colorPopover(anchor)),
-            child: Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: rgb == null ? surface3 : Color(0xFF000000 | rgb),
-                border: Border.all(color: label, width: 2),
+          child: HoverTint(
+            child: CupertinoButton(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(44, 44),
+              onPressed: rgb == null
+                  ? null
+                  : () => run(() => colorPopover(anchor)),
+              child: Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: rgb == null ? surface3 : Color(0xFF000000 | rgb),
+                  border: Border.all(color: label, width: 2),
+                ),
               ),
             ),
           ),
