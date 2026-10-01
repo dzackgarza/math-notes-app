@@ -2137,6 +2137,44 @@ test("Flutter palette edits a swatch on the HSV wheel, and adds and removes swat
   expect(near(await swatchColor(4), added), "the added swatch persists").toBe(true);
 });
 
+// The accessible names of the controls that Tab focuses, in order, from the
+// current focus.
+async function tabOrder(page: Page, presses: number): Promise<string[]> {
+  const names: string[] = [];
+  for (let i = 0; i < presses; i++) {
+    await page.keyboard.press("Tab");
+    names.push(await page.evaluate(() => {
+      const focused = document.activeElement;
+      return (focused?.getAttribute("aria-label") ?? focused?.textContent ?? "").trim();
+    }));
+  }
+  return names;
+}
+
+test("Flutter Tab reaches every editor control and finishes each library region before the next", async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.goto("?root=opfs");
+  await createTestNotebook(page);
+  await page.getByRole("button", { name: "Back to library", exact: true }).click();
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  const library = await tabOrder(page, 16);
+  const sidebar = library.indexOf("Recent"), search = library.indexOf("Search notebooks and notes");
+  expect(sidebar, `the sidebar is in the Tab order: ${library}`).toBeGreaterThanOrEqual(0);
+  expect(search, `the toolbar is in the Tab order: ${library}`).toBeGreaterThan(sidebar);
+  expect(library.slice(sidebar, search), "Tab finishes the sidebar before the toolbar").toContain("Settings");
+
+  await openTestNotebook(page);
+  await page.getByRole("button", { name: "New note", exact: true }).click();
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Keys");
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await page.locator('canvas[id^="ink-canvas-"]:visible').waitFor({ timeout: 30_000 });
+  const editor = await tabOrder(page, 30);
+  for (const name of ["Library", "Open note", "Pages", "View", "More", "Pen", "Lasso", "Insert space", "Undo", "Redo", "Colors"]) {
+    expect(editor, `Tab reaches ${name}`).toContain(name);
+  }
+  expect(editor.indexOf("More"), "Tab finishes the top bar before the rail").toBeLessThan(editor.indexOf("Pen"));
+});
+
 test("Flutter places the tool rail on the left edge beside the page and hides tools from the menus", async ({ page }, info) => {
   test.setTimeout(120_000);
   const { box } = await openNewNote(page, "Chrome");

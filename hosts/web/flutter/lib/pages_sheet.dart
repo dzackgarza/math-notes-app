@@ -5,6 +5,7 @@ import 'package:reorderable_grid/reorderable_grid.dart';
 
 import 'host.dart' as native;
 import 'ui/modal.dart';
+import 'ui/notes_ui.dart';
 import 'ui/theme.dart';
 
 /// The notebook's pages as a thumbnail grid. A long press drags a page to a
@@ -119,27 +120,24 @@ Future<int?> overviewPages(
                             child: Column(
                               children: [
                                 Expanded(
-                                  child: Semantics(
-                                    button: true,
+                                  child: TapTarget(
                                     label: 'Page ${index + 1}',
-                                    child: GestureDetector(
-                                      onTap: () =>
-                                          Navigator.pop(context, index),
-                                      child: DecoratedBox(
-                                        position: DecorationPosition.foreground,
-                                        decoration: BoxDecoration(
-                                          border: Border.all(
-                                            color: marked(index)
-                                                ? accentText
-                                                : paperEdge,
-                                            width: marked(index) ? 3 : 1,
-                                          ),
+                                    selected: marked(index),
+                                    onTap: (_) => Navigator.pop(context, index),
+                                    child: DecoratedBox(
+                                      position: DecorationPosition.foreground,
+                                      decoration: BoxDecoration(
+                                        border: Border.all(
+                                          color: marked(index)
+                                              ? accentText
+                                              : paperEdge,
+                                          width: marked(index) ? 3 : 1,
                                         ),
-                                        child: Image.memory(
-                                          thumbnails[index],
-                                          fit: BoxFit.contain,
-                                          excludeFromSemantics: true,
-                                        ),
+                                      ),
+                                      child: Image.memory(
+                                        thumbnails[index],
+                                        fit: BoxFit.contain,
+                                        excludeFromSemantics: true,
                                       ),
                                     ),
                                   ),

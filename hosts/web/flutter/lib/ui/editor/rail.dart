@@ -21,7 +21,6 @@ extension _EditorRail on _EditorScreenState {
       selected: selected,
       button: true,
       enabled: onPressed != null,
-      excludeSemantics: true,
       child: CupertinoButton(
         padding: EdgeInsets.zero,
         minimumSize: const Size(44, 44),
@@ -92,7 +91,6 @@ extension _EditorRail on _EditorScreenState {
         value: rgb == null ? null : hex(rgb),
         button: true,
         enabled: rgb != null,
-        excludeSemantics: true,
         child: CupertinoButton(
           padding: EdgeInsets.zero,
           minimumSize: const Size(44, 44),
@@ -123,7 +121,6 @@ extension _EditorRail on _EditorScreenState {
         label: 'Color ${hex(color)}',
         selected: current,
         button: true,
-        excludeSemantics: true,
         child: CupertinoButton(
           padding: EdgeInsets.zero,
           minimumSize: const Size(44, 44),

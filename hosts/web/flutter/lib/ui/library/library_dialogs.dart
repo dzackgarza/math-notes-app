@@ -401,8 +401,6 @@ Future<CreationForm?> askCreation(
                         label: color.value,
                         selected: coverColor == color.key,
                         button: true,
-                        excludeSemantics: true,
-                        onTap: () => update(() => coverColor = color.key),
                         child: CupertinoButton(
                           padding: EdgeInsets.zero,
                           minimumSize: const Size(44, 44),

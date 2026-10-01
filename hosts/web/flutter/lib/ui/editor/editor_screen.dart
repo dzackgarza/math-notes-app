@@ -812,17 +812,18 @@ class _EditorScreenState extends State<EditorScreen>
     buttonBuilder: (context, showMenu) => Semantics(
       label: label,
       button: true,
-      excludeSemantics: true,
       child: CupertinoButton(
         padding: const EdgeInsets.symmetric(horizontal: 8),
         onPressed: showMenu,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          spacing: 4,
-          children: [
-            Icon(icon, size: 20),
-            Text(label, style: callout.copyWith(color: accentText)),
-          ],
+        child: ExcludeSemantics(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 4,
+            children: [
+              Icon(icon, size: 20),
+              Text(label, style: callout.copyWith(color: accentText)),
+            ],
+          ),
         ),
       ),
     ),
@@ -1127,7 +1128,6 @@ class _EditorScreenState extends State<EditorScreen>
             leading: Semantics(
               label: 'Library',
               button: true,
-              excludeSemantics: true,
               child: CupertinoButton(
                 padding: EdgeInsets.zero,
                 onPressed: () => run(widget.onLibrary),
@@ -1135,35 +1135,36 @@ class _EditorScreenState extends State<EditorScreen>
               ),
             ),
             middle: Text(widget.note.name),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Semantics(
-                  role: SemanticsRole.status,
-                  liveRegion: true,
-                  label: 'Notebook save',
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: Text(
-                      saveLabel,
-                      style: footnote.copyWith(color: secondaryLabel),
+            trailing: FocusTraversalGroup(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Semantics(
+                    role: SemanticsRole.status,
+                    liveRegion: true,
+                    label: 'Notebook save',
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Text(
+                        saveLabel,
+                        style: footnote.copyWith(color: secondaryLabel),
+                      ),
                     ),
                   ),
-                ),
-                Semantics(
-                  label: 'Open note',
-                  button: true,
-                  excludeSemantics: true,
-                  child: CupertinoButton(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    onPressed: () => run(widget.onOpenNote),
-                    child: const Icon(LucideIcons.filePlus2, size: 20),
+                  Semantics(
+                    label: 'Open note',
+                    button: true,
+                    child: CupertinoButton(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      onPressed: () => run(widget.onOpenNote),
+                      child: const Icon(LucideIcons.filePlus2, size: 20),
+                    ),
                   ),
-                ),
-                menuButton('Pages', LucideIcons.layoutGrid, pagesMenu),
-                menuButton('View', LucideIcons.layoutPanelLeft, viewMenu),
-                menuButton('More', LucideIcons.circleEllipsis, moreMenu),
-              ],
+                  menuButton('Pages', LucideIcons.layoutGrid, pagesMenu),
+                  menuButton('View', LucideIcons.layoutPanelLeft, viewMenu),
+                  menuButton('More', LucideIcons.circleEllipsis, moreMenu),
+                ],
+              ),
             ),
           ),
           child: SafeArea(
@@ -1183,7 +1184,7 @@ class _EditorScreenState extends State<EditorScreen>
                 Expanded(
                   child: Row(
                     children: [
-                      rail(),
+                      FocusTraversalGroup(child: rail()),
                       Expanded(
                         child: LayoutBuilder(
                           builder: (context, constraints) {

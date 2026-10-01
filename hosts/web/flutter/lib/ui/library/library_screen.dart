@@ -885,16 +885,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
             : Semantics(
                 label: 'Back to library',
                 button: true,
-                excludeSemantics: true,
                 child: CupertinoButton(
                   padding: EdgeInsets.zero,
                   onPressed: () => vm.showNotebook(null),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(CupertinoIcons.chevron_left),
-                      Text('Library'),
-                    ],
+                  child: const ExcludeSemantics(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(CupertinoIcons.chevron_left),
+                        Text('Library'),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -911,49 +912,62 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ],
         ),
       ),
+      // Tab finishes one region before the next: the sidebar, the toolbar,
+      // then the content.
       child: SafeArea(
-        child: Row(
-          children: [
-            if (connected) sidebar(),
-            Expanded(
-              child: Column(
-                children: [
-                  if (vm.confirmation != null)
-                    Semantics(
-                      role: SemanticsRole.status,
-                      liveRegion: true,
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Text(vm.confirmation!),
+        child: FocusTraversalGroup(
+          policy: OrderedTraversalPolicy(),
+          child: Row(
+            children: [
+              if (connected) region(1, sidebar()),
+              Expanded(
+                child: Column(
+                  children: [
+                    if (vm.confirmation != null)
+                      Semantics(
+                        role: SemanticsRole.status,
+                        liveRegion: true,
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Text(vm.confirmation!),
+                        ),
                       ),
-                    ),
-                  Expanded(
-                    child: connected
-                        ? Padding(
-                            padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                toolbar(notebook),
-                                const SizedBox(height: 16),
-                                Expanded(
-                                  child: CustomScrollView(
-                                    slivers: notebook == null
-                                        ? notebooksContent()
-                                        : notebookContent(notebook),
+                    Expanded(
+                      child: connected
+                          ? Padding(
+                              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  region(2, toolbar(notebook)),
+                                  const SizedBox(height: 16),
+                                  Expanded(
+                                    child: region(
+                                      3,
+                                      CustomScrollView(
+                                        slivers: notebook == null
+                                            ? notebooksContent()
+                                            : notebookContent(notebook),
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          )
-                        : disconnected(),
-                  ),
-                ],
+                                ],
+                              ),
+                            )
+                          : disconnected(),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
+
+  Widget region(double order, Widget child) => FocusTraversalOrder(
+    order: NumericFocusOrder(order),
+    child: FocusTraversalGroup(child: child),
+  );
 }
