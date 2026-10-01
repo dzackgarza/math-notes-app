@@ -18,6 +18,6 @@ struct HeldPullGate {
   mutating func release(at time: TimeInterval) -> Bool {
     defer { readySince = nil }
     guard let readySince else { return false }
-    return time - readySince >= Self.holdDuration
+    return time >= readySince + Self.holdDuration
   }
 }
