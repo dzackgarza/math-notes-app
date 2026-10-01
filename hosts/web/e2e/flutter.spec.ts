@@ -3496,7 +3496,7 @@ test("Flutter menus, alerts, action sheets, and sheets blur the handwriting behi
   const button = (name: string) => page.getByRole("button", { name, exact: true });
   // Lines 9 px apart: each surface has several of them behind it.
   for (let y = box.y + 90; y < box.y + box.height - 10; y += 9) {
-    await penStroke(cdp, line(box.x + 30, box.x + box.width - 30, y, 2), 0.8);
+    await penStroke(cdp, line(pageIn(box).x + 30, pageIn(box).x + pageIn(box).width - 30, y, 2), 0.8);
   }
   expect(await sharpestStep(page, box.x + 200, box.y + 200, box.y + 240), "the lines are sharp on the page").toBeGreaterThan(300);
   // A column of a surface with no text and no divider, across three lines or
@@ -3531,7 +3531,7 @@ test("Flutter menus, alerts, action sheets, and sheets blur the handwriting behi
   const last = await boxOf(button("Delete Ink"));
   await blurred(last.x + 10, last.y + last.height + 20, last.y + last.height + 60, "the layers sheet");
   // The page beside the sheet shows a change that the sheet makes.
-  const lines = async () => (await capture(page, { x: box.x + 100, y: box.y + 200, width: 1, height: 40 })).some(isInk);
+  const lines = async () => (await capture(page, { x: pageIn(box).x + 100, y: box.y + 200, width: 1, height: 40 })).some(isInk);
   expect(await lines(), "the lines show beside the sheet").toBe(true);
   await button("Hide Ink").click();
   await expect.poll(lines, "the lines of the hidden layer show no more beside the sheet").toBe(false);
