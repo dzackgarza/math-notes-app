@@ -29,8 +29,23 @@ for target in device simulator; do
     -DSKIA_SOURCE_DIR="$skia_dir"
   cmake --build "$dir" --target ink
 
+  shopt -s nullglob
   skia_archives=("$skia_dir/out/$target"/*.a)
-  archives=("$dir/libink.a" "$dir/vcpkg_installed/$triplet/lib/libpugixml.a" "${skia_archives[@]}")
+  absl_archives=("$dir/vcpkg_installed/$triplet/lib"/libabsl_*.a)
+  tess_archives=("$dir/vcpkg_installed/$triplet/lib"/*libtess2*.a)
+  shopt -u nullglob
+  ((${#skia_archives[@]} > 0))
+  test -s "$dir/libinkcore.a"
+  ((${#absl_archives[@]} > 0))
+  ((${#tess_archives[@]} == 1))
+  archives=(
+    "$dir/libink.a"
+    "$dir/libinkcore.a"
+    "$dir/vcpkg_installed/$triplet/lib/libpugixml.a"
+    "${tess_archives[@]}"
+    "${absl_archives[@]}"
+    "${skia_archives[@]}"
+  )
   libtool -static -o "$dir/libInkEngine.a" "${archives[@]}"
 
   arch=$(lipo -info "$dir/libInkEngine.a")
