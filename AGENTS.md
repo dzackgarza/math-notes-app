@@ -33,6 +33,12 @@ the [TikZ contract](docs/specs/tikz-drawing-mode.md) before figure work.
 
 ## Targets and versions
 
+### `ipad-port` branch override (2026-10-01)
+
+This branch exists to build the iPad app now, ahead of the v1 sequencing that continues to govern `main`. On `ipad-port`, the UIKit iPad host over the shared C++ core described in `docs/ARCHITECTURE.md` is the product: bring it to a faithful port of the web app while merging `main` forward rather than forking or duplicating the shared core.
+
+Swift cannot build on this Linux host. Verify iPad changes by pushing `ipad-port` and running `gh workflow run ios.yml --ref ipad-port`; never push to `main`. The v1-before-v2 prohibition below remains the policy for `main` and does not block iPad implementation on this branch.
+
 Math Notes has two targets: the web app in Chrome on Linux, and the iPad app.
 On the iPad the user runs the iPad app, not the web app. No other browser,
 operating system, or device is a requirement.
