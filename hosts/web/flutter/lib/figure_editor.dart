@@ -74,10 +74,14 @@ class _FigureEditorState extends State<FigureEditor> {
       navigationBar: CupertinoNavigationBar(
         automaticallyImplyLeading: false,
         middle: const Text('Figure editor'),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: closing ? null : close,
-          child: Text(closing ? 'Saving…' : 'Save and close'),
+        // A disabled CupertinoButton still exposes an enabled tap action.
+        trailing: Semantics(
+          enabled: !closing,
+          child: CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed: closing ? null : close,
+            child: Text(closing ? 'Saving…' : 'Save and close'),
+          ),
         ),
       ),
       child: SafeArea(

@@ -174,12 +174,17 @@ extension _EditorPopovers on _EditorScreenState {
       final opacityRow = Row(
         children: [
           Expanded(
-            child: CupertinoSlider(
-              value: opacity,
-              min: 0.1,
-              max: 1,
-              divisions: 9,
-              onChanged: (value) => update(() => opacity = value),
+            child: MergeSemantics(
+              child: Semantics(
+                label: 'Opacity',
+                child: CupertinoSlider(
+                  value: opacity,
+                  min: 0.1,
+                  max: 1,
+                  divisions: 9,
+                  onChanged: (value) => update(() => opacity = value),
+                ),
+              ),
             ),
           ),
           SizedBox(
@@ -274,12 +279,17 @@ extension _EditorPopovers on _EditorScreenState {
             Row(
               children: [
                 Expanded(
-                  child: CupertinoSlider(
-                    value: size.clamp(0.2, 20),
-                    min: 0.2,
-                    max: 20,
-                    divisions: 99,
-                    onChanged: (value) => update(() => size = value),
+                  child: MergeSemantics(
+                    child: Semantics(
+                      label: 'Size',
+                      child: CupertinoSlider(
+                        value: size.clamp(0.2, 20),
+                        min: 0.2,
+                        max: 20,
+                        divisions: 99,
+                        onChanged: (value) => update(() => size = value),
+                      ),
+                    ),
                   ),
                 ),
                 SizedBox(

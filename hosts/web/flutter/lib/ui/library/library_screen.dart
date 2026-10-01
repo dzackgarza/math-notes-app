@@ -661,9 +661,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
             onPressed: () => run(folder.grantPermission),
             child: const Text('Reconnect folder'),
           ),
-        CupertinoButton(
-          onPressed: folder.started ? () => run(vm.chooseRoot) : null,
-          child: const Text('Choose notes folder'),
+        // A disabled CupertinoButton still exposes an enabled tap action.
+        Semantics(
+          enabled: folder.started,
+          child: CupertinoButton(
+            onPressed: folder.started ? () => run(vm.chooseRoot) : null,
+            child: const Text('Choose notes folder'),
+          ),
         ),
       ],
     ),
