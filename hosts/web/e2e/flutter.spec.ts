@@ -4081,10 +4081,10 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   // semantics node until the wheel scrolls it in.
   const clipping = async (number: number) => {
     const target = button(`Insert clipping ${number}`);
-    const panel = await boxOf(button("Save selected content"));
+    const hint = await boxOf(page.getByText("Drop a selection here to save it. Drag a clipping onto the page.", { exact: true }));
     await expect(async () => {
       if ((await target.count()) === 0) {
-        await page.mouse.move(panel.x + panel.width / 2, panel.y + 250);
+        await page.mouse.move(hint.x + hint.width / 2, hint.y + hint.height + 150);
         await page.mouse.wheel(0, 200);
       }
       await expect(target).toBeVisible({ timeout: 500 });
