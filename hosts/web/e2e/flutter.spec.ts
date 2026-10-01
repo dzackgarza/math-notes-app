@@ -2093,8 +2093,7 @@ test("Flutter tool popovers set size, opacity, and the brush of each pen type", 
   await tool("Pen").click();
   await tool("Advanced").click();
   const opacity = page.getByRole("slider");
-  const track = await opacity.boundingBox();
-  if (!track) throw new Error("The opacity slider has no bounds");
+  const track = await boxOf(opacity);
   // A Cupertino slider moves by a drag of its thumb, here at 100%.
   const middle = track.y + track.height / 2;
   await page.mouse.move(track.x + track.width - 14, middle);

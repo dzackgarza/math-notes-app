@@ -662,7 +662,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             child: const Text('Reconnect folder'),
           ),
         CupertinoButton(
-          onPressed: folder.engine == null ? null : () => run(vm.chooseRoot),
+          onPressed: folder.started ? () => run(vm.chooseRoot) : null,
           child: const Text('Choose notes folder'),
         ),
       ],

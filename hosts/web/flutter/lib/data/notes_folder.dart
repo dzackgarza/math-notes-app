@@ -18,6 +18,9 @@ class NotesFolder extends ChangeNotifier {
   bool reconnect = false;
   // False while a note is open: the library reads the folder again on return.
   bool following = true;
+  // True once start has read the saved folder. A folder chosen before then
+  // would be replaced by the saved one.
+  bool started = false;
 
   bool get connected => root != null && !reconnect && library != null;
 
@@ -35,6 +38,7 @@ class NotesFolder extends ChangeNotifier {
     );
     root = start.root;
     reconnect = start.needsGesture;
+    started = true;
     notifyListeners();
     final saved = root;
     if (saved != null && !reconnect) await connect(saved);
