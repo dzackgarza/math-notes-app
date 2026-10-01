@@ -1375,11 +1375,13 @@ test("Flutter library shows board chrome, buckram cover colors, aligned creation
 test("Flutter shows ruled, grid, dotted, and blank paper as chosen at creation", async ({ page }, info) => {
   test.setTimeout(180_000);
   // The marks in a square of the page: full rows are rules, full columns
-  // are grid verticals, and marks in neither are dots.
+  // are grid verticals, and marks in neither are dots. The square starts
+  // 150 px into the page, right of lined paper's margin rule (48 pt).
   const pattern = async (paper: string) => {
     const { box } = await openNewNote(page, paper, paper);
+    const sheet = pageIn(box);
     const side = 200;
-    const pixels = await capture(page, { x: box.x + 150, y: box.y + 150, width: side, height: side });
+    const pixels = await capture(page, { x: sheet.x + 150, y: sheet.y + 150, width: side, height: side });
     await page.screenshot({ path: info.outputPath(`${paper}.png`) });
     const white = pixels.reduce((best, rgb) => (brightness(rgb) > brightness(best) ? rgb : best));
     const marked = pixels.map((rgb) => brightness(white) - brightness(rgb) > 20);
@@ -1677,10 +1679,12 @@ test("Flutter inserts a JPEG figure, moves, resizes, and deletes it, and keeps i
 test("Flutter places typed text boxes, wraps them at a width, and edits and deletes them", async ({ page }, info) => {
   test.setTimeout(150_000);
   const { box } = await openNewNote(page, "Typed", "Plain");
-  // The page view below the toolbar, split at the middle: the wrapped box is
-  // in the left half and the one-word box in the right half.
+  // The page below the toolbar, split at the middle: the wrapped box is in
+  // the left half and the one-word box in the right half. The left half
+  // starts on the page, right of the rail.
   const top = Math.round(box.y) + 120;
-  const left = { x: Math.round(box.x) + 20, y: top, width: 610 - Math.round(box.x), height: 460 };
+  const sheetLeft = Math.round(pageIn(box).x) + 4;
+  const left = { x: sheetLeft, y: top, width: 610 - sheetLeft, height: 460 };
   const right = { x: 630, y: top, width: 610, height: 460 };
   const text = page.getByRole("textbox", { name: "Text", exact: true });
   const boxWidth = page.getByRole("textbox", { name: "Width (pt)", exact: true });
@@ -2270,6 +2274,7 @@ test("Flutter floats the tool rail at the left edge beside the page and hides to
   for (const [name, locator] of [...controls, ["Colors", page.getByRole("button", { name: COLORS })] as const]) {
     const control = await boxOf(locator);
     expect(control.width, `${name} is a 44 px target`).toBeGreaterThanOrEqual(44);
+    expect(control.height, `${name} is a whole 44 px target`).toBeGreaterThanOrEqual(44);
     expect(control.x + control.width, `${name} does not cover the page`).toBeLessThanOrEqual(pageIn(box).x);
   }
   // The whole rail fits the 720 px window without scrolling, 8 px between targets.
@@ -2277,13 +2282,13 @@ test("Flutter floats the tool rail at the left edge beside the page and hides to
   expect(marker.y - (pen.y + pen.height), "8 px between targets").toBeGreaterThanOrEqual(8);
   const colors = await page.getByRole("button", { name: COLORS }).boundingBox();
   if (!colors) throw new Error("Colors has no bounds");
-  expect(colors.y + colors.height, "the rail fits the window").toBeLessThanOrEqual(720);
+  expect(colors.y + colors.height, "the rail fits the window").toBeLessThanOrEqual(box.y + box.height);
   expect(pen.y, "the rail starts below the top bar").toBeGreaterThanOrEqual(box.y);
   const rail = await centerPixel(page, { x: pen.x - 4, y: pen.y + pen.height / 2 });
   expect(rail, "the rail is leaf").toEqual([0xee, 0xf0, 0xea]);
-  // The rail floats: the desk, darkened only by the rail's shadow, shows on
-  // each side of it and below it.
-  for (const at of [{ x: box.x + 3, y: pen.y + pen.height / 2 }, { x: pen.x + pen.width + 14, y: pen.y + pen.height / 2 }, { x: pen.x + pen.width / 2, y: colors.y + colors.height + 30 }]) {
+  // The rail floats: the desk, darkened only by the rail's shadow, shows in
+  // the 8 px insets to its left and above it, and to its right.
+  for (const at of [{ x: box.x + 4, y: pen.y + pen.height / 2 }, { x: pen.x + pen.width / 2, y: box.y + 4 }, { x: pen.x + pen.width + 14, y: pen.y + pen.height / 2 }]) {
     expect(brightness(await centerPixel(page, at)), `the desk shows around the rail at ${at.x}, ${at.y}`).toBeGreaterThan(500);
   }
   // A hovered rail button shows a tint behind its icon.
@@ -3379,9 +3384,11 @@ test("Flutter ruled lasso and ruled eraser take the words of the lines under the
   await ruledMode("Eraser");
   await ruledMode("Lasso");
 
-  // The ruled lasso outlines the lines it covers while the pen is down.
+  // The ruled lasso outlines the lines it covers while the pen is down. The
+  // region is the page, clear of the rail and its selected tool.
+  const sheet = pageIn(box);
   const outline = () => pixelBounds(page, {
-    x: Math.ceil(box.x), y: rules[0] + 4, width: Math.floor(box.width) - 1, height: Math.round(4.5 * spacing),
+    x: Math.ceil(sheet.x), y: rules[0] + 4, width: Math.floor(sheet.width) - 1, height: Math.round(4.5 * spacing),
   }, isOutline);
   await penHold(cdp, at(200, 1), at(300, 1));
   await page.screenshot({ path: info.outputPath("one-line.png") });

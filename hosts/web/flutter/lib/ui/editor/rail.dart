@@ -224,18 +224,23 @@ extension _EditorRail on _EditorScreenState {
 
   // The rail floats over the desk at the left edge of the canvas: tools,
   // inserters, history, and the current color. Popovers open to its right,
-  // over the page.
+  // over the page. The 13 targets and their gaps take 668 px, the whole
+  // canvas below the top inset in a 720 px window (docs/specs/tablet-ui.md),
+  // so the rail has no vertical padding and its border is painted over the
+  // content instead of taking layout space.
   Widget rail() => Container(
     width: railWidth,
     clipBehavior: Clip.antiAlias,
     decoration: BoxDecoration(
       color: surface2,
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: separator),
       boxShadow: floatingShadow,
     ),
+    foregroundDecoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: separator),
+    ),
     child: SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Column(
         children: [
           for (final (i, group) in [
