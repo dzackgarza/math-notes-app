@@ -30,6 +30,10 @@ class LibraryScreen extends StatefulWidget {
 class _LibraryScreenState extends State<LibraryScreen> {
   final search = TextEditingController();
   final searchFocus = FocusNode();
+  bool libraryExpanded = true;
+  bool untaggedExpanded = false;
+  bool trashExpanded = false;
+  final expandedNotebooks = <String>{};
 
   LibraryViewModel get vm => context.read<LibraryViewModel>();
   NotesFolder get folder => context.read<NotesFolder>();
@@ -137,7 +141,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     if (tag != null) await folder.addTag(tag.name, tag.color);
   }
 
-  Future<void> create(bool isFolder) async {
+  Future<void> create(bool isFolder, [JSArray<JSString>? targetNotebook]) async {
     await vm.prepareCreation();
     if (!mounted) return;
     final form = await askCreation(
@@ -147,7 +151,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
       root: folder.root!,
       metadata: vm.library.metadata,
       folders: vm.library.folders.toDart,
-      notebook: vm.notebookPath,
+      notebook: targetNotebook ?? vm.notebookPath,
+      targetNotebook: targetNotebook,
     );
     if (form != null) await vm.create(isFolder, form);
   }
@@ -660,6 +665,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               vm.library.folders.toDart.any(
                 (item) => item.path.length > 0 || item.notes.length > 0,
               )))
+        Row(children: [
         CupertinoButton.filled(
           onPressed: () => run(() => create(true)),
           child: const Row(
@@ -670,7 +676,51 @@ class _LibraryScreenState extends State<LibraryScreen> {
               Text('New notebook'),
             ],
           ),
-        )
+        ),
+        PullDownButton(
+          itemBuilder: (_) {
+            final notebooks = vm.library.folders.toDart
+                .where((item) => item.path.length > 0)
+                .toList();
+            notebooks.sort((a, b) => b.modified.compareTo(a.modified));
+            final recent = notebooks.firstOrNull;
+            return [
+              if (recent != null) ...[
+                PullDownMenuItem(
+                  title: 'New note in ${recent.name}',
+                  icon: CupertinoIcons.pencil,
+                  onTap: () => run(() => create(false, recent.path)),
+                ),
+                PullDownMenuItem(
+                  title: 'New note in…',
+                  icon: CupertinoIcons.folder,
+                  onTap: () => run(() async {
+                    final selected = await chooseFolder(
+                      context,
+                      'Choose notebook',
+                      notebooks,
+                      (item) => item.name,
+                    );
+                    if (selected != null) await create(false, selected.path);
+                  }),
+                ),
+              ] else
+                PullDownMenuItem(
+                  title: 'New note in…',
+                  icon: CupertinoIcons.folder,
+                  onTap: () => run(() => create(false)),
+                ),
+            ];
+          },
+          buttonBuilder: (context, showMenu) => CupertinoButton(
+            onPressed: showMenu,
+            child: const Semantics(
+              label: 'Create options',
+              button: true,
+              child: Icon(CupertinoIcons.chevron_down),
+            ),
+          ),
+        ])
       else ...[
         CupertinoButton(
           onPressed: () => run(vm.importPdf),
@@ -755,8 +805,73 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
+  Widget treeRow({
+    required String text,
+    required IconData icon,
+    required int depth,
+    required VoidCallback onPressed,
+    bool selected = false,
+    IconData? trailing,
+  }) => Padding(
+    padding: EdgeInsets.only(left: depth * 16.0),
+    child: sidebarRow(
+      leading: Icon(icon, size: 17),
+      text: text,
+      selected: selected,
+      onPressed: onPressed,
+      trailing: trailing == null ? null : Icon(trailing, size: 14),
+    ),
+  );
+
+  List<Widget> notebookBranch(native.Folder item, int depth) {
+    final key = native.pathKey(item.path);
+    final expanded = expandedNotebooks.contains(key);
+    final children = vm.library.folders.toDart
+        .where((folder) =>
+            folder.path.length == item.path.length + 1 &&
+            native.pathKey(folder.path).startsWith('$key/'))
+        .toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+    final notes = item.notes.toDart
+      ..sort((a, b) => a.name.compareTo(b.name));
+    return [
+      treeRow(
+        text: item.name,
+        icon: CupertinoIcons.book,
+        depth: depth,
+        selected: vm.notebookPath != null &&
+            native.pathKey(vm.notebookPath!) == key,
+        trailing: expanded ? CupertinoIcons.chevron_down : CupertinoIcons.chevron_right,
+        onPressed: () {
+          setState(() {
+            if (expanded) {
+              expandedNotebooks.remove(key);
+            } else {
+              expandedNotebooks.add(key);
+            }
+          });
+          vm.showNotebook(item.path);
+        },
+      ),
+      if (expanded) ...[
+        for (final child in children) ...notebookBranch(child, depth + 1),
+        for (final note in notes)
+          treeRow(
+            text: note.name,
+            icon: CupertinoIcons.doc_text,
+            depth: depth + 1,
+            onPressed: () => run(() => session.open(note.path)),
+          ),
+      ],
+    ];
+  }
+
   Widget sidebar() {
     final tags = vm.library.metadata.tags.toDart;
+    final topNotebooks = vm.library.folders.toDart
+        .where((item) => item.path.length == 1)
+        .toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
     final items = [
       (
         label: 'Library',
@@ -820,13 +935,67 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
                 child: Row(children: [Text('Math Notes', style: title)]),
               ),
-              for (final item in items)
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+              for (final item in items) ...[
                 sidebarRow(
                   leading: Icon(item.icon),
                   text: item.label,
                   selected: item.selected,
-                  onPressed: item.action,
+                  trailing: item.label == 'Library'
+                      ? Icon(libraryExpanded
+                            ? CupertinoIcons.chevron_down
+                            : CupertinoIcons.chevron_right, size: 14)
+                      : item.label == 'Trash'
+                      ? Icon(trashExpanded
+                            ? CupertinoIcons.chevron_down
+                            : CupertinoIcons.chevron_right, size: 14)
+                      : null,
+                  onPressed: () {
+                    item.action();
+                    if (item.label == 'Library') {
+                      setState(() => libraryExpanded = !libraryExpanded);
+                    } else if (item.label == 'Trash') {
+                      setState(() => trashExpanded = !trashExpanded);
+                    }
+                  },
                 ),
+                if (item.label == 'Library' && libraryExpanded) ...[
+                  treeRow(
+                    text: 'Untagged',
+                    icon: CupertinoIcons.tray,
+                    depth: 1,
+                    trailing: untaggedExpanded
+                        ? CupertinoIcons.chevron_down
+                        : CupertinoIcons.chevron_right,
+                    onPressed: () => setState(
+                      () => untaggedExpanded = !untaggedExpanded,
+                    ),
+                  ),
+                  if (untaggedExpanded)
+                    for (final note in notes.where(
+                      (note) => folder.noteMetadata(note).tags.length == 0,
+                    ))
+                      treeRow(
+                        text: note.name,
+                        icon: CupertinoIcons.doc_text,
+                        depth: 2,
+                        onPressed: () => run(() => session.open(note.path)),
+                      ),
+                  for (final notebook in topNotebooks)
+                    ...notebookBranch(notebook, 1),
+                ],
+                if (item.label == 'Trash' && trashExpanded)
+                  for (final note in vm.library.trash.toDart)
+                    treeRow(
+                      text: note.name,
+                      icon: CupertinoIcons.doc_text,
+                      depth: 1,
+                      onPressed: () => vm.setFilter('trash'),
+                    ),
+              ],
               if (tags.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 20, 12, 4),
@@ -837,10 +1006,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 )
               else
                 const SizedBox(height: 12),
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
                       for (final tag in tags)
                         sidebarRow(
                           leading: Icon(

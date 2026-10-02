@@ -335,6 +335,7 @@ Future<CreationForm?> askCreation(
   required native.LibraryMetadata metadata,
   required List<native.Folder> folders,
   required JSArray<JSString>? notebook,
+  JSArray<JSString>? targetNotebook,
 }) async {
   final defaults =
       metadata.folders[native.pathKey(notebook ?? <JSString>[].toJS)] ??
@@ -346,7 +347,7 @@ Future<CreationForm?> askCreation(
     (draft?.tags ?? defaults.tags).toDart.map((tag) => tag.toDart).toList(),
   );
   final templateName = TextEditingController();
-  var target = draft?.folder ?? notebook ?? <JSString>[].toJS;
+  var target = targetNotebook ?? draft?.folder ?? notebook ?? <JSString>[].toJS;
   var paper = draft?.template ?? defaults.paper;
   var size = draft?.pageSize ?? 'a4';
   var orientation = draft?.orientation ?? 'portrait';
