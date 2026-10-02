@@ -31,7 +31,7 @@ final class NotebookStorageTests: XCTestCase {
     try document.deletePage(at: 1)
     XCTAssertEqual(try document.pageCount(), 2)
 
-    XCTAssertTrue(try document.undo())
+    XCTAssertNotNil(try document.undo())
     XCTAssertEqual(try document.pageCount(), 3)
   }
 

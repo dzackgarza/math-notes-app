@@ -30,6 +30,10 @@ struct EnginePageSize {
   let height: Double
 }
 
+struct EngineHistoryStep {
+  let page: Int
+}
+
 @MainActor
 final class EngineDocument {
   let pointer: OpaquePointer
@@ -179,19 +183,18 @@ final class EngineDocument {
   func deletePage(at index: Int) throws {
     try check(ink_document_delete_page(pointer, index), operation: "Delete notebook page")
   }
-
-  func undo() throws -> Bool {
+  func undo() throws -> EngineHistoryStep? {
     var moved: Int32 = 0
     var page: Int32 = -1
     try check(ink_undo(pointer, &moved, &page), operation: "Undo")
-    return moved != 0
+    return moved != 0 ? EngineHistoryStep(page: Int(page)) : nil
   }
 
-  func redo() throws -> Bool {
+  func redo() throws -> EngineHistoryStep? {
     var moved: Int32 = 0
     var page: Int32 = -1
     try check(ink_redo(pointer, &moved, &page), operation: "Redo")
-    return moved != 0
+    return moved != 0 ? EngineHistoryStep(page: Int(page)) : nil
   }
 
   func loadNotebook(_ data: Data) throws {

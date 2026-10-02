@@ -31,10 +31,12 @@ final class EditorToolsTests: XCTestCase {
     try document.appendPage()
     XCTAssertEqual(try document.pageCount(), 2)
 
-    XCTAssertTrue(try document.undo())
+    let undo = try XCTUnwrap(document.undo())
+    XCTAssertEqual(undo.page, 0)
     XCTAssertEqual(try document.pageCount(), 1)
 
-    XCTAssertTrue(try document.redo())
+    let redo = try XCTUnwrap(document.redo())
+    XCTAssertEqual(redo.page, 1)
     XCTAssertEqual(try document.pageCount(), 2)
   }
 }

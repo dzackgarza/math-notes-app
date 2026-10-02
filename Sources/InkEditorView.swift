@@ -502,14 +502,17 @@ struct InkEditorView: View {
 
   private func history(redo: Bool) {
     do {
-      let moved: Bool
+      let step: EngineHistoryStep?
       if redo {
-        moved = try document.redo()
+        step = try document.redo()
       } else {
-        moved = try document.undo()
+        step = try document.undo()
       }
-      guard moved else { return }
+      guard let step else { return }
+      let count = try document.pageCount()
+      currentPage = min(max(step.page, 0), max(0, count - 1))
       documentRevision &+= 1
+      pageNavigationRevision &+= 1
       onEditCommitted()
     } catch {
       onError(error)
