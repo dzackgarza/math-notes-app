@@ -1528,7 +1528,7 @@ struct InkEditorView: View {
       onError(error)
     }
   }
-  private func history(redo: Bool) {
+  private func history(redo: Bool) -> Bool {
     do {
       let step: EngineHistoryStep?
       if redo {
@@ -1536,7 +1536,7 @@ struct InkEditorView: View {
       } else {
         step = try document.undo()
       }
-      guard let step else { return }
+      guard let step else { return false }
       let count = try document.pageCount()
       currentPage = min(max(step.page, 0), max(0, count - 1))
       let layers = try document.layers()
@@ -1548,8 +1548,10 @@ struct InkEditorView: View {
       }
       pageNavigationRevision &+= 1
       onEditCommitted()
+      return true
     } catch {
       onError(error)
+      return false
     }
   }
 }

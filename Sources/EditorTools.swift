@@ -169,8 +169,8 @@ struct EditorToolRail: View {
   @State private var showingSelectorModes = false
   @State private var showingSpaceModes = false
   @State private var editingPen: EditorTool?
-  let undo: () -> Void
-  let redo: () -> Void
+  let undo: () -> Bool
+  let redo: () -> Bool
   let insertText: () -> Void
   let insertImage: () -> Void
   let drawing: Bool
@@ -229,8 +229,10 @@ struct EditorToolRail: View {
         Divider()
           .frame(width: 28)
 
-        railButton(label: "Undo", systemImage: "arrow.uturn.backward", action: undo)
-        railButton(label: "Redo", systemImage: "arrow.uturn.forward", action: redo)
+        UndoDialButton(undo: undo, redo: redo)
+        railButton(label: "Redo", systemImage: "arrow.uturn.forward") {
+          _ = redo()
+        }
       }
     }
     .padding(8)
