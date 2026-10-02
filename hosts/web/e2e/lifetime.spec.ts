@@ -285,7 +285,6 @@ test("Flutter lifetime: first year with one notes folder", async ({ page, baseUR
 
   await test.step("the user searches for the note and makes it a favorite", async () => {
     await button("Back to library").click();
-    await button("Search").click();
     await enterText(page.getByRole("textbox", { name: "Search notebooks and notes", exact: true }), "Integrals");
     await expect(page.getByRole("button", { name: "Open Integrals", exact: false })).toBeVisible();
     await expect(page.getByRole("button", { name: "Open Compactness", exact: false })).toHaveCount(0);

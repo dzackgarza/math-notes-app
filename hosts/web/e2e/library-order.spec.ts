@@ -192,7 +192,6 @@ test("Flutter keeps a library in order: keyboard, tags, tabs, moves, trash, rena
     await expect(card("Movable")).toBeVisible();
 
     await button("Back to library").click();
-    await button("Search").click();
     await enterText(page.getByRole("textbox", { name: "Search notebooks and notes", exact: true }), "Movable");
     await expect(card("Movable")).toBeVisible();
 
@@ -303,8 +302,8 @@ test("Flutter keeps a library in order: keyboard, tags, tabs, moves, trash, rena
 
   await test.step("the user searches the library and the Open note picker, which list the matching titles only", async () => {
     await button("Back to library").click();
-    await button("Search").click();
     const search = page.getByRole("textbox", { name: "Search notebooks and notes", exact: true });
+    await search.click();
     await expect(search).toBeFocused();
     await page.keyboard.type("Mod");
     await expect(search).toHaveValue("Mod");
