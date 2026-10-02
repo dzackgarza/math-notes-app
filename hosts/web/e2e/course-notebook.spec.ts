@@ -184,6 +184,7 @@ test("Flutter course notebook: set up a course notebook", async ({ page }, info)
   });
 
   await test.step("the user starts a seminar note on lined landscape Letter paper and saves it as a draft", async () => {
+    await button("Back to library").click();
     await createTestNotebook(page, "Reading seminar");
     await button("New note").click();
     await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Seminar");
