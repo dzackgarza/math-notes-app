@@ -240,6 +240,31 @@ final class EngineDocument {
     return String(cString: svg)
   }
 
+  func figureSource(id: String) throws -> String {
+    var bytes: UnsafePointer<UInt8>?
+    var size = 0
+    let status = id.withCString {
+      ink_document_figure_source(pointer, $0, &bytes, &size)
+    }
+    try check(status, operation: "Read figure source")
+    guard let bytes else { return "" }
+    return String(decoding: UnsafeBufferPointer(start: bytes, count: size), as: UTF8.self)
+  }
+
+  func saveFigureDraft(id: String, source: String) throws {
+    let data = Data(source.utf8)
+    let status = id.withCString { idBytes in
+      data.withUnsafeBytes { raw in
+        ink_document_figure_draft(
+          pointer,
+          idBytes,
+          raw.baseAddress?.assumingMemoryBound(to: UInt8.self),
+          raw.count)
+      }
+    }
+    try check(status, operation: "Save figure source")
+  }
+
   func appendPage() throws {
     try insertPage(at: pageCount())
   }

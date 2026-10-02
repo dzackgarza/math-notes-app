@@ -173,12 +173,14 @@ struct EditorToolRail: View {
   let redo: () -> Void
   let insertText: () -> Void
   let insertImage: () -> Void
+  let drawing: Bool
+  let toggleDrawing: () -> Void
   let showClippings: () -> Void
   let onPensChanged: (EditorPenLibrary) -> Void
 
   var body: some View {
     VStack(spacing: 8) {
-      ForEach(EditorTool.allCases) { item in
+      ForEach(visibleTools) { item in
         if item == .eraser {
           eraserButton
         } else if item == .lasso {
@@ -215,13 +217,21 @@ struct EditorToolRail: View {
         }
       }
 
-      railButton(label: "Clippings", systemImage: "tray", action: showClippings)
+      railButton(
+        label: drawing ? "Finish drawing" : "Drawing mode",
+        systemImage: "scribble.variable",
+        selected: drawing,
+        action: toggleDrawing)
 
-      Divider()
-        .frame(width: 28)
+      if !drawing {
+        railButton(label: "Clippings", systemImage: "tray", action: showClippings)
 
-      railButton(label: "Undo", systemImage: "arrow.uturn.backward", action: undo)
-      railButton(label: "Redo", systemImage: "arrow.uturn.forward", action: redo)
+        Divider()
+          .frame(width: 28)
+
+        railButton(label: "Undo", systemImage: "arrow.uturn.backward", action: undo)
+        railButton(label: "Redo", systemImage: "arrow.uturn.forward", action: redo)
+      }
     }
     .padding(8)
     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
@@ -238,6 +248,10 @@ struct EditorToolRail: View {
         onPersist: onPensChanged)
         .presentationCompactAdaptation(.popover)
     }
+  }
+
+  private var visibleTools: [EditorTool] {
+    drawing ? [.pen, .marker, .highlighter] : EditorTool.allCases
   }
 
   private var eraserButton: some View {

@@ -53,6 +53,7 @@ struct ContentView: View {
   @State private var goToPage: GoToPageRequest?
   @State private var bookmarks: BookmarksRequest?
   @State private var clippings: ClippingsRequest?
+  @State private var figureEditor: FigureEditorRequest?
 
   var body: some View {
     NavigationStack {
@@ -76,6 +77,7 @@ struct ContentView: View {
             onShowClippings: prepareClippings,
             onSaveClipping: saveClipping,
             onDropClipping: dropClipping,
+            onEditFigure: openFigureEditor,
             onError: { errorMessage = $0.localizedDescription })
             .navigationTitle(session.reference.name)
             .navigationBarTitleDisplayMode(.inline)
@@ -243,6 +245,16 @@ struct ContentView: View {
         request: request,
         onSelect: selectBookmark,
         onCancel: { bookmarks = nil })
+    }
+    .sheet(item: $figureEditor) { request in
+      FigureEditorSheet(
+        request: request,
+        onDraft: { source, persistent in
+          try updateFigureDraft(
+            id: request.id,
+            source: source,
+            persistent: persistent)
+        })
     }
     .overlay(alignment: .trailing) {
       if let request = clippings {
@@ -931,6 +943,31 @@ struct ContentView: View {
     bookmarkMode = false
     currentPage = mark.page
     editorPageCommand = .jumpToMark(mark)
+  }
+
+  private func openFigureEditor(_ id: String) {
+    guard let session else { return }
+    do {
+      figureEditor = FigureEditorRequest(
+        id: id,
+        source: try session.document.figureSource(id: id))
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func updateFigureDraft(
+    id: String,
+    source: String,
+    persistent: Bool
+  ) throws {
+    guard let session else { return }
+    try session.document.saveFigureDraft(id: id, source: source)
+    documentRevision &+= 1
+    if persistent {
+      guard let root else { return }
+      try root.save(session.document, notebook: session.reference)
+    }
   }
 
   private func clippingItems() throws -> [ClippingPreview] {

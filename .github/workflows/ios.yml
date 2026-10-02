@@ -83,6 +83,11 @@ jobs:
       - name: Build engine xcframework
         run: core/scripts/build-ios-xcframework.sh "$SKIA_DIR" "$VCPKG_ROOT"
 
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Build iPad TikZ resources
+        run: node hosts/web/build-tikz.mjs Resources/TikZEditor Resources/TikZRuntime
+
       - name: Generate Xcode project
         run: xcodegen generate
 

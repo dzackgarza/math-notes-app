@@ -15,11 +15,16 @@ targets:
     deploymentTarget: "18.0"
     sources:
       - Sources
+      - path: Resources/TikZRuntime
+        type: folder
+      - path: Resources/TikZEditor
+        type: folder
     dependencies:
       - framework: build/InkEngine.xcframework
         embed: false
       - package: MJRefresh
       - sdk: PDFKit.framework
+      - sdk: WebKit.framework
       - sdk: libc++.tbd
     info:
       path: Sources/Info.plist

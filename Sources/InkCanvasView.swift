@@ -330,6 +330,63 @@ final class InkCanvasView: UIView {
     return Int(index)
   }
 
+  func beginFigure(page: Int) throws {
+    guard let canvas else { return }
+    let layer = try activeLayer()
+    try require(
+      ink_canvas_figure_begin(canvas, page, layer),
+      operation: "Start drawing mode")
+  }
+
+  func figureScene() throws -> String {
+    guard let canvas else {
+      throw EngineDocumentError.operation("Read figure scene", "Canvas is unavailable")
+    }
+    var bytes: UnsafePointer<UInt8>?
+    var size = 0
+    try require(
+      ink_canvas_figure_scene(canvas, &bytes, &size),
+      operation: "Read figure scene")
+    guard let bytes else { return "" }
+    return String(decoding: UnsafeBufferPointer(start: bytes, count: size), as: UTF8.self)
+  }
+
+  func completeFigure(scene: String, tikz: String) throws -> String {
+    guard let canvas else {
+      throw EngineDocumentError.operation("Complete figure", "Canvas is unavailable")
+    }
+    let sceneData = Data(scene.utf8)
+    let tikzData = Data(tikz.utf8)
+    var idBytes: UnsafePointer<UInt8>?
+    var idSize = 0
+    let status = sceneData.withUnsafeBytes { sceneRaw in
+      tikzData.withUnsafeBytes { tikzRaw in
+        ink_canvas_figure_complete(
+          canvas,
+          sceneRaw.baseAddress?.assumingMemoryBound(to: UInt8.self),
+          sceneRaw.count,
+          tikzRaw.baseAddress?.assumingMemoryBound(to: UInt8.self),
+          tikzRaw.count,
+          &idBytes,
+          &idSize)
+      }
+    }
+    try require(status, operation: "Complete figure")
+    guard idSize > 0, let idBytes else { return "" }
+    return String(decoding: UnsafeBufferPointer(start: idBytes, count: idSize), as: UTF8.self)
+  }
+
+  func selectedFigure() throws -> String? {
+    guard let canvas else { return nil }
+    var idBytes: UnsafePointer<UInt8>?
+    var size = 0
+    try require(
+      ink_canvas_selected_figure(canvas, &idBytes, &size),
+      operation: "Read selected figure")
+    guard size > 0, let idBytes else { return nil }
+    return String(decoding: UnsafeBufferPointer(start: idBytes, count: size), as: UTF8.self)
+  }
+
   func setLayer(_ index: Int) throws {
     guard let canvas else { return }
     try require(ink_canvas_set_layer(canvas, index), operation: "Set active layer")

@@ -12,6 +12,7 @@ enum EditorPageCommand: Equatable {
   case commitText(EditorTextRequest, EngineTextProperties)
   case pasteSVGAtCenter(String, placeAtPointer: Bool)
   case pasteSVG(String, at: CGPoint, placeAtPointer: Bool)
+  case toggleFigureCapture(Int)
 }
 
 @MainActor
@@ -25,11 +26,20 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private let onBookmarkModeChanged: (Bool) -> Void
   private let onTextRequested: (EditorTextRequest) -> Void
   private let onSaveClipping: (String) -> Void
+  private let onFigureCaptureChanged: (Bool) -> Void
+  private let onFigureSourceChanged: (String) -> Void
+  private let onEditFigure: (String) -> Void
   private let onError: (Error) -> Void
   private lazy var canvasView = InkCanvasView(
     document: document,
     onInteractionEnded: { [weak self] in self?.canvasInteractionEnded() })
   private let selectionBar = UIStackView()
+  private var editFigureButton: UIButton?
+  private let figureGenerator = FigureTikZGenerator()
+  private var figureCaptureActive = false
+  private var figureCompleting = false
+  private var figurePreviewGeneration = 0
+  private var reportedFigureID: String?
   private var documentSize: CGSize
   private var setInitialZoom = false
   private var appliedTool: EditorTool = .pen
@@ -62,6 +72,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     onBookmarkModeChanged: @escaping (Bool) -> Void = { _ in },
     onTextRequested: @escaping (EditorTextRequest) -> Void = { _ in },
     onSaveClipping: @escaping (String) -> Void = { _ in },
+    onFigureCaptureChanged: @escaping (Bool) -> Void = { _ in },
+    onFigureSourceChanged: @escaping (String) -> Void = { _ in },
+    onEditFigure: @escaping (String) -> Void = { _ in },
     onError: @escaping (Error) -> Void = { _ in }
   ) {
     self.document = document
@@ -71,6 +84,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     self.onBookmarkModeChanged = onBookmarkModeChanged
     self.onTextRequested = onTextRequested
     self.onSaveClipping = onSaveClipping
+    self.onFigureCaptureChanged = onFigureCaptureChanged
+    self.onFigureSourceChanged = onFigureSourceChanged
+    self.onEditFigure = onEditFigure
     self.onError = onError
     documentSize = document.contentSize()
     super.init(nibName: nil, bundle: nil)
@@ -227,7 +243,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     if bookmarkMode != self.bookmarkMode {
       self.bookmarkMode = bookmarkMode
     }
-    canvasView.setDrawingSuppressed(bookmarkMode || tool == .text)
+    syncDrawingSuppression()
 
     if revision != documentRevision {
       documentRevision = revision
@@ -344,6 +360,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
       label: "Cut", systemImage: "scissors", action: #selector(cutSelection)))
     selectionBar.addArrangedSubview(selectionButton(
       label: "Duplicate", systemImage: "plus.square.on.square", action: #selector(duplicateSelection)))
+    let editFigure = selectionButton(
+      label: "Edit figure", systemImage: "scribble.variable", action: #selector(editSelectedFigure))
+    editFigureButton = editFigure
+    selectionBar.addArrangedSubview(editFigure)
     selectionBar.addArrangedSubview(selectionButton(
       label: "Bookmark selection", systemImage: "bookmark", action: #selector(bookmarkSelection)))
     selectionBar.addArrangedSubview(selectionButton(
@@ -366,6 +386,11 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   }
 
   private func canvasInteractionEnded() {
+    if figureCaptureActive {
+      refreshFigurePreview()
+      refreshSelectionBar()
+      return
+    }
     onEditCommitted()
     refreshSelectionBar()
   }
@@ -377,6 +402,18 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     }
 
     selectionBar.isHidden = false
+    let selectedFigure = try? canvasView.selectedFigure()
+    editFigureButton?.isHidden = selectedFigure == nil
+    if selectedFigure != reportedFigureID {
+      reportedFigureID = selectedFigure
+      if let selectedFigure {
+        do {
+          onFigureSourceChanged(try document.figureSource(id: selectedFigure))
+        } catch {
+          onError(error)
+        }
+      }
+    }
     let target = canvasView.convert(selection, to: view)
     let size = selectionBar.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize)
     let safe = view.safeAreaLayoutGuide.layoutFrame
@@ -436,6 +473,15 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
       try canvasView.ungroupSelection()
       onEditCommitted()
       refreshSelectionBar()
+    } catch {
+      onError(error)
+    }
+  }
+
+  @objc private func editSelectedFigure() {
+    do {
+      guard let id = try canvasView.selectedFigure() else { return }
+      onEditFigure(id)
     } catch {
       onError(error)
     }
@@ -510,8 +556,84 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
       case let .pasteSVG(svg, point, placeAtPointer):
         try canvasView.paste(svg, at: point, placeAtPointer: placeAtPointer)
         onEditCommitted()
+      case let .toggleFigureCapture(page):
+        toggleFigureCapture(page: page)
       }
       refreshSelectionBar()
+    } catch {
+      onError(error)
+    }
+  }
+
+  private func syncDrawingSuppression() {
+    canvasView.setDrawingSuppressed(
+      bookmarkMode || appliedTool == .text || figureCompleting)
+  }
+
+  private func refreshFigurePreview() {
+    guard figureCaptureActive, !figureCompleting else { return }
+    do {
+      let scene = try canvasView.figureScene()
+      figurePreviewGeneration &+= 1
+      let generation = figurePreviewGeneration
+      Task { @MainActor [weak self] in
+        guard let self else { return }
+        do {
+          let generated = try await self.figureGenerator.generate(scene: scene)
+          guard self.figureCaptureActive, generation == self.figurePreviewGeneration else { return }
+          self.onFigureSourceChanged(generated.source)
+        } catch {
+          self.onError(error)
+        }
+      }
+    } catch {
+      onError(error)
+    }
+  }
+
+  private func toggleFigureCapture(page: Int) {
+    if !figureCaptureActive {
+      do {
+        try canvasView.beginFigure(page: page)
+        figureCaptureActive = true
+        figurePreviewGeneration &+= 1
+        onFigureSourceChanged("")
+        onFigureCaptureChanged(true)
+      } catch {
+        onError(error)
+      }
+      return
+    }
+
+    guard !figureCompleting else { return }
+    do {
+      let scene = try canvasView.figureScene()
+      figureCompleting = true
+      figurePreviewGeneration &+= 1
+      syncDrawingSuppression()
+      Task { @MainActor [weak self] in
+        guard let self else { return }
+        do {
+          let generated = try await self.figureGenerator.generate(scene: scene)
+          let id = try self.canvasView.completeFigure(
+            scene: generated.scene,
+            tikz: generated.source)
+          self.figureCaptureActive = false
+          self.figureCompleting = false
+          self.syncDrawingSuppression()
+          self.onFigureSourceChanged(generated.source)
+          self.onFigureCaptureChanged(false)
+          if !id.isEmpty {
+            self.onEditCommitted()
+            self.refreshSelectionBar()
+            self.onEditFigure(id)
+          }
+        } catch {
+          self.figureCompleting = false
+          self.syncDrawingSuppression()
+          self.onError(error)
+        }
+      }
     } catch {
       onError(error)
     }
@@ -783,6 +905,9 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let onBookmarkModeChanged: (Bool) -> Void
   let onTextRequested: (EditorTextRequest) -> Void
   let onSaveClipping: (String) -> Void
+  let onFigureCaptureChanged: (Bool) -> Void
+  let onFigureSourceChanged: (String) -> Void
+  let onEditFigure: (String) -> Void
   let onError: (Error) -> Void
 
   func makeUIViewController(context: Context) -> InkEditorViewController {
@@ -794,6 +919,9 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       onBookmarkModeChanged: onBookmarkModeChanged,
       onTextRequested: onTextRequested,
       onSaveClipping: onSaveClipping,
+      onFigureCaptureChanged: onFigureCaptureChanged,
+      onFigureSourceChanged: onFigureSourceChanged,
+      onEditFigure: onEditFigure,
       onError: onError)
   }
 
@@ -832,12 +960,15 @@ struct InkEditorView: View {
   @State private var eraserMode: EditorEraserMode = .stroke
   @State private var spaceMode: EditorSpaceMode = .reflow
   @State private var textRequest: EditorTextRequest?
+  @State private var drawing = false
+  @State private var figureSource = ""
   let onEditCommitted: () -> Void
   let onPensChanged: (EditorPenLibrary) -> Void
   let onInsertImage: () -> Void
   let onShowClippings: () -> Void
   let onSaveClipping: (String) -> Void
   let onDropClipping: (String, CGPoint) -> Bool
+  let onEditFigure: (String) -> Void
   let onError: (Error) -> Void
 
   var body: some View {
@@ -875,6 +1006,9 @@ struct InkEditorView: View {
           }
         },
         onSaveClipping: onSaveClipping,
+        onFigureCaptureChanged: { drawing = $0 },
+        onFigureSourceChanged: { figureSource = $0 },
+        onEditFigure: onEditFigure,
         onError: onError)
 
       EditorToolRail(
@@ -887,8 +1021,51 @@ struct InkEditorView: View {
         redo: { history(redo: true) },
         insertText: { pageCommand = .requestTextAtCenter },
         insertImage: onInsertImage,
+        drawing: drawing,
+        toggleDrawing: {
+          if !drawing, ![EditorTool.pen, .marker, .highlighter].contains(tool) {
+            tool = .pen
+          }
+          pageCommand = .toggleFigureCapture(currentPage)
+        },
         showClippings: onShowClippings,
         onPensChanged: onPensChanged)
+
+      if drawing || !figureSource.isEmpty {
+        VStack(alignment: .leading, spacing: 10) {
+          HStack {
+            Text("TikZ figure")
+              .font(.headline)
+            Spacer()
+            Button("Copy", systemImage: "doc.on.doc") {
+              UIPasteboard.general.string = figureSource
+            }
+            .labelStyle(.iconOnly)
+            .disabled(figureSource.isEmpty)
+          }
+          ScrollView {
+            Text(figureSource.isEmpty ? "Draw on the page to build the figure." : figureSource)
+              .font(.system(.caption, design: .monospaced))
+              .foregroundStyle(figureSource.isEmpty ? .secondary : .primary)
+              .textSelection(.enabled)
+              .frame(maxWidth: .infinity, alignment: .topLeading)
+          }
+          if !drawing {
+            Button("Close figure preview") {
+              figureSource = ""
+            }
+          }
+        }
+        .padding(16)
+        .frame(minWidth: 280, maxWidth: 280, minHeight: 260, maxHeight: 520, alignment: .topLeading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .overlay {
+          RoundedRectangle(cornerRadius: 16)
+            .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+        .padding(8)
+      }
 
       if bookmarkMode {
         HStack(spacing: 10) {
