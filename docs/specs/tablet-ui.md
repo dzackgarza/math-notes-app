@@ -85,7 +85,8 @@ toolbar and the tool popovers:
   counter, not to menu rows.
 - **Navigation sidebar**: tabs for page thumbnails, bookmarks, outlines, and
   layers. A page thumbnail jumps to that page. Arrange pages opens the larger
-  reorder view. A layer row shows its name, visibility, and editing actions.
+  reorder view. A layer row shows a preview of that layer on the current page,
+  its name, visibility, and editing actions.
 - **Tabs**: a tab strip under the top bar while two or more notes are open,
   one tab per note with a close button. The active tab is marked by label
   color and selected semantics.

@@ -226,6 +226,7 @@ extension type Document(JSObject value) implements JSObject {
   external void movePage(int from, int to);
   external void duplicatePage(int index);
   external JSUint8Array pagePng(int index, int width);
+  external JSUint8Array layerPng(int page, int layer, int width);
   external void setPageSize(
     int size,
     int orientation, [

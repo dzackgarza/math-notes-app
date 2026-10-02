@@ -1363,13 +1363,23 @@ InkStatus ink_document_page_rect(InkDocument *document, size_t index, double *x,
   });
 }
 
-InkStatus ink_document_page_png(InkDocument *document, size_t index, int32_t width,
-                                const uint8_t **png, size_t *size) {
+static InkStatus RenderPagePng(InkDocument *document, size_t index,
+                               std::optional<size_t> layer, int32_t width,
+                               const uint8_t **png, size_t *size) {
   return Call([&] {
     if (!document) return NullArgument("document");
     if (!png || !size) return NullArgument("png or size");
     if (width <= 0) return Fail(INK_ERROR_ARGUMENT, "non-positive width");
-    const ink_engine::Document &current = document->history.current();
+    const ink_engine::Document &source = document->history.current();
+    if (layer && *layer >= source.notebook.layers.size())
+      return Fail(INK_ERROR_ARGUMENT, "layer index out of range");
+    std::optional<ink_engine::Document> filtered;
+    if (layer) {
+      filtered.emplace(source);
+      for (size_t i = 0; i < filtered->notebook.layers.size(); ++i)
+        filtered->notebook.layers[i].hidden = i != *layer;
+    }
+    const ink_engine::Document &current = filtered ? *filtered : source;
     std::vector<ink_engine::PagePlacement> layout = ink_engine::LayoutPages(current, document->arrangement);
     if (index >= layout.size()) return BadPageIndex();
     const ink_engine::PagePlacement &p = layout[index];
@@ -1395,6 +1405,16 @@ InkStatus ink_document_page_png(InkDocument *document, size_t index, int32_t wid
     *size = document->png.size();
     return INK_OK;
   });
+}
+
+InkStatus ink_document_page_png(InkDocument *document, size_t index, int32_t width,
+                                const uint8_t **png, size_t *size) {
+  return RenderPagePng(document, index, std::nullopt, width, png, size);
+}
+
+InkStatus ink_document_layer_png(InkDocument *document, size_t page, size_t layer,
+                                 int32_t width, const uint8_t **png, size_t *size) {
+  return RenderPagePng(document, page, layer, width, png, size);
 }
 
 static InkStatus ExportPdfSelection(InkDocument *document, const char *title,

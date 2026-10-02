@@ -405,6 +405,10 @@ InkStatus ink_document_page_rect(InkDocument *document, size_t index, double *x,
    until the next call of this function on the document. */
 InkStatus ink_document_page_png(InkDocument *document, size_t index, int32_t width,
                                 const uint8_t **png, size_t *size);
+/* A page thumbnail with only one layer's content visible. Uses the same PNG
+   buffer as ink_document_page_png. */
+InkStatus ink_document_layer_png(InkDocument *document, size_t page, size_t layer,
+                                 int32_t width, const uint8_t **png, size_t *size);
 
 /* A zero-based consecutive page range. `include_links` exports bookmark
    destinations and link annotations. Hidden layers are omitted unless

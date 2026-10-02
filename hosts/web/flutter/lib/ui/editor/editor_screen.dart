@@ -1250,7 +1250,20 @@ class _EditorScreenState extends State<EditorScreen> {
                   for (var index = layers.length - 1; index >= 0; index--)
                     CupertinoListTile(
                       title: Text(layers[index].name),
-                      leading: const Icon(CupertinoIcons.square_stack),
+                      leading: DecoratedBox(
+                        decoration: const BoxDecoration(
+                          border: Border.fromBorderSide(
+                            BorderSide(color: paperEdge),
+                          ),
+                        ),
+                        child: Image.memory(
+                          document.layerPng(page, index, 64).toDart,
+                          width: 40,
+                          height: 52,
+                          fit: BoxFit.contain,
+                          excludeFromSemantics: true,
+                        ),
+                      ),
                       onTap: layers[index].hidden || layers[index].locked
                           ? null
                           : () => edit(() => canvas!.setLayer(index)),
