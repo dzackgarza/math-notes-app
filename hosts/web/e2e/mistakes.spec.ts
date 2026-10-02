@@ -249,7 +249,7 @@ test("Flutter mistakes session: blocked and cancelled strokes, finger-tap undo, 
     await button("Done").click();
 
     await button("Open navigation").click();
-    await page.getByText("Layers", { exact: true }).click();
+    await button("Navigation Layers").click();
     await button("Edit Ink").click();
     // The empty list below the last control of the only layer row.
     const last = await boxOf(button("Delete Ink"));

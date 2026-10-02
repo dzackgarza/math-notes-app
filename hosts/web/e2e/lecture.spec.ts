@@ -26,11 +26,11 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   await test.step("the left navigation opens pages, bookmarks, outlines, and layers", async () => {
     await button("Open navigation").click();
     await expect(page.getByText("Arrange pages", { exact: true })).toBeVisible();
-    await page.getByText("Bookmarks", { exact: true }).click();
+    await button("Navigation Bookmarks").click();
     await expect(page.getByRole("group", { name: /No bookmarks/ })).toBeVisible();
-    await page.getByText("Outlines", { exact: true }).click();
+    await button("Navigation Outlines").click();
     await expect(page.getByRole("group", { name: /No outlines/ })).toBeVisible();
-    await page.getByText("Layers", { exact: true }).click();
+    await button("Navigation Layers").click();
     await expect(button("Hide Ink")).toBeVisible();
     await expect(button("Edit Ink")).toBeVisible();
     await button("Close navigation").click();

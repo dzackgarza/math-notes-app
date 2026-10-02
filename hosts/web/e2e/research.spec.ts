@@ -48,7 +48,7 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   ], 0.6);
   const layers = async (action: () => Promise<void>) => {
     await button("Open navigation").click();
-    await page.getByText("Layers", { exact: true }).click();
+    await button("Navigation Layers").click();
     await button("Edit Ink").click();
     await action();
     await button("Done").click();
