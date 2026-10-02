@@ -41,6 +41,12 @@ final class EditorToolsTests: XCTestCase {
     XCTAssertEqual(EditorSelectorMode.ruled.engineValue, INK_SELECTOR_RULED)
   }
 
+  func testInsertSpaceModesMapToTheSharedEngineABI() {
+    XCTAssertEqual(EditorSpaceMode.vertical.engineValue, INK_SELECTOR_SPACE_VERTICAL)
+    XCTAssertEqual(EditorSpaceMode.horizontal.engineValue, INK_SELECTOR_SPACE_HORIZONTAL)
+    XCTAssertEqual(EditorSpaceMode.reflow.engineValue, INK_SELECTOR_SPACE_RULED)
+  }
+
 
   @MainActor
   func testPenLibraryRoundTripsTheEngineFormat() throws {

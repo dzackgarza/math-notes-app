@@ -85,7 +85,13 @@ final class InkCanvasView: UIView {
     updateSurfaceSize()
   }
 
-  func applyTool(_ tool: EditorTool, pens: EditorPenSet, eraserMode: EditorEraserMode = .stroke, selectorMode: EditorSelectorMode = .freehand) {
+  func applyTool(
+    _ tool: EditorTool,
+    pens: EditorPenSet,
+    eraserMode: EditorEraserMode = .stroke,
+    selectorMode: EditorSelectorMode = .freehand,
+    spaceMode: EditorSpaceMode = .reflow
+  ) {
     guard let canvas else { return }
 
     func setEraser(active: Bool) {
@@ -109,6 +115,8 @@ final class InkCanvasView: UIView {
       }
     case .lasso:
       setSelector(selectorMode.engineValue, active: true)
+    case .space:
+      setSelector(spaceMode.engineValue, active: true)
     case .pen, .marker, .highlighter:
       setEraser(active: false)
       setSelector(selectorMode.engineValue, active: false)
@@ -116,7 +124,7 @@ final class InkCanvasView: UIView {
       case .pen: pens.pen
       case .marker: pens.marker
       case .highlighter: pens.highlighter
-      case .eraser, .lasso: pens.pen
+      case .eraser, .lasso, .space: pens.pen
       }
       check(ink_canvas_set_tool(canvas, &settings), operation: "ink_canvas_set_tool")
     }

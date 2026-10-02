@@ -26,6 +26,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private var appliedTool: EditorTool = .pen
   private var appliedEraserMode: EditorEraserMode = .stroke
   private var appliedSelectorMode: EditorSelectorMode = .freehand
+  private var appliedSpaceMode: EditorSpaceMode = .reflow
   private var appliedPens = EditorPenSet.defaults
   private var appliedArrangement = EditorPageArrangement.vertical
   private var appliedLayerID: String?
@@ -138,6 +139,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     tool: EditorTool,
     eraserMode: EditorEraserMode,
     selectorMode: EditorSelectorMode,
+    spaceMode: EditorSpaceMode,
     pens: EditorPenSet,
     revision: Int,
     arrangement: EditorPageArrangement,
@@ -149,11 +151,17 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   ) {
     loadViewIfNeeded()
 
-    if tool != appliedTool || eraserMode != appliedEraserMode || selectorMode != appliedSelectorMode || pens != appliedPens {
-      canvasView.applyTool(tool, pens: pens, eraserMode: eraserMode, selectorMode: selectorMode)
+    if tool != appliedTool || eraserMode != appliedEraserMode || selectorMode != appliedSelectorMode || spaceMode != appliedSpaceMode || pens != appliedPens {
+      canvasView.applyTool(
+        tool,
+        pens: pens,
+        eraserMode: eraserMode,
+        selectorMode: selectorMode,
+        spaceMode: spaceMode)
       appliedTool = tool
       appliedEraserMode = eraserMode
       appliedSelectorMode = selectorMode
+      appliedSpaceMode = spaceMode
       appliedPens = pens
     }
 
@@ -551,6 +559,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let document: EngineDocument
   let eraserMode: EditorEraserMode
   let selectorMode: EditorSelectorMode
+  let spaceMode: EditorSpaceMode
   let tool: EditorTool
   let pens: EditorPenSet
   let arrangement: EditorPageArrangement
@@ -579,6 +588,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       tool: tool,
       eraserMode: eraserMode,
       selectorMode: selectorMode,
+      spaceMode: spaceMode,
       pens: pens,
       revision: revision,
       arrangement: arrangement,
@@ -604,6 +614,7 @@ struct InkEditorView: View {
   @Binding var pageCommand: EditorPageCommand?
   @State private var selectorMode: EditorSelectorMode = .freehand
   @State private var eraserMode: EditorEraserMode = .stroke
+  @State private var spaceMode: EditorSpaceMode = .reflow
   let onEditCommitted: () -> Void
   let onPensChanged: (EditorPenLibrary) -> Void
   let onError: (Error) -> Void
@@ -614,6 +625,7 @@ struct InkEditorView: View {
         document: document,
         eraserMode: eraserMode,
         selectorMode: selectorMode,
+        spaceMode: spaceMode,
         tool: tool,
         pens: penLibrary.tools,
         arrangement: arrangement,
@@ -636,6 +648,7 @@ struct InkEditorView: View {
         tool: $tool,
         eraserMode: $eraserMode,
         selectorMode: $selectorMode,
+        spaceMode: $spaceMode,
         penLibrary: $penLibrary,
         undo: { history(redo: false) },
         redo: { history(redo: true) },

@@ -7,6 +7,7 @@ enum EditorTool: String, CaseIterable, Identifiable {
   case highlighter
   case eraser
   case lasso
+  case space
 
   var id: Self { self }
 
@@ -17,6 +18,7 @@ enum EditorTool: String, CaseIterable, Identifiable {
     case .highlighter: "Highlighter"
     case .eraser: "Eraser"
     case .lasso: "Lasso"
+    case .space: "Insert Space"
     }
   }
 
@@ -27,6 +29,7 @@ enum EditorTool: String, CaseIterable, Identifiable {
     case .highlighter: "highlighter"
     case .eraser: "eraser"
     case .lasso: "lasso"
+    case .space: "arrow.up.and.down.and.arrow.left.and.right"
     }
   }
 }
@@ -88,6 +91,30 @@ enum EditorSelectorMode: String, CaseIterable, Identifiable {
   }
 }
 
+enum EditorSpaceMode: String, CaseIterable, Identifiable {
+  case vertical = "Vertical"
+  case horizontal = "Horizontal"
+  case reflow = "Reflow"
+
+  var id: Self { self }
+
+  var engineValue: InkSelector {
+    switch self {
+    case .vertical: INK_SELECTOR_SPACE_VERTICAL
+    case .horizontal: INK_SELECTOR_SPACE_HORIZONTAL
+    case .reflow: INK_SELECTOR_SPACE_RULED
+    }
+  }
+
+  var systemImage: String {
+    switch self {
+    case .vertical: "arrow.up.and.down"
+    case .horizontal: "arrow.left.and.right"
+    case .reflow: "text.word.spacing"
+    }
+  }
+}
+
 struct EditorPenSet: Equatable {
   let pen: InkToolSettings
   let marker: InkToolSettings
@@ -130,9 +157,11 @@ struct EditorToolRail: View {
   @Binding var tool: EditorTool
   @Binding var eraserMode: EditorEraserMode
   @Binding var selectorMode: EditorSelectorMode
+  @Binding var spaceMode: EditorSpaceMode
   @Binding var penLibrary: EditorPenLibrary
   @State private var showingEraserModes = false
   @State private var showingSelectorModes = false
+  @State private var showingSpaceModes = false
   @State private var editingPen: EditorTool?
   let undo: () -> Void
   let redo: () -> Void
@@ -145,6 +174,8 @@ struct EditorToolRail: View {
           eraserButton
         } else if item == .lasso {
           selectorButton
+        } else if item == .space {
+          spaceButton
         } else {
           railButton(
             label: item.label,
@@ -258,6 +289,47 @@ struct EditorToolRail: View {
           .buttonStyle(.plain)
           .foregroundStyle(selectorMode == mode ? Color.accentColor : Color.primary)
           .accessibilityValue(selectorMode == mode ? "Selected" : "")
+        }
+      }
+      .padding(16)
+      .presentationCompactAdaptation(.popover)
+    }
+  }
+
+  private var spaceButton: some View {
+    railButton(
+      label: "Insert Space, \(spaceMode.rawValue)",
+      systemImage: EditorTool.space.systemImage,
+      selected: tool == .space
+    ) {
+      if tool == .space {
+        showingSpaceModes = true
+      } else {
+        tool = .space
+      }
+    }
+    .popover(isPresented: $showingSpaceModes, arrowEdge: .leading) {
+      HStack(spacing: 12) {
+        ForEach(EditorSpaceMode.allCases) { mode in
+          Button {
+            spaceMode = mode
+            tool = .space
+            showingSpaceModes = false
+          } label: {
+            VStack(spacing: 8) {
+              Image(systemName: mode.systemImage)
+                .font(.system(size: 24))
+                .frame(width: 44, height: 44)
+                .background(
+                  spaceMode == mode ? Color.accentColor.opacity(0.14) : Color.clear,
+                  in: RoundedRectangle(cornerRadius: 10))
+              Text(mode.rawValue)
+                .font(.caption)
+            }
+          }
+          .buttonStyle(.plain)
+          .foregroundStyle(spaceMode == mode ? Color.accentColor : Color.primary)
+          .accessibilityValue(spaceMode == mode ? "Selected" : "")
         }
       }
       .padding(16)
