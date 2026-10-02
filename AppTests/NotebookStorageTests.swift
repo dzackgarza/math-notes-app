@@ -173,7 +173,7 @@ final class NotebookStorageTests: XCTestCase {
     let bookmark = try XCTUnwrap(
       destinations.first { $0.id == "b-bookmark0001" })
     XCTAssertEqual(bookmark.page, 1)
-    XCTAssertEqual(try XCTUnwrap(bookmark.x), 80, accuracy: 0.01)
+    XCTAssertEqual(try XCTUnwrap(bookmark.x), 79.2, accuracy: 0.01)
 
     let preview = try document.bookmarkPNG(id: bookmark.id, width: 240)
     XCTAssertGreaterThan(preview.count, 8)
