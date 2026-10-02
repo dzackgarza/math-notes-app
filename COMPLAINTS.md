@@ -312,3 +312,20 @@ Guidance: `anthropics/skills` at `8a1541c` (2026-09-28), `skills/frontend-design
 | Not measured | 3 |
 
 The two audits agree on the cause and differ on the remedy. ui-ux-pro-max says the app breaks platform rules (contrast, targets, focus order, navigation hierarchy). frontend-design says that even with those fixed, nothing in the app was chosen for handwritten mathematics: the typeface, the neutrals, the sheets, the cover, and the empty state are all what the framework produced unprompted, and the one choice the brief did make (navy plus one blue) is spent on every row and link instead of on the page.
+
+# Current interface compared with Goodnotes and Noteful
+
+Yes. The useful lesson from Goodnotes and Noteful is how they make the next action clear, keep related controls together, and show the result in context. We should use those principles within Math Notes’ own visual style.
+
+I compared the [deployed library](/tmp/math-notes-library.png), [editor](/tmp/math-notes-editor.png), [pen popup](/tmp/math-notes-pen-popup.png), and [Pages menu](/tmp/math-notes-pages-menu.png) with the iPad captures. The clearest gaps are:
+
+| Priority | Current gap | Better direction |
+| --- | --- | --- |
+| 1 | **Pages opens a long action menu**, then a separate [modal overview](/tmp/math-notes-pages-sheet.png). This takes the user away from the page. | Use a collapsible left sidebar with Overview, Bookmarks, Outlines, and Layers. Put page actions beside the page they affect. |
+| 2 | **“Add page” has no stated position** and sits beside “Insert page before/after.” | Make the add control offer Before, After, and At end. Show the chosen position before insertion. |
+| 3 | **The pen popup is tidy but its icon-only tabs need interpretation.** The tool rail shows only one color; saved combinations are hidden inside it. | Give settings clear names, keep a live stroke preview, and make saved tool and color combinations quick to reach. |
+| 4 | **The library’s empty state repeats notebook creation**, while creation is a text button at the far right. | Give creation one prominent **+** control with clear notebook and note choices. Use the empty state to explain the first step. |
+| 5 | **The editor top bar has weak hierarchy.** The untitled page gets most of the space, while page navigation, add page, and document actions compete in a small right-hand cluster. | Give navigation a stable left edge and distinguish frequent page actions from document settings and sharing. |
+| 6 | **Share and export still read as separate technical commands.** | Use one Share flow: choose content and format, then choose a destination such as download or print. |
+
+The [Goodnotes pen popup](</home/dzack/math-notes-ui-reference/goodnotes/pen-popup.png>) also shows a caution: it is rich, but crowded. The [Noteful layer panel](</home/dzack/math-notes-ui-reference/noteful/layers.png>) is a stronger reference for grouping and placing controls beside the item they affect. These are findings from the inspected screens and an empty Math Notes document; they do not yet cover every populated state or interaction.
