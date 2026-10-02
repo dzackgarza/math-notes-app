@@ -125,12 +125,10 @@ export function storedNote(page: Page, path: string[]) {
   return whenSaved(() => page.evaluate(async (path) => {
     let dir = await navigator.storage.getDirectory();
     for (const name of path) dir = await dir.getDirectoryHandle(name);
-    let manifest: { pages: { file: string }[] };
-    try { manifest = JSON.parse(await (await (await dir.getFileHandle("notebook.json")).getFile()).text()); }
-    catch (error) { throw new Error(`Cannot read manifest ${notebook}/${title}/notebook.json: ${error}`); }
+    const manifest = JSON.parse(await (await (await dir.getFileHandle("notebook.json")).getFile()).text());
     const files = await dir.getDirectoryHandle("pages");
     const pages = [];
-    for (const entry of manifest.pages) {
+    for (const entry of manifest.pages as { file: string }[]) {
       const svg = await (await (await files.getFileHandle(entry.file.replace("pages/", ""))).getFile()).text();
       const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
       const groups = Array.from(parsed.documentElement.children).filter((g) => g.tagName === "g" && g.id !== "background");
@@ -464,10 +462,12 @@ export function storedPages(page: Page, title: string, notebook = "Test Notebook
     };
     const notebookDir = await directory(root, notebook, notebook);
     const dir = await directory(notebookDir, title, `${notebook}/${title}`);
-    const manifest = JSON.parse(await (await (await dir.getFileHandle("notebook.json")).getFile()).text());
+    let manifest: { pages: { file: string }[] };
+    try { manifest = JSON.parse(await (await (await dir.getFileHandle("notebook.json")).getFile()).text()); }
+    catch (error) { throw new Error(`Cannot read manifest ${notebook}/${title}/notebook.json: ${error}`); }
     const pages = await directory(dir, "pages", `${notebook}/${title}/pages`);
     const saved = [];
-    for (const entry of manifest.pages as { file: string }[]) {
+    for (const entry of manifest.pages) {
       let svg: string;
       try { svg = await (await (await pages.getFileHandle(entry.file.replace("pages/", ""))).getFile()).text(); }
       catch (error) { throw new Error(`Cannot read page ${notebook}/${title}/${entry.file}: ${error}`); }
