@@ -180,7 +180,7 @@ test("Flutter lifetime: first year with one notes folder", async ({ page, baseUR
   // page 1, which still shows its own ink and none of the other pages'.
   const addPage = async (number: number) => {
     await button("Pages").click();
-    await button("Add page").click();
+    await button("Add page At end").click();
     await expect(page.getByText(`${number - 1} / ${number}`, { exact: true })).toBeVisible();
     await goToPage(page, number);
     await expect(page.getByText(`${number} / ${number}`, { exact: true })).toBeVisible();

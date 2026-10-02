@@ -202,7 +202,7 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   // Page 2: a row of handwriting and a bookmark at its line.
   await button("Pen").click();
   await button("Pages").click();
-  await button("Add page").click();
+  await button("Add page At end").click();
   await goToPage(page, 2);
   await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
   await write(rows[0]);
