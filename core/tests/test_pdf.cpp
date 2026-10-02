@@ -2,6 +2,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <fstream>
+#include <filesystem>
+#include <cmath>
 #include <string>
 
 #include "include/codec/SkCodec.h"
@@ -20,6 +22,7 @@
 #include "include/utils/SkParsePath.h"
 #include "ink.h"
 #include "support/session.h"
+#include "support/notebook_dir.h"
 
 namespace {
 
@@ -94,4 +97,39 @@ TEST_CASE("A notebook exports a selected page range as a deterministic PDF") {
   CHECK(size > first.size());
   std::ofstream("notebook-full.pdf", std::ios::binary)
       .write(reinterpret_cast<const char *>(bytes), size);
+}
+
+TEST_CASE("Saved notebook fixtures export deterministic PDFs and page rasters") {
+  std::filesystem::create_directories("pdf-fixtures");
+  for (const char *name : {"full", "custom-size"}) {
+    const std::string source = std::string(INK_DOCUMENTS_DIR) + "/" + name;
+    ink_test::Session session(ink_engine::LoadNotebook(ink_test::ReadNotebookDir(source)));
+    for (const auto &[path, bytes] : ink_test::ReadAssets(source)) {
+      REQUIRE(ink_document_load_asset(session.document, path.c_str(),
+                  reinterpret_cast<const uint8_t *>(bytes.data()), bytes.size()) == INK_OK);
+    }
+    const InkPdfExportSpec spec{.first_page = 0, .page_count = session.doc().pages.size()};
+    const uint8_t *pdf = nullptr;
+    size_t size = 0;
+    REQUIRE(ink_export_pdf(session.document, session.doc().notebook.title.c_str(),
+                           &spec, &pdf, &size) == INK_OK);
+    const std::string first(reinterpret_cast<const char *>(pdf), size);
+    REQUIRE(ink_export_pdf(session.document, session.doc().notebook.title.c_str(),
+                           &spec, &pdf, &size) == INK_OK);
+    REQUIRE(std::string(reinterpret_cast<const char *>(pdf), size) == first);
+    std::ofstream("pdf-fixtures/" + std::string(name) + ".pdf", std::ios::binary)
+        .write(first.data(), first.size());
+
+    for (size_t index = 0; index < session.doc().pages.size(); ++index) {
+      const auto &page = *session.doc().pages[index];
+      REQUIRE_FALSE(page.error);
+      const uint8_t *png = nullptr;
+      size_t png_size = 0;
+      REQUIRE(ink_document_page_png(session.document, index,
+                  int32_t(std::lround(page.width)), &png, &png_size) == INK_OK);
+      std::ofstream("pdf-fixtures/" + std::string(name) + "-" +
+                    std::to_string(index + 1) + ".png", std::ios::binary)
+          .write(reinterpret_cast<const char *>(png), png_size);
+    }
+  }
 }
