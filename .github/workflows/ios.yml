@@ -8,6 +8,10 @@ on:
       - Sources/**
       - AppTests/**
       - core/**
+      - hosts/web/build-tikz.mjs
+      - hosts/web/ipad-figure-generator.js
+      - hosts/web/tikz-embed.html
+      - Resources/TikZRuntime/**
       - tests/documents/**
       - project.yml
       - sidestore-source.jq
