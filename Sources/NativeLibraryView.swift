@@ -1,12 +1,18 @@
 import SwiftUI
 import UIKit
 
+enum LibraryScope: String {
+  case folder
+  case recent
+}
+
 @MainActor
 struct NativeLibraryView: View {
   let root: NotesRootAccess
   let folder: FolderReference
   let listing: LibraryListing
   @Binding var query: String
+  @Binding var scope: LibraryScope
   let sort: LibrarySort
   let grid: Bool
   let openFolder: (FolderReference) -> Void
@@ -30,6 +36,12 @@ struct NativeLibraryView: View {
           Label("No Results", systemImage: "magnifyingglass")
         } description: {
           Text("Nothing matches “\(query)”.")
+        }
+      } else if scope == .recent && listing.notebooks.isEmpty {
+        ContentUnavailableView {
+          Label("No Recent Notes", systemImage: "clock")
+        } description: {
+          Text("Notes appear here after they are created or edited.")
         }
       } else if listing.folders.isEmpty && listing.notebooks.isEmpty {
         ContentUnavailableView {
@@ -76,7 +88,8 @@ struct NativeLibraryView: View {
         .listStyle(.insetGrouped)
       }
     }
-    .navigationTitle(query.isEmpty ? folder.name : "Search")
+    .navigationTitle(
+      !query.isEmpty ? "Search" : scope == .recent ? "Recent" : folder.name)
     .navigationBarTitleDisplayMode(.large)
     .searchable(
       text: $query,
@@ -85,8 +98,11 @@ struct NativeLibraryView: View {
     .onChange(of: query) {
       refresh()
     }
+    .onChange(of: scope) {
+      refresh()
+    }
     .toolbar {
-      if !folder.path.isEmpty {
+      if scope == .folder && !folder.path.isEmpty {
         ToolbarItem(placement: .topBarLeading) {
           Button(action: goUp) {
             Label("Up", systemImage: "chevron.left")
@@ -100,6 +116,29 @@ struct NativeLibraryView: View {
         }
 
         Menu {
+          Button {
+            scope = .folder
+          } label: {
+            if scope == .folder {
+              Label("Library", systemImage: "checkmark")
+            } else {
+              Label("Library", systemImage: "books.vertical")
+            }
+          }
+
+          Button {
+            setSort(.modified)
+            scope = .recent
+          } label: {
+            if scope == .recent {
+              Label("Recent", systemImage: "checkmark")
+            } else {
+              Label("Recent", systemImage: "clock")
+            }
+          }
+
+          Divider()
+
           Button(action: importPDF) {
             Label("Import PDF", systemImage: "doc.badge.plus")
           }
@@ -223,7 +262,7 @@ struct NativeLibraryView: View {
           .font(.headline)
           .lineLimit(2)
 
-        if !query.isEmpty {
+        if !query.isEmpty || scope == .recent {
           let parent = item.reference.path.dropLast().joined(separator: " / ")
           if !parent.isEmpty {
             Text(parent)
@@ -289,7 +328,7 @@ struct NativeLibraryView: View {
         VStack(alignment: .leading, spacing: 4) {
           Text(item.reference.name)
             .font(.headline)
-          if !query.isEmpty {
+          if !query.isEmpty || scope == .recent {
             let parent = item.reference.path.dropLast().joined(separator: " / ")
             if !parent.isEmpty {
               Text(parent)

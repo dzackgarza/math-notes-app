@@ -361,6 +361,54 @@ final class NotesRootAccess {
     }
   }
 
+  func allNotes(sort: LibrarySort) throws -> LibraryListing {
+    try coordinatedRead(at: url) { root in
+      let fileManager = FileManager.default
+      var notebooks: [LibraryNotebookItem] = []
+
+      func visit(_ directory: URL, path: [String]) throws {
+        let children = try fileManager.contentsOfDirectory(
+          at: directory,
+          includingPropertiesForKeys: [.isDirectoryKey],
+          options: [.skipsHiddenFiles])
+
+        for child in children {
+          let name = child.lastPathComponent
+          guard !name.hasPrefix("."),
+            try child.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true
+          else { continue }
+
+          let childPath = path + [name]
+          if fileManager.fileExists(
+            atPath: child.appendingPathComponent("notebook.json").path)
+          {
+            notebooks.append(
+              LibraryNotebookItem(
+                reference: NotebookReference(path: childPath),
+                modified: try Self.notebookModification(at: child)))
+          } else {
+            try visit(child, path: childPath)
+          }
+        }
+      }
+
+      try visit(root, path: [])
+      let nameOrder: (String, String) -> Bool = {
+        $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+      }
+      switch sort {
+      case .name:
+        notebooks.sort { nameOrder($0.reference.name, $1.reference.name) }
+      case .modified:
+        notebooks.sort {
+          if $0.modified != $1.modified { return $0.modified > $1.modified }
+          return nameOrder($0.reference.name, $1.reference.name)
+        }
+      }
+      return LibraryListing(folders: [], notebooks: notebooks)
+    }
+  }
+
   func createFolder(parent: FolderReference, name: String) throws -> FolderReference {
     let cleanName = try validatedLibraryName(name)
     let path = parent.path + [cleanName]

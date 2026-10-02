@@ -14,6 +14,7 @@ struct ContentView: View {
   @State private var libraryFolder = FolderReference(path: [])
   @State private var libraryListing = LibraryListing(folders: [], notebooks: [])
   @State private var libraryQuery = ""
+  @State private var libraryScope: LibraryScope = .folder
   @State private var librarySort: LibrarySort = .name
   @State private var libraryGrid = true
   @AppStorage("pageArrangement") private var pageArrangementRaw = EditorPageArrangement.vertical.rawValue
@@ -281,10 +282,12 @@ struct ContentView: View {
       folder: libraryFolder,
       listing: libraryListing,
       query: $libraryQuery,
+      scope: $libraryScope,
       sort: librarySort,
       grid: libraryGrid,
       openFolder: { folder in
         libraryQuery = ""
+        libraryScope = .folder
         libraryFolder = folder
         refreshLibrary()
       },
@@ -328,6 +331,7 @@ struct ContentView: View {
     session = nil
     libraryFolder = FolderReference(path: [])
     libraryQuery = ""
+    libraryScope = .folder
     libraryListing = LibraryListing(folders: [], notebooks: [])
     root = newRoot
     reloadPenLibrary()
@@ -369,13 +373,18 @@ struct ContentView: View {
     }
 
     do {
-      if libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        libraryListing = try root.library(in: libraryFolder, sort: librarySort)
-      } else {
+      if !libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
         libraryListing = try root.searchLibrary(query: libraryQuery, sort: librarySort)
+      } else if libraryScope == .recent {
+        libraryListing = try root.allNotes(sort: librarySort)
+      } else {
+        libraryListing = try root.library(in: libraryFolder, sort: librarySort)
       }
     } catch {
-      if !libraryFolder.path.isEmpty {
+      if libraryScope == .folder,
+        libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+        !libraryFolder.path.isEmpty
+      {
         libraryFolder = FolderReference(path: [])
         do {
           libraryListing = try root.library(in: libraryFolder, sort: librarySort)
