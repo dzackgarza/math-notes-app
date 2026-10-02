@@ -45,6 +45,26 @@ final class EditorToolsTests: XCTestCase {
     XCTAssertTrue(library.saved.isEmpty)
     XCTAssertEqual(try library.json(), defaults)
   }
+
+  @MainActor
+  func testEditedPenLibraryRoundTripsSavedPreset() throws {
+    var library = EditorPenLibrary.defaults
+    var pen = library.pen
+    pen.rgb = 0x2F6FEB
+    pen.size = 2.4
+    pen.opacity = 0.8
+    library.setSettings(pen, for: .pen)
+    library.saved.append(pen)
+
+    let decoded = try EditorPenLibrary(json: library.json())
+
+    XCTAssertEqual(decoded.pen.rgb, 0x2F6FEB)
+    XCTAssertEqual(decoded.pen.size, 2.4)
+    XCTAssertEqual(decoded.pen.opacity, 0.8)
+    XCTAssertEqual(decoded.saved.count, 1)
+    XCTAssertEqual(decoded.saved[0].rgb, 0x2F6FEB)
+    XCTAssertEqual(decoded.saved[0].size, 2.4)
+  }
   @MainActor
   func testHistoryUsesTheSharedDocument() throws {
     let document = EngineDocument(seed: 11)

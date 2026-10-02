@@ -487,7 +487,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
 @MainActor
 struct InkEditorView: View {
   let document: EngineDocument
-  let pens: EditorPenSet
+  @Binding var penLibrary: EditorPenLibrary
   @Binding var tool: EditorTool
   @Binding var currentPage: Int
   @Binding var documentRevision: Int
@@ -495,16 +495,17 @@ struct InkEditorView: View {
   @State private var selectorMode: EditorSelectorMode = .freehand
   @State private var eraserMode: EditorEraserMode = .stroke
   let onEditCommitted: () -> Void
+  let onPensChanged: (EditorPenLibrary) -> Void
   let onError: (Error) -> Void
 
   var body: some View {
     ZStack(alignment: .topLeading) {
       InkEditorHost(
         document: document,
-        tool: tool,
         eraserMode: eraserMode,
         selectorMode: selectorMode,
-        pens: pens,
+        tool: tool,
+        pens: penLibrary.tools,
         revision: documentRevision,
         targetPage: currentPage,
         navigationRevision: pageNavigationRevision,
@@ -516,8 +517,10 @@ struct InkEditorView: View {
         tool: $tool,
         eraserMode: $eraserMode,
         selectorMode: $selectorMode,
+        penLibrary: $penLibrary,
         undo: { history(redo: false) },
-        redo: { history(redo: true) })
+        redo: { history(redo: true) },
+        onPensChanged: onPensChanged)
     }
   }
 

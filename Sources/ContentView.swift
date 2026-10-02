@@ -38,12 +38,13 @@ struct ContentView: View {
         if let session {
           InkEditorView(
             document: session.document,
-            pens: penLibrary.tools,
+            penLibrary: $penLibrary,
             tool: $selectedTool,
             currentPage: $currentPage,
             documentRevision: $documentRevision,
             pageNavigationRevision: $pageNavigationRevision,
             onEditCommitted: saveOpenNotebook,
+            onPensChanged: persistPenLibrary,
             onError: { errorMessage = $0.localizedDescription })
             .navigationTitle(session.reference.name)
             .navigationBarTitleDisplayMode(.inline)
@@ -282,6 +283,16 @@ struct ContentView: View {
       errorMessage = error.localizedDescription
     }
   }
+  private func persistPenLibrary(_ library: EditorPenLibrary) {
+    penLibrary = library
+    guard let root else { return }
+    do {
+      try root.savePenLibrary(library)
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
   private func refreshLibrary() {
     guard let root else {
       libraryListing = LibraryListing(folders: [], notebooks: [])

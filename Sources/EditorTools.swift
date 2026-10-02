@@ -116,14 +116,18 @@ struct EditorPenSet: Equatable {
   }()
 }
 
+@MainActor
 struct EditorToolRail: View {
   @Binding var tool: EditorTool
   @Binding var eraserMode: EditorEraserMode
   @Binding var selectorMode: EditorSelectorMode
+  @Binding var penLibrary: EditorPenLibrary
   @State private var showingEraserModes = false
   @State private var showingSelectorModes = false
+  @State private var editingPen: EditorTool?
   let undo: () -> Void
   let redo: () -> Void
+  let onPensChanged: (EditorPenLibrary) -> Void
 
   var body: some View {
     VStack(spacing: 8) {
@@ -138,7 +142,11 @@ struct EditorToolRail: View {
             systemImage: item.systemImage,
             selected: tool == item
           ) {
-            tool = item
+            if tool == item {
+              editingPen = item
+            } else {
+              tool = item
+            }
           }
         }
       }
@@ -157,6 +165,13 @@ struct EditorToolRail: View {
     }
     .padding(.leading, 8)
     .padding(.top, 8)
+    .popover(item: $editingPen, arrowEdge: .leading) { item in
+      PenEditorPopover(
+        tool: item,
+        library: $penLibrary,
+        onPersist: onPensChanged)
+        .presentationCompactAdaptation(.popover)
+    }
   }
 
   private var eraserButton: some View {
