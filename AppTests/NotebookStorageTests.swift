@@ -325,6 +325,180 @@ final class NotebookStorageTests: XCTestCase {
     XCTAssertEqual(index["template"] as? String, "grid-medium")
   }
 
+  func testConflictProviderNamesMatchTheFormatContract() {
+    let cases: [(String, String)] = [
+      ("0007 (Zack's conflicted copy 2026-10-02).svg", "Dropbox"),
+      ("0007 (conflicted copy Zack 2026-10-02 143000).svg", "Nextcloud"),
+      ("0007 (case clash from Zack).svg", "Nextcloud"),
+      ("0007.sync-conflict-20261002-143000-abcdef0.svg", "Syncthing"),
+      ("0007 2.svg", "iCloud Drive"),
+      ("0007-iPad.svg", "OneDrive"),
+      ("0007 (1).svg", "Google Drive"),
+      ("0007 copy.svg", "Unlisted version"),
+    ]
+
+    for (name, provider) in cases {
+      XCTAssertEqual(notebookConflictProvider(name), provider, name)
+    }
+  }
+
+  func testConflictCandidatesDetectProviderCopiesAndUnlistedPages() {
+    let candidates = notebookConflictCandidates(
+      listedPages: ["pages/0007.svg"],
+      rootFiles: ["notebook.json", "notebook (1).json"],
+      pageFiles: [
+        "0007.svg",
+        "0007 (Zack's conflicted copy 2026-10-02).svg",
+        "0007.sync-conflict-20261002-143000-abcdef0.svg",
+        "0007 odd copy.svg",
+      ],
+      assetFiles: [
+        "photo.png",
+        "photo (math-notes conflict 2026-10-02 UUID).png",
+      ])
+
+    XCTAssertEqual(candidates.count, 5)
+    XCTAssertTrue(candidates.contains {
+      $0.original == "pages/0007.svg" &&
+        $0.provider == "Dropbox"
+    })
+    XCTAssertTrue(candidates.contains {
+      $0.original == "pages/0007.svg" &&
+        $0.provider == "Syncthing"
+    })
+    XCTAssertTrue(candidates.contains {
+      $0.original == "pages/0007.svg" &&
+        $0.provider == "Unlisted version"
+    })
+    XCTAssertTrue(candidates.contains {
+      $0.original == "notebook.json" &&
+        $0.copy == "notebook (1).json"
+    })
+    XCTAssertTrue(candidates.contains {
+      $0.original == "assets/photo.png" &&
+        $0.provider == "Math Notes"
+    })
+  }
+
+  func testSaveComparisonOnlyFlagsBytesChangedOutsideMathNotes() {
+    let base = Data([1, 2, 3])
+    let local = Data([4, 5, 6])
+    let external = Data([7, 8, 9])
+
+    XCTAssertFalse(
+      notebookFileHasExternalChange(
+        current: base, base: base, target: local))
+    XCTAssertFalse(
+      notebookFileHasExternalChange(
+        current: local, base: base, target: local))
+    XCTAssertTrue(
+      notebookFileHasExternalChange(
+        current: external, base: base, target: local))
+    XCTAssertTrue(
+      notebookFileHasExternalChange(
+        current: nil, base: base, target: local))
+  }
+
+  @MainActor
+  func testImportPageSVGProvidesTheKeepBothPrimitive() throws {
+    let source = EngineDocument(seed: 83)
+    let pageChange = try XCTUnwrap(
+      try source.dirtyFiles().first { $0.path == "pages/0001.svg" })
+    guard case let .write(pageBytes) = pageChange.kind else {
+      return XCTFail("The source page was not writable data")
+    }
+
+    let document = EngineDocument(seed: 89)
+    try document.markSaved()
+    try document.importPageSVG(at: 1, data: pageBytes)
+
+    XCTAssertEqual(try document.pageCount(), 2)
+    let dirty = try document.dirtyFiles().map(\.path)
+    XCTAssertTrue(dirty.contains("notebook.json"))
+    XCTAssertTrue(dirty.contains("pages/0002.svg"))
+  }
+
+  @MainActor
+  func testExternalEditSavePreservesOriginalAndWritesMathNotesConflictCopy() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(
+      at: directory,
+      withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let root = NotesRootAccess(testURL: directory)
+    let (reference, document) = try root.createNote(
+      title: "External edit",
+      parent: FolderReference(path: []),
+      template: "blank",
+      pageSize: INK_PAGE_A4,
+      orientation: INK_PORTRAIT)
+    let notebookURL = directory
+      .appendingPathComponent(reference.name, isDirectory: true)
+      .appendingPathComponent("notebook.json")
+    let base = try Data(contentsOf: notebookURL)
+
+    try document.setPageSize(INK_PAGE_LETTER, orientation: INK_PORTRAIT)
+    let outgoingChange = try XCTUnwrap(
+      try document.dirtyFiles().first { $0.path == "notebook.json" })
+    guard case let .write(outgoing) = outgoingChange.kind else {
+      return XCTFail("The local notebook change did not produce writable bytes")
+    }
+
+    var external = base
+    external.append(contentsOf: " ".utf8)
+    try external.write(to: notebookURL, options: .atomic)
+
+    XCTAssertThrowsError(try root.save(document, notebook: reference)) { error in
+      guard case NotebookStorageError.externalChanges(let paths) = error else {
+        return XCTFail("Unexpected error: \(error)")
+      }
+      XCTAssertEqual(paths, ["notebook.json"])
+    }
+    XCTAssertEqual(try Data(contentsOf: notebookURL), external)
+
+    let notebookDirectory = notebookURL.deletingLastPathComponent()
+    let copies = try FileManager.default.contentsOfDirectory(atPath: notebookDirectory.path)
+      .filter {
+        $0.hasPrefix("notebook (math-notes conflict ") && $0.hasSuffix(".json")
+      }
+    XCTAssertEqual(copies.count, 1)
+    let copyURL = notebookDirectory.appendingPathComponent(try XCTUnwrap(copies.first))
+    XCTAssertEqual(try Data(contentsOf: copyURL), outgoing)
+  }
+
+  @MainActor
+  func testKeepBothConflictCreatesSecondPageAndDeletesConflictCopy() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(
+      at: directory,
+      withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let root = NotesRootAccess(testURL: directory)
+    let (reference, _) = try root.createNote(
+      title: "Keep both",
+      parent: FolderReference(path: []),
+      template: "blank",
+      pageSize: INK_PAGE_A4,
+      orientation: INK_PORTRAIT)
+    let noteURL = directory.appendingPathComponent(reference.name, isDirectory: true)
+    let pageURL = noteURL.appendingPathComponent("pages/0001.svg")
+    let conflictURL = noteURL.appendingPathComponent("pages/0001 odd copy.svg")
+    try Data(contentsOf: pageURL).write(to: conflictURL, options: .atomic)
+
+    let conflict = try XCTUnwrap(try root.conflicts(reference).first)
+    XCTAssertTrue(conflict.page)
+    XCTAssertEqual(conflict.provider, "Unlisted version")
+    try root.resolveConflict(reference, conflict: conflict, choice: .both)
+
+    XCTAssertFalse(FileManager.default.fileExists(atPath: conflictURL.path))
+    XCTAssertEqual(try root.conflictCount(reference), 0)
+    XCTAssertEqual(try root.load(reference).pageCount(), 2)
+  }
+
   func testLibraryNameValidationMatchesTheWebRules() throws {
     XCTAssertEqual(try validatedLibraryName("  Stable pairs  "), "Stable pairs")
     XCTAssertThrowsError(try validatedLibraryName(""))

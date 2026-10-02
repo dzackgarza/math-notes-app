@@ -39,6 +39,7 @@ struct NativeLibraryView: View {
   let toggleFavorite: (LibraryNotebookItem) -> Void
   let editNoteDetails: (NotebookReference) -> Void
   let editFolderDetails: (FolderReference) -> Void
+  let reviewConflicts: (NotebookReference) -> Void
   let refresh: () -> Void
   let chooseRoot: () -> Void
 
@@ -350,6 +351,11 @@ struct NativeLibraryView: View {
       Button("Details and Tags", systemImage: "tag") {
         editNoteDetails(item.reference)
       }
+      if item.conflicts > 0 {
+        Button("Compare conflicting versions", systemImage: "exclamationmark.triangle") {
+          reviewConflicts(item.reference)
+        }
+      }
       Divider()
       entryActions(LibraryEntryTarget(path: item.reference.path, kind: .note))
     }
@@ -413,9 +419,16 @@ struct NativeLibraryView: View {
           .clipShape(RoundedRectangle(cornerRadius: 8))
           .shadow(radius: 2, y: 1)
 
-        Text(item.reference.name)
-          .font(.headline)
-          .lineLimit(2)
+        HStack(spacing: 6) {
+          if item.conflicts > 0 {
+            Image(systemName: "exclamationmark.triangle.fill")
+              .foregroundStyle(.orange)
+              .accessibilityLabel("Conflicting versions")
+          }
+          Text(item.reference.name)
+            .font(.headline)
+            .lineLimit(2)
+        }
 
         if !query.isEmpty || scope != .folder {
           let parent = item.reference.path.dropLast().joined(separator: " / ")
@@ -481,8 +494,15 @@ struct NativeLibraryView: View {
           .clipShape(RoundedRectangle(cornerRadius: 4))
 
         VStack(alignment: .leading, spacing: 4) {
-          Text(item.reference.name)
-            .font(.headline)
+          HStack(spacing: 6) {
+            if item.conflicts > 0 {
+              Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .accessibilityLabel("Conflicting versions")
+            }
+            Text(item.reference.name)
+              .font(.headline)
+          }
           if !query.isEmpty || scope != .folder {
             let parent = item.reference.path.dropLast().joined(separator: " / ")
             if !parent.isEmpty {

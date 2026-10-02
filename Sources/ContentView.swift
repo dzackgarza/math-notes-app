@@ -54,6 +54,8 @@ struct ContentView: View {
   @State private var bookmarks: BookmarksRequest?
   @State private var clippings: ClippingsRequest?
   @State private var figureEditor: FigureEditorRequest?
+  @State private var conflictReview: ConflictReviewRequest?
+  @State private var openConflictCount = 0
 
   var body: some View {
     NavigationStack {
@@ -79,6 +81,7 @@ struct ContentView: View {
             onDropClipping: dropClipping,
             onEditFigure: openFigureEditor,
             onError: { errorMessage = $0.localizedDescription })
+            .id(ObjectIdentifier(session.document))
             .navigationTitle(session.reference.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -86,6 +89,8 @@ struct ContentView: View {
                 Button {
                   self.session = nil
                   clippings = nil
+                  conflictReview = nil
+                  openConflictCount = 0
                   activeLayerID = nil
                   bookmarkMode = false
                   refreshLibrary()
@@ -256,6 +261,14 @@ struct ContentView: View {
             persistent: persistent)
         })
     }
+    .sheet(item: $conflictReview) { request in
+      ConflictReviewSheet(
+        request: request,
+        onChoice: { choice in
+          resolveConflict(request, choice: choice)
+        },
+        onCancel: { conflictReview = nil })
+    }
     .overlay(alignment: .trailing) {
       if let request = clippings {
         ClippingsSheet(
@@ -311,6 +324,11 @@ struct ContentView: View {
       Button("Save", systemImage: "square.and.arrow.down") {
         saveOpenNotebook()
       }
+      if openConflictCount > 0 {
+        Button("Compare conflicting versions", systemImage: "exclamationmark.triangle") {
+          prepareConflicts(session.reference)
+        }
+      }
       Button("Export PDF…", systemImage: "square.and.arrow.up") {
         preparePDFExport(session)
       }
@@ -318,6 +336,8 @@ struct ContentView: View {
       Button("Close note", systemImage: "xmark") {
         self.session = nil
         clippings = nil
+        conflictReview = nil
+        openConflictCount = 0
         activeLayerID = nil
         bookmarkMode = false
         refreshLibrary()
@@ -470,6 +490,7 @@ struct ContentView: View {
       toggleFavorite: toggleFavorite,
       editNoteDetails: prepareNoteDetails,
       editFolderDetails: prepareFolderDetails,
+      reviewConflicts: prepareConflicts,
       refresh: refreshLibrary,
       chooseRoot: { showingFolderPicker = true })
   }
@@ -492,6 +513,8 @@ struct ContentView: View {
   private func installRoot(_ newRoot: NotesRootAccess) {
     session = nil
     clippings = nil
+    conflictReview = nil
+    openConflictCount = 0
     activeLayerID = nil
     bookmarkMode = false
     libraryFolder = FolderReference(path: [])
@@ -586,6 +609,9 @@ struct ContentView: View {
           in: libraryFolder,
           sort: librarySort,
           direction: librarySortDirection)
+      }
+      if let session {
+        openConflictCount = (try? root.conflictCount(session.reference)) ?? 0
       }
     } catch {
       if libraryScope == .folder,
@@ -833,6 +859,8 @@ struct ContentView: View {
       documentRevision = 0
       pageNavigationRevision = 0
       clippings = nil
+      conflictReview = nil
+      openConflictCount = 0
       session = NotebookSession(reference: reference, document: document)
       pdfImportProgress = nil
       refreshLibrary()
@@ -894,6 +922,8 @@ struct ContentView: View {
       documentRevision = 0
       pageNavigationRevision = 0
       clippings = nil
+      conflictReview = nil
+      openConflictCount = 0
       session = NotebookSession(reference: reference, document: document)
       refreshLibrary()
     } catch {
@@ -910,9 +940,12 @@ struct ContentView: View {
       documentRevision = 0
       pageNavigationRevision = 0
       clippings = nil
+      conflictReview = nil
+      let document = try root.load(reference)
+      openConflictCount = try root.conflictCount(reference)
       session = NotebookSession(
         reference: reference,
-        document: try root.load(reference))
+        document: document)
     } catch {
       errorMessage = error.localizedDescription
     }
@@ -967,6 +1000,80 @@ struct ContentView: View {
     if persistent {
       guard let root else { return }
       try root.save(session.document, notebook: session.reference)
+    }
+  }
+
+  private func prepareConflicts(
+    _ reference: NotebookReference,
+    saveOpen: Bool = true
+  ) {
+    guard let root else { return }
+    do {
+      if saveOpen, let session, session.reference == reference {
+        do {
+          try root.save(session.document, notebook: reference)
+        } catch let storageError as NotebookStorageError {
+          switch storageError {
+          case .externalChanges:
+            break
+          default:
+            throw storageError
+          }
+        }
+      }
+
+      let conflicts = try root.conflicts(reference)
+      if session?.reference == reference {
+        openConflictCount = conflicts.count
+      }
+      guard let conflict = conflicts.first else {
+        conflictReview = nil
+        return
+      }
+      conflictReview = ConflictReviewRequest(
+        reference: reference,
+        conflict: conflict)
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func resolveConflict(
+    _ request: ConflictReviewRequest,
+    choice: NotebookConflictChoice
+  ) {
+    guard let root else { return }
+    do {
+      try root.resolveConflict(
+        request.reference,
+        conflict: request.conflict,
+        choice: choice)
+
+      if session?.reference == request.reference {
+        let previousPage = currentPage
+        let document = try root.load(request.reference)
+        let pageCount = try document.pageCount()
+        currentPage = min(previousPage, max(0, pageCount - 1))
+        activeLayerID = nil
+        bookmarkMode = false
+        clippings = nil
+        session = NotebookSession(
+          reference: request.reference,
+          document: document)
+      }
+
+      let remaining = try root.conflicts(request.reference)
+      if session?.reference == request.reference {
+        openConflictCount = remaining.count
+      }
+      refreshLibrary()
+      conflictReview = remaining.first.map {
+        ConflictReviewRequest(
+          reference: request.reference,
+          conflict: $0)
+      }
+    } catch {
+      errorMessage = error.localizedDescription
     }
   }
 
@@ -1175,11 +1282,21 @@ struct ContentView: View {
   private func saveOpenNotebookThrowing() throws {
     guard let root, let session else { return }
     try root.save(session.document, notebook: session.reference)
+    openConflictCount = try root.conflictCount(session.reference)
   }
 
   private func saveOpenNotebook() {
     do {
       try saveOpenNotebookThrowing()
+    } catch let storageError as NotebookStorageError {
+      switch storageError {
+      case .externalChanges:
+        if let session {
+          prepareConflicts(session.reference, saveOpen: false)
+        }
+      default:
+        errorMessage = storageError.localizedDescription
+      }
     } catch {
       errorMessage = error.localizedDescription
     }

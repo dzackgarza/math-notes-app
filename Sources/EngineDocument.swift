@@ -220,6 +220,13 @@ final class EngineDocument {
     try check(status, operation: "Import PDF page")
   }
 
+  func importPageSVG(at index: Int, data: Data) throws {
+    let status = withBytes(data) { bytes, count in
+      ink_import_page_svg(pointer, index, bytes, count)
+    }
+    try check(status, operation: "Import notebook page")
+  }
+
   func addClipping(svg: String) throws {
     let data = Data(svg.utf8)
     let status = data.withUnsafeBytes { raw in
@@ -338,13 +345,17 @@ final class EngineDocument {
     try check(status, operation: "Load notebook")
   }
 
-  func loadPage(path: String, data: Data) throws {
+  func loadPage(
+    path: String,
+    data: Data,
+    allowParseError: Bool = true
+  ) throws {
     let status = path.withCString { pathBytes in
       withBytes(data) { bytes, count in
         ink_document_load_page(pointer, pathBytes, bytes, count)
       }
     }
-    if status == INK_ERROR_PARSE {
+    if status == INK_ERROR_PARSE, allowParseError {
       return
     }
     try check(status, operation: "Load \(path)")
