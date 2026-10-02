@@ -10,11 +10,12 @@ enum EditorPageCommand: Equatable {
   case jumpToMark(EngineNavigationMark)
   case requestTextAtCenter
   case commitText(EditorTextRequest, EngineTextProperties)
-  case pasteSVGAtCenter(String)
+  case pasteSVGAtCenter(String, placeAtPointer: Bool)
+  case pasteSVG(String, at: CGPoint, placeAtPointer: Bool)
 }
 
 @MainActor
-final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIContextMenuInteractionDelegate {
+final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIContextMenuInteractionDelegate, UIDragInteractionDelegate {
   private let document: EngineDocument
   private let scrollView = UIScrollView()
   private let documentView = UIView()
@@ -23,6 +24,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private let onPageCommandHandled: () -> Void
   private let onBookmarkModeChanged: (Bool) -> Void
   private let onTextRequested: (EditorTextRequest) -> Void
+  private let onSaveClipping: (String) -> Void
   private let onError: (Error) -> Void
   private lazy var canvasView = InkCanvasView(
     document: document,
@@ -59,6 +61,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     onPageCommandHandled: @escaping () -> Void = {},
     onBookmarkModeChanged: @escaping (Bool) -> Void = { _ in },
     onTextRequested: @escaping (EditorTextRequest) -> Void = { _ in },
+    onSaveClipping: @escaping (String) -> Void = { _ in },
     onError: @escaping (Error) -> Void = { _ in }
   ) {
     self.document = document
@@ -67,6 +70,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     self.onPageCommandHandled = onPageCommandHandled
     self.onBookmarkModeChanged = onBookmarkModeChanged
     self.onTextRequested = onTextRequested
+    self.onSaveClipping = onSaveClipping
     self.onError = onError
     documentSize = document.contentSize()
     super.init(nibName: nil, bundle: nil)
@@ -127,6 +131,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     configureBottomPull()
     configureSelectionBar()
     canvasView.addInteraction(UIContextMenuInteraction(delegate: self))
+    canvasView.addInteraction(UIDragInteraction(delegate: self))
     let modeTap = UITapGestureRecognizer(target: self, action: #selector(handleModeTap))
     modeTap.cancelsTouchesInView = false
     modeTap.allowedTouchTypes = [
@@ -273,19 +278,49 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     cancelPullReadyTimer()
   }
 
+  func dragInteraction(
+    _ interaction: UIDragInteraction,
+    itemsForBeginning session: UIDragSession
+  ) -> [UIDragItem] {
+    let location = session.location(in: canvasView)
+    guard let selection = canvasView.selectionFrame(), selection.contains(location) else { return [] }
+    do {
+      guard let svg = try canvasView.copySelection(), !svg.isEmpty else { return [] }
+      return [UIDragItem(itemProvider: NSItemProvider(object: svg as NSString))]
+    } catch {
+      onError(error)
+      return []
+    }
+  }
+
   func contextMenuInteraction(
     _ interaction: UIContextMenuInteraction,
     configurationForMenuAtLocation location: CGPoint
   ) -> UIContextMenuConfiguration? {
-    guard let svg = UIPasteboard.general.string, !svg.isEmpty else { return nil }
+    let svg = UIPasteboard.general.string
+    let canPaste = svg?.isEmpty == false
+    let canSaveClipping = canvasView.selectionFrame() != nil
+    guard canPaste || canSaveClipping else { return nil }
+
     return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
-      let paste = UIAction(
-        title: "Paste",
-        image: UIImage(systemName: "doc.on.clipboard")
-      ) { [weak self] _ in
-        self?.paste(svg, at: location)
+      var actions: [UIMenuElement] = []
+      if let svg, !svg.isEmpty {
+        actions.append(UIAction(
+          title: "Paste",
+          image: UIImage(systemName: "doc.on.clipboard")
+        ) { [weak self] _ in
+          self?.paste(svg, at: location)
+        })
       }
-      return UIMenu(children: [paste])
+      if canSaveClipping {
+        actions.append(UIAction(
+          title: "Save to Clippings",
+          image: UIImage(systemName: "tray.and.arrow.down")
+        ) { [weak self] _ in
+          self?.saveClipping()
+        })
+      }
+      return UIMenu(children: actions)
     }
   }
 
@@ -313,6 +348,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
       label: "Bookmark selection", systemImage: "bookmark", action: #selector(bookmarkSelection)))
     selectionBar.addArrangedSubview(selectionButton(
       label: "Remove bookmark or link", systemImage: "link.badge.minus", action: #selector(ungroupSelection)))
+    selectionBar.addArrangedSubview(selectionButton(
+      label: "Save to clippings", systemImage: "tray.and.arrow.down", action: #selector(saveClipping)))
     selectionBar.addArrangedSubview(selectionButton(
       label: "Delete selection", systemImage: "trash", action: #selector(deleteSelection)))
     view.addSubview(selectionBar)
@@ -404,6 +441,15 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     }
   }
 
+  @objc private func saveClipping() {
+    do {
+      guard let svg = try canvasView.copySelection() else { return }
+      onSaveClipping(svg)
+    } catch {
+      onError(error)
+    }
+  }
+
   @objc private func deleteSelection() {
     do {
       try canvasView.deleteSelection()
@@ -453,12 +499,16 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
             existing: request.existing)
           onEditCommitted()
         }
-      case let .pasteSVGAtCenter(svg):
+      case let .pasteSVGAtCenter(svg, placeAtPointer):
         try canvasView.paste(
           svg,
           at: CGPoint(
             x: canvasView.bounds.midX,
-            y: canvasView.bounds.midY))
+            y: canvasView.bounds.midY),
+          placeAtPointer: placeAtPointer)
+        onEditCommitted()
+      case let .pasteSVG(svg, point, placeAtPointer):
+        try canvasView.paste(svg, at: point, placeAtPointer: placeAtPointer)
         onEditCommitted()
       }
       refreshSelectionBar()
@@ -732,6 +782,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let onPageCommandHandled: () -> Void
   let onBookmarkModeChanged: (Bool) -> Void
   let onTextRequested: (EditorTextRequest) -> Void
+  let onSaveClipping: (String) -> Void
   let onError: (Error) -> Void
 
   func makeUIViewController(context: Context) -> InkEditorViewController {
@@ -742,6 +793,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       onPageCommandHandled: onPageCommandHandled,
       onBookmarkModeChanged: onBookmarkModeChanged,
       onTextRequested: onTextRequested,
+      onSaveClipping: onSaveClipping,
       onError: onError)
   }
 
@@ -783,6 +835,9 @@ struct InkEditorView: View {
   let onEditCommitted: () -> Void
   let onPensChanged: (EditorPenLibrary) -> Void
   let onInsertImage: () -> Void
+  let onShowClippings: () -> Void
+  let onSaveClipping: (String) -> Void
+  let onDropClipping: (String, CGPoint) -> Bool
   let onError: (Error) -> Void
 
   var body: some View {
@@ -819,6 +874,7 @@ struct InkEditorView: View {
             textRequest = request
           }
         },
+        onSaveClipping: onSaveClipping,
         onError: onError)
 
       EditorToolRail(
@@ -831,6 +887,7 @@ struct InkEditorView: View {
         redo: { history(redo: true) },
         insertText: { pageCommand = .requestTextAtCenter },
         insertImage: onInsertImage,
+        showClippings: onShowClippings,
         onPensChanged: onPensChanged)
 
       if bookmarkMode {
@@ -851,6 +908,10 @@ struct InkEditorView: View {
         .padding(.top, 8)
         .padding(.horizontal, 80)
       }
+    }
+    .dropDestination(for: String.self) { values, location in
+      guard let id = values.first else { return false }
+      return onDropClipping(id, location)
     }
     .onChange(of: tool) {
       if bookmarkMode { bookmarkMode = false }

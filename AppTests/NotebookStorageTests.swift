@@ -182,6 +182,20 @@ final class NotebookStorageTests: XCTestCase {
 
 
   @MainActor
+  func testClippingRoundTripUsesSharedDocumentFormat() throws {
+    let document = EngineDocument(seed: 79)
+    try document.deletePage(at: 0)
+    try document.addClipping(
+      svg: "<svg xmlns=\"http://www.w3.org/2000/svg\"><g><rect x=\"10\" y=\"20\" width=\"30\" height=\"40\" fill=\"none\" stroke=\"#000000\"/></g></svg>")
+
+    XCTAssertEqual(try document.pageCount(), 1)
+    let svg = try document.clippingSVG(index: 0)
+    XCTAssertTrue(svg.contains("<rect"))
+    let png = try document.pagePNG(index: 0, width: 120)
+    XCTAssertEqual(Array(png.prefix(8)), [137, 80, 78, 71, 13, 10, 26, 10])
+  }
+
+  @MainActor
   func testPDFExportRangeUsesTheSharedSpec() throws {
     let document = EngineDocument(seed: 53)
     try document.appendPage()

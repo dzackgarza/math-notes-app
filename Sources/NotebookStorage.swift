@@ -1247,6 +1247,95 @@ final class NotesRootAccess {
   }
 
   @MainActor
+  func loadClippings() throws -> (NotebookReference, EngineDocument) {
+    let reference = NotebookReference(path: [".clippings"])
+    if try itemExists(at: [".clippings", "notebook.json"]) {
+      return (reference, try load(reference))
+    }
+
+    try ensureDirectory(path: reference.path)
+    let document = EngineDocument(seed: UInt64.random(in: 1...UInt64.max))
+    try document.deletePage(at: 0)
+
+    let outline = "fill=\"none\" stroke=\"#000000\" stroke-width=\"1.4\""
+    let shapes = [
+      "<ellipse cx=\"30\" cy=\"30\" rx=\"27\" ry=\"27\" \(outline)/>",
+      "<rect x=\"3\" y=\"3\" width=\"54\" height=\"54\" \(outline)/>",
+      "<polygon points=\"30,3 57,57 3,57\" \(outline)/>",
+      "<polygon points=\"3,30 16.5,6.6 43.5,6.6 57,30 43.5,53.4 16.5,53.4\" \(outline)/>",
+    ]
+    for shape in shapes {
+      try document.addClipping(
+        svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"60\" height=\"60\"><g id=\"clipping\">\(shape)</g></svg>")
+    }
+    try save(document, notebook: reference)
+    return (reference, document)
+  }
+
+  @MainActor
+  func clippingPreviews(width: Int32 = 240) throws -> [(id: String, png: Data)] {
+    let (reference, document) = try loadClippings()
+    let ids = try clippingPageIDs(reference)
+    guard ids.count == try document.pageCount() else {
+      throw EngineDocumentError.operation(
+        "List clippings", "The clipping index changed while it was being read")
+    }
+    return try ids.enumerated().map {
+      (id: $0.element, png: try document.pagePNG(index: $0.offset, width: width))
+    }
+  }
+
+  @MainActor
+  func addClipping(svg: String) throws {
+    let (reference, document) = try loadClippings()
+    try document.addClipping(svg: svg)
+    try save(document, notebook: reference)
+  }
+
+  @MainActor
+  func clippingSVG(id: String) throws -> String {
+    let (reference, document) = try loadClippings()
+    return try document.clippingSVG(index: clippingIndex(id, reference: reference))
+  }
+
+  @MainActor
+  func moveClipping(id: String, by offset: Int) throws {
+    let (reference, document) = try loadClippings()
+    let index = try clippingIndex(id, reference: reference)
+    let target = index + offset
+    guard target >= 0, target < try document.pageCount() else { return }
+    try document.movePage(from: index, to: target)
+    try save(document, notebook: reference)
+  }
+
+  @MainActor
+  func deleteClipping(id: String) throws {
+    let (reference, document) = try loadClippings()
+    try document.deletePage(at: clippingIndex(id, reference: reference))
+    try save(document, notebook: reference)
+  }
+
+  private func clippingPageIDs(_ reference: NotebookReference) throws -> [String] {
+    let indexURL = urlForNotebook(reference).appendingPathComponent("notebook.json")
+    let data = try coordinatedRead(at: indexURL) { try Data(contentsOf: $0) }
+    let pages = try JSONDecoder().decode(NotebookIndex.self, from: data).pages ?? []
+    return try pages.map {
+      guard let id = $0.id, !id.isEmpty else {
+        throw EngineDocumentError.operation("List clippings", "A clipping has no stable page id")
+      }
+      return id
+    }
+  }
+
+  private func clippingIndex(_ id: String, reference: NotebookReference) throws -> Int {
+    guard let index = try clippingPageIDs(reference).firstIndex(of: id) else {
+      throw EngineDocumentError.operation(
+        "Read clipping", "This clipping was removed. Refresh the panel.")
+    }
+    return index
+  }
+
+  @MainActor
   func load(_ reference: NotebookReference) throws -> EngineDocument {
     let notebookURL = urlForNotebook(reference)
     let snapshot = try coordinatedRead(at: notebookURL) { coordinatedURL in
@@ -1485,6 +1574,7 @@ final class NotesRootAccess {
 
   private struct NotebookIndex: Decodable {
     struct Page: Decodable {
+      let id: String?
       let file: String
     }
 

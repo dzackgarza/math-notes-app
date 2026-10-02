@@ -220,6 +220,26 @@ final class EngineDocument {
     try check(status, operation: "Import PDF page")
   }
 
+  func addClipping(svg: String) throws {
+    let data = Data(svg.utf8)
+    let status = data.withUnsafeBytes { raw in
+      ink_clipping_add(
+        pointer,
+        raw.baseAddress?.assumingMemoryBound(to: UInt8.self),
+        raw.count)
+    }
+    try check(status, operation: "Save clipping")
+  }
+
+  func clippingSVG(index: Int) throws -> String {
+    var svg: UnsafePointer<CChar>?
+    try check(ink_clipping_svg(pointer, index, &svg), operation: "Read clipping")
+    guard let svg else {
+      throw EngineDocumentError.operation("Read clipping", "No clipping data returned")
+    }
+    return String(cString: svg)
+  }
+
   func appendPage() throws {
     try insertPage(at: pageCount())
   }

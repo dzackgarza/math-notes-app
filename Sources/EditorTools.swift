@@ -173,6 +173,7 @@ struct EditorToolRail: View {
   let redo: () -> Void
   let insertText: () -> Void
   let insertImage: () -> Void
+  let showClippings: () -> Void
   let onPensChanged: (EditorPenLibrary) -> Void
 
   var body: some View {
@@ -213,6 +214,8 @@ struct EditorToolRail: View {
           }
         }
       }
+
+      railButton(label: "Clippings", systemImage: "tray", action: showClippings)
 
       Divider()
         .frame(width: 28)

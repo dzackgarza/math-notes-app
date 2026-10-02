@@ -356,16 +356,15 @@ final class InkCanvasView: UIView {
     try require(ink_canvas_duplicate_selection(canvas), operation: "Duplicate selection")
   }
 
-  func paste(_ svg: String, at point: CGPoint) throws {
+  func paste(_ svg: String, at point: CGPoint, placeAtPointer: Bool = false) throws {
     guard let canvas else { return }
     let data = Data(svg.utf8)
     let status = data.withUnsafeBytes { raw in
-      ink_canvas_paste(
-        canvas,
-        raw.baseAddress?.assumingMemoryBound(to: UInt8.self),
-        raw.count,
-        point.x,
-        point.y)
+      let bytes = raw.baseAddress?.assumingMemoryBound(to: UInt8.self)
+      if placeAtPointer {
+        return ink_canvas_paste_at(canvas, bytes, raw.count, point.x, point.y)
+      }
+      return ink_canvas_paste(canvas, bytes, raw.count, point.x, point.y)
     }
     try require(status, operation: "Paste selection")
   }

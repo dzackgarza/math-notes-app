@@ -1,0 +1,131 @@
+import Foundation
+import SwiftUI
+import UIKit
+
+struct ClippingPreview: Identifiable {
+  let id: String
+  let index: Int
+  let png: Data
+}
+
+struct ClippingsRequest: Identifiable {
+  let id = UUID()
+  let items: [ClippingPreview]
+}
+
+struct ClippingsSheet: View {
+  let onInsert: (String) -> Void
+  let onSave: (String) -> Bool
+  let onMove: (String, Int) -> Bool
+  let onDelete: (String) -> Bool
+  let onRefresh: () -> [ClippingPreview]?
+  let onClose: () -> Void
+
+  @State private var items: [ClippingPreview]
+
+  init(
+    request: ClippingsRequest,
+    onInsert: @escaping (String) -> Void,
+    onSave: @escaping (String) -> Bool,
+    onMove: @escaping (String, Int) -> Bool,
+    onDelete: @escaping (String) -> Bool,
+    onRefresh: @escaping () -> [ClippingPreview]?,
+    onClose: @escaping () -> Void
+  ) {
+    self.onInsert = onInsert
+    self.onSave = onSave
+    self.onMove = onMove
+    self.onDelete = onDelete
+    self.onRefresh = onRefresh
+    self.onClose = onClose
+    _items = State(initialValue: request.items)
+  }
+
+  var body: some View {
+    NavigationStack {
+      List(items) { item in
+        HStack(spacing: 12) {
+          Button {
+            onInsert(item.id)
+          } label: {
+            if let image = UIImage(data: item.png) {
+              Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 120, height: 72)
+            } else {
+              Image(systemName: "doc")
+                .frame(width: 120, height: 72)
+            }
+          }
+          .buttonStyle(.plain)
+          .draggable(item.id)
+          .accessibilityLabel("Insert clipping \(item.index + 1)")
+
+          Spacer()
+
+          Button {
+            move(item, by: -1)
+          } label: {
+            Image(systemName: "arrow.up")
+          }
+          .disabled(item.index == 0)
+          .accessibilityLabel("Move clipping up")
+
+          Button {
+            move(item, by: 1)
+          } label: {
+            Image(systemName: "arrow.down")
+          }
+          .disabled(item.index == items.count - 1)
+          .accessibilityLabel("Move clipping down")
+
+          Button(role: .destructive) {
+            remove(item)
+          } label: {
+            Image(systemName: "trash")
+          }
+          .accessibilityLabel("Delete clipping")
+        }
+      }
+      .navigationTitle("Clippings")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .topBarLeading) {
+          Button {
+            if let refreshed = onRefresh() {
+              items = refreshed
+            }
+          } label: {
+            Label("Refresh", systemImage: "arrow.clockwise")
+          }
+        }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Done", action: onClose)
+        }
+      }
+    }
+    .frame(width: 340)
+    .dropDestination(for: String.self) { values, _ in
+      guard let svg = values.first, svg.contains("<svg"), onSave(svg) else { return false }
+      if let refreshed = onRefresh() { items = refreshed }
+      return true
+    }
+    .background(.regularMaterial)
+    .clipShape(RoundedRectangle(cornerRadius: 16))
+    .shadow(radius: 10)
+    .padding(8)
+  }
+
+  private func move(_ item: ClippingPreview, by offset: Int) {
+    guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
+    let target = index + offset
+    guard target >= 0, target < items.count, onMove(item.id, offset) else { return }
+    if let refreshed = onRefresh() { items = refreshed }
+  }
+
+  private func remove(_ item: ClippingPreview) {
+    guard items.contains(where: { $0.id == item.id }), onDelete(item.id) else { return }
+    if let refreshed = onRefresh() { items = refreshed }
+  }
+}

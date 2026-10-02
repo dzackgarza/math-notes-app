@@ -52,6 +52,7 @@ struct ContentView: View {
   @State private var showingLayers = false
   @State private var goToPage: GoToPageRequest?
   @State private var bookmarks: BookmarksRequest?
+  @State private var clippings: ClippingsRequest?
 
   var body: some View {
     NavigationStack {
@@ -72,6 +73,9 @@ struct ContentView: View {
             onEditCommitted: saveOpenNotebook,
             onPensChanged: persistPenLibrary,
             onInsertImage: { showingImageImporter = true },
+            onShowClippings: prepareClippings,
+            onSaveClipping: saveClipping,
+            onDropClipping: dropClipping,
             onError: { errorMessage = $0.localizedDescription })
             .navigationTitle(session.reference.name)
             .navigationBarTitleDisplayMode(.inline)
@@ -79,6 +83,7 @@ struct ContentView: View {
               ToolbarItem(placement: .topBarLeading) {
                 Button {
                   self.session = nil
+                  clippings = nil
                   activeLayerID = nil
                   bookmarkMode = false
                   refreshLibrary()
@@ -239,6 +244,21 @@ struct ContentView: View {
         onSelect: selectBookmark,
         onCancel: { bookmarks = nil })
     }
+    .overlay(alignment: .trailing) {
+      if let request = clippings {
+        ClippingsSheet(
+          request: request,
+          onInsert: insertClipping,
+          onSave: saveClippingDrop,
+          onMove: moveClipping,
+          onDelete: deleteClipping,
+          onRefresh: refreshClippings,
+          onClose: { clippings = nil })
+          .id(request.id)
+          .transition(.move(edge: .trailing).combined(with: .opacity))
+          .zIndex(10)
+      }
+    }
     .alert(
       "Math Notes",
       isPresented: Binding(
@@ -285,6 +305,7 @@ struct ContentView: View {
       Divider()
       Button("Close note", systemImage: "xmark") {
         self.session = nil
+        clippings = nil
         activeLayerID = nil
         bookmarkMode = false
         refreshLibrary()
@@ -458,6 +479,7 @@ struct ContentView: View {
 
   private func installRoot(_ newRoot: NotesRootAccess) {
     session = nil
+    clippings = nil
     activeLayerID = nil
     bookmarkMode = false
     libraryFolder = FolderReference(path: [])
@@ -798,6 +820,7 @@ struct ContentView: View {
       currentPage = 0
       documentRevision = 0
       pageNavigationRevision = 0
+      clippings = nil
       session = NotebookSession(reference: reference, document: document)
       pdfImportProgress = nil
       refreshLibrary()
@@ -836,7 +859,7 @@ struct ContentView: View {
         mimeType: mimeType,
         imageSize: CGSize(width: CGFloat(cgImage.width), height: CGFloat(cgImage.height)),
         pageSize: page.size)
-      editorPageCommand = .pasteSVGAtCenter(svg)
+      editorPageCommand = .pasteSVGAtCenter(svg, placeAtPointer: false)
     } catch {
       errorMessage = error.localizedDescription
     }
@@ -858,6 +881,7 @@ struct ContentView: View {
       currentPage = 0
       documentRevision = 0
       pageNavigationRevision = 0
+      clippings = nil
       session = NotebookSession(reference: reference, document: document)
       refreshLibrary()
     } catch {
@@ -873,6 +897,7 @@ struct ContentView: View {
       currentPage = 0
       documentRevision = 0
       pageNavigationRevision = 0
+      clippings = nil
       session = NotebookSession(
         reference: reference,
         document: try root.load(reference))
@@ -906,6 +931,97 @@ struct ContentView: View {
     bookmarkMode = false
     currentPage = mark.page
     editorPageCommand = .jumpToMark(mark)
+  }
+
+  private func clippingItems() throws -> [ClippingPreview] {
+    guard let root else { return [] }
+    return try root.clippingPreviews().enumerated().map {
+      ClippingPreview(id: $0.element.id, index: $0.offset, png: $0.element.png)
+    }
+  }
+
+  private func prepareClippings() {
+    do {
+      clippings = ClippingsRequest(items: try clippingItems())
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func refreshClippings() -> [ClippingPreview]? {
+    do {
+      let items = try clippingItems()
+      clippings = ClippingsRequest(items: items)
+      return items
+    } catch {
+      errorMessage = error.localizedDescription
+      return nil
+    }
+  }
+
+  private func saveClipping(_ svg: String) {
+    guard saveClippingDrop(svg), clippings != nil else { return }
+    _ = refreshClippings()
+  }
+
+  private func saveClippingDrop(_ svg: String) -> Bool {
+    guard let root else { return false }
+    do {
+      try root.addClipping(svg: svg)
+      return true
+    } catch {
+      errorMessage = error.localizedDescription
+      return false
+    }
+  }
+
+  private func insertClipping(_ id: String) {
+    guard let root else { return }
+    do {
+      editorPageCommand = .pasteSVGAtCenter(
+        try root.clippingSVG(id: id),
+        placeAtPointer: true)
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func dropClipping(_ id: String, at point: CGPoint) -> Bool {
+    guard clippings?.items.contains(where: { $0.id == id }) == true, let root else {
+      return false
+    }
+    do {
+      editorPageCommand = .pasteSVG(
+        try root.clippingSVG(id: id),
+        at: point,
+        placeAtPointer: true)
+      return true
+    } catch {
+      errorMessage = error.localizedDescription
+      return false
+    }
+  }
+
+  private func moveClipping(_ id: String, _ offset: Int) -> Bool {
+    guard let root else { return false }
+    do {
+      try root.moveClipping(id: id, by: offset)
+      return true
+    } catch {
+      errorMessage = error.localizedDescription
+      return false
+    }
+  }
+
+  private func deleteClipping(_ id: String) -> Bool {
+    guard let root else { return false }
+    do {
+      try root.deleteClipping(id: id)
+      return true
+    } catch {
+      errorMessage = error.localizedDescription
+      return false
+    }
   }
 
   private func preparePDFExport(_ session: NotebookSession) {
