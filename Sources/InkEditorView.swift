@@ -70,7 +70,7 @@ enum EditorPageCommand: Equatable {
 }
 
 @MainActor
-final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIContextMenuInteractionDelegate, UIDragInteractionDelegate, UIPencilInteractionDelegate {
+final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIEditMenuInteractionDelegate, UIDragInteractionDelegate, UIPencilInteractionDelegate {
   private let document: EngineDocument
   private let scrollView = UIScrollView()
   private let documentView = UIView()
@@ -122,6 +122,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private var hostFocused = true
   private var hostLinked = false
   private var fingerDrawing = false
+  private var pageEditMenuInteraction: UIEditMenuInteraction?
+  private var pageLongPress: UILongPressGestureRecognizer?
   private var applyingLinkedViewport = false
   private var lastAppliedLinkedViewport: EditorLinkedViewport?
   private var requestedLinkedViewport: EditorLinkedViewport?
@@ -233,7 +235,13 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
 
     configureBottomPull()
     configureSelectionBar()
-    canvasView.addInteraction(UIContextMenuInteraction(delegate: self))
+    let editMenuInteraction = UIEditMenuInteraction(delegate: self)
+    pageEditMenuInteraction = editMenuInteraction
+    canvasView.addInteraction(editMenuInteraction)
+    let pageLongPress = UILongPressGestureRecognizer(target: self, action: #selector(handlePageLongPress))
+    pageLongPress.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
+    self.pageLongPress = pageLongPress
+    canvasView.addGestureRecognizer(pageLongPress)
     canvasView.addInteraction(UIDragInteraction(delegate: self))
     let directTap = UITapGestureRecognizer(target: self, action: #selector(handleDirectTap))
     directTap.cancelsTouchesInView = false
@@ -428,6 +436,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
 
   func setFingerDrawing(_ enabled: Bool) {
     fingerDrawing = enabled
+    pageLongPress?.isEnabled = !enabled
+    if enabled {
+      pageEditMenuInteraction?.dismissMenu()
+    }
     scrollView.panGestureRecognizer.minimumNumberOfTouches = enabled ? 2 : 1
     canvasView.setFingerDrawing(enabled)
   }
@@ -510,39 +522,45 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     }
   }
 
-  func contextMenuInteraction(
-    _ interaction: UIContextMenuInteraction,
-    configurationForMenuAtLocation location: CGPoint
-  ) -> UIContextMenuConfiguration? {
+  @objc private func handlePageLongPress(_ recognizer: UILongPressGestureRecognizer) {
+    guard recognizer.state == .began, !fingerDrawing,
+      let pageEditMenuInteraction
+    else { return }
     onFocusRequested()
-    if fingerDrawing && interaction.menuAppearance != .compact { return nil }
-    let svg = UIPasteboard.general.string
-    let canPaste = svg?.isEmpty == false
-    let canSaveClipping = canvasView.selectionFrame() != nil
-    guard canPaste || canSaveClipping else { return nil }
-
-    return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
-      var actions: [UIMenuElement] = []
-      if let svg, !svg.isEmpty {
-        actions.append(UIAction(
-          title: "Paste",
-          image: UIImage(systemName: "doc.on.clipboard")
-        ) { [weak self] _ in
-          self?.paste(svg, at: location)
-        })
-      }
-      if canSaveClipping {
-        actions.append(UIAction(
-          title: "Save to Clippings",
-          image: UIImage(systemName: "tray.and.arrow.down")
-        ) { [weak self] _ in
-          self?.saveClipping()
-        })
-      }
-      return UIMenu(children: actions)
-    }
+    pageEditMenuInteraction.presentEditMenu(
+      with: UIEditMenuConfiguration(
+        identifier: nil,
+        sourcePoint: recognizer.location(in: canvasView)))
   }
 
+  func editMenuInteraction(
+    _ interaction: UIEditMenuInteraction,
+    menuFor configuration: UIEditMenuConfiguration,
+    suggestedActions: [UIMenuElement]
+  ) -> UIMenu? {
+    onFocusRequested()
+    let location = configuration.sourcePoint
+    let svg = UIPasteboard.general.string
+    let canSaveClipping = canvasView.selectionFrame() != nil
+    var actions: [UIMenuElement] = []
+    if let svg, !svg.isEmpty {
+      actions.append(UIAction(
+        title: "Paste",
+        image: UIImage(systemName: "doc.on.clipboard")
+      ) { [weak self] _ in
+        self?.paste(svg, at: location)
+      })
+    }
+    if canSaveClipping {
+      actions.append(UIAction(
+        title: "Save to Clippings",
+        image: UIImage(systemName: "tray.and.arrow.down")
+      ) { [weak self] _ in
+        self?.saveClipping()
+      })
+    }
+    return UIMenu(children: actions)
+  }
   private func configureSelectionBar() {
     selectionBar.axis = .horizontal
     selectionBar.spacing = 2
