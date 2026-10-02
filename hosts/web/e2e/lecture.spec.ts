@@ -236,6 +236,7 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   await expect(tile(4)).toHaveCount(0);
   await act(1, "Duplicate");
   await expect(tile(4)).toBeVisible();
+  await expect(button("Done")).toBeVisible();
   const from = await boxOf(tile(2));
   const to = await boxOf(tile(4));
   await longPressDrag(page, from, to);
