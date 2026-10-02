@@ -15,6 +15,7 @@ struct ContentView: View {
   @State private var libraryListing = LibraryListing(folders: [], notebooks: [])
   @State private var librarySort: LibrarySort = .name
   @State private var libraryGrid = true
+  @AppStorage("pageArrangement") private var pageArrangementRaw = EditorPageArrangement.vertical.rawValue
   @State private var session: NotebookSession?
   @State private var showingFolderPicker = false
   @State private var restoredRoot = false
@@ -38,6 +39,7 @@ struct ContentView: View {
         if let session {
           InkEditorView(
             document: session.document,
+            arrangement: EditorPageArrangement.stored(pageArrangementRaw),
             penLibrary: $penLibrary,
             tool: $selectedTool,
             currentPage: $currentPage,
@@ -59,6 +61,9 @@ struct ContentView: View {
               }
               ToolbarItem(placement: .topBarTrailing) {
                 pagesMenu(session)
+              }
+              ToolbarItem(placement: .topBarTrailing) {
+                viewMenu
               }
               ToolbarItem(placement: .topBarTrailing) {
                 documentMenu(session)
@@ -165,6 +170,25 @@ struct ContentView: View {
     }
   }
 
+  @ViewBuilder
+  private var viewMenu: some View {
+    let selected = EditorPageArrangement.stored(pageArrangementRaw)
+    Menu {
+      ForEach(EditorPageArrangement.allCases) { arrangement in
+        Button {
+          pageArrangementRaw = arrangement.rawValue
+        } label: {
+          if arrangement == selected {
+            Label(arrangement.label, systemImage: "checkmark")
+          } else {
+            Label(arrangement.label, systemImage: arrangement.systemImage)
+          }
+        }
+      }
+    } label: {
+      Label("View", systemImage: "eye")
+    }
+  }
   @ViewBuilder
   private func pagesMenu(_ session: NotebookSession) -> some View {
     let count = (try? session.document.pageCount()) ?? 0

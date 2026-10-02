@@ -62,6 +62,35 @@ final class NotebookStorageTests: XCTestCase {
       ["pages/0002.svg", "pages/0003.svg", "pages/0001.svg"])
   }
 
+
+  @MainActor
+  func testPageArrangementsUseSharedLayoutWithoutDirtyingTheNotebook() throws {
+    let document = EngineDocument(seed: 47)
+    try document.appendPage()
+    try document.appendPage()
+    try document.markSaved()
+
+    try document.setArrangement(INK_PAGES_VERTICAL)
+    let vertical0 = try document.pageRect(index: 0)
+    let vertical1 = try document.pageRect(index: 1)
+    XCTAssertGreaterThan(vertical1.minY, vertical0.minY)
+
+    try document.setArrangement(INK_PAGES_HORIZONTAL)
+    let horizontal0 = try document.pageRect(index: 0)
+    let horizontal1 = try document.pageRect(index: 1)
+    XCTAssertEqual(horizontal1.minY, horizontal0.minY, accuracy: 0.001)
+    XCTAssertGreaterThan(horizontal1.minX, horizontal0.minX)
+
+    try document.setArrangement(INK_PAGES_TWO_PAGE)
+    let two0 = try document.pageRect(index: 0)
+    let two1 = try document.pageRect(index: 1)
+    let two2 = try document.pageRect(index: 2)
+    XCTAssertEqual(two1.minY, two0.minY, accuracy: 0.001)
+    XCTAssertGreaterThan(two1.minX, two0.minX)
+    XCTAssertGreaterThan(two2.minY, two0.minY)
+
+    XCTAssertTrue(try document.dirtyFiles().isEmpty)
+  }
   @MainActor
   func testPDFExportUsesTheSharedDocument() throws {
     let document = EngineDocument(seed: 17)

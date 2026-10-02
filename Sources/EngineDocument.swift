@@ -120,6 +120,12 @@ final class EngineDocument {
     }
     return CGSize(width: width, height: height)
   }
+  func setArrangement(_ arrangement: InkPageArrangement) throws {
+    try check(
+      ink_document_set_arrangement(pointer, arrangement),
+      operation: "Set page arrangement")
+  }
+
 
   func pageCount() throws -> Int {
     var count = 0

@@ -21,6 +21,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private var appliedEraserMode: EditorEraserMode = .stroke
   private var appliedSelectorMode: EditorSelectorMode = .freehand
   private var appliedPens = EditorPenSet.defaults
+  private var appliedArrangement = EditorPageArrangement.vertical
   private var documentRevision = 0
   private var pageNavigationRevision = 0
   private var reportedPage = -1
@@ -65,8 +66,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     scrollView.alwaysBounceVertical = true
     scrollView.alwaysBounceHorizontal = true
     scrollView.bouncesZoom = true
-    scrollView.minimumZoomScale = 0.5
-    scrollView.maximumZoomScale = 4
+    scrollView.minimumZoomScale = 0.25
+    scrollView.maximumZoomScale = 8
     scrollView.contentInsetAdjustmentBehavior = .never
     scrollView.delaysContentTouches = false
     scrollView.panGestureRecognizer.allowedTouchTypes = [
@@ -107,9 +108,21 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
 
-    if !setInitialZoom, scrollView.bounds.width > 0, documentSize.width > 0 {
-      let fitWidth = max(0.5, (scrollView.bounds.width - 32) / documentSize.width)
-      scrollView.zoomScale = min(fitWidth, scrollView.maximumZoomScale)
+    if !setInitialZoom,
+      scrollView.bounds.width > 0,
+      scrollView.bounds.height > 0,
+      documentSize.width > 0,
+      documentSize.height > 0
+    {
+      let fit: CGFloat
+      if appliedArrangement == .horizontal {
+        fit = max(1, scrollView.bounds.height - 32) / documentSize.height
+      } else {
+        fit = max(1, scrollView.bounds.width - 32) / documentSize.width
+      }
+      scrollView.setZoomScale(
+        min(max(fit, scrollView.minimumZoomScale), scrollView.maximumZoomScale),
+        animated: false)
       setInitialZoom = true
     }
 
@@ -124,6 +137,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     selectorMode: EditorSelectorMode,
     pens: EditorPenSet,
     revision: Int,
+    arrangement: EditorPageArrangement,
     targetPage: Int,
     navigationRevision: Int
   ) {
@@ -135,6 +149,20 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
       appliedEraserMode = eraserMode
       appliedSelectorMode = selectorMode
       appliedPens = pens
+    }
+
+    if arrangement != appliedArrangement {
+      do {
+        try document.setArrangement(arrangement.engineValue)
+        appliedArrangement = arrangement
+        setInitialZoom = false
+        refreshDocumentGeometry()
+        view.setNeedsLayout()
+        view.layoutIfNeeded()
+        scrollToPage(targetPage)
+      } catch {
+        onError(error)
+      }
     }
 
     if revision != documentRevision {
@@ -457,6 +485,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let selectorMode: EditorSelectorMode
   let tool: EditorTool
   let pens: EditorPenSet
+  let arrangement: EditorPageArrangement
   let revision: Int
   let targetPage: Int
   let navigationRevision: Int
@@ -479,6 +508,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       selectorMode: selectorMode,
       pens: pens,
       revision: revision,
+      arrangement: arrangement,
       targetPage: targetPage,
       navigationRevision: navigationRevision)
   }
@@ -487,6 +517,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
 @MainActor
 struct InkEditorView: View {
   let document: EngineDocument
+  let arrangement: EditorPageArrangement
   @Binding var penLibrary: EditorPenLibrary
   @Binding var tool: EditorTool
   @Binding var currentPage: Int
@@ -506,6 +537,7 @@ struct InkEditorView: View {
         selectorMode: selectorMode,
         tool: tool,
         pens: penLibrary.tools,
+        arrangement: arrangement,
         revision: documentRevision,
         targetPage: currentPage,
         navigationRevision: pageNavigationRevision,
