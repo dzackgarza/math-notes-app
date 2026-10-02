@@ -2,6 +2,59 @@ import MJRefresh
 import QuartzCore
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
+
+private let notebookSelectionDragType = UTType(
+  exportedAs: "dev.zack.mathnotes.selection-drag")
+
+@MainActor
+private struct NotebookEditorDropDelegate: DropDelegate {
+  let canDrop: () -> Bool
+  let onFocus: () -> Void
+  let onDropClipping: (String, CGPoint) -> Bool
+  let onDropSelection: (String, CGPoint) -> Bool
+
+  func dropUpdated(info: DropInfo) -> DropProposal? {
+    DropProposal(
+      operation: info.hasItemsConforming(to: [notebookSelectionDragType])
+        ? .move
+        : .copy)
+  }
+
+  func validateDrop(info: DropInfo) -> Bool {
+    canDrop()
+  }
+
+  func performDrop(info: DropInfo) -> Bool {
+    guard canDrop() else { return false }
+    onFocus()
+    let location = info.location
+
+    if let provider = info.itemProviders(for: [notebookSelectionDragType]).first {
+      provider.loadDataRepresentation(
+        forTypeIdentifier: notebookSelectionDragType.identifier
+      ) { data, _ in
+        guard let data, let svg = String(data: data, encoding: .utf8) else { return }
+        Task { @MainActor in
+          _ = onDropSelection(svg, location)
+        }
+      }
+      return true
+    }
+
+    guard let provider = info.itemProviders(for: [.plainText]).first else {
+      return false
+    }
+    provider.loadObject(ofClass: NSString.self) { object, _ in
+      guard let string = object as? NSString else { return }
+      Task { @MainActor in
+        let value = string as String
+        _ = onDropClipping(value, location) || onDropSelection(value, location)
+      }
+    }
+    return true
+  }
+}
 
 enum EditorPageCommand: Equatable {
   case select(Int)
@@ -384,10 +437,33 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     guard let selection = canvasView.selectionFrame(), selection.contains(location) else { return [] }
     do {
       guard let svg = try canvasView.copySelection(), !svg.isEmpty else { return [] }
-      return [UIDragItem(itemProvider: NSItemProvider(object: svg as NSString))]
+      let provider = NSItemProvider(object: svg as NSString)
+      provider.registerDataRepresentation(
+        forTypeIdentifier: notebookSelectionDragType.identifier,
+        visibility: .ownProcess
+      ) { completion in
+        completion(Data(svg.utf8), nil)
+        return nil
+      }
+      return [UIDragItem(itemProvider: provider)]
     } catch {
       onError(error)
       return []
+    }
+  }
+
+  func dragInteraction(
+    _ interaction: UIDragInteraction,
+    session: UIDragSession,
+    willEndWith operation: UIDropOperation
+  ) {
+    guard operation == .move else { return }
+    do {
+      try canvasView.deleteSelection()
+      onEditCommitted()
+      refreshSelectionBar()
+    } catch {
+      onError(error)
     }
   }
 
@@ -1346,12 +1422,13 @@ struct InkEditorView: View {
         .padding(.horizontal, 80)
       }
     }
-    .dropDestination(for: String.self) { values, location in
-      onFocus()
-      guard !drawing, let value = values.first else { return false }
-      return onDropClipping(value, location)
-        || onDropSelection(value, location)
-    }
+    .onDrop(
+      of: [notebookSelectionDragType, .plainText],
+      delegate: NotebookEditorDropDelegate(
+        canDrop: { !drawing },
+        onFocus: onFocus,
+        onDropClipping: onDropClipping,
+        onDropSelection: onDropSelection))
     .simultaneousGesture(
       TapGesture().onEnded { onFocus() })
     .onChange(of: documentRevision) {
