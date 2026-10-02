@@ -115,6 +115,337 @@ async function beginTestNote(page: Page, title: string, notebook = "Test Noteboo
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), title);
 }
 
+// Shards run contiguous blocks of these tests: the three long sessions (this
+// one, research, and lecture) sit far apart, so no shard runs two of them.
+
+// One notes folder from its first launch onward: the folder choice, a
+// notebook, handwriting with each tool on three pages, a restart that opens
+// the saved folder, a reconnection, the library operations, and an export.
+// Each step asserts the screen and the files.
+test("Flutter lifetime: first launch, folder choice, three written pages, restart, reconnection, library changes, and export", async ({ page }, info) => {
+  test.setTimeout(360_000);
+  const shot = (name: string) => page.screenshot({ path: info.outputPath(`${name}.png`) });
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  const opfs = () => page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    const folders = await Array.fromAsync(root.keys());
+    const metadata = folders.includes(".library.json")
+      ? JSON.parse(await (await (await root.getFileHandle(".library.json")).getFile()).text())
+      : null;
+    return { folders, metadata };
+  });
+
+  // First launch: a fresh browser profile has no saved folder. Automation
+  // cannot drive the native picker; here it yields the origin-private file
+  // system, which the app keeps in IndexedDB as it keeps any chosen folder.
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "showDirectoryPicker", {
+      configurable: true,
+      value: async () => navigator.storage.getDirectory(),
+    });
+  });
+  await page.goto("");
+  await expect(page.getByText("Your notes live in a folder on this device.", { exact: true })).toBeVisible();
+  await shot("first-launch");
+  await button("Choose notes folder").click();
+  await expect(page.getByText("Your notebooks appear here.", { exact: true })).toBeVisible();
+  expect((await opfs()).folders, "the app prepares the folder's templates and pens").toEqual(expect.arrayContaining([".templates", ".pens.json"]));
+  await shot("empty-library");
+
+  // The first notebook and its first note.
+  await button("New notebook").click();
+  await enterText(page.getByRole("textbox", { name: "Notebook title", exact: true }), "Analysis");
+  await enterText(page.getByRole("textbox", { name: "Description", exact: true }), "Measure theory");
+  await addTag(page, "measure");
+  await button("Grid").click();
+  await button("Create").click();
+  await expect(page.getByRole("heading", { name: "Analysis", exact: true })).toBeVisible();
+  await button("New note").click();
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Integrals");
+  // A new note starts with its notebook's tags.
+  await expect(button("Remove tag measure")).toBeVisible();
+  await button("Create").click();
+  const canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
+  await canvas.waitFor({ timeout: 30_000 });
+  const box = await boxOf(canvas);
+  const cdp = await page.context().newCDPSession(page);
+  const pages = () => savedPages(page, "Integrals", "Analysis");
+  const strokes = async () => (await pages()).map((saved) => saved.strokes);
+
+  // Three rows of handwriting on page 1; each is checked on screen against
+  // the paper captured before writing.
+  const rows = [170, 260, 350].map((dy) => ({ x: box.x + 220, y: box.y + dy }));
+  const moved = { x: rows[2].x, y: rows[2].y + 120 };
+  const paper = new Map<PenPoint, Rgb[]>();
+  for (const spot of [...rows, moved]) paper.set(spot, await screenPixels(page, spot));
+  const write = (spot: PenPoint) => penStroke(cdp, line(spot.x - 60, spot.x + 60, spot.y), 0.6);
+  await write(rows[0]);
+  const stroke = await inkAt(page, rows[0], paper.get(rows[0])!);
+  expect(stroke, "the first row shows ink").toBeGreaterThan(0);
+  const inked = async () => {
+    const spots = [];
+    for (const spot of [...rows, moved]) spots.push((await inkAt(page, spot, paper.get(spot)!)) > 0.5 * stroke);
+    return spots;
+  };
+  await write(rows[1]);
+  await write(rows[2]);
+  expect(await inked()).toEqual([true, true, true, false]);
+  expect(await strokes()).toEqual([3]);
+  await shot("page-1-written");
+
+  // The stroke eraser takes the second row; undo and redo take it back and
+  // away again, on screen and in the file.
+  await button("Eraser").click();
+  await button("Eraser").click();
+  await button("Stroke").click();
+  await closePopover(page);
+  await penStroke(cdp, [-40, -20, 0, 20, 40].map((dy) => ({ x: rows[1].x, y: rows[1].y + dy })), 0.6);
+  expect(await inked()).toEqual([true, false, true, false]);
+  expect(await strokes()).toEqual([2]);
+  await button("Undo").click();
+  expect(await inked()).toEqual([true, true, true, false]);
+  expect(await strokes()).toEqual([3]);
+  await button("Redo").click();
+  expect(await inked()).toEqual([true, false, true, false]);
+  expect(await strokes()).toEqual([2]);
+
+  // A highlight across the first row leaves the handwriting dark.
+  const plainInk = await darkestPixel(page, rows[0]);
+  await button("Highlighter").click();
+  await penStroke(cdp, [-40, -20, 0, 20, 40].map((dy) => ({ x: rows[0].x + 30, y: rows[0].y + dy })), 0.6);
+  const crossing = await darkestPixel(page, rows[0]);
+  for (const channel of [0, 1, 2]) expect(Math.abs(crossing[channel] - plainInk[channel]), "the highlighted handwriting keeps its color").toBeLessThan(24);
+  expect(await strokes()).toEqual([3]);
+
+  // The lasso moves the third row down; the pen writes again afterwards.
+  await button("Lasso").click();
+  await penStroke(cdp, [
+    { x: rows[2].x - 80, y: rows[2].y - 40 }, { x: rows[2].x + 80, y: rows[2].y - 40 },
+    { x: rows[2].x + 80, y: rows[2].y + 40 }, { x: rows[2].x - 80, y: rows[2].y + 40 },
+    { x: rows[2].x - 80, y: rows[2].y - 40 },
+  ], 0.6);
+  await penStroke(cdp, [0, 40, 80, 120].map((dy) => ({ x: rows[2].x, y: rows[2].y + dy })), 0.6);
+  await button("Pen").click();
+  expect(await inked()).toEqual([true, false, false, true]);
+  expect(await strokes()).toEqual([3]);
+  await shot("page-1-edited");
+
+  // A typed text box. The new box is selected, as pasted content is, so a
+  // pen-down elsewhere would only dismiss the selection; its menu clears it.
+  await button("Text").click();
+  await enterText(page.getByRole("textbox", { name: "Text", exact: true }), "Theorem 1");
+  await button("Done").click();
+  expect((await pages())[0].text).toContain("Theorem 1");
+  await expect(button("Clear selection")).toBeVisible();
+  await shot("text-box-selected");
+  await button("Clear selection").click();
+  await expect(button("Clear selection")).toHaveCount(0);
+  await button("Pen").click();
+
+  // Pages 2 and 3, each written; the overview returns to page 1, which
+  // still shows its own ink and none of the other pages'.
+  const addPage = async (number: number) => {
+    await button("Pages").click();
+    await button("Add page").click();
+    await expect(page.getByText(`${number - 1} / ${number}`, { exact: true })).toBeVisible();
+    await goToPage(page, number);
+    await expect(page.getByText(`${number} / ${number}`, { exact: true })).toBeVisible();
+  };
+  await addPage(2);
+  expect(await inked(), "a new page is blank").toEqual([false, false, false, false]);
+  await write(rows[0]);
+  await write(rows[1]);
+  expect(await inked()).toEqual([true, true, false, false]);
+  await addPage(3);
+  await write(rows[2]);
+  expect(await inked()).toEqual([false, false, true, false]);
+  expect(await strokes()).toEqual([3, 2, 1]);
+  await shot("page-3-written");
+  await button("Pages").click();
+  await button("Page overview").click();
+  for (const number of [1, 2, 3]) await expect(button(`Page ${number}`)).toBeVisible();
+  await shot("page-overview");
+  await button("Page 1").click();
+  await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
+  expect(await inked()).toEqual([true, false, false, true]);
+
+  // A restart: the saved folder opens without a gesture, and the note shows
+  // the same ink on each page. The app finds the saved folder as a handle in
+  // IndexedDB; Chromium 153 exits when it reads a stored OPFS handle back
+  // (TRAPS.md), so the restart gives the app its saved folder in the host's
+  // own terms instead.
+  const restart = async (needsGesture: boolean) => {
+    await page.addInitScript((needsGesture) => {
+      Object.defineProperty(window, "mathNotes", {
+        configurable: true,
+        set(value) {
+          Object.assign(value, {
+            startRoot: async () => ({ root: await navigator.storage.getDirectory(), needsGesture }),
+            requestPermission: async () => true,
+          });
+          Object.defineProperty(window, "mathNotes", { configurable: true, writable: true, value });
+        },
+      });
+    }, needsGesture);
+    await page.goto("");
+  };
+  await restart(false);
+  await expect(page.getByRole("button", { name: "Open Analysis", exact: false })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/^1 note/)).toBeVisible();
+  await shot("library-after-restart");
+  await openTestNotebook(page, "Analysis");
+  await page.getByRole("button", { name: "Open Integrals", exact: false }).click();
+  await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
+  expect(await boxOf(canvas), "the canvas keeps its place after a restart").toEqual(box);
+  expect(await inked()).toEqual([true, false, false, true]);
+  await goToPage(page, 2);
+  await expect(page.getByText("2 / 3", { exact: true })).toBeVisible();
+  expect(await inked()).toEqual([true, true, false, false]);
+  await goToPage(page, 3);
+  await expect(page.getByText("3 / 3", { exact: true })).toBeVisible();
+  expect(await inked()).toEqual([false, false, true, false]);
+  expect(await strokes()).toEqual([3, 2, 1]);
+
+  // A restart whose folder needs a permission gesture.
+  await restart(true);
+  await expect(button("Reconnect folder")).toBeVisible();
+  await shot("reconnect");
+  await button("Reconnect folder").click();
+  await openTestNotebook(page, "Analysis");
+  await page.getByRole("button", { name: "Open Integrals", exact: false }).click();
+  await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
+  expect(await inked()).toEqual([true, false, false, true]);
+
+  // The library over time: a second notebook and note, a move, a search, a
+  // favorite, the trash, a rename, and a tag.
+  await button("Library").click();
+  await button("Back to library").click();
+  await createTestNotebook(page, "Topology");
+  await button("New note").click();
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Compactness");
+  await button("Create").click();
+  // Integrals is still open, so closing this note shows that one.
+  await button("Close Compactness").click();
+  await expect(page.getByRole("heading", { name: "Integrals", exact: true })).toBeVisible();
+  await button("Library").click();
+  await expect(page.getByRole("heading", { name: "Topology", exact: true })).toBeVisible();
+  await button("Back to library").click();
+  await openTestNotebook(page, "Analysis");
+  await button("Integrals actions").click();
+  await button("Move").click();
+  await button("Topology").click();
+  await expect(button("Integrals actions")).toHaveCount(0);
+  await button("Back to library").click();
+  await openTestNotebook(page, "Topology");
+  await expect(page.getByRole("button", { name: "Open Integrals", exact: false })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open Compactness", exact: false })).toBeVisible();
+  await shot("moved");
+
+  await button("Back to library").click();
+  await button("Search").click();
+  await enterText(page.getByRole("textbox", { name: "Search notebooks and notes", exact: true }), "Integrals");
+  await expect(page.getByRole("button", { name: "Open Integrals", exact: false })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open Compactness", exact: false })).toHaveCount(0);
+  await button("Integrals actions").click();
+  await button("Add favorite").click();
+  await page.getByText("Favorites", { exact: true }).click();
+  await expect(page.getByRole("button", { name: "Open Integrals", exact: false })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open Compactness", exact: false })).toHaveCount(0);
+
+  await button("Recent").click();
+  await button("Compactness actions").click();
+  await button("Move to trash").click();
+  await button("Trash").click();
+  await button("Compactness actions").click();
+  await button("Restore").click();
+  await button("Topology").click();
+  await button("Library").click();
+  await openTestNotebook(page, "Topology");
+  await expect(page.getByRole("button", { name: "Open Compactness", exact: false })).toBeVisible();
+
+  await button("Back to library").click();
+  await button("Analysis notebook actions").click();
+  await button("Rename").click();
+  await enterText(page.getByRole("textbox", { name: "Name", exact: true }), "Real analysis");
+  await button("Rename").click();
+  await expect(button("Real analysis notebook actions")).toBeVisible();
+  await openTestNotebook(page, "Real analysis");
+  await expect(page.getByText("Measure theory", { exact: true }), "the renamed notebook keeps its description").toBeVisible();
+  await expect(page.getByText("This notebook has no notes yet.", { exact: true })).toBeVisible();
+  await button("Back to library").click();
+
+  await button("New tag").click();
+  await enterText(page.getByRole("textbox", { name: "Tag name", exact: true }), "geometry");
+  await button("Add tag").click();
+  await openTestNotebook(page, "Topology");
+  await button("Integrals actions").click();
+  await button("Details and tags").click();
+  await addTag(page, "geometry");
+  await button("Save details").click();
+  await page.getByRole("button", { name: /^geometry/ }).click();
+  await expect(page.getByRole("button", { name: "Open Integrals", exact: false })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open Compactness", exact: false })).toHaveCount(0);
+  await shot("library-final");
+
+  const { folders, metadata } = await opfs();
+  expect(folders).toEqual(expect.arrayContaining(["Real analysis", "Topology"]));
+  expect(folders).not.toContain("Analysis");
+  expect(metadata.folders["Real analysis"].description).toBe("Measure theory");
+  expect(metadata.folders["Real analysis"].tags).toEqual(["measure"]);
+  expect(metadata.folders.Analysis).toBeUndefined();
+  expect(metadata.notes["Topology/Integrals"].favorite).toBe(true);
+  expect(metadata.notes["Topology/Integrals"].tags).toEqual(["measure", "geometry"]);
+  expect(metadata.notes["Analysis/Integrals"]).toBeUndefined();
+  expect(metadata.notes[".trash/Compactness"]).toBeUndefined();
+  expect(metadata.tags.map(({ name }: { name: string }) => name)).toEqual(expect.arrayContaining(["measure", "geometry"]));
+
+  // The moved note keeps its pages, and exports them.
+  const stored = await storedPages(page, "Integrals", "Topology");
+  expect(stored.map((saved) => saved.strokes)).toEqual([3, 2, 1]);
+  expect(stored[0].text).toContain("Theorem 1");
+  await page.getByRole("button", { name: "Open Integrals", exact: false }).click();
+  await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
+  expect(await inked()).toEqual([true, false, false, true]);
+  await button("More").click();
+  await button("Export PDF").click();
+  const download = page.waitForEvent("download");
+  await button("Export").click();
+  const pdfPath = info.outputPath("integrals.pdf");
+  await (await download).saveAs(pdfPath);
+  expect(execFileSync("pdfinfo", [pdfPath], { encoding: "utf8" })).toMatch(/Pages:\s+3/);
+  expect(execFileSync("pdftotext", [pdfPath, "-"], { encoding: "utf8" })).toContain("Theorem 1");
+});
+
+// A saved notebook in the notes folder, by its folder path: its layers, and
+// each page's layer groups in file order with their strokes, links,
+// bookmarks, and the lines of each text box.
+function storedNote(page: Page, path: string[]) {
+  return whenSaved(() => page.evaluate(async (path) => {
+    let dir = await navigator.storage.getDirectory();
+    for (const name of path) dir = await dir.getDirectoryHandle(name);
+    const manifest = JSON.parse(await (await (await dir.getFileHandle("notebook.json")).getFile()).text());
+    const files = await dir.getDirectoryHandle("pages");
+    const pages = [];
+    for (const entry of manifest.pages as { file: string }[]) {
+      const svg = await (await (await files.getFileHandle(entry.file.replace("pages/", ""))).getFile()).text();
+      const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
+      const groups = Array.from(parsed.documentElement.children).filter((g) => g.tagName === "g" && g.id !== "background");
+      pages.push({
+        file: entry.file,
+        groups: groups.map((g) => ({
+          id: g.id,
+          xml: g.outerHTML,
+          strokes: Array.from(g.querySelectorAll('path[id^="s-"]'), (stroke) => ({ id: stroke.id, d: stroke.getAttribute("d") })),
+        })),
+        links: Array.from(parsed.querySelectorAll("a"), (link) => link.getAttribute("href")),
+        bookmarks: Array.from(parsed.querySelectorAll("g.mn-bookmark"), (bookmark) => bookmark.id),
+        texts: Array.from(parsed.querySelectorAll("text"), (box) => Array.from(box.querySelectorAll("tspan"), (line) => line.textContent)),
+      });
+    }
+    return { layers: manifest.layers as { id: string; name: string; hidden: boolean; locked: boolean }[], pages };
+  }, path));
+}
+
 test("Flutter creation sheets close on Escape and ask before they discard a change", async ({ page }) => {
   await page.goto("?root=opfs");
   const button = (name: string) => page.getByRole("button", { name, exact: true });
@@ -2050,6 +2381,364 @@ test("Flutter pans the page with one finger and zooms it with a pinch", async ({
   expect(await inkLength(page, zoomed, written.x - 300, written.x + 300)).toBeGreaterThan(1.5 * length);
 });
 
+test("Flutter research session: layers, clippings, bookmarks, links between notes, split view, reload, and export", async ({ page }, info) => {
+  test.setTimeout(480_000);
+  const shot = (name: string) => page.screenshot({ path: info.outputPath(`${name}.png`) });
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  const lecture = ["Topology", "Lecture"];
+  const proofs = ["Topology", "Proofs"];
+  const saved = async (path: string[]) => {
+    await save(page);
+    await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
+    return storedNote(page, path);
+  };
+  const strokeCounts = (note: Awaited<ReturnType<typeof storedNote>>, index = 0) =>
+    note.pages[index].groups.map((group) => group.strokes.length);
+
+  await page.goto("?root=opfs");
+  await createTestNotebook(page, "Topology");
+  await button("New note").click();
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Lecture");
+  await button("Create").click();
+  const canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
+  await canvas.waitFor({ timeout: 30_000 });
+  const box = await boxOf(canvas);
+  const cdp = await page.context().newCDPSession(page);
+
+  // Three rows of handwriting, each checked on screen against the paper
+  // captured before writing.
+  const rows = [170, 260, 350].map((dy) => ({ x: box.x + 220, y: box.y + dy }));
+  const paper = new Map<PenPoint, Rgb[]>();
+  for (const spot of rows) paper.set(spot, await screenPixels(page, spot));
+  const write = (spot: PenPoint) => penStroke(cdp, line(spot.x - 60, spot.x + 60, spot.y), 0.6);
+  await write(rows[0]);
+  const stroke = await inkAt(page, rows[0], paper.get(rows[0])!);
+  expect(stroke, "the first row shows ink").toBeGreaterThan(0);
+  const inked = async () => {
+    const spots = [];
+    for (const spot of rows) spots.push((await inkAt(page, spot, paper.get(spot)!)) > 0.5 * stroke);
+    return spots;
+  };
+  const lasso = (top: number, bottom: number) => penStroke(cdp, [
+    { x: rows[0].x - 80, y: top }, { x: rows[0].x + 80, y: top },
+    { x: rows[0].x + 80, y: bottom }, { x: rows[0].x - 80, y: bottom },
+    { x: rows[0].x - 80, y: top },
+  ], 0.6);
+  const layers = async (action: () => Promise<void>) => {
+    await button("Pages").click();
+    await button("Layers").click();
+    await action();
+    await button("Done").click();
+    // Pen events before the sheet's barrier is gone never reach the page
+    // (TRAPS.md).
+    await expect(button("Library")).toBeVisible();
+  };
+  const addLayer = async (name: string) => {
+    await button("Add").click();
+    await enterText(page.getByRole("textbox", { name: "Layer name", exact: true }), name);
+    await button("Save").click();
+    await expect(page.getByRole("group", { name, exact: true })).toBeVisible();
+  };
+
+  // A second layer for sketches; new ink goes to the active layer.
+  await layers(() => addLayer("Sketch"));
+  await write(rows[1]);
+  expect(await inked()).toEqual([true, true, false]);
+  let note = await saved(lecture);
+  expect(note.layers.map((layer) => layer.name)).toEqual(["Ink", "Sketch"]);
+  const [ink, sketch] = note.layers.map((layer) => layer.id);
+  expect(note.pages[0].groups.map((group) => group.id)).toEqual([ink, sketch]);
+  expect(strokeCounts(note)).toEqual([1, 1]);
+
+  // A locked layer keeps its ink under the stroke eraser and the lasso.
+  await layers(() => button("Lock Ink").click());
+  await button("Eraser").click();
+  await button("Eraser").click();
+  await button("Stroke").click();
+  await closePopover(page);
+  await penStroke(cdp, [130, 170, 210, 260, 300].map((y) => ({ x: rows[0].x, y: box.y + y })), 0.6);
+  expect(await inked(), "the eraser takes the sketch only").toEqual([true, false, false]);
+  await button("Undo").click();
+  expect(await inked()).toEqual([true, true, false]);
+  await button("Lasso").click();
+  await lasso(box.y + 130, box.y + 300);
+  await button("Delete selection").click();
+  expect(await inked(), "the lasso takes the sketch only").toEqual([true, false, false]);
+  await button("Undo").click();
+  expect(await inked()).toEqual([true, true, false]);
+  note = await saved(lecture);
+  expect(note.layers.map((layer) => layer.locked)).toEqual([true, false]);
+  expect(strokeCounts(note)).toEqual([1, 1]);
+  await shot("locked-layer");
+
+  // Reordering moves the layer groups in the page file and changes nothing
+  // in them.
+  const before = note.pages[0].groups.map((group) => group.xml);
+  await layers(async () => {
+    await button("Unlock Ink").click();
+    await button("Down Sketch").click();
+  });
+  note = await saved(lecture);
+  expect(note.layers.map((layer) => layer.name)).toEqual(["Sketch", "Ink"]);
+  expect(note.pages[0].groups.map((group) => group.xml)).toEqual([before[1], before[0]]);
+
+  // A hidden layer is not drawn.
+  await layers(() => button("Hide Sketch").click());
+  expect(await inked()).toEqual([true, false, false]);
+  await layers(() => button("Show Sketch").click());
+  expect(await inked()).toEqual([true, true, false]);
+
+  // A layer for labels, merged down into the ink.
+  await layers(() => addLayer("Labels"));
+  await button("Pen").click();
+  await write(rows[2]);
+  expect(await inked()).toEqual([true, true, true]);
+  await layers(() => button("Merge down Labels").click());
+  note = await saved(lecture);
+  expect(note.layers.map((layer) => layer.name)).toEqual(["Sketch", "Ink"]);
+  expect(note.pages[0].groups.map((group) => group.id)).toEqual([sketch, ink]);
+  expect(strokeCounts(note)).toEqual([1, 2]);
+  expect(await inked()).toEqual([true, true, true]);
+
+  // An export without the sketch layer leaves out its ink: a render of the
+  // PDF page at the screen page's width has ink at the first and third rows
+  // only.
+  const exportPdf = async (name: string, exclude: string[] = []) => {
+    await button("More").click();
+    await button("Export PDF").click();
+    for (const layer of exclude) await page.getByRole("switch", { name: layer, exact: true }).click();
+    await shot(`export-${name}`);
+    const download = page.waitForEvent("download");
+    await button("Export").click();
+    const path = info.outputPath(`${name}.pdf`);
+    await (await download).saveAs(path);
+    return path;
+  };
+  const sheet = pageIn(box);
+  const width = Math.round(sheet.width);
+  const withoutSketch = await exportPdf("without-sketch", ["Sketch"]);
+  const render = info.outputPath("without-sketch-page-1");
+  execFileSync("pdftoppm", ["-png", "-f", "1", "-l", "1", "-singlefile", "-scale-to-x", `${width}`, "-scale-to-y", "-1", withoutSketch, render]);
+  const rendered = await pngPixels(page, await readFile(`${render}.png`));
+  const renderedInk = (spot: PenPoint) => {
+    const x = Math.round(spot.x - sheet.x);
+    const y = Math.round(spot.y - sheet.y);
+    let dark = 0;
+    for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) if (isInk(rendered[(y + dy) * width + x + dx])) dark++;
+    return dark > 0;
+  };
+  expect(rows.map(renderedInk)).toEqual([true, false, true]);
+
+  // Deleting the sketch layer removes its ink.
+  await layers(async () => {
+    await button("Delete Sketch").click();
+    await expect(page.getByRole("alertdialog").getByText("Delete Sketch?", { exact: true })).toBeVisible();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
+  });
+  expect(await inked()).toEqual([true, false, true]);
+  note = await saved(lecture);
+  expect(note.layers.map((layer) => layer.name)).toEqual(["Ink"]);
+  expect(strokeCounts(note)).toEqual([2]);
+  const lectureStrokes = note.pages[0].groups[0].strokes;
+
+  // The clippings panel starts with Write's four shapes; the two rows become
+  // a fifth clipping, a page of the clippings notebook. The panel narrows the
+  // page, so the selection comes first.
+  await button("Lasso").click();
+  await lasso(box.y + 130, box.y + 390);
+  await button("Clippings").click();
+  // The panel lists the clippings in a scroll view; one off screen is hidden
+  // or has no semantics node until the wheel scrolls it in.
+  const clipping = async (number: number) => {
+    const target = button(`Insert clipping ${number}`);
+    await expect(async () => {
+      if (!(await target.isVisible())) {
+        // Wheel toward the number: up while it is below the first one shown.
+        // None shows while the panel slides in.
+        let first = 1;
+        while (first < 10 && !(await button(`Insert clipping ${first}`).isVisible())) first++;
+        if (first < 10) {
+          const anchor = await boxOf(button(`Insert clipping ${first}`));
+          await page.mouse.move(anchor.x + anchor.width / 2, anchor.y + anchor.height / 2);
+          await page.mouse.wheel(0, number < first ? -200 : 200);
+        }
+      }
+      await expect(target).toBeVisible({ timeout: 500 });
+    }).toPass({ timeout: 10_000 });
+  };
+  for (const number of [1, 2, 3, 4]) await clipping(number);
+  await button("Save selected content").click();
+  await clipping(5);
+  await shot("clipping-saved");
+  const clippings = await storedNote(page, [".clippings"]);
+  expect(clippings.pages).toHaveLength(5);
+  const clipped = clippings.pages[4].groups.flatMap((group) => group.strokes);
+  expect(clipped.map((s) => s.d).sort()).toEqual(lectureStrokes.map((s) => s.d).sort());
+  await button("Clippings").click();
+  await button("Clear selection").click();
+
+  // Page 2: a row of handwriting and a bookmark at its line.
+  await button("Pen").click();
+  await button("Pages").click();
+  await button("Add page").click();
+  await goToPage(page, 2);
+  await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
+  await write(rows[0]);
+  await button("Pages").click();
+  await button("Add bookmark").click();
+  // The banner is one semantics node, labeled with its mode and its hint.
+  await expect(page.getByLabel("Add bookmark\nTap the line to mark.", { exact: true })).toBeVisible();
+  await page.mouse.click(rows[0].x, rows[0].y);
+  await button("Close Add bookmark").click();
+  await button("Clear selection").click();
+  note = await saved(lecture);
+  expect(note.pages[1].bookmarks).toHaveLength(1);
+  const bookmark = `${note.pages[1].file.replace("pages/", "")}#${note.pages[1].bookmarks[0]}`;
+
+  // The first row of page 1 links to the bookmark, and following it goes
+  // to page 2.
+  await goToPage(page, 1);
+  await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
+  await button("Lasso").click();
+  await lasso(box.y + 130, box.y + 210);
+  await button("Link selected content").click();
+  await button("Page or bookmark").click();
+  await page.getByText("Bookmark on page 2", { exact: true }).click();
+  note = await saved(lecture);
+  expect(note.pages[0].links).toEqual([bookmark]);
+  const followLinks = async (on: boolean) => {
+    await button("More").click();
+    await button("Settings").click();
+    const toggle = page.getByRole("switch", { name: "Follow links", exact: true });
+    await toggle.click();
+    if (on) await expect(toggle).toBeChecked();
+    else await expect(toggle).not.toBeChecked();
+    await button("Done").click();
+    await expect(button("Library")).toBeVisible();
+  };
+  await followLinks(true);
+  await page.mouse.click(rows[0].x, rows[0].y);
+  await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
+  await followLinks(false);
+  await shot("followed-bookmark");
+
+  // A second note gets the clipping, with new stroke ids and the same
+  // outlines.
+  await button("Library").click();
+  await expect(page.getByRole("heading", { name: "Topology", exact: true })).toBeVisible();
+  await button("New note").click();
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Proofs");
+  await button("Create").click();
+  await expect(page.getByRole("heading", { name: "Proofs", exact: true })).toBeVisible();
+  await button("Clippings").click();
+  await clipping(5);
+  await button("Insert clipping 5").click();
+  await button("Clippings").click();
+  let other = await saved(proofs);
+  const pasted = other.pages[0].groups.flatMap((group) => group.strokes);
+  expect(pasted.map((s) => s.d).sort()).toEqual(lectureStrokes.map((s) => s.d).sort());
+  for (const { id } of pasted) expect(lectureStrokes.map((s) => s.id)).not.toContain(id);
+
+  // The pasted ink stays selected, and links to the bookmark in Lecture. The
+  // region is the page, clear of the rail and its selected tool.
+  const outline = await pixelBounds(page, {
+    x: Math.ceil(sheet.x), y: Math.round(sheet.y), width: Math.floor(sheet.width) - 1, height: Math.floor(Math.min(sheet.height, 720 - sheet.y)),
+  }, isOutline);
+  const pastedCenter = { x: (outline.left + outline.right) / 2, y: (outline.top + outline.bottom) / 2 };
+  await button("Link selected content").click();
+  await button("Another notebook").click();
+  await page.getByRole("group", { name: "Lecture Topology", exact: true }).click();
+  await page.getByText("Bookmark on page 2", { exact: true }).click();
+  other = await saved(proofs);
+  const crossLink = `../../Lecture/pages/${bookmark}`;
+  expect(other.pages[0].links).toEqual([crossLink]);
+  await button("Clear selection").click();
+
+  // A typed proof sketch with an explicit line break.
+  await button("Text").click();
+  const text = page.getByRole("textbox", { name: "Text", exact: true });
+  await enterText(text, "Lemma 2");
+  await text.press("Enter");
+  await text.pressSequentially("Proof.");
+  await button("Done").click();
+  await button("Clear selection").click();
+  other = await saved(proofs);
+  expect(other.pages[0].texts).toContainEqual(["Lemma 2", "Proof."]);
+  await shot("proofs");
+
+  // Following the link from Proofs opens Lecture at page 2.
+  await button("Pen").click();
+  await followLinks(true);
+  await page.mouse.click(pastedCenter.x, pastedCenter.y);
+  await expect(page.getByRole("heading", { name: "Lecture", exact: true })).toBeVisible();
+  await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
+
+  // After a reload, both notes keep their content and the link still works.
+  await page.goto("?root=opfs");
+  await openTestNotebook(page, "Topology");
+  await page.getByRole("button", { name: "Open Proofs", exact: false }).click();
+  await expect(page.getByRole("heading", { name: "Proofs", exact: true })).toBeVisible();
+  other = await storedNote(page, proofs);
+  expect(other.pages[0].links).toEqual([crossLink]);
+  expect(other.pages[0].texts).toContainEqual(["Lemma 2", "Proof."]);
+  note = await storedNote(page, lecture);
+  expect(note.pages.map((saved) => saved.groups.map((group) => group.strokes.length))).toEqual([[2], [1]]);
+  expect(note.pages[0].links).toEqual([bookmark]);
+  await followLinks(true);
+  await page.mouse.click(pastedCenter.x, pastedCenter.y);
+  await expect(page.getByRole("heading", { name: "Lecture", exact: true })).toBeVisible();
+  await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
+  await shot("followed-after-reload");
+
+  // Split view: Lecture beside Proofs. Page 2 of Lecture is selected and
+  // dragged into Proofs, which gains its row with a new id.
+  await button("View").click();
+  await button("Split view").click();
+  await page.getByRole("button", { name: /^Reference: / }).click();
+  await page.getByRole("group", { name: "Proofs Topology", exact: true }).click();
+  await expect(button("Reference: Proofs")).toBeVisible();
+  await expect(canvas).toHaveCount(2);
+  await shot("split-view");
+  await button("Pages").first().click();
+  await button("Select page").click();
+  const handle = page.getByText("Drag a copy", { exact: true });
+  const from = await boxOf(handle);
+  const to = await boxOf(canvas.nth(1));
+  await longPressDrag(page, from, to);
+  await shot("dragged-between-panes");
+  const row = note.pages[1].groups[0].strokes.map((s) => s.id);
+  await expect.poll(async () => (await storedNote(page, proofs)).pages[0].groups.flatMap((group) => group.strokes).length, { timeout: 15_000 }).toBe(3);
+  other = await storedNote(page, proofs);
+  for (const { id } of other.pages[0].groups.flatMap((group) => group.strokes)) expect(row).not.toContain(id);
+  await button("View").first().click();
+  await button("Close split view").click();
+  await expect(canvas).toHaveCount(1);
+
+  // The exported PDFs keep the links: Lecture's link goes to the named
+  // destination of its bookmark, and Proofs' link names the bookmark in
+  // Lecture by its path from the notebook.
+  const annotations = (path: string) =>
+    JSON.stringify(JSON.parse(execFileSync("qpdf", ["--json=2", path], { encoding: "utf8" })));
+  const lecturePdf = annotations(await exportPdf("lecture"));
+  const destination = `pages/${bookmark}`;
+  expect(lecturePdf).toContain('"/Subtype":"/Link"');
+  expect(lecturePdf.split(destination).length - 1, "the link and its destination name the bookmark").toBeGreaterThanOrEqual(2);
+  await button("Proofs").click();
+  await expect(page.getByRole("heading", { name: "Proofs", exact: true })).toBeVisible();
+  const proofsPdf = annotations(await exportPdf("proofs"));
+  expect(proofsPdf).toContain(`"/URI":"u:../Lecture/${destination}"`);
+});
+
+// The fill of each saved stroke on one page of a note, in file order.
+function storedFills(page: Page, path: string[], file: string) {
+  return whenSaved(() => page.evaluate(async ({ path, file }) => {
+    let dir = await navigator.storage.getDirectory();
+    for (const name of path) dir = await dir.getDirectoryHandle(name);
+    const svg = await (await (await (await dir.getDirectoryHandle("pages")).getFileHandle(file)).getFile()).text();
+    return [...svg.matchAll(/<path id="s-[^"]*"[^>]* fill="(#[0-9A-F]{6})"/g)].map((match) => match[1]);
+  }, { path, file }));
+}
+
 test("Flutter rewinds handwriting with Ctrl+Z and the undo dial", async ({ page }, info) => {
   test.setTimeout(90_000);
   const { box, cdp } = await openNewNote(page, "Rewind");
@@ -3669,692 +4358,6 @@ test("Flutter at a LAN address says the address is not secure and names the loca
   await expect(page.getByLabel(/showDirectoryPicker/)).toHaveCount(0);
   await page.screenshot({ path: info.outputPath("lan-address.png") });
 });
-
-// One notes folder from its first launch onward: the folder choice, a
-// notebook, handwriting with each tool on three pages, a restart that opens
-// the saved folder, a reconnection, the library operations, and an export.
-// Each step asserts the screen and the files.
-test("Flutter lifetime: first launch, folder choice, three written pages, restart, reconnection, library changes, and export", async ({ page }, info) => {
-  test.setTimeout(360_000);
-  const shot = (name: string) => page.screenshot({ path: info.outputPath(`${name}.png`) });
-  const button = (name: string) => page.getByRole("button", { name, exact: true });
-  const opfs = () => page.evaluate(async () => {
-    const root = await navigator.storage.getDirectory();
-    const folders = await Array.fromAsync(root.keys());
-    const metadata = folders.includes(".library.json")
-      ? JSON.parse(await (await (await root.getFileHandle(".library.json")).getFile()).text())
-      : null;
-    return { folders, metadata };
-  });
-
-  // First launch: a fresh browser profile has no saved folder. Automation
-  // cannot drive the native picker; here it yields the origin-private file
-  // system, which the app keeps in IndexedDB as it keeps any chosen folder.
-  await page.addInitScript(() => {
-    Object.defineProperty(window, "showDirectoryPicker", {
-      configurable: true,
-      value: async () => navigator.storage.getDirectory(),
-    });
-  });
-  await page.goto("");
-  await expect(page.getByText("Your notes live in a folder on this device.", { exact: true })).toBeVisible();
-  await shot("first-launch");
-  await button("Choose notes folder").click();
-  await expect(page.getByText("Your notebooks appear here.", { exact: true })).toBeVisible();
-  expect((await opfs()).folders, "the app prepares the folder's templates and pens").toEqual(expect.arrayContaining([".templates", ".pens.json"]));
-  await shot("empty-library");
-
-  // The first notebook and its first note.
-  await button("New notebook").click();
-  await enterText(page.getByRole("textbox", { name: "Notebook title", exact: true }), "Analysis");
-  await enterText(page.getByRole("textbox", { name: "Description", exact: true }), "Measure theory");
-  await addTag(page, "measure");
-  await button("Grid").click();
-  await button("Create").click();
-  await expect(page.getByRole("heading", { name: "Analysis", exact: true })).toBeVisible();
-  await button("New note").click();
-  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Integrals");
-  // A new note starts with its notebook's tags.
-  await expect(button("Remove tag measure")).toBeVisible();
-  await button("Create").click();
-  const canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
-  await canvas.waitFor({ timeout: 30_000 });
-  const box = await boxOf(canvas);
-  const cdp = await page.context().newCDPSession(page);
-  const pages = () => savedPages(page, "Integrals", "Analysis");
-  const strokes = async () => (await pages()).map((saved) => saved.strokes);
-
-  // Three rows of handwriting on page 1; each is checked on screen against
-  // the paper captured before writing.
-  const rows = [170, 260, 350].map((dy) => ({ x: box.x + 220, y: box.y + dy }));
-  const moved = { x: rows[2].x, y: rows[2].y + 120 };
-  const paper = new Map<PenPoint, Rgb[]>();
-  for (const spot of [...rows, moved]) paper.set(spot, await screenPixels(page, spot));
-  const write = (spot: PenPoint) => penStroke(cdp, line(spot.x - 60, spot.x + 60, spot.y), 0.6);
-  await write(rows[0]);
-  const stroke = await inkAt(page, rows[0], paper.get(rows[0])!);
-  expect(stroke, "the first row shows ink").toBeGreaterThan(0);
-  const inked = async () => {
-    const spots = [];
-    for (const spot of [...rows, moved]) spots.push((await inkAt(page, spot, paper.get(spot)!)) > 0.5 * stroke);
-    return spots;
-  };
-  await write(rows[1]);
-  await write(rows[2]);
-  expect(await inked()).toEqual([true, true, true, false]);
-  expect(await strokes()).toEqual([3]);
-  await shot("page-1-written");
-
-  // The stroke eraser takes the second row; undo and redo take it back and
-  // away again, on screen and in the file.
-  await button("Eraser").click();
-  await button("Eraser").click();
-  await button("Stroke").click();
-  await closePopover(page);
-  await penStroke(cdp, [-40, -20, 0, 20, 40].map((dy) => ({ x: rows[1].x, y: rows[1].y + dy })), 0.6);
-  expect(await inked()).toEqual([true, false, true, false]);
-  expect(await strokes()).toEqual([2]);
-  await button("Undo").click();
-  expect(await inked()).toEqual([true, true, true, false]);
-  expect(await strokes()).toEqual([3]);
-  await button("Redo").click();
-  expect(await inked()).toEqual([true, false, true, false]);
-  expect(await strokes()).toEqual([2]);
-
-  // A highlight across the first row leaves the handwriting dark.
-  const plainInk = await darkestPixel(page, rows[0]);
-  await button("Highlighter").click();
-  await penStroke(cdp, [-40, -20, 0, 20, 40].map((dy) => ({ x: rows[0].x + 30, y: rows[0].y + dy })), 0.6);
-  const crossing = await darkestPixel(page, rows[0]);
-  for (const channel of [0, 1, 2]) expect(Math.abs(crossing[channel] - plainInk[channel]), "the highlighted handwriting keeps its color").toBeLessThan(24);
-  expect(await strokes()).toEqual([3]);
-
-  // The lasso moves the third row down; the pen writes again afterwards.
-  await button("Lasso").click();
-  await penStroke(cdp, [
-    { x: rows[2].x - 80, y: rows[2].y - 40 }, { x: rows[2].x + 80, y: rows[2].y - 40 },
-    { x: rows[2].x + 80, y: rows[2].y + 40 }, { x: rows[2].x - 80, y: rows[2].y + 40 },
-    { x: rows[2].x - 80, y: rows[2].y - 40 },
-  ], 0.6);
-  await penStroke(cdp, [0, 40, 80, 120].map((dy) => ({ x: rows[2].x, y: rows[2].y + dy })), 0.6);
-  await button("Pen").click();
-  expect(await inked()).toEqual([true, false, false, true]);
-  expect(await strokes()).toEqual([3]);
-  await shot("page-1-edited");
-
-  // A typed text box. The new box is selected, as pasted content is, so a
-  // pen-down elsewhere would only dismiss the selection; its menu clears it.
-  await button("Text").click();
-  await enterText(page.getByRole("textbox", { name: "Text", exact: true }), "Theorem 1");
-  await button("Done").click();
-  expect((await pages())[0].text).toContain("Theorem 1");
-  await expect(button("Clear selection")).toBeVisible();
-  await shot("text-box-selected");
-  await button("Clear selection").click();
-  await expect(button("Clear selection")).toHaveCount(0);
-  await button("Pen").click();
-
-  // Pages 2 and 3, each written; the overview returns to page 1, which
-  // still shows its own ink and none of the other pages'.
-  const addPage = async (number: number) => {
-    await button("Pages").click();
-    await button("Add page").click();
-    await expect(page.getByText(`${number - 1} / ${number}`, { exact: true })).toBeVisible();
-    await goToPage(page, number);
-    await expect(page.getByText(`${number} / ${number}`, { exact: true })).toBeVisible();
-  };
-  await addPage(2);
-  expect(await inked(), "a new page is blank").toEqual([false, false, false, false]);
-  await write(rows[0]);
-  await write(rows[1]);
-  expect(await inked()).toEqual([true, true, false, false]);
-  await addPage(3);
-  await write(rows[2]);
-  expect(await inked()).toEqual([false, false, true, false]);
-  expect(await strokes()).toEqual([3, 2, 1]);
-  await shot("page-3-written");
-  await button("Pages").click();
-  await button("Page overview").click();
-  for (const number of [1, 2, 3]) await expect(button(`Page ${number}`)).toBeVisible();
-  await shot("page-overview");
-  await button("Page 1").click();
-  await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
-  expect(await inked()).toEqual([true, false, false, true]);
-
-  // A restart: the saved folder opens without a gesture, and the note shows
-  // the same ink on each page. The app finds the saved folder as a handle in
-  // IndexedDB; Chromium 153 exits when it reads a stored OPFS handle back
-  // (TRAPS.md), so the restart gives the app its saved folder in the host's
-  // own terms instead.
-  const restart = async (needsGesture: boolean) => {
-    await page.addInitScript((needsGesture) => {
-      Object.defineProperty(window, "mathNotes", {
-        configurable: true,
-        set(value) {
-          Object.assign(value, {
-            startRoot: async () => ({ root: await navigator.storage.getDirectory(), needsGesture }),
-            requestPermission: async () => true,
-          });
-          Object.defineProperty(window, "mathNotes", { configurable: true, writable: true, value });
-        },
-      });
-    }, needsGesture);
-    await page.goto("");
-  };
-  await restart(false);
-  await expect(page.getByRole("button", { name: "Open Analysis", exact: false })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText(/^1 note/)).toBeVisible();
-  await shot("library-after-restart");
-  await openTestNotebook(page, "Analysis");
-  await page.getByRole("button", { name: "Open Integrals", exact: false }).click();
-  await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
-  expect(await boxOf(canvas), "the canvas keeps its place after a restart").toEqual(box);
-  expect(await inked()).toEqual([true, false, false, true]);
-  await goToPage(page, 2);
-  await expect(page.getByText("2 / 3", { exact: true })).toBeVisible();
-  expect(await inked()).toEqual([true, true, false, false]);
-  await goToPage(page, 3);
-  await expect(page.getByText("3 / 3", { exact: true })).toBeVisible();
-  expect(await inked()).toEqual([false, false, true, false]);
-  expect(await strokes()).toEqual([3, 2, 1]);
-
-  // A restart whose folder needs a permission gesture.
-  await restart(true);
-  await expect(button("Reconnect folder")).toBeVisible();
-  await shot("reconnect");
-  await button("Reconnect folder").click();
-  await openTestNotebook(page, "Analysis");
-  await page.getByRole("button", { name: "Open Integrals", exact: false }).click();
-  await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
-  expect(await inked()).toEqual([true, false, false, true]);
-
-  // The library over time: a second notebook and note, a move, a search, a
-  // favorite, the trash, a rename, and a tag.
-  await button("Library").click();
-  await button("Back to library").click();
-  await createTestNotebook(page, "Topology");
-  await button("New note").click();
-  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Compactness");
-  await button("Create").click();
-  // Integrals is still open, so closing this note shows that one.
-  await button("Close Compactness").click();
-  await expect(page.getByRole("heading", { name: "Integrals", exact: true })).toBeVisible();
-  await button("Library").click();
-  await expect(page.getByRole("heading", { name: "Topology", exact: true })).toBeVisible();
-  await button("Back to library").click();
-  await openTestNotebook(page, "Analysis");
-  await button("Integrals actions").click();
-  await button("Move").click();
-  await button("Topology").click();
-  await expect(button("Integrals actions")).toHaveCount(0);
-  await button("Back to library").click();
-  await openTestNotebook(page, "Topology");
-  await expect(page.getByRole("button", { name: "Open Integrals", exact: false })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Open Compactness", exact: false })).toBeVisible();
-  await shot("moved");
-
-  await button("Back to library").click();
-  await button("Search").click();
-  await enterText(page.getByRole("textbox", { name: "Search notebooks and notes", exact: true }), "Integrals");
-  await expect(page.getByRole("button", { name: "Open Integrals", exact: false })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Open Compactness", exact: false })).toHaveCount(0);
-  await button("Integrals actions").click();
-  await button("Add favorite").click();
-  await page.getByText("Favorites", { exact: true }).click();
-  await expect(page.getByRole("button", { name: "Open Integrals", exact: false })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Open Compactness", exact: false })).toHaveCount(0);
-
-  await button("Recent").click();
-  await button("Compactness actions").click();
-  await button("Move to trash").click();
-  await button("Trash").click();
-  await button("Compactness actions").click();
-  await button("Restore").click();
-  await button("Topology").click();
-  await button("Library").click();
-  await openTestNotebook(page, "Topology");
-  await expect(page.getByRole("button", { name: "Open Compactness", exact: false })).toBeVisible();
-
-  await button("Back to library").click();
-  await button("Analysis notebook actions").click();
-  await button("Rename").click();
-  await enterText(page.getByRole("textbox", { name: "Name", exact: true }), "Real analysis");
-  await button("Rename").click();
-  await expect(button("Real analysis notebook actions")).toBeVisible();
-  await openTestNotebook(page, "Real analysis");
-  await expect(page.getByText("Measure theory", { exact: true }), "the renamed notebook keeps its description").toBeVisible();
-  await expect(page.getByText("This notebook has no notes yet.", { exact: true })).toBeVisible();
-  await button("Back to library").click();
-
-  await button("New tag").click();
-  await enterText(page.getByRole("textbox", { name: "Tag name", exact: true }), "geometry");
-  await button("Add tag").click();
-  await openTestNotebook(page, "Topology");
-  await button("Integrals actions").click();
-  await button("Details and tags").click();
-  await addTag(page, "geometry");
-  await button("Save details").click();
-  await page.getByRole("button", { name: /^geometry/ }).click();
-  await expect(page.getByRole("button", { name: "Open Integrals", exact: false })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Open Compactness", exact: false })).toHaveCount(0);
-  await shot("library-final");
-
-  const { folders, metadata } = await opfs();
-  expect(folders).toEqual(expect.arrayContaining(["Real analysis", "Topology"]));
-  expect(folders).not.toContain("Analysis");
-  expect(metadata.folders["Real analysis"].description).toBe("Measure theory");
-  expect(metadata.folders["Real analysis"].tags).toEqual(["measure"]);
-  expect(metadata.folders.Analysis).toBeUndefined();
-  expect(metadata.notes["Topology/Integrals"].favorite).toBe(true);
-  expect(metadata.notes["Topology/Integrals"].tags).toEqual(["measure", "geometry"]);
-  expect(metadata.notes["Analysis/Integrals"]).toBeUndefined();
-  expect(metadata.notes[".trash/Compactness"]).toBeUndefined();
-  expect(metadata.tags.map(({ name }: { name: string }) => name)).toEqual(expect.arrayContaining(["measure", "geometry"]));
-
-  // The moved note keeps its pages, and exports them.
-  const stored = await storedPages(page, "Integrals", "Topology");
-  expect(stored.map((saved) => saved.strokes)).toEqual([3, 2, 1]);
-  expect(stored[0].text).toContain("Theorem 1");
-  await page.getByRole("button", { name: "Open Integrals", exact: false }).click();
-  await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
-  expect(await inked()).toEqual([true, false, false, true]);
-  await button("More").click();
-  await button("Export PDF").click();
-  const download = page.waitForEvent("download");
-  await button("Export").click();
-  const pdfPath = info.outputPath("integrals.pdf");
-  await (await download).saveAs(pdfPath);
-  expect(execFileSync("pdfinfo", [pdfPath], { encoding: "utf8" })).toMatch(/Pages:\s+3/);
-  expect(execFileSync("pdftotext", [pdfPath, "-"], { encoding: "utf8" })).toContain("Theorem 1");
-});
-
-// A saved notebook in the notes folder, by its folder path: its layers, and
-// each page's layer groups in file order with their strokes, links,
-// bookmarks, and the lines of each text box.
-function storedNote(page: Page, path: string[]) {
-  return whenSaved(() => page.evaluate(async (path) => {
-    let dir = await navigator.storage.getDirectory();
-    for (const name of path) dir = await dir.getDirectoryHandle(name);
-    const manifest = JSON.parse(await (await (await dir.getFileHandle("notebook.json")).getFile()).text());
-    const files = await dir.getDirectoryHandle("pages");
-    const pages = [];
-    for (const entry of manifest.pages as { file: string }[]) {
-      const svg = await (await (await files.getFileHandle(entry.file.replace("pages/", ""))).getFile()).text();
-      const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
-      const groups = Array.from(parsed.documentElement.children).filter((g) => g.tagName === "g" && g.id !== "background");
-      pages.push({
-        file: entry.file,
-        groups: groups.map((g) => ({
-          id: g.id,
-          xml: g.outerHTML,
-          strokes: Array.from(g.querySelectorAll('path[id^="s-"]'), (stroke) => ({ id: stroke.id, d: stroke.getAttribute("d") })),
-        })),
-        links: Array.from(parsed.querySelectorAll("a"), (link) => link.getAttribute("href")),
-        bookmarks: Array.from(parsed.querySelectorAll("g.mn-bookmark"), (bookmark) => bookmark.id),
-        texts: Array.from(parsed.querySelectorAll("text"), (box) => Array.from(box.querySelectorAll("tspan"), (line) => line.textContent)),
-      });
-    }
-    return { layers: manifest.layers as { id: string; name: string; hidden: boolean; locked: boolean }[], pages };
-  }, path));
-}
-
-test("Flutter research session: layers, clippings, bookmarks, links between notes, split view, reload, and export", async ({ page }, info) => {
-  test.setTimeout(480_000);
-  const shot = (name: string) => page.screenshot({ path: info.outputPath(`${name}.png`) });
-  const button = (name: string) => page.getByRole("button", { name, exact: true });
-  const lecture = ["Topology", "Lecture"];
-  const proofs = ["Topology", "Proofs"];
-  const saved = async (path: string[]) => {
-    await save(page);
-    await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
-    return storedNote(page, path);
-  };
-  const strokeCounts = (note: Awaited<ReturnType<typeof storedNote>>, index = 0) =>
-    note.pages[index].groups.map((group) => group.strokes.length);
-
-  await page.goto("?root=opfs");
-  await createTestNotebook(page, "Topology");
-  await button("New note").click();
-  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Lecture");
-  await button("Create").click();
-  const canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
-  await canvas.waitFor({ timeout: 30_000 });
-  const box = await boxOf(canvas);
-  const cdp = await page.context().newCDPSession(page);
-
-  // Three rows of handwriting, each checked on screen against the paper
-  // captured before writing.
-  const rows = [170, 260, 350].map((dy) => ({ x: box.x + 220, y: box.y + dy }));
-  const paper = new Map<PenPoint, Rgb[]>();
-  for (const spot of rows) paper.set(spot, await screenPixels(page, spot));
-  const write = (spot: PenPoint) => penStroke(cdp, line(spot.x - 60, spot.x + 60, spot.y), 0.6);
-  await write(rows[0]);
-  const stroke = await inkAt(page, rows[0], paper.get(rows[0])!);
-  expect(stroke, "the first row shows ink").toBeGreaterThan(0);
-  const inked = async () => {
-    const spots = [];
-    for (const spot of rows) spots.push((await inkAt(page, spot, paper.get(spot)!)) > 0.5 * stroke);
-    return spots;
-  };
-  const lasso = (top: number, bottom: number) => penStroke(cdp, [
-    { x: rows[0].x - 80, y: top }, { x: rows[0].x + 80, y: top },
-    { x: rows[0].x + 80, y: bottom }, { x: rows[0].x - 80, y: bottom },
-    { x: rows[0].x - 80, y: top },
-  ], 0.6);
-  const layers = async (action: () => Promise<void>) => {
-    await button("Pages").click();
-    await button("Layers").click();
-    await action();
-    await button("Done").click();
-    // Pen events before the sheet's barrier is gone never reach the page
-    // (TRAPS.md).
-    await expect(button("Library")).toBeVisible();
-  };
-  const addLayer = async (name: string) => {
-    await button("Add").click();
-    await enterText(page.getByRole("textbox", { name: "Layer name", exact: true }), name);
-    await button("Save").click();
-    await expect(page.getByRole("group", { name, exact: true })).toBeVisible();
-  };
-
-  // A second layer for sketches; new ink goes to the active layer.
-  await layers(() => addLayer("Sketch"));
-  await write(rows[1]);
-  expect(await inked()).toEqual([true, true, false]);
-  let note = await saved(lecture);
-  expect(note.layers.map((layer) => layer.name)).toEqual(["Ink", "Sketch"]);
-  const [ink, sketch] = note.layers.map((layer) => layer.id);
-  expect(note.pages[0].groups.map((group) => group.id)).toEqual([ink, sketch]);
-  expect(strokeCounts(note)).toEqual([1, 1]);
-
-  // A locked layer keeps its ink under the stroke eraser and the lasso.
-  await layers(() => button("Lock Ink").click());
-  await button("Eraser").click();
-  await button("Eraser").click();
-  await button("Stroke").click();
-  await closePopover(page);
-  await penStroke(cdp, [130, 170, 210, 260, 300].map((y) => ({ x: rows[0].x, y: box.y + y })), 0.6);
-  expect(await inked(), "the eraser takes the sketch only").toEqual([true, false, false]);
-  await button("Undo").click();
-  expect(await inked()).toEqual([true, true, false]);
-  await button("Lasso").click();
-  await lasso(box.y + 130, box.y + 300);
-  await button("Delete selection").click();
-  expect(await inked(), "the lasso takes the sketch only").toEqual([true, false, false]);
-  await button("Undo").click();
-  expect(await inked()).toEqual([true, true, false]);
-  note = await saved(lecture);
-  expect(note.layers.map((layer) => layer.locked)).toEqual([true, false]);
-  expect(strokeCounts(note)).toEqual([1, 1]);
-  await shot("locked-layer");
-
-  // Reordering moves the layer groups in the page file and changes nothing
-  // in them.
-  const before = note.pages[0].groups.map((group) => group.xml);
-  await layers(async () => {
-    await button("Unlock Ink").click();
-    await button("Down Sketch").click();
-  });
-  note = await saved(lecture);
-  expect(note.layers.map((layer) => layer.name)).toEqual(["Sketch", "Ink"]);
-  expect(note.pages[0].groups.map((group) => group.xml)).toEqual([before[1], before[0]]);
-
-  // A hidden layer is not drawn.
-  await layers(() => button("Hide Sketch").click());
-  expect(await inked()).toEqual([true, false, false]);
-  await layers(() => button("Show Sketch").click());
-  expect(await inked()).toEqual([true, true, false]);
-
-  // A layer for labels, merged down into the ink.
-  await layers(() => addLayer("Labels"));
-  await button("Pen").click();
-  await write(rows[2]);
-  expect(await inked()).toEqual([true, true, true]);
-  await layers(() => button("Merge down Labels").click());
-  note = await saved(lecture);
-  expect(note.layers.map((layer) => layer.name)).toEqual(["Sketch", "Ink"]);
-  expect(note.pages[0].groups.map((group) => group.id)).toEqual([sketch, ink]);
-  expect(strokeCounts(note)).toEqual([1, 2]);
-  expect(await inked()).toEqual([true, true, true]);
-
-  // An export without the sketch layer leaves out its ink: a render of the
-  // PDF page at the screen page's width has ink at the first and third rows
-  // only.
-  const exportPdf = async (name: string, exclude: string[] = []) => {
-    await button("More").click();
-    await button("Export PDF").click();
-    for (const layer of exclude) await page.getByRole("switch", { name: layer, exact: true }).click();
-    await shot(`export-${name}`);
-    const download = page.waitForEvent("download");
-    await button("Export").click();
-    const path = info.outputPath(`${name}.pdf`);
-    await (await download).saveAs(path);
-    return path;
-  };
-  const sheet = pageIn(box);
-  const width = Math.round(sheet.width);
-  const withoutSketch = await exportPdf("without-sketch", ["Sketch"]);
-  const render = info.outputPath("without-sketch-page-1");
-  execFileSync("pdftoppm", ["-png", "-f", "1", "-l", "1", "-singlefile", "-scale-to-x", `${width}`, "-scale-to-y", "-1", withoutSketch, render]);
-  const rendered = await pngPixels(page, await readFile(`${render}.png`));
-  const renderedInk = (spot: PenPoint) => {
-    const x = Math.round(spot.x - sheet.x);
-    const y = Math.round(spot.y - sheet.y);
-    let dark = 0;
-    for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) if (isInk(rendered[(y + dy) * width + x + dx])) dark++;
-    return dark > 0;
-  };
-  expect(rows.map(renderedInk)).toEqual([true, false, true]);
-
-  // Deleting the sketch layer removes its ink.
-  await layers(async () => {
-    await button("Delete Sketch").click();
-    await expect(page.getByRole("alertdialog").getByText("Delete Sketch?", { exact: true })).toBeVisible();
-    await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
-  });
-  expect(await inked()).toEqual([true, false, true]);
-  note = await saved(lecture);
-  expect(note.layers.map((layer) => layer.name)).toEqual(["Ink"]);
-  expect(strokeCounts(note)).toEqual([2]);
-  const lectureStrokes = note.pages[0].groups[0].strokes;
-
-  // The clippings panel starts with Write's four shapes; the two rows become
-  // a fifth clipping, a page of the clippings notebook. The panel narrows the
-  // page, so the selection comes first.
-  await button("Lasso").click();
-  await lasso(box.y + 130, box.y + 390);
-  await button("Clippings").click();
-  // The panel lists the clippings in a scroll view; one off screen is hidden
-  // or has no semantics node until the wheel scrolls it in.
-  const clipping = async (number: number) => {
-    const target = button(`Insert clipping ${number}`);
-    await expect(async () => {
-      if (!(await target.isVisible())) {
-        // Wheel toward the number: up while it is below the first one shown.
-        // None shows while the panel slides in.
-        let first = 1;
-        while (first < 10 && !(await button(`Insert clipping ${first}`).isVisible())) first++;
-        if (first < 10) {
-          const anchor = await boxOf(button(`Insert clipping ${first}`));
-          await page.mouse.move(anchor.x + anchor.width / 2, anchor.y + anchor.height / 2);
-          await page.mouse.wheel(0, number < first ? -200 : 200);
-        }
-      }
-      await expect(target).toBeVisible({ timeout: 500 });
-    }).toPass({ timeout: 10_000 });
-  };
-  for (const number of [1, 2, 3, 4]) await clipping(number);
-  await button("Save selected content").click();
-  await clipping(5);
-  await shot("clipping-saved");
-  const clippings = await storedNote(page, [".clippings"]);
-  expect(clippings.pages).toHaveLength(5);
-  const clipped = clippings.pages[4].groups.flatMap((group) => group.strokes);
-  expect(clipped.map((s) => s.d).sort()).toEqual(lectureStrokes.map((s) => s.d).sort());
-  await button("Clippings").click();
-  await button("Clear selection").click();
-
-  // Page 2: a row of handwriting and a bookmark at its line.
-  await button("Pen").click();
-  await button("Pages").click();
-  await button("Add page").click();
-  await goToPage(page, 2);
-  await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
-  await write(rows[0]);
-  await button("Pages").click();
-  await button("Add bookmark").click();
-  // The banner is one semantics node, labeled with its mode and its hint.
-  await expect(page.getByLabel("Add bookmark\nTap the line to mark.", { exact: true })).toBeVisible();
-  await page.mouse.click(rows[0].x, rows[0].y);
-  await button("Close Add bookmark").click();
-  await button("Clear selection").click();
-  note = await saved(lecture);
-  expect(note.pages[1].bookmarks).toHaveLength(1);
-  const bookmark = `${note.pages[1].file.replace("pages/", "")}#${note.pages[1].bookmarks[0]}`;
-
-  // The first row of page 1 links to the bookmark, and following it goes
-  // to page 2.
-  await goToPage(page, 1);
-  await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
-  await button("Lasso").click();
-  await lasso(box.y + 130, box.y + 210);
-  await button("Link selected content").click();
-  await button("Page or bookmark").click();
-  await page.getByText("Bookmark on page 2", { exact: true }).click();
-  note = await saved(lecture);
-  expect(note.pages[0].links).toEqual([bookmark]);
-  const followLinks = async (on: boolean) => {
-    await button("More").click();
-    await button("Settings").click();
-    const toggle = page.getByRole("switch", { name: "Follow links", exact: true });
-    await toggle.click();
-    if (on) await expect(toggle).toBeChecked();
-    else await expect(toggle).not.toBeChecked();
-    await button("Done").click();
-    await expect(button("Library")).toBeVisible();
-  };
-  await followLinks(true);
-  await page.mouse.click(rows[0].x, rows[0].y);
-  await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
-  await followLinks(false);
-  await shot("followed-bookmark");
-
-  // A second note gets the clipping, with new stroke ids and the same
-  // outlines.
-  await button("Library").click();
-  await expect(page.getByRole("heading", { name: "Topology", exact: true })).toBeVisible();
-  await button("New note").click();
-  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Proofs");
-  await button("Create").click();
-  await expect(page.getByRole("heading", { name: "Proofs", exact: true })).toBeVisible();
-  await button("Clippings").click();
-  await clipping(5);
-  await button("Insert clipping 5").click();
-  await button("Clippings").click();
-  let other = await saved(proofs);
-  const pasted = other.pages[0].groups.flatMap((group) => group.strokes);
-  expect(pasted.map((s) => s.d).sort()).toEqual(lectureStrokes.map((s) => s.d).sort());
-  for (const { id } of pasted) expect(lectureStrokes.map((s) => s.id)).not.toContain(id);
-
-  // The pasted ink stays selected, and links to the bookmark in Lecture. The
-  // region is the page, clear of the rail and its selected tool.
-  const outline = await pixelBounds(page, {
-    x: Math.ceil(sheet.x), y: Math.round(sheet.y), width: Math.floor(sheet.width) - 1, height: Math.floor(Math.min(sheet.height, 720 - sheet.y)),
-  }, isOutline);
-  const pastedCenter = { x: (outline.left + outline.right) / 2, y: (outline.top + outline.bottom) / 2 };
-  await button("Link selected content").click();
-  await button("Another notebook").click();
-  await page.getByRole("group", { name: "Lecture Topology", exact: true }).click();
-  await page.getByText("Bookmark on page 2", { exact: true }).click();
-  other = await saved(proofs);
-  const crossLink = `../../Lecture/pages/${bookmark}`;
-  expect(other.pages[0].links).toEqual([crossLink]);
-  await button("Clear selection").click();
-
-  // A typed proof sketch with an explicit line break.
-  await button("Text").click();
-  const text = page.getByRole("textbox", { name: "Text", exact: true });
-  await enterText(text, "Lemma 2");
-  await text.press("Enter");
-  await text.pressSequentially("Proof.");
-  await button("Done").click();
-  await button("Clear selection").click();
-  other = await saved(proofs);
-  expect(other.pages[0].texts).toContainEqual(["Lemma 2", "Proof."]);
-  await shot("proofs");
-
-  // Following the link from Proofs opens Lecture at page 2.
-  await button("Pen").click();
-  await followLinks(true);
-  await page.mouse.click(pastedCenter.x, pastedCenter.y);
-  await expect(page.getByRole("heading", { name: "Lecture", exact: true })).toBeVisible();
-  await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
-
-  // After a reload, both notes keep their content and the link still works.
-  await page.goto("?root=opfs");
-  await openTestNotebook(page, "Topology");
-  await page.getByRole("button", { name: "Open Proofs", exact: false }).click();
-  await expect(page.getByRole("heading", { name: "Proofs", exact: true })).toBeVisible();
-  other = await storedNote(page, proofs);
-  expect(other.pages[0].links).toEqual([crossLink]);
-  expect(other.pages[0].texts).toContainEqual(["Lemma 2", "Proof."]);
-  note = await storedNote(page, lecture);
-  expect(note.pages.map((saved) => saved.groups.map((group) => group.strokes.length))).toEqual([[2], [1]]);
-  expect(note.pages[0].links).toEqual([bookmark]);
-  await followLinks(true);
-  await page.mouse.click(pastedCenter.x, pastedCenter.y);
-  await expect(page.getByRole("heading", { name: "Lecture", exact: true })).toBeVisible();
-  await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
-  await shot("followed-after-reload");
-
-  // Split view: Lecture beside Proofs. Page 2 of Lecture is selected and
-  // dragged into Proofs, which gains its row with a new id.
-  await button("View").click();
-  await button("Split view").click();
-  await page.getByRole("button", { name: /^Reference: / }).click();
-  await page.getByRole("group", { name: "Proofs Topology", exact: true }).click();
-  await expect(button("Reference: Proofs")).toBeVisible();
-  await expect(canvas).toHaveCount(2);
-  await shot("split-view");
-  await button("Pages").first().click();
-  await button("Select page").click();
-  const handle = page.getByText("Drag a copy", { exact: true });
-  const from = await boxOf(handle);
-  const to = await boxOf(canvas.nth(1));
-  await longPressDrag(page, from, to);
-  await shot("dragged-between-panes");
-  const row = note.pages[1].groups[0].strokes.map((s) => s.id);
-  await expect.poll(async () => (await storedNote(page, proofs)).pages[0].groups.flatMap((group) => group.strokes).length, { timeout: 15_000 }).toBe(3);
-  other = await storedNote(page, proofs);
-  for (const { id } of other.pages[0].groups.flatMap((group) => group.strokes)) expect(row).not.toContain(id);
-  await button("View").first().click();
-  await button("Close split view").click();
-  await expect(canvas).toHaveCount(1);
-
-  // The exported PDFs keep the links: Lecture's link goes to the named
-  // destination of its bookmark, and Proofs' link names the bookmark in
-  // Lecture by its path from the notebook.
-  const annotations = (path: string) =>
-    JSON.stringify(JSON.parse(execFileSync("qpdf", ["--json=2", path], { encoding: "utf8" })));
-  const lecturePdf = annotations(await exportPdf("lecture"));
-  const destination = `pages/${bookmark}`;
-  expect(lecturePdf).toContain('"/Subtype":"/Link"');
-  expect(lecturePdf.split(destination).length - 1, "the link and its destination name the bookmark").toBeGreaterThanOrEqual(2);
-  await button("Proofs").click();
-  await expect(page.getByRole("heading", { name: "Proofs", exact: true })).toBeVisible();
-  const proofsPdf = annotations(await exportPdf("proofs"));
-  expect(proofsPdf).toContain(`"/URI":"u:../Lecture/${destination}"`);
-});
-
-// The fill of each saved stroke on one page of a note, in file order.
-function storedFills(page: Page, path: string[], file: string) {
-  return whenSaved(() => page.evaluate(async ({ path, file }) => {
-    let dir = await navigator.storage.getDirectory();
-    for (const name of path) dir = await dir.getDirectoryHandle(name);
-    const svg = await (await (await (await dir.getDirectoryHandle("pages")).getFileHandle(file)).getFile()).text();
-    return [...svg.matchAll(/<path id="s-[^"]*"[^>]* fill="(#[0-9A-F]{6})"/g)].map((match) => match[1]);
-  }, { path, file }));
-}
 
 test("Flutter lecture session: every core tool on one note, pages, a PDF beside it, reload, library, a sync conflict, and export", async ({ page, context }, info) => {
   test.setTimeout(600_000);
