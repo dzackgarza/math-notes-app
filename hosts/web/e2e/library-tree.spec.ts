@@ -22,7 +22,19 @@ test("the library tree opens notes and offers explicit creation targets", async 
 
   await button("Library").click();
   await button("Back to library").click();
-  await button("Create options").first().click();
+  await button("Create options").click();
   await button("New note in Test Notebook").click();
+  await expect(page.getByText("New note in Test Notebook", { exact: true })).toBeVisible();
+  await button("Cancel").click();
+
+  await button("New notebook").click();
+  await enterText(page.getByRole("textbox", { name: "Notebook title", exact: true }), "Other notebook");
+  await button("Create").click();
+  await expect(page.getByRole("heading", { name: "Other notebook", exact: true })).toBeVisible();
+  await button("Back to library").click();
+  await button("Create options").click();
+  await button("New note in…").click();
+  await expect(page.getByText("Choose notebook", { exact: true })).toBeVisible();
+  await button("Test Notebook").last().click();
   await expect(page.getByText("New note in Test Notebook", { exact: true })).toBeVisible();
 });
