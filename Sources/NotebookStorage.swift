@@ -1276,7 +1276,8 @@ final class NotesRootAccess {
   func clippingPreviews(width: Int32 = 240) throws -> [(id: String, png: Data)] {
     let (reference, document) = try loadClippings()
     let ids = try clippingPageIDs(reference)
-    guard ids.count == try document.pageCount() else {
+    let pageCount = try document.pageCount()
+    guard ids.count == pageCount else {
       throw EngineDocumentError.operation(
         "List clippings", "The clipping index changed while it was being read")
     }
@@ -1303,7 +1304,8 @@ final class NotesRootAccess {
     let (reference, document) = try loadClippings()
     let index = try clippingIndex(id, reference: reference)
     let target = index + offset
-    guard target >= 0, target < try document.pageCount() else { return }
+    let pageCount = try document.pageCount()
+    guard target >= 0, target < pageCount else { return }
     try document.movePage(from: index, to: target)
     try save(document, notebook: reference)
   }
