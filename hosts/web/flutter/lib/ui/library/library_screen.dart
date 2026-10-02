@@ -823,17 +823,40 @@ class _LibraryScreenState extends State<LibraryScreen> {
     ),
   );
 
+  bool treeNoteMatches(native.Note note) {
+    final metadata = folder.noteMetadata(note);
+    return vm.matches([
+      note.name,
+      metadata.description,
+      LibraryViewModel.tagText(metadata.tags),
+    ]);
+  }
+
   List<Widget> notebookBranch(native.Folder item, int depth) {
     final key = native.pathKey(item.path);
-    final expanded = expandedNotebooks.contains(key);
+    final expanded = expandedNotebooks.contains(key) || vm.query.isNotEmpty;
     final children = vm.library.folders.toDart
         .where((folder) =>
             folder.path.length == item.path.length + 1 &&
             native.pathKey(folder.path).startsWith('$key/'))
         .toList()
       ..sort((a, b) => a.name.compareTo(b.name));
-    final notes = item.notes.toDart
+    final notes = item.notes.toDart.where(treeNoteMatches).toList()
       ..sort((a, b) => a.name.compareTo(b.name));
+    final childBranches = [
+      for (final child in children) ...notebookBranch(child, depth + 1),
+    ];
+    final metadata = folder.folderMetadata(item.path);
+    if (vm.query.isNotEmpty &&
+        !vm.matches([
+          item.name,
+          metadata.description,
+          LibraryViewModel.tagText(metadata.tags),
+        ]) &&
+        notes.isEmpty &&
+        childBranches.isEmpty) {
+      return [];
+    }
     return [
       treeRow(
         text: item.name,
@@ -854,7 +877,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         },
       ),
       if (expanded) ...[
-        for (final child in children) ...notebookBranch(child, depth + 1),
+        ...childBranches,
         for (final note in notes)
           treeRow(
             text: note.name,
@@ -976,7 +999,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   ),
                   if (untaggedExpanded)
                     for (final note in notes.where(
-                      (note) => folder.noteMetadata(note).tags.length == 0,
+                      (note) => folder.noteMetadata(note).tags.length == 0 &&
+                          treeNoteMatches(note),
                     ))
                       treeRow(
                         text: note.name,
@@ -988,7 +1012,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     ...notebookBranch(notebook, 1),
                 ],
                 if (item.label == 'Trash' && trashExpanded)
-                  for (final note in vm.library.trash.toDart)
+                  for (final note in vm.library.trash.toDart.where(treeNoteMatches))
                     treeRow(
                       text: note.name,
                       icon: CupertinoIcons.doc_text,
