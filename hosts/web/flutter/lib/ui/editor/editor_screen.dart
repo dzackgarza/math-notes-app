@@ -1183,7 +1183,7 @@ class _EditorScreenState extends State<EditorScreen> {
             middle: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(widget.note.name),
+                Semantics(header: true, child: Text(widget.note.name)),
                 // Its own node: the title alone names the heading.
                 if (widget.notebookDescription.isNotEmpty)
                   Semantics(

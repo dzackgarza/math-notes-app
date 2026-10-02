@@ -194,7 +194,8 @@ test("Flutter notebook cards retain their notes and metadata after rename", asyn
   // spine in a darker shade of the Forest cloth.
   const forest: Rgb = [0x2f, 0x4a, 0x3a];
   const expectCover = async (cover: Box, where: string) => {
-    expect(await centerPixel(page, { x: cover.x + 16, y: cover.y + 50 }), `the ${where} is in the Forest cloth`).toEqual(forest);
+    // The cloth shows between the spine and the inset page.
+    expect(await centerPixel(page, { x: cover.x + 15, y: cover.y + 50 }), `the ${where} is in the Forest cloth`).toEqual(forest);
     const spine = await centerPixel(page, { x: cover.x + 6, y: cover.y + 50 });
     expect(spine[1], `the ${where} has a spine`).toBeLessThan(forest[1] - 10);
   };

@@ -36,8 +36,11 @@ Widget coverArt({
     ),
     boxShadow: floatingShadow,
   ),
+  // A border does not inset the child: the padding clears the bound edge.
   child: Padding(
-    padding: EdgeInsets.all(title != null ? 10 : 6),
+    padding: EdgeInsets.all(
+      title != null ? 10 : 6,
+    ).add(EdgeInsets.only(left: style == 'spine' ? 12 : 4)),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
