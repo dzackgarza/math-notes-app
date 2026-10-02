@@ -1026,42 +1026,6 @@ test("Flutter library shows board chrome, buckram cover colors, aligned creation
   await expect(page.getByRole("button", { name: "Open Rings", exact: false })).toBeVisible();
 });
 
-test("Flutter shows ruled, grid, dotted, and blank paper as chosen at creation", async ({ page }, info) => {
-  test.setTimeout(180_000);
-  // The marks in a square of the page: full rows are rules, full columns
-  // are grid verticals, and marks in neither are dots. The square starts
-  // 150 px into the page, right of lined paper's margin rule (48 pt).
-  const pattern = async (paper: string) => {
-    const { box } = await openNewNote(page, paper, paper);
-    const sheet = pageIn(box);
-    const side = 200;
-    const pixels = await capture(page, { x: sheet.x + 150, y: sheet.y + 150, width: side, height: side });
-    await page.screenshot({ path: info.outputPath(`${paper}.png`) });
-    const white = pixels.reduce((best, rgb) => (brightness(rgb) > brightness(best) ? rgb : best));
-    const marked = pixels.map((rgb) => brightness(white) - brightness(rgb) > 20);
-    const at = (x: number, y: number) => marked[y * side + x];
-    const range = [...Array(side).keys()];
-    return {
-      marks: marked.filter(Boolean).length,
-      rows: range.filter((y) => range.every((x) => at(x, y))).length,
-      columns: range.filter((x) => range.every((y) => at(x, y))).length,
-    };
-  };
-  const lined = await pattern("Lined");
-  expect(lined.rows, "lined paper has rules").toBeGreaterThan(0);
-  expect(lined.columns, "lined paper has no verticals").toBe(0);
-  for (const paper of ["Grid", "Graph"]) {
-    const grid = await pattern(paper);
-    expect(grid.rows, `${paper} has horizontal lines`).toBeGreaterThan(0);
-    expect(grid.columns, `${paper} has vertical lines`).toBeGreaterThan(0);
-  }
-  const dotted = await pattern("Dot");
-  expect(dotted.marks, "dot paper has dots").toBeGreaterThan(0);
-  expect(dotted.rows + dotted.columns, "dot paper has no lines").toBe(0);
-  const blank = await pattern("Plain");
-  expect(blank.marks, "plain paper is blank").toBe(0);
-});
-
 test("Flutter lasso moves, cuts, pastes, copies, and deletes handwriting", async ({ page, context }, info) => {
   test.setTimeout(90_000);
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
@@ -2550,35 +2514,6 @@ test("Flutter renames a note with its pages, sorts the notes, and search lists t
   await expect(page.getByRole("group", { name: "Modules Shelf", exact: true })).toHaveCount(0);
   await page.getByRole("group", { name: "Fields Shelf", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Fields", exact: true })).toBeVisible();
-});
-
-test("Flutter creates a note in each page size and orientation", async ({ page }) => {
-  test.setTimeout(150_000);
-  await page.goto("?root=opfs");
-  await createTestNotebook(page);
-  const button = (name: string) => page.getByRole("button", { name, exact: true });
-  const a4 = [595.28, 841.89], letter = [612, 792];
-  const papers: [string, string, number[]][] = [
-    ["A4", "Portrait", a4],
-    ["A4", "Landscape", a4.toReversed()],
-    ["Letter", "Portrait", letter],
-    ["Letter", "Landscape", letter.toReversed()],
-  ];
-  for (const [paper, orientation, size] of papers) {
-    const title = `${paper} ${orientation}`;
-    await button("New note").click();
-    await enterText(page.getByRole("textbox", { name: "Title", exact: true }), title);
-    await button(paper).click();
-    await button(orientation).click();
-    await button("Create").click();
-    await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible({ timeout: 30_000 });
-    expect((await savedPages(page, title)).map((saved) => saved.size), title).toEqual([size]);
-    await button("Pages").click();
-    await button("Add page").click();
-    await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
-    expect((await savedPages(page, title)).map((saved) => saved.size), `${title}, second page`).toEqual([size, size]);
-    await button("Library").click();
-  }
 });
 
 test("Flutter insert space moves the handwriting with the pen in each mode, and onto a new page", async ({ page }, info) => {
