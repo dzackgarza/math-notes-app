@@ -535,13 +535,15 @@ final class NotebookStorageTests: XCTestCase {
     let pageURL = noteURL.appendingPathComponent("pages/0001.svg")
     let base = try Data(contentsOf: pageURL)
 
-    let grid = try EngineDocument.builtinTemplate(name: "grid-medium", seed: 97)
-    let gridChange = try XCTUnwrap(
-      try grid.dirtyFiles().first { $0.path == "pages/0001.svg" })
-    guard case let .write(gridPage) = gridChange.kind else {
-      return XCTFail("The grid template page was not writable data")
-    }
-    try document.setTemplate(name: "blank", page: gridPage)
+    let canvas = InkCanvasView(document: document)
+    canvas.frame = CGRect(x: 0, y: 0, width: 1024, height: 1024)
+    canvas.layoutIfNeeded()
+    canvas.setViewTransform(.identity)
+    let page = try document.pageRect(index: 0)
+    try canvas.editText(
+      EngineTextProperties(content: "local page edit", width: 144, rtl: false),
+      at: CGPoint(x: page.minX + 72, y: page.minY + 72),
+      existing: false)
     let localChange = try XCTUnwrap(
       try document.dirtyFiles().first { $0.path == "pages/0001.svg" })
     guard case let .write(localPage) = localChange.kind else {
