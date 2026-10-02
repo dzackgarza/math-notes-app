@@ -235,6 +235,11 @@ final class InkCanvasView: UIView {
     return CGRect(x: info.x, y: info.y, width: info.width, height: info.height)
   }
 
+  func selectAll(page: Int) throws {
+    guard let canvas else { return }
+    try require(ink_canvas_select_all(canvas, page), operation: "Select page")
+  }
+
   func copySelection() throws -> String? {
     guard let canvas else { return nil }
     var bytes: UnsafePointer<UInt8>?

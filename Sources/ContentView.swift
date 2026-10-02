@@ -28,6 +28,7 @@ struct ContentView: View {
   @State private var currentPage = 0
   @State private var documentRevision = 0
   @State private var pageNavigationRevision = 0
+  @State private var editorPageCommand: EditorPageCommand?
   @State private var sharePayload: SharePayload?
   @State private var pdfExport: PDFExportRequest?
   @State private var showingPDFImporter = false
@@ -52,6 +53,7 @@ struct ContentView: View {
             currentPage: $currentPage,
             documentRevision: $documentRevision,
             pageNavigationRevision: $pageNavigationRevision,
+            pageCommand: $editorPageCommand,
             onEditCommitted: saveOpenNotebook,
             onPensChanged: persistPenLibrary,
             onError: { errorMessage = $0.localizedDescription })
@@ -272,6 +274,12 @@ struct ContentView: View {
         editPages(session) { document in
           try document.duplicatePage(at: currentPage)
         }
+      }
+      Button("Select page", systemImage: "square.dashed") {
+        editorPageCommand = .select(currentPage)
+      }
+      Button("Clear page", systemImage: "eraser") {
+        editorPageCommand = .clear(currentPage)
       }
       Button("Paper for New Pages", systemImage: "doc.text") {
         preparePagePaper(session)

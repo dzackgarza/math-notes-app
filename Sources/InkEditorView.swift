@@ -3,6 +3,11 @@ import QuartzCore
 import SwiftUI
 import UIKit
 
+enum EditorPageCommand: Equatable {
+  case select(Int)
+  case clear(Int)
+}
+
 @MainActor
 final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIContextMenuInteractionDelegate {
   private let document: EngineDocument
@@ -10,6 +15,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private let documentView = UIView()
   private let onEditCommitted: () -> Void
   private let onCurrentPageChanged: (Int) -> Void
+  private let onPageCommandHandled: () -> Void
   private let onError: (Error) -> Void
   private lazy var canvasView = InkCanvasView(
     document: document,
@@ -24,6 +30,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private var appliedArrangement = EditorPageArrangement.vertical
   private var documentRevision = 0
   private var pageNavigationRevision = 0
+  private var appliedPageCommand: EditorPageCommand?
   private var reportedPage = -1
 
   private var pullGate = HeldPullGate()
@@ -38,11 +45,13 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     document: EngineDocument,
     onEditCommitted: @escaping () -> Void = {},
     onCurrentPageChanged: @escaping (Int) -> Void = { _ in },
+    onPageCommandHandled: @escaping () -> Void = {},
     onError: @escaping (Error) -> Void = { _ in }
   ) {
     self.document = document
     self.onEditCommitted = onEditCommitted
     self.onCurrentPageChanged = onCurrentPageChanged
+    self.onPageCommandHandled = onPageCommandHandled
     self.onError = onError
     documentSize = document.contentSize()
     super.init(nibName: nil, bundle: nil)
@@ -139,7 +148,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     revision: Int,
     arrangement: EditorPageArrangement,
     targetPage: Int,
-    navigationRevision: Int
+    navigationRevision: Int,
+    pageCommand: EditorPageCommand?
   ) {
     loadViewIfNeeded()
 
@@ -177,6 +187,13 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     if navigationRevision != pageNavigationRevision {
       pageNavigationRevision = navigationRevision
       scrollToPage(targetPage)
+    }
+
+    if pageCommand != appliedPageCommand {
+      appliedPageCommand = pageCommand
+      if let pageCommand {
+        handlePageCommand(pageCommand)
+      }
     }
   }
 
@@ -318,6 +335,23 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     do {
       try canvasView.deleteSelection()
       onEditCommitted()
+      refreshSelectionBar()
+    } catch {
+      onError(error)
+    }
+  }
+
+  private func handlePageCommand(_ command: EditorPageCommand) {
+    defer { onPageCommandHandled() }
+    do {
+      switch command {
+      case let .select(page):
+        try canvasView.selectAll(page: page)
+      case let .clear(page):
+        try canvasView.selectAll(page: page)
+        try canvasView.deleteSelection()
+        onEditCommitted()
+      }
       refreshSelectionBar()
     } catch {
       onError(error)
@@ -489,8 +523,10 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let revision: Int
   let targetPage: Int
   let navigationRevision: Int
+  let pageCommand: EditorPageCommand?
   let onEditCommitted: () -> Void
   let onCurrentPageChanged: (Int) -> Void
+  let onPageCommandHandled: () -> Void
   let onError: (Error) -> Void
 
   func makeUIViewController(context: Context) -> InkEditorViewController {
@@ -498,6 +534,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       document: document,
       onEditCommitted: onEditCommitted,
       onCurrentPageChanged: onCurrentPageChanged,
+      onPageCommandHandled: onPageCommandHandled,
       onError: onError)
   }
 
@@ -510,7 +547,8 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       revision: revision,
       arrangement: arrangement,
       targetPage: targetPage,
-      navigationRevision: navigationRevision)
+      navigationRevision: navigationRevision,
+      pageCommand: pageCommand)
   }
 }
 
@@ -523,6 +561,7 @@ struct InkEditorView: View {
   @Binding var currentPage: Int
   @Binding var documentRevision: Int
   @Binding var pageNavigationRevision: Int
+  @Binding var pageCommand: EditorPageCommand?
   @State private var selectorMode: EditorSelectorMode = .freehand
   @State private var eraserMode: EditorEraserMode = .stroke
   let onEditCommitted: () -> Void
@@ -541,8 +580,14 @@ struct InkEditorView: View {
         revision: documentRevision,
         targetPage: currentPage,
         navigationRevision: pageNavigationRevision,
+        pageCommand: pageCommand,
         onEditCommitted: onEditCommitted,
         onCurrentPageChanged: { currentPage = $0 },
+        onPageCommandHandled: {
+          DispatchQueue.main.async {
+            pageCommand = nil
+          }
+        },
         onError: onError)
 
       EditorToolRail(
