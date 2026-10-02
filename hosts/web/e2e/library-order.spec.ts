@@ -1,6 +1,6 @@
 import { expect, type CDPSession, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
-import { test, enterText, save, goToPage, closeNote, addTag, createTestNotebook, openTestNotebook, penStroke, line, brightness, centerPixel, contrastIn, boxOf, COLORS, tabOrder, savedPages } from "./support.ts";
+import { test, enterText, focusText, save, goToPage, closeNote, addTag, createTestNotebook, openTestNotebook, penStroke, line, brightness, centerPixel, contrastIn, boxOf, COLORS, tabOrder, savedPages } from "./support.ts";
 
 // The notes folder's library file, as the app saved it.
 async function libraryMetadata(page: Page) {
@@ -303,7 +303,7 @@ test("Flutter keeps a library in order: keyboard, tags, tabs, moves, trash, rena
   await test.step("the user searches the library and the Open note picker, which list the matching titles only", async () => {
     await button("Back to library").click();
     const search = page.getByRole("textbox", { name: "Search notebooks and notes", exact: true });
-    await search.click();
+    await focusText(search);
     await expect(search).toBeFocused();
     await page.keyboard.type("Mod");
     await expect(search).toHaveValue("Mod");
