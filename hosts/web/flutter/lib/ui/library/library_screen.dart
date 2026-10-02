@@ -647,7 +647,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
       if (notebook == null)
         CupertinoButton.filled(
           onPressed: () => run(() => create(true)),
-          child: const Text('New notebook'),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(CupertinoIcons.add, size: 20),
+              SizedBox(width: 8),
+              Text('New notebook'),
+            ],
+          ),
         )
       else ...[
         CupertinoButton(

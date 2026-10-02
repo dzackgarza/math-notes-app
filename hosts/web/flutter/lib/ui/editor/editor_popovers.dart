@@ -310,14 +310,8 @@ extension _EditorPopovers on _EditorScreenState {
               thumbColor: segmentThumb,
               groupValue: advanced,
               children: {
-                false: Semantics(
-                  label: 'Settings',
-                  child: const Icon(LucideIcons.pencil, size: 18),
-                ),
-                true: Semantics(
-                  label: 'Advanced',
-                  child: const Icon(LucideIcons.slidersHorizontal, size: 18),
-                ),
+                false: const Text('Size'),
+                true: const Text('Advanced'),
               },
               onValueChanged: (value) => update(() => advanced = value!),
             ),

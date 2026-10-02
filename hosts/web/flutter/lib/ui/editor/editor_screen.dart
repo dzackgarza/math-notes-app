@@ -886,14 +886,21 @@ class _EditorScreenState extends State<EditorScreen> {
       onTap: () => run(goToPage),
     ),
     const GroupRule(),
-    PullDownMenuItem(title: 'Add page', enabled: !drawing, onTap: addPage),
+    PullDownMenuItem(
+      title: 'Add page',
+      subtitle: 'At end',
+      enabled: !drawing,
+      onTap: addPage,
+    ),
     PullDownMenuItem(
       title: 'Insert page before',
+      subtitle: 'Before page ${page + 1}',
       enabled: !drawing,
       onTap: () => insertPage(page),
     ),
     PullDownMenuItem(
       title: 'Insert page after',
+      subtitle: 'After page ${page + 1}',
       enabled: !drawing,
       onTap: () => insertPage(page + 1),
     ),
