@@ -113,6 +113,12 @@ InkStatus ink_import_page_image(InkDocument *document, size_t index, const uint8
                                 size_t size, double width_pt, double height_pt);
 /* Insert a copy of a page SVG using this notebook's assets and new element ids. */
 InkStatus ink_import_page_svg(InkDocument *document, size_t index, const uint8_t *svg, size_t size);
+/* Move an already loaded unlisted page into notebook.json at `index`.
+   This preserves the page file and parsed page id; `fallback_id` is used only
+   when the page could not provide an id (for example an externally malformed
+   page retained during conflict resolution). */
+InkStatus ink_document_list_unlisted_page(InkDocument *document, const char *file,
+                                          const char *fallback_id, size_t index);
 /* Save selection SVG as a tightly fitted, blank clipping page. */
 InkStatus ink_clipping_add(InkDocument *document, const uint8_t *svg, size_t size);
 /* Clipboard SVG with fresh identities and cleared authored timestamps. */

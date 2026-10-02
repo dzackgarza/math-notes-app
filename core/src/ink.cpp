@@ -499,6 +499,35 @@ InkStatus ink_import_page_svg(InkDocument *document, size_t index, const uint8_t
   });
 }
 
+InkStatus ink_document_list_unlisted_page(InkDocument *document, const char *file,
+                                          const char *fallback_id, size_t index) {
+  return Call([&] {
+    if (!document) return NullArgument("document");
+    if (!file) return NullArgument("file");
+    auto next = document->history.current();
+    const size_t listed = ink_engine::ListedPageCount(next);
+    if (index > listed) return BadPageIndex();
+
+    size_t found = next.pages.size();
+    for (size_t i = listed; i < next.pages.size(); ++i) {
+      if (next.pages[i]->file == file) {
+        found = i;
+        break;
+      }
+    }
+    if (found == next.pages.size())
+      return Fail(INK_ERROR_ARGUMENT, std::string(file) + ": unlisted page not found");
+
+    ink_engine::Page page = *next.pages[found];
+    page.unlisted = false;
+    if (page.id.empty() && fallback_id) page.id = fallback_id;
+    next.pages = next.pages.erase(found).insert(
+        index, immer::box<ink_engine::Page>(std::move(page)));
+    document->history.Push(std::move(next));
+    return INK_OK;
+  });
+}
+
 InkStatus ink_document_duplicate_page(InkDocument *document, size_t index) {
   return Call([&] {
     if (!document) return NullArgument("document");

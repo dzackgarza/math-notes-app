@@ -58,6 +58,7 @@ enum NotebookConflictChoice {
 enum NotebookConflictSource {
   case namedCopy(path: String)
   case fileVersion(NSFileVersion)
+  case localDelete
 }
 
 struct NotebookConflict: Identifiable {
@@ -65,7 +66,7 @@ struct NotebookConflict: Identifiable {
   let original: String
   let provider: String
   let originalBytes: Data?
-  let copyBytes: Data
+  let copyBytes: Data?
   let left: Data?
   let right: Data?
   let leftSummary: String
@@ -73,6 +74,11 @@ struct NotebookConflict: Identifiable {
   let notebook: Bool
   let page: Bool
   let source: NotebookConflictSource
+}
+
+private struct PendingDeleteConflictState {
+  let pageIndex: Int?
+  let pageID: String?
 }
 
 func notebookFileHasExternalChange(
@@ -570,6 +576,8 @@ final class NotesRootAccess {
   private var accessing = true
   private var thumbnailCache: [String: (stamp: String, data: Data)] = [:]
   private var notebookBases: [NotebookReference: [String: Data]] = [:]
+  private var pendingDeleteConflicts:
+    [NotebookReference: [String: PendingDeleteConflictState]] = [:]
 
 #if DEBUG
   init(testURL: URL) {
@@ -749,7 +757,9 @@ final class NotesRootAccess {
               reference: NotebookReference(path: path),
               modified: try Self.notebookModification(at: child),
               favorite: favoritePaths.contains(path.joined(separator: "/")),
-              conflicts: try Self.conflictCount(at: child)))
+              conflicts: try combinedConflictCount(
+                NotebookReference(path: path),
+                at: child)))
         } else {
           folders.append(
             LibraryFolderItem(
@@ -840,7 +850,9 @@ final class NotesRootAccess {
                   reference: NotebookReference(path: childPath),
                   modified: try Self.notebookModification(at: child),
                   favorite: favoritePaths.contains(childPath.joined(separator: "/")),
-                  conflicts: try Self.conflictCount(at: child)))
+                  conflicts: try combinedConflictCount(
+                    NotebookReference(path: childPath),
+                    at: child)))
             }
           } else {
             if name.localizedCaseInsensitiveContains(needle) {
@@ -926,7 +938,9 @@ final class NotesRootAccess {
               reference: NotebookReference(path: childPath),
               modified: try Self.notebookModification(at: child),
               favorite: favoritePaths.contains(childPath.joined(separator: "/")),
-              conflicts: try Self.conflictCount(at: child)))
+              conflicts: try combinedConflictCount(
+                NotebookReference(path: childPath),
+                at: child)))
           } else {
             try visit(child, path: childPath)
           }
@@ -1075,7 +1089,9 @@ final class NotesRootAccess {
                 reference: NotebookReference(path: childPath),
                 modified: try Self.notebookModification(at: child),
                 favorite: favoritePaths.contains(childPath.joined(separator: "/")),
-                conflicts: try Self.conflictCount(at: child)))
+                conflicts: try combinedConflictCount(
+                  NotebookReference(path: childPath),
+                  at: child)))
           } else {
             try visit(child, path: childPath)
           }
@@ -1532,13 +1548,33 @@ final class NotesRootAccess {
     return named + unresolvedFileVersions(at: notebookURL, listedPages: pages).count
   }
 
-  func conflictCount(_ reference: NotebookReference) throws -> Int {
-    let notebookURL = urlForNotebook(reference)
-    return try coordinatedRead(at: notebookURL) { coordinatedNotebook in
-      try Self.conflictCount(at: coordinatedNotebook)
+  private func pendingDeleteConflictCount(
+    _ reference: NotebookReference,
+    at notebookURL: URL
+  ) throws -> Int {
+    let pending = pendingDeleteConflicts[reference] ?? [:]
+    return try pending.keys.reduce(into: 0) { count, path in
+      if try Self.currentFile(in: notebookURL, path: path) != nil {
+        count += 1
+      }
     }
   }
 
+  private func combinedConflictCount(
+    _ reference: NotebookReference,
+    at notebookURL: URL
+  ) throws -> Int {
+    let stored = try Self.conflictCount(at: notebookURL)
+    let pending = try pendingDeleteConflictCount(reference, at: notebookURL)
+    return stored + pending
+  }
+
+  func conflictCount(_ reference: NotebookReference) throws -> Int {
+    let notebookURL = urlForNotebook(reference)
+    return try coordinatedRead(at: notebookURL) { coordinatedNotebook in
+      try combinedConflictCount(reference, at: coordinatedNotebook)
+    }
+  }
 
   @MainActor
   func conflicts(_ reference: NotebookReference) throws -> [NotebookConflict] {
@@ -1592,6 +1628,32 @@ final class NotesRootAccess {
             listedPages: listedPages))
       }
 
+      var livePending: [String: PendingDeleteConflictState] = [:]
+      for (path, state) in (pendingDeleteConflicts[reference] ?? [:])
+        .sorted(by: { $0.key < $1.key })
+      {
+        guard let originalBytes = try Self.currentFile(
+          in: coordinatedNotebook,
+          path: path)
+        else { continue }
+        livePending[path] = state
+        result.append(
+          Self.makeConflict(
+            id: "local-delete:\(path)",
+            original: path,
+            provider: "Math Notes",
+            originalBytes: originalBytes,
+            copyBytes: nil,
+            source: .localDelete,
+            snapshot: snapshot,
+            listedPages: listedPages))
+      }
+      if livePending.isEmpty {
+        pendingDeleteConflicts.removeValue(forKey: reference)
+      } else {
+        pendingDeleteConflicts[reference] = livePending
+      }
+
       return result.sorted { $0.id < $1.id }
     }
   }
@@ -1603,97 +1665,145 @@ final class NotesRootAccess {
     choice: NotebookConflictChoice
   ) throws {
     let notebookURL = urlForNotebook(reference)
-    let currentOriginal = try coordinatedRead(at: notebookURL) {
-      try Self.currentFile(in: $0, path: conflict.original)
-    }
-    guard currentOriginal == conflict.originalBytes else {
-      throw NotebookStorageError.conflictChanged
-    }
-
-    let currentCopy: Data?
-    switch conflict.source {
-    case let .namedCopy(path):
-      currentCopy = try coordinatedRead(at: notebookURL) {
-        try Self.currentFile(in: $0, path: path)
+    try coordinatedWrite(at: notebookURL, options: .forMerging) { coordinatedNotebook in
+      let currentOriginal = try Self.currentFile(
+        in: coordinatedNotebook,
+        path: conflict.original)
+      guard currentOriginal == conflict.originalBytes else {
+        throw NotebookStorageError.conflictChanged
       }
-    case let .fileVersion(version):
-      currentCopy = try Data(contentsOf: version.url)
-    }
-    guard currentCopy == conflict.copyBytes else {
-      throw NotebookStorageError.conflictChanged
-    }
 
-    let snapshot = try coordinatedRead(at: notebookURL) {
-      try Self.readSnapshot(at: $0)
-    }
-    let index = try JSONDecoder().decode(NotebookIndex.self, from: snapshot.notebookJSON)
-    let listedPages = (index.pages ?? []).map(\.file)
-    var changes: [EngineFileChange] = []
+      let currentCopy: Data?
+      switch conflict.source {
+      case let .namedCopy(path):
+        currentCopy = try Self.currentFile(in: coordinatedNotebook, path: path)
+      case let .fileVersion(version):
+        currentCopy = try Data(contentsOf: version.url)
+      case .localDelete:
+        currentCopy = nil
+      }
+      guard currentCopy == conflict.copyBytes else {
+        throw NotebookStorageError.conflictChanged
+      }
 
-    switch choice {
-    case .original:
-      if conflict.originalBytes == nil {
-        guard conflict.page,
+      let snapshot = try Self.readSnapshot(at: coordinatedNotebook)
+      let index = try JSONDecoder().decode(NotebookIndex.self, from: snapshot.notebookJSON)
+      let listedPages = (index.pages ?? []).map(\.file)
+      var changes: [EngineFileChange] = []
+
+      switch choice {
+      case .original:
+        switch conflict.source {
+        case .localDelete:
+          if conflict.page && !listedPages.contains(conflict.original) {
+            guard let state = pendingDeleteConflicts[reference]?[conflict.original] else {
+              throw NotebookStorageError.conflictChanged
+            }
+            let document = try Self.conflictDocument(
+              snapshot: snapshot,
+              replacing: nil,
+              with: nil)
+            let index = min(state.pageIndex ?? listedPages.count, listedPages.count)
+            try document.listUnlistedPage(
+              path: conflict.original,
+              fallbackID: state.pageID,
+              at: index)
+            changes = try document.dirtyFiles().filter {
+              $0.path != conflict.original
+            }
+          }
+        case .namedCopy, .fileVersion:
+          if conflict.originalBytes == nil {
+            guard conflict.page,
+              let pageIndex = listedPages.firstIndex(of: conflict.original)
+            else {
+              throw NotebookStorageError.invalidConflictAction(
+                "Only a missing page can keep an external deletion.")
+            }
+            let document = try Self.conflictDocument(
+              snapshot: snapshot,
+              replacing: nil,
+              with: nil)
+            try document.deletePage(at: pageIndex)
+            changes = try document.dirtyFiles()
+          }
+        }
+
+      case .copy:
+        if case .localDelete = conflict.source {
+          if conflict.page,
+            let pageIndex = listedPages.firstIndex(of: conflict.original)
+          {
+            let document = try Self.conflictDocument(
+              snapshot: snapshot,
+              replacing: nil,
+              with: nil)
+            try document.deletePage(at: pageIndex)
+            changes = try document.dirtyFiles()
+          } else {
+            changes = [
+              EngineFileChange(
+                path: conflict.original,
+                kind: .delete),
+            ]
+          }
+        } else {
+          guard let copyBytes = conflict.copyBytes else {
+            throw NotebookStorageError.conflictChanged
+          }
+          if conflict.notebook || conflict.page {
+            _ = try Self.conflictDocument(
+              snapshot: snapshot,
+              replacing: conflict.original,
+              with: copyBytes)
+          }
+          changes = [
+            EngineFileChange(
+              path: conflict.original,
+              kind: .write(copyBytes)),
+          ]
+        }
+
+      case .both:
+        if case .localDelete = conflict.source {
+          throw NotebookStorageError.invalidConflictAction(
+            "A local deletion can only keep the file or keep the deletion.")
+        }
+        guard conflict.originalBytes != nil else {
+          throw NotebookStorageError.invalidConflictAction(
+            "Restore the conflict copy or keep the deletion.")
+        }
+        guard let copyBytes = conflict.copyBytes,
+          conflict.page,
           let pageIndex = listedPages.firstIndex(of: conflict.original)
         else {
           throw NotebookStorageError.invalidConflictAction(
-            "Only a missing page can keep an external deletion.")
+            "Keep both is available only for page conflicts.")
         }
         let document = try Self.conflictDocument(
           snapshot: snapshot,
           replacing: nil,
           with: nil)
-        try document.deletePage(at: pageIndex)
+        try document.importPageSVG(at: pageIndex + 1, data: copyBytes)
         changes = try document.dirtyFiles()
       }
 
-    case .copy:
-      if conflict.notebook || conflict.page {
-        _ = try Self.conflictDocument(
-          snapshot: snapshot,
-          replacing: conflict.original,
-          with: conflict.copyBytes)
-      }
-      changes = [
-        EngineFileChange(
-          path: conflict.original,
-          kind: .write(conflict.copyBytes)),
-      ]
+      try Self.writeChangesDirect(changes, notebookURL: coordinatedNotebook)
 
-    case .both:
-      guard conflict.originalBytes != nil else {
-        throw NotebookStorageError.invalidConflictAction(
-          "Restore the conflict copy or keep the deletion.")
-      }
-      guard conflict.page,
-        let pageIndex = listedPages.firstIndex(of: conflict.original)
-      else {
-        throw NotebookStorageError.invalidConflictAction(
-          "Keep both is available only for page conflicts.")
-      }
-      let document = try Self.conflictDocument(
-        snapshot: snapshot,
-        replacing: nil,
-        with: nil)
-      try document.importPageSVG(at: pageIndex + 1, data: conflict.copyBytes)
-      changes = try document.dirtyFiles()
-    }
-
-    try writeChanges(changes, notebookURL: notebookURL)
-
-    switch conflict.source {
-    case let .namedCopy(path):
-      let target = Self.fileURL(in: notebookURL, path: path)
-      if FileManager.default.fileExists(atPath: target.path) {
-        try coordinatedWrite(at: target, options: .forDeleting) { coordinatedURL in
-          try FileManager.default.removeItem(at: coordinatedURL)
+      switch conflict.source {
+      case let .namedCopy(path):
+        let target = Self.fileURL(in: coordinatedNotebook, path: path)
+        if FileManager.default.fileExists(atPath: target.path) {
+          try FileManager.default.removeItem(at: target)
         }
-      }
-    case let .fileVersion(version):
-      let target = Self.fileURL(in: notebookURL, path: conflict.original)
-      try coordinatedWrite(at: target, options: .forReplacing) { _ in
+      case let .fileVersion(version):
         version.isResolved = true
         try version.remove()
+      case .localDelete:
+        pendingDeleteConflicts[reference]?.removeValue(forKey: conflict.original)
+        if pendingDeleteConflicts[reference]?.isEmpty == true {
+          pendingDeleteConflicts.removeValue(forKey: reference)
+        }
       }
     }
 
@@ -1709,7 +1819,15 @@ final class NotesRootAccess {
     let base = notebookBases[reference] ?? [:]
     var safe: [EngineFileChange] = []
     var conflicts: [EngineFileChange] = []
-    try coordinatedRead(at: notebookURL) { coordinatedNotebook in
+    var nextPending = pendingDeleteConflicts[reference] ?? [:]
+
+    for change in changes {
+      try ensureParentDirectory(
+        for: change.path,
+        notebookURL: notebookURL)
+    }
+
+    try coordinatedWrite(at: notebookURL, options: .forMerging) { coordinatedNotebook in
       for change in changes {
         let current = try Self.currentFile(in: coordinatedNotebook, path: change.path)
         let target: Data?
@@ -1723,39 +1841,44 @@ final class NotesRootAccess {
           target: target)
         {
           conflicts.append(change)
+          if case .delete = change.kind,
+            nextPending[change.path] == nil
+          {
+            var pageIndex: Int?
+            var pageID: String?
+            if let notebookJSON = base["notebook.json"],
+              let index = try? JSONDecoder().decode(NotebookIndex.self, from: notebookJSON),
+              let found = (index.pages ?? []).firstIndex(where: { $0.file == change.path })
+            {
+              pageIndex = found
+              pageID = index.pages?[found].id
+            }
+            nextPending[change.path] = PendingDeleteConflictState(
+              pageIndex: pageIndex,
+              pageID: pageID)
+          }
         } else {
           safe.append(change)
+          if case .delete = change.kind {
+            nextPending.removeValue(forKey: change.path)
+          }
         }
+      }
+
+      try Self.writeChangesDirect(safe, notebookURL: coordinatedNotebook)
+
+      for change in conflicts {
+        guard case let .write(data) = change.kind else { continue }
+        let copyPath = Self.conflictCopyPath(for: change.path)
+        let target = Self.fileURL(in: coordinatedNotebook, path: copyPath)
+        try data.write(to: target, options: .atomic)
       }
     }
 
-    for change in safe {
-      try ensureParentDirectory(for: change.path, notebookURL: notebookURL)
-      let target = change.path.split(separator: "/").reduce(notebookURL) {
-        $0.appendingPathComponent(String($1))
-      }
-
-      switch change.kind {
-      case let .write(data):
-        try coordinatedWrite(at: target, options: .forReplacing) { coordinatedURL in
-          try data.write(to: coordinatedURL, options: .atomic)
-        }
-      case .delete:
-        guard FileManager.default.fileExists(atPath: target.path) else { continue }
-        try coordinatedWrite(at: target, options: .forDeleting) { coordinatedURL in
-          try FileManager.default.removeItem(at: coordinatedURL)
-        }
-      }
-    }
-
-    for change in conflicts {
-      guard case let .write(data) = change.kind else { continue }
-      let copyPath = Self.conflictCopyPath(for: change.path)
-      try ensureParentDirectory(for: copyPath, notebookURL: notebookURL)
-      let target = Self.fileURL(in: notebookURL, path: copyPath)
-      try coordinatedWrite(at: target, options: .forReplacing) { coordinatedURL in
-        try data.write(to: coordinatedURL, options: .atomic)
-      }
+    if nextPending.isEmpty {
+      pendingDeleteConflicts.removeValue(forKey: reference)
+    } else {
+      pendingDeleteConflicts[reference] = nextPending
     }
 
     var nextBase = base
@@ -1800,23 +1923,18 @@ final class NotesRootAccess {
     return ext.isEmpty ? stem + suffix : stem + suffix + "." + ext
   }
 
-  private func writeChanges(
+  private static func writeChangesDirect(
     _ changes: [EngineFileChange],
     notebookURL: URL
   ) throws {
     for change in orderedNotebookChanges(changes) {
-      try ensureParentDirectory(for: change.path, notebookURL: notebookURL)
       let target = Self.fileURL(in: notebookURL, path: change.path)
       switch change.kind {
       case let .write(data):
-        try coordinatedWrite(at: target, options: .forReplacing) { coordinatedURL in
-          try data.write(to: coordinatedURL, options: .atomic)
-        }
+        try data.write(to: target, options: .atomic)
       case .delete:
         guard FileManager.default.fileExists(atPath: target.path) else { continue }
-        try coordinatedWrite(at: target, options: .forDeleting) { coordinatedURL in
-          try FileManager.default.removeItem(at: coordinatedURL)
-        }
+        try FileManager.default.removeItem(at: target)
       }
     }
   }
@@ -1827,7 +1945,7 @@ final class NotesRootAccess {
     original: String,
     provider: String,
     originalBytes: Data?,
-    copyBytes: Data,
+    copyBytes: Data?,
     source: NotebookConflictSource,
     snapshot: Snapshot,
     listedPages: [String]
@@ -1836,12 +1954,14 @@ final class NotesRootAccess {
       original: original,
       bytes: originalBytes,
       snapshot: snapshot,
-      listedPages: listedPages)
+      listedPages: listedPages,
+      missingSummary: "This file was deleted outside Math Notes.")
     let right = conflictPreview(
       original: original,
       bytes: copyBytes,
       snapshot: snapshot,
-      listedPages: listedPages)
+      listedPages: listedPages,
+      missingSummary: "This file is deleted in Math Notes.")
     return NotebookConflict(
       id: id,
       original: original,
@@ -1853,7 +1973,7 @@ final class NotesRootAccess {
       leftSummary: left.summary,
       rightSummary: right.summary,
       notebook: original == "notebook.json",
-      page: listedPages.contains(original),
+      page: original.hasPrefix("pages/") && original.hasSuffix(".svg"),
       source: source)
   }
 
@@ -1862,10 +1982,11 @@ final class NotesRootAccess {
     original: String,
     bytes: Data?,
     snapshot: Snapshot,
-    listedPages: [String]
+    listedPages: [String],
+    missingSummary: String
   ) -> (image: Data?, summary: String) {
     guard let bytes else {
-      return (nil, "This file was deleted outside Math Notes.")
+      return (nil, missingSummary)
     }
     do {
       if original == "notebook.json" {
@@ -1879,14 +2000,21 @@ final class NotesRootAccess {
         return (nil, "Pages\n\(pages)\n\nLayers\n\(layers)")
       }
 
-      if listedPages.contains(original) {
-        guard let pageIndex = listedPages.firstIndex(of: original) else {
-          return (nil, original)
-        }
+      if original.hasPrefix("pages/") && original.hasSuffix(".svg") {
         let document = try conflictDocument(
           snapshot: snapshot,
           replacing: original,
           with: bytes)
+        let pageIndex: Int
+        if let listedIndex = listedPages.firstIndex(of: original) {
+          pageIndex = listedIndex
+        } else {
+          pageIndex = listedPages.count
+          try document.listUnlistedPage(
+            path: original,
+            fallbackID: nil,
+            at: pageIndex)
+        }
         return (try document.pagePNG(index: pageIndex, width: 1000), original)
       }
 

@@ -499,6 +499,92 @@ final class NotebookStorageTests: XCTestCase {
     XCTAssertEqual(try root.load(reference).pageCount(), 2)
   }
 
+  @MainActor
+  func testExternalEditAgainstLocalPageDeletionCanKeepTheExternalPage() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(
+      at: directory,
+      withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let root = NotesRootAccess(testURL: directory)
+    let (reference, document) = try root.createNote(
+      title: "Delete conflict keep file",
+      parent: FolderReference(path: []),
+      template: "blank",
+      pageSize: INK_PAGE_A4,
+      orientation: INK_PORTRAIT)
+    try document.insertPage(at: 1)
+    try root.save(document, notebook: reference)
+
+    let noteURL = directory.appendingPathComponent(reference.name, isDirectory: true)
+    let pageURL = noteURL.appendingPathComponent("pages/0002.svg")
+    var external = try Data(contentsOf: pageURL)
+    external.append(0x20)
+    try external.write(to: pageURL, options: .atomic)
+
+    try document.deletePage(at: 1)
+    XCTAssertThrowsError(try root.save(document, notebook: reference)) { error in
+      guard case NotebookStorageError.externalChanges(let paths) = error else {
+        return XCTFail("Unexpected error: \(error)")
+      }
+      XCTAssertEqual(paths, ["pages/0002.svg"])
+    }
+
+    let conflict = try XCTUnwrap(
+      try root.conflicts(reference).first {
+        $0.original == "pages/0002.svg" && $0.copyBytes == nil
+      })
+    XCTAssertTrue(conflict.page)
+    XCTAssertEqual(conflict.rightSummary, "This file is deleted in Math Notes.")
+
+    try root.resolveConflict(reference, conflict: conflict, choice: .original)
+
+    XCTAssertEqual(try Data(contentsOf: pageURL), external)
+    XCTAssertEqual(try root.conflictCount(reference), 0)
+    XCTAssertEqual(try root.load(reference).pageCount(), 2)
+  }
+
+  @MainActor
+  func testExternalEditAgainstLocalPageDeletionCanKeepTheDeletion() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(
+      at: directory,
+      withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let root = NotesRootAccess(testURL: directory)
+    let (reference, document) = try root.createNote(
+      title: "Delete conflict keep deletion",
+      parent: FolderReference(path: []),
+      template: "blank",
+      pageSize: INK_PAGE_A4,
+      orientation: INK_PORTRAIT)
+    try document.insertPage(at: 1)
+    try root.save(document, notebook: reference)
+
+    let noteURL = directory.appendingPathComponent(reference.name, isDirectory: true)
+    let pageURL = noteURL.appendingPathComponent("pages/0002.svg")
+    var external = try Data(contentsOf: pageURL)
+    external.append(0x20)
+    try external.write(to: pageURL, options: .atomic)
+
+    try document.deletePage(at: 1)
+    XCTAssertThrowsError(try root.save(document, notebook: reference))
+
+    let conflict = try XCTUnwrap(
+      try root.conflicts(reference).first {
+        $0.original == "pages/0002.svg" && $0.copyBytes == nil
+      })
+    try root.resolveConflict(reference, conflict: conflict, choice: .copy)
+
+    XCTAssertFalse(FileManager.default.fileExists(atPath: pageURL.path))
+    XCTAssertEqual(try root.conflictCount(reference), 0)
+    XCTAssertEqual(try root.load(reference).pageCount(), 1)
+  }
+
   func testLibraryNameValidationMatchesTheWebRules() throws {
     XCTAssertEqual(try validatedLibraryName("  Stable pairs  "), "Stable pairs")
     XCTAssertThrowsError(try validatedLibraryName(""))

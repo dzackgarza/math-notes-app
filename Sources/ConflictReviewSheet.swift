@@ -24,7 +24,7 @@ struct ConflictReviewSheet: View {
         HStack {
           Text("Current file")
             .frame(maxWidth: .infinity)
-          Text("Conflict copy")
+          Text(request.conflict.copyBytes == nil ? "Local edit" : "Conflict copy")
             .frame(maxWidth: .infinity)
         }
         .font(.subheadline.weight(.semibold))
@@ -47,13 +47,18 @@ struct ConflictReviewSheet: View {
             onChoice(.original)
           }
           Button(
-            request.conflict.originalBytes == nil
-              ? "Restore conflict copy"
-              : "Keep conflict copy"
+            request.conflict.copyBytes == nil
+              ? "Keep deletion"
+              : request.conflict.originalBytes == nil
+                ? "Restore conflict copy"
+                : "Keep conflict copy"
           ) {
             onChoice(.copy)
           }
-          if request.conflict.page && request.conflict.originalBytes != nil {
+          if request.conflict.page
+            && request.conflict.originalBytes != nil
+            && request.conflict.copyBytes != nil
+          {
             Button("Keep both pages") {
               onChoice(.both)
             }

@@ -227,6 +227,18 @@ final class EngineDocument {
     try check(status, operation: "Import notebook page")
   }
 
+  func listUnlistedPage(path: String, fallbackID: String?, at index: Int) throws {
+    let status = path.withCString { pathBytes in
+      if let fallbackID {
+        return fallbackID.withCString {
+          ink_document_list_unlisted_page(pointer, pathBytes, $0, index)
+        }
+      }
+      return ink_document_list_unlisted_page(pointer, pathBytes, nil, index)
+    }
+    try check(status, operation: "Restore unlisted notebook page")
+  }
+
   func addClipping(svg: String) throws {
     let data = Data(svg.utf8)
     let status = data.withUnsafeBytes { raw in

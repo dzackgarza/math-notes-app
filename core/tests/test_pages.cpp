@@ -49,6 +49,36 @@ void ThreePages(ink_test::Session &session) {
 
 }  // namespace
 
+TEST_CASE("An unlisted page can be restored to the notebook index without changing its file") {
+  ink_test::Session session;
+  const std::string original_id = session.doc().pages[0]->id;
+  const std::string page = AllFiles(session.doc()).at("pages/0001.svg");
+
+  Document without_page = session.doc();
+  without_page.pages = {};
+  const std::string notebook = WriteNotebookJson(without_page);
+  REQUIRE(ink_document_load_notebook(
+              session.document, reinterpret_cast<const uint8_t *>(notebook.data()),
+              notebook.size()) == INK_OK);
+  REQUIRE(ink_document_load_page(
+              session.document, "pages/0001.svg",
+              reinterpret_cast<const uint8_t *>(page.data()), page.size()) == INK_OK);
+
+  size_t count = 1;
+  REQUIRE(ink_document_page_count(session.document, &count) == INK_OK);
+  CHECK(count == 0);
+  REQUIRE(ink_document_list_unlisted_page(
+              session.document, "pages/0001.svg", "p-fallback", 0) == INK_OK);
+  REQUIRE(ink_document_page_count(session.document, &count) == INK_OK);
+  CHECK(count == 1);
+  CHECK(session.doc().pages[0]->file == "pages/0001.svg");
+  CHECK(session.doc().pages[0]->id == original_id);
+
+  auto dirty = DirtyFiles(session.document);
+  REQUIRE(dirty.contains("notebook.json"));
+  CHECK(dirty.at("notebook.json").bytes.find("pages/0001.svg") != std::string::npos);
+}
+
 TEST_CASE("A page inserted between pages 1 and 2 gets a new file and changes no other page") {
   ink_test::Session session;
   ThreePages(session);

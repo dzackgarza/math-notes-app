@@ -490,7 +490,7 @@ struct ContentView: View {
       toggleFavorite: toggleFavorite,
       editNoteDetails: prepareNoteDetails,
       editFolderDetails: prepareFolderDetails,
-      reviewConflicts: prepareConflicts,
+      reviewConflicts: { prepareConflicts($0) },
       refresh: refreshLibrary,
       chooseRoot: { showingFolderPicker = true })
   }
