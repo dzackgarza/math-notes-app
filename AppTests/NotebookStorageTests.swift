@@ -118,8 +118,9 @@ final class NotebookStorageTests: XCTestCase {
     let media = page.getBoxRect(.mediaBox)
 
     XCTAssertEqual(exported.numberOfPages, 1)
-    XCTAssertEqual(media.width, expected.width, accuracy: 0.01)
-    XCTAssertEqual(media.height, expected.height, accuracy: 0.01)
+    // SkPDF rounds the page device to integer points before writing MediaBox.
+    XCTAssertEqual(media.width, expected.width.rounded(), accuracy: 0.01)
+    XCTAssertEqual(media.height, expected.height.rounded(), accuracy: 0.01)
   }
 
   @MainActor
