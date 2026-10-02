@@ -32,12 +32,24 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # The key hashes every input of the engine build and its checks, and a job saves
+      # the build only when it passes: a hit means these inputs passed before, and
+      # the steps up to the TypeScript wrapper skip.
+      - name: Restore the engine build
+        id: engine-cache
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.BUILD_DIR }}/web
+          key: engine-${{ env.EMSDK_VERSION }}-${{ hashFiles('core/**', 'tests/**', '.github/workflows/engine.yml', 'hosts/web/bun.lock') }}
+
       - name: Install tools
         run: sudo apt-get update && sudo apt-get install -y ninja-build wabt qpdf brotli libxml2-utils
+        if: steps.engine-cache.outputs.cache-hit != 'true'
 
       - uses: emscripten-core/setup-emsdk@v16
         with:
           version: ${{ env.EMSDK_VERSION }}
+        if: steps.engine-cache.outputs.cache-hit != 'true'
 
       - name: Restore vcpkg binary cache
         id: vcpkg-cache
@@ -45,42 +57,58 @@ jobs:
         with:
           path: ${{ github.workspace }}/.ci/vcpkg-bin
           key: vcpkg-wasm-${{ env.EMSDK_VERSION }}-${{ hashFiles('core/vcpkg.json', 'core/triplets/**') }}
+        if: steps.engine-cache.outputs.cache-hit != 'true'
 
       - name: Set up vcpkg
         run: |
           git clone -q https://github.com/microsoft/vcpkg "$VCPKG_ROOT"
           mkdir -p "$(dirname "$VCPKG_ROOT")/vcpkg-bin"
           "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
+        if: steps.engine-cache.outputs.cache-hit != 'true'
+
+      # Recompiles only the engine sources that changed since the cached objects.
+      - name: Compiler cache
+        if: steps.engine-cache.outputs.cache-hit != 'true'
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ccache-wasm-${{ env.EMSDK_VERSION }}
 
       - name: Configure (vcpkg resolves wasm32-emscripten ports)
         run: |
           cmake -S core -B "$BUILD_DIR" -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
             -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE="$EMSDK/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake" \
             -DVCPKG_TARGET_TRIPLET=wasm32-emscripten \
             -DVCPKG_MANIFEST_FEATURES=tests \
             -DINK_BUILD_TESTS=ON
+        if: steps.engine-cache.outputs.cache-hit != 'true'
 
       # A cache hit must restore every port and build none.
       - name: Check vcpkg built nothing on a cache hit
-        if: steps.vcpkg-cache.outputs.cache-hit == 'true'
+        if: steps.engine-cache.outputs.cache-hit != 'true' && steps.vcpkg-cache.outputs.cache-hit == 'true'
         run: |
           grep -E 'Restored [0-9]+ package' "$BUILD_DIR/vcpkg-manifest-install.log"
           if grep -E '^Building [a-z0-9-]+:wasm32-emscripten' "$BUILD_DIR/vcpkg-manifest-install.log"; then exit 1; fi
 
       - name: Build
         run: cmake --build "$BUILD_DIR"
+        if: steps.engine-cache.outputs.cache-hit != 'true'
 
       - name: Test under Node
         working-directory: ${{ env.BUILD_DIR }}
         run: ctest --output-on-failure
+        if: steps.engine-cache.outputs.cache-hit != 'true'
 
       - name: Check the PDF
         working-directory: ${{ env.BUILD_DIR }}/tests
         run: qpdf --check a4.pdf
+        if: steps.engine-cache.outputs.cache-hit != 'true'
 
       - uses: astral-sh/setup-uv@v7
+        if: steps.engine-cache.outputs.cache-hit != 'true'
 
       - name: Check written pages with xmllint and an InkML reader
         run: |
@@ -88,6 +116,7 @@ jobs:
           node "$BUILD_DIR/tests/write_documents.js" tests/documents "$out" full custom-size
           xmllint --noout "$out"/*/pages/*.svg
           uvx --with universal-ink-library==2.1.1 python core/tests/inkml_check.py "$out"/*
+        if: steps.engine-cache.outputs.cache-hit != 'true'
 
       - name: Check the wasm uses no threads
         run: |
@@ -99,12 +128,14 @@ jobs:
             cat sections.txt
             if grep -Ei 'shared|atomics' sections.txt; then exit 1; fi
           done
+        if: steps.engine-cache.outputs.cache-hit != 'true'
 
       - name: Report wasm size
         run: |
           f="$BUILD_DIR/tests/webgl/webgl_check.wasm"
           echo "webgl_check.wasm: $(stat -c %s "$f") bytes raw, $(brotli -c -q 11 "$f" | wc -c) bytes brotli" \
             | tee -a "$GITHUB_STEP_SUMMARY"
+        if: steps.engine-cache.outputs.cache-hit != 'true'
 
       - uses: oven-sh/setup-bun@v2
 
@@ -116,16 +147,24 @@ jobs:
           bun install --frozen-lockfile
           bunx playwright install --with-deps chromium
           bunx playwright test -c playwright.config.mjs --project chromium
+        if: steps.engine-cache.outputs.cache-hit != 'true'
 
       # Node 24 runs the .ts test files directly (type stripping).
       - uses: actions/setup-node@v7
         with:
           node-version: 24
 
-      - name: Engine module and TypeScript wrapper
+      - name: Install web packages
+        working-directory: hosts/web
+        run: bun install --frozen-lockfile
+
+      - name: Engine module
+        if: steps.engine-cache.outputs.cache-hit != 'true'
         run: |
-          (cd hosts/web && bun install --frozen-lockfile)
           PATH="$PWD/hosts/web/node_modules/.bin:$PATH" cmake --build "$BUILD_DIR" --target engine engine_test
+
+      - name: TypeScript wrapper
+        run: |
           mkdir -p hosts/web/src/engine/wasm
           cp "$BUILD_DIR"/web/engine.* "$BUILD_DIR"/web/engine_test.* hosts/web/src/engine/wasm/
           cd hosts/web
