@@ -28,6 +28,13 @@ final class EditorToolsTests: XCTestCase {
     XCTAssertEqual(EditorEraserMode.partial.engineValue, INK_ERASER_FREE)
   }
 
+  func testSelectorModesMapToTheSharedEngineABI() {
+    XCTAssertEqual(EditorSelectorMode.freehand.engineValue, INK_SELECTOR_LASSO)
+    XCTAssertEqual(EditorSelectorMode.rectangle.engineValue, INK_SELECTOR_RECT)
+    XCTAssertEqual(EditorSelectorMode.oval.engineValue, INK_SELECTOR_OVAL)
+    XCTAssertEqual(EditorSelectorMode.ruled.engineValue, INK_SELECTOR_RULED)
+  }
+
   @MainActor
   func testHistoryUsesTheSharedDocument() throws {
     let document = EngineDocument(seed: 11)

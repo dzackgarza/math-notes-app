@@ -52,6 +52,33 @@ enum EditorEraserMode: String, CaseIterable, Identifiable {
   }
 }
 
+enum EditorSelectorMode: String, CaseIterable, Identifiable {
+  case freehand = "Freehand"
+  case rectangle = "Rectangle"
+  case oval = "Oval"
+  case ruled = "Ruled"
+
+  var id: Self { self }
+
+  var engineValue: InkSelector {
+    switch self {
+    case .freehand: INK_SELECTOR_LASSO
+    case .rectangle: INK_SELECTOR_RECT
+    case .oval: INK_SELECTOR_OVAL
+    case .ruled: INK_SELECTOR_RULED
+    }
+  }
+
+  var systemImage: String {
+    switch self {
+    case .freehand: "lasso"
+    case .rectangle: "rectangle.dashed"
+    case .oval: "circle.dashed"
+    case .ruled: "ruler"
+    }
+  }
+}
+
 @MainActor
 struct EditorPenSet {
   let pen: InkToolSettings
@@ -80,7 +107,9 @@ struct EditorPenSet {
 struct EditorToolRail: View {
   @Binding var tool: EditorTool
   @Binding var eraserMode: EditorEraserMode
+  @Binding var selectorMode: EditorSelectorMode
   @State private var showingEraserModes = false
+  @State private var showingSelectorModes = false
   let undo: () -> Void
   let redo: () -> Void
 
@@ -89,6 +118,8 @@ struct EditorToolRail: View {
       ForEach(EditorTool.allCases) { item in
         if item == .eraser {
           eraserButton
+        } else if item == .lasso {
+          selectorButton
         } else {
           railButton(
             label: item.label,
@@ -150,6 +181,47 @@ struct EditorToolRail: View {
           .buttonStyle(.plain)
           .foregroundStyle(eraserMode == mode ? Color.accentColor : Color.primary)
           .accessibilityValue(eraserMode == mode ? "Selected" : "")
+        }
+      }
+      .padding(16)
+      .presentationCompactAdaptation(.popover)
+    }
+  }
+
+  private var selectorButton: some View {
+    railButton(
+      label: "Lasso, \(selectorMode.rawValue)",
+      systemImage: EditorTool.lasso.systemImage,
+      selected: tool == .lasso
+    ) {
+      if tool == .lasso {
+        showingSelectorModes = true
+      } else {
+        tool = .lasso
+      }
+    }
+    .popover(isPresented: $showingSelectorModes, arrowEdge: .leading) {
+      HStack(spacing: 12) {
+        ForEach(EditorSelectorMode.allCases) { mode in
+          Button {
+            selectorMode = mode
+            tool = .lasso
+            showingSelectorModes = false
+          } label: {
+            VStack(spacing: 8) {
+              Image(systemName: mode.systemImage)
+                .font(.system(size: 24))
+                .frame(width: 44, height: 44)
+                .background(
+                  selectorMode == mode ? Color.accentColor.opacity(0.14) : Color.clear,
+                  in: RoundedRectangle(cornerRadius: 10))
+              Text(mode.rawValue)
+                .font(.caption)
+            }
+          }
+          .buttonStyle(.plain)
+          .foregroundStyle(selectorMode == mode ? Color.accentColor : Color.primary)
+          .accessibilityValue(selectorMode == mode ? "Selected" : "")
         }
       }
       .padding(16)

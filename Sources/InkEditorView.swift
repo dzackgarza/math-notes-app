@@ -19,6 +19,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private var setInitialZoom = false
   private var appliedTool: EditorTool = .pen
   private var appliedEraserMode: EditorEraserMode = .stroke
+  private var appliedSelectorMode: EditorSelectorMode = .freehand
   private var documentRevision = 0
   private var pageNavigationRevision = 0
   private var reportedPage = -1
@@ -119,6 +120,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   func applyHostState(
     tool: EditorTool,
     eraserMode: EditorEraserMode,
+    selectorMode: EditorSelectorMode,
     pens: EditorPenSet,
     revision: Int,
     targetPage: Int,
@@ -126,10 +128,11 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   ) {
     loadViewIfNeeded()
 
-    if tool != appliedTool || eraserMode != appliedEraserMode {
-      canvasView.applyTool(tool, pens: pens, eraserMode: eraserMode)
+    if tool != appliedTool || eraserMode != appliedEraserMode || selectorMode != appliedSelectorMode {
+      canvasView.applyTool(tool, pens: pens, eraserMode: eraserMode, selectorMode: selectorMode)
       appliedTool = tool
       appliedEraserMode = eraserMode
+      appliedSelectorMode = selectorMode
     }
 
     if revision != documentRevision {
@@ -449,6 +452,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
 private struct InkEditorHost: UIViewControllerRepresentable {
   let document: EngineDocument
   let eraserMode: EditorEraserMode
+  let selectorMode: EditorSelectorMode
   let tool: EditorTool
   let revision: Int
   let targetPage: Int
@@ -469,6 +473,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
     uiViewController.applyHostState(
       tool: tool,
       eraserMode: eraserMode,
+      selectorMode: selectorMode,
       pens: .defaults,
       revision: revision,
       targetPage: targetPage,
@@ -483,6 +488,7 @@ struct InkEditorView: View {
   @Binding var currentPage: Int
   @Binding var documentRevision: Int
   @Binding var pageNavigationRevision: Int
+  @State private var selectorMode: EditorSelectorMode = .freehand
   @State private var eraserMode: EditorEraserMode = .stroke
   let onEditCommitted: () -> Void
   let onError: (Error) -> Void
@@ -493,6 +499,7 @@ struct InkEditorView: View {
         document: document,
         tool: tool,
         eraserMode: eraserMode,
+        selectorMode: selectorMode,
         revision: documentRevision,
         targetPage: currentPage,
         navigationRevision: pageNavigationRevision,
@@ -503,6 +510,7 @@ struct InkEditorView: View {
       EditorToolRail(
         tool: $tool,
         eraserMode: $eraserMode,
+        selectorMode: $selectorMode,
         undo: { history(redo: false) },
         redo: { history(redo: true) })
     }
