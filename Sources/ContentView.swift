@@ -20,6 +20,7 @@ struct ContentView: View {
   @State private var restoredRoot = false
   @State private var errorMessage: String?
   @State private var selectedTool: EditorTool = .pen
+  @State private var penLibrary = EditorPenLibrary.defaults
   @State private var currentPage = 0
   @State private var documentRevision = 0
   @State private var pageNavigationRevision = 0
@@ -37,6 +38,7 @@ struct ContentView: View {
         if let session {
           InkEditorView(
             document: session.document,
+            pens: penLibrary.tools,
             tool: $selectedTool,
             currentPage: $currentPage,
             documentRevision: $documentRevision,
@@ -258,14 +260,28 @@ struct ContentView: View {
     libraryFolder = FolderReference(path: [])
     libraryListing = LibraryListing(folders: [], notebooks: [])
     root = newRoot
+    reloadPenLibrary()
     newRoot.onChange = {
       Task { @MainActor in
         refreshLibrary()
+        reloadPenLibrary()
       }
     }
     refreshLibrary()
   }
 
+
+  private func reloadPenLibrary() {
+    guard let root else {
+      penLibrary = .defaults
+      return
+    }
+    do {
+      penLibrary = try root.penLibrary()
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
   private func refreshLibrary() {
     guard let root else {
       libraryListing = LibraryListing(folders: [], notebooks: [])

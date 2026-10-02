@@ -79,13 +79,25 @@ enum EditorSelectorMode: String, CaseIterable, Identifiable {
   }
 }
 
-@MainActor
-struct EditorPenSet {
+struct EditorPenSet: Equatable {
   let pen: InkToolSettings
   let marker: InkToolSettings
   let highlighter: InkToolSettings
 
-  static let defaults: EditorPenSet = {
+  static func == (left: EditorPenSet, right: EditorPenSet) -> Bool {
+    same(left.pen, right.pen) &&
+      same(left.marker, right.marker) &&
+      same(left.highlighter, right.highlighter)
+  }
+
+  private static func same(_ left: InkToolSettings, _ right: InkToolSettings) -> Bool {
+    left.brush == right.brush &&
+      left.rgb == right.rgb &&
+      left.size == right.size &&
+      left.opacity == right.opacity
+  }
+
+  @MainActor static let defaults: EditorPenSet = {
     var json: UnsafePointer<UInt8>?
     var size = 0
     guard ink_pens_default(&json, &size) == INK_OK, let json else {

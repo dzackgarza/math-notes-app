@@ -20,6 +20,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private var appliedTool: EditorTool = .pen
   private var appliedEraserMode: EditorEraserMode = .stroke
   private var appliedSelectorMode: EditorSelectorMode = .freehand
+  private var appliedPens = EditorPenSet.defaults
   private var documentRevision = 0
   private var pageNavigationRevision = 0
   private var reportedPage = -1
@@ -128,11 +129,12 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   ) {
     loadViewIfNeeded()
 
-    if tool != appliedTool || eraserMode != appliedEraserMode || selectorMode != appliedSelectorMode {
+    if tool != appliedTool || eraserMode != appliedEraserMode || selectorMode != appliedSelectorMode || pens != appliedPens {
       canvasView.applyTool(tool, pens: pens, eraserMode: eraserMode, selectorMode: selectorMode)
       appliedTool = tool
       appliedEraserMode = eraserMode
       appliedSelectorMode = selectorMode
+      appliedPens = pens
     }
 
     if revision != documentRevision {
@@ -454,6 +456,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let eraserMode: EditorEraserMode
   let selectorMode: EditorSelectorMode
   let tool: EditorTool
+  let pens: EditorPenSet
   let revision: Int
   let targetPage: Int
   let navigationRevision: Int
@@ -474,7 +477,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       tool: tool,
       eraserMode: eraserMode,
       selectorMode: selectorMode,
-      pens: .defaults,
+      pens: pens,
       revision: revision,
       targetPage: targetPage,
       navigationRevision: navigationRevision)
@@ -484,6 +487,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
 @MainActor
 struct InkEditorView: View {
   let document: EngineDocument
+  let pens: EditorPenSet
   @Binding var tool: EditorTool
   @Binding var currentPage: Int
   @Binding var documentRevision: Int
@@ -500,6 +504,7 @@ struct InkEditorView: View {
         tool: tool,
         eraserMode: eraserMode,
         selectorMode: selectorMode,
+        pens: pens,
         revision: documentRevision,
         targetPage: currentPage,
         navigationRevision: pageNavigationRevision,

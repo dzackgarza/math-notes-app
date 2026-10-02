@@ -357,6 +357,37 @@ final class NotesRootAccess {
     return data
   }
 
+
+  @MainActor
+  func penLibrary() throws -> EditorPenLibrary {
+    try ensurePenFile()
+    let fileURL = url.appendingPathComponent(".pens.json")
+    let data = try coordinatedRead(at: fileURL) { coordinatedURL in
+      try Data(contentsOf: coordinatedURL)
+    }
+    return try EditorPenLibrary(json: data)
+  }
+
+  @MainActor
+  func savePenLibrary(_ library: EditorPenLibrary) throws {
+    try ensurePenFile()
+    let data = try library.json()
+    let fileURL = url.appendingPathComponent(".pens.json")
+    try coordinatedWrite(at: fileURL, options: .forReplacing) { coordinatedURL in
+      try data.write(to: coordinatedURL, options: .atomic)
+    }
+  }
+
+  @MainActor
+  private func ensurePenFile() throws {
+    guard try !itemExists(at: [".pens.json"]) else { return }
+    let data = try EditorPenLibrary.defaultJSON()
+    try coordinatedWrite(at: url, options: .forMerging) { coordinatedRoot in
+      let fileURL = coordinatedRoot.appendingPathComponent(".pens.json")
+      guard !FileManager.default.fileExists(atPath: fileURL.path) else { return }
+      try data.write(to: fileURL, options: .atomic)
+    }
+  }
   @MainActor
   func ensureBuiltinTemplates() throws {
     for name in try EngineDocument.builtinTemplateNames() {

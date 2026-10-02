@@ -35,6 +35,16 @@ final class EditorToolsTests: XCTestCase {
     XCTAssertEqual(EditorSelectorMode.ruled.engineValue, INK_SELECTOR_RULED)
   }
 
+
+  @MainActor
+  func testPenLibraryRoundTripsTheEngineFormat() throws {
+    let defaults = try EditorPenLibrary.defaultJSON()
+    let library = try EditorPenLibrary(json: defaults)
+
+    XCTAssertEqual(library.palette, [0x1A1A1A, 0x1F4FB5, 0xD92D39, 0x29955B, 0xFFCF26])
+    XCTAssertTrue(library.saved.isEmpty)
+    XCTAssertEqual(try library.json(), defaults)
+  }
   @MainActor
   func testHistoryUsesTheSharedDocument() throws {
     let document = EngineDocument(seed: 11)
