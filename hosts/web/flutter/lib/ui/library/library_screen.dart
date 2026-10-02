@@ -105,7 +105,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Future<void> folderAction(native.Folder item, String action) async {
     if (action != 'details') return relocate(item.path, action);
     final values = folder.folderMetadata(item.path);
-    if (await editFolderDetails(context, '${item.name} details', values))
+    if (await editFolderDetails(context, item.name, values))
       await folder.saveFolder(item.path, values);
   }
 
@@ -528,20 +528,62 @@ class _LibraryScreenState extends State<LibraryScreen> {
       (note) => note.modified,
     );
     return [
-      if (metadata.description.isNotEmpty || metadata.tags.length > 0)
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (metadata.description.isNotEmpty) Text(metadata.description),
-                const SizedBox(height: 8),
-                tagList(tagNames(metadata.tags)),
-              ],
-            ),
+      // The notebook's cover, title, counts, description and tags.
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 112,
+                height: 160,
+                child: cover(item, titled: false),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Semantics(
+                      header: true,
+                      child: Text(item.name, style: volumeTitle),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      notebookSummary(item),
+                      style: footnote.copyWith(color: secondaryLabel),
+                    ),
+                    if (metadata.description.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(metadata.description, style: body),
+                    ],
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Flexible(child: tagList(tagNames(metadata.tags))),
+                        MergeSemantics(
+                          child: Semantics(
+                            label: 'Add tag to ${item.name}',
+                            button: true,
+                            child: CupertinoButton(
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(44, 44),
+                              onPressed: () =>
+                                  run(() => folderAction(item, 'details')),
+                              child: const Icon(CupertinoIcons.plus_circle),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
+      ),
       if (notes.isEmpty)
         SliverFillRemaining(
           hasScrollBody: false,
@@ -862,7 +904,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   ),
                 ),
               ),
-        middle: notebook == null ? null : Text(notebook.name),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

@@ -114,6 +114,11 @@ class WorkspaceScreen extends StatelessWidget {
         onConflicts: () =>
             run(() => reviewConflicts(context, folder, session, note)),
         conflictCount: () => folder.conflictCount(note.dir),
+        notebookDescription: folder
+            .folderMetadata(
+              note.path.toDart.sublist(0, note.path.length - 1).toJS,
+            )
+            .description,
       ),
     );
 

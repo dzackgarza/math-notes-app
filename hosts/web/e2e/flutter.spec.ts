@@ -144,14 +144,17 @@ test("Flutter creation sheets close on Escape and ask before they discard a chan
 });
 
 test("Flutter notebook cards retain their notes and metadata after rename", async ({ page }, info) => {
-  test.setTimeout(90_000);
+  test.setTimeout(150_000);
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
   await page.goto("?root=opfs");
-  await page.getByRole("button", { name: "New notebook", exact: true }).click();
+  await button("New notebook").click();
   await enterText(page.getByRole("textbox", { name: "Notebook title", exact: true }), "Algebra");
   await enterText(page.getByRole("textbox", { name: "Description", exact: true }), "Lecture notes");
   await addTag(page, "groups");
-  await page.getByRole("button", { name: "Lined", exact: true }).click();
-  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await button("Lined").click();
+  await button("Spine").click();
+  await button("Forest").click();
+  await button("Create").click();
   await page.getByRole("button", { name: "New note", exact: true }).click();
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Rings");
   await page.getByRole("button", { name: "Create", exact: true }).click();
@@ -185,6 +188,63 @@ test("Flutter notebook cards retain their notes and metadata after rename", asyn
   expect(metadata.notes["Field theory/Rings"].tags).toEqual(["groups"]);
   expect(metadata.folders.Algebra).toBeUndefined();
   expect(metadata.notes["Algebra/Rings"]).toBeUndefined();
+  expect(metadata.folders["Field theory"]).toMatchObject({ paper: "lined-medium", coverColor: "#2F4A3A", coverStyle: "spine", tags: ["groups"] });
+
+  // After the reload every field shows. A cover's left edge is the 12 px
+  // spine in a darker shade of the Forest cloth.
+  const forest: Rgb = [0x2f, 0x4a, 0x3a];
+  const expectCover = async (cover: Box, where: string) => {
+    expect(await centerPixel(page, { x: cover.x + 16, y: cover.y + 50 }), `the ${where} is in the Forest cloth`).toEqual(forest);
+    const spine = await centerPixel(page, { x: cover.x + 6, y: cover.y + 50 });
+    expect(spine[1], `the ${where} has a spine`).toBeLessThan(forest[1] - 10);
+  };
+  // A tag chip whose text lies in `area`.
+  const chipIn = async (name: string, area: Box) => {
+    for (const chip of await page.getByText(name, { exact: true }).all()) {
+      const box = await chip.boundingBox();
+      if (box && box.x >= area.x && box.x + box.width <= area.x + area.width && box.y >= area.y && box.y + box.height <= area.y + area.height) return true;
+    }
+    return false;
+  };
+  await closeNote(page);
+  const header = await boxOf(button("Add tag to Field theory"));
+  await expect(page.getByRole("heading", { name: "Field theory", exact: true })).toBeVisible();
+  await expect(page.getByText("Lecture notes", { exact: true })).toBeVisible();
+  const notebookCover = await boxOf(page.getByRole("heading", { name: "Field theory", exact: true }));
+  await expectCover({ x: notebookCover.x - 132, y: notebookCover.y, width: 112, height: 160 }, "notebook view cover");
+  const row = { x: 0, y: header.y - 10, width: header.x + header.width, height: header.height + 20 };
+  expect(await chipIn("groups", row), "the notebook view shows the tag").toBe(true);
+  await page.screenshot({ path: info.outputPath("notebook-view.png") });
+
+  // The tag chips' + adds a tag to the notebook.
+  await button("Add tag to Field theory").click();
+  await addTag(page, "fields");
+  await button("Save details").click();
+  await expect.poll(() => chipIn("fields", row), { message: "the new tag joins the chips" }).toBe(true);
+
+  await button("Back to library").click();
+  const card = await boxOf(page.getByRole("button", { name: "Open Field theory", exact: false }));
+  await expectCover(card, "card");
+  expect(await chipIn("groups", card), "the card shows the tag").toBe(true);
+  expect(await chipIn("fields", card)).toBe(true);
+  await page.screenshot({ path: info.outputPath("library-card.png") });
+
+  // A note made after the reload starts on the notebook's paper and shows
+  // the notebook's description under its title.
+  await openTestNotebook(page, "Field theory");
+  await button("New note").click();
+  await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Galois");
+  await button("Create").click();
+  await expect(page.getByRole("heading", { name: "Galois", exact: true })).toBeVisible();
+  const title = await boxOf(page.getByRole("heading", { name: "Galois", exact: true }));
+  const description = await boxOf(page.getByText("Lecture notes", { exact: true }).filter({ visible: true }));
+  expect(description.y, "the description is under the title").toBeGreaterThanOrEqual(title.y + title.height - 2);
+  await page.screenshot({ path: info.outputPath("editor-description.png") });
+  const galois = await page.evaluate(async () => {
+    const note = await (await (await navigator.storage.getDirectory()).getDirectoryHandle("Field theory")).getDirectoryHandle("Galois");
+    return JSON.parse(await (await (await note.getFileHandle("notebook.json")).getFile()).text());
+  });
+  expect(galois.template, "the new note is on the notebook's paper").toBe("lined-medium");
 });
 
 test("Flutter moves, finds, trashes, and restores a note with its metadata", async ({ page }) => {

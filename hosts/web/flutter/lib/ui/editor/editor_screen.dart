@@ -58,6 +58,7 @@ class EditorScreen extends StatefulWidget {
     required this.workspaceMenu,
     required this.onOpenNote,
     required this.onClose,
+    required this.notebookDescription,
   });
   final native.OpenNote note;
   final native.Engine engine;
@@ -76,6 +77,8 @@ class EditorScreen extends StatefulWidget {
   final List<PullDownMenuEntry> Function() workspaceMenu;
   final Future<void> Function() onOpenNote;
   final Future<void> Function() onClose;
+  // The description of the notebook that holds the note; empty when it has none.
+  final String notebookDescription;
   @override
   State<EditorScreen> createState() => _EditorScreenState();
 }
@@ -1177,7 +1180,23 @@ class _EditorScreenState extends State<EditorScreen> {
                 ),
               ),
             ),
-            middle: Text(widget.note.name),
+            middle: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(widget.note.name),
+                // Its own node: the title alone names the heading.
+                if (widget.notebookDescription.isNotEmpty)
+                  Semantics(
+                    container: true,
+                    child: Text(
+                      widget.notebookDescription,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: footnote.copyWith(color: secondaryLabel),
+                    ),
+                  ),
+              ],
+            ),
             trailing: FocusTraversalGroup(
               child: Row(
                 mainAxisSize: MainAxisSize.min,
