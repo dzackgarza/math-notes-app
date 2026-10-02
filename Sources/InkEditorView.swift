@@ -31,6 +31,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private var appliedLayerID: String?
   private var documentRevision = 0
   private var pageNavigationRevision = 0
+  private var fitRevision = 0
   private var appliedPageCommand: EditorPageCommand?
   private var reportedPage = -1
 
@@ -124,15 +125,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
       documentSize.width > 0,
       documentSize.height > 0
     {
-      let fit: CGFloat
-      if appliedArrangement == .horizontal {
-        fit = max(1, scrollView.bounds.height - 32) / documentSize.height
-      } else {
-        fit = max(1, scrollView.bounds.width - 32) / documentSize.width
-      }
-      scrollView.setZoomScale(
-        min(max(fit, scrollView.minimumZoomScale), scrollView.maximumZoomScale),
-        animated: false)
+      fitPages(animated: false)
       setInitialZoom = true
     }
 
@@ -149,6 +142,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     revision: Int,
     arrangement: EditorPageArrangement,
     activeLayerID: String?,
+    fitRevision: Int,
     targetPage: Int,
     navigationRevision: Int,
     pageCommand: EditorPageCommand?
@@ -190,6 +184,11 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
           onError(error)
         }
       }
+    }
+
+    if fitRevision != self.fitRevision {
+      self.fitRevision = fitRevision
+      fitPages(animated: true)
     }
 
     if revision != documentRevision {
@@ -464,6 +463,24 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     syncCanvasTransform()
   }
 
+  private func fitPages(animated: Bool) {
+    guard scrollView.bounds.width > 0,
+      scrollView.bounds.height > 0,
+      documentSize.width > 0,
+      documentSize.height > 0
+    else { return }
+
+    let fit: CGFloat
+    if appliedArrangement == .horizontal {
+      fit = max(1, scrollView.bounds.height - 32) / documentSize.height
+    } else {
+      fit = max(1, scrollView.bounds.width - 32) / documentSize.width
+    }
+    scrollView.setZoomScale(
+      min(max(fit, scrollView.minimumZoomScale), scrollView.maximumZoomScale),
+      animated: animated)
+  }
+
   private func scrollToDocumentEnd() {
     let minimumY = -scrollView.adjustedContentInset.top
     let maximumY = max(
@@ -538,6 +555,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let pens: EditorPenSet
   let arrangement: EditorPageArrangement
   let activeLayerID: String?
+  let fitRevision: Int
   let revision: Int
   let targetPage: Int
   let navigationRevision: Int
@@ -565,6 +583,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       revision: revision,
       arrangement: arrangement,
       activeLayerID: activeLayerID,
+      fitRevision: fitRevision,
       targetPage: targetPage,
       navigationRevision: navigationRevision,
       pageCommand: pageCommand)
@@ -575,6 +594,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
 struct InkEditorView: View {
   let document: EngineDocument
   let arrangement: EditorPageArrangement
+  let fitRevision: Int
   @Binding var penLibrary: EditorPenLibrary
   @Binding var tool: EditorTool
   @Binding var activeLayerID: String?
@@ -598,6 +618,7 @@ struct InkEditorView: View {
         pens: penLibrary.tools,
         arrangement: arrangement,
         activeLayerID: activeLayerID,
+        fitRevision: fitRevision,
         revision: documentRevision,
         targetPage: currentPage,
         navigationRevision: pageNavigationRevision,

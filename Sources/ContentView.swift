@@ -31,6 +31,7 @@ struct ContentView: View {
   @State private var currentPage = 0
   @State private var documentRevision = 0
   @State private var pageNavigationRevision = 0
+  @State private var fitRevision = 0
   @State private var editorPageCommand: EditorPageCommand?
   @State private var sharePayload: SharePayload?
   @State private var pdfExport: PDFExportRequest?
@@ -54,6 +55,7 @@ struct ContentView: View {
           InkEditorView(
             document: session.document,
             arrangement: EditorPageArrangement.stored(pageArrangementRaw),
+            fitRevision: fitRevision,
             penLibrary: $penLibrary,
             tool: $selectedTool,
             activeLayerID: $activeLayerID,
@@ -266,6 +268,13 @@ struct ContentView: View {
   private var viewMenu: some View {
     let selected = EditorPageArrangement.stored(pageArrangementRaw)
     Menu {
+      Button(
+        selected == .horizontal ? "Fit Height" : "Fit Width",
+        systemImage: selected == .horizontal ? "arrow.up.and.down" : "arrow.left.and.right")
+      {
+        fitRevision &+= 1
+      }
+      Divider()
       ForEach(EditorPageArrangement.allCases) { arrangement in
         Button {
           pageArrangementRaw = arrangement.rawValue
