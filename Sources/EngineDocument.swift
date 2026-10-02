@@ -137,6 +137,18 @@ final class EngineDocument {
     try check(ink_document_insert_page(pointer, index), operation: "Insert notebook page")
   }
 
+  func importPageImage(
+    at index: Int,
+    png: Data,
+    widthPt: Double,
+    heightPt: Double
+  ) throws {
+    let status = withBytes(png) { bytes, count in
+      ink_import_page_image(pointer, index, bytes, count, widthPt, heightPt)
+    }
+    try check(status, operation: "Import PDF page")
+  }
+
   func appendPage() throws {
     try insertPage(at: pageCount())
   }

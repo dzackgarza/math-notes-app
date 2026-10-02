@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import InkEngine
+import UIKit
 import XCTest
 @testable import MathNotes
 
@@ -120,6 +121,43 @@ final class NotebookStorageTests: XCTestCase {
     XCTAssertEqual(media.width, expected.width, accuracy: 0.01)
     XCTAssertEqual(media.height, expected.height, accuracy: 0.01)
   }
+
+  @MainActor
+  func testPDFImportRasterKeepsThePDFPageSizeInTheSharedDocument() throws {
+    let bounds = CGRect(x: 0, y: 0, width: 612, height: 792)
+    let pdf = UIGraphicsPDFRenderer(bounds: bounds).pdfData { context in
+      context.beginPage()
+      UIColor.black.setFill()
+      context.cgContext.fill(CGRect(x: 0, y: 0, width: 306, height: 28.35))
+    }
+    let url = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString)
+      .appendingPathExtension("pdf")
+    try pdf.write(to: url, options: .atomic)
+    defer { try? FileManager.default.removeItem(at: url) }
+
+    let imported = try PDFImportDocument(url: url)
+    XCTAssertEqual(imported.pageCount, 1)
+    let page = try imported.rasterizedPage(at: 0, maxWidthPixels: 256)
+
+    let document = EngineDocument(seed: 59)
+    try document.importPageImage(
+      at: 0,
+      png: page.png,
+      widthPt: page.widthPt,
+      heightPt: page.heightPt)
+    try document.deletePage(at: 1)
+
+    XCTAssertEqual(try document.pageCount(), 1)
+    let rect = try document.pageRect(index: 0)
+    XCTAssertEqual(rect.width, 612, accuracy: 0.01)
+    XCTAssertEqual(rect.height, 792, accuracy: 0.01)
+    XCTAssertTrue(
+      try document.dirtyFiles().contains {
+        $0.path.hasPrefix("assets/") && $0.path.hasSuffix(".png")
+      })
+  }
+
   @MainActor
   func testBuiltinTemplateFactoryMatchesTheSharedCreationPath() throws {
     XCTAssertEqual(

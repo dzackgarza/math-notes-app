@@ -27,6 +27,8 @@ struct ContentView: View {
   @State private var pageNavigationRevision = 0
   @State private var sharePayload: SharePayload?
   @State private var pdfExport: PDFExportRequest?
+  @State private var showingPDFImporter = false
+  @State private var pdfImportProgress: String?
   @State private var showingNewNote = false
   @State private var newNoteFolders: [FolderReference] = []
   @State private var newNoteTemplates: [String] = []
@@ -111,6 +113,16 @@ struct ContentView: View {
         },
         onCancel: { pdfExport = nil })
     }
+    .sheet(isPresented: $showingPDFImporter) {
+      PDFImportPicker(
+        onPick: { url in
+          showingPDFImporter = false
+          Task {
+            await importPDF(url)
+          }
+        },
+        onCancel: { showingPDFImporter = false })
+    }
     .sheet(isPresented: $showingNewNote) {
       NewNoteSheet(
         folders: newNoteFolders,
@@ -161,6 +173,21 @@ struct ContentView: View {
     }
     .task {
       restoreSavedRoot()
+    }
+    .overlay {
+      if let pdfImportProgress {
+        ZStack {
+          Color.black.opacity(0.2)
+            .ignoresSafeArea()
+          VStack(spacing: 12) {
+            ProgressView()
+            Text(pdfImportProgress)
+              .font(.headline)
+          }
+          .padding(24)
+          .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+        }
+      }
     }
   }
 
@@ -270,6 +297,7 @@ struct ContentView: View {
       },
       toggleLayout: { libraryGrid.toggle() },
       createNote: prepareNewNote,
+      importPDF: { showingPDFImporter = true },
       createFolder: { prepareLibraryMutation(.createFolder) },
       renameEntry: { prepareLibraryMutation(.rename($0)) },
       moveEntry: { prepareLibraryMutation(.move($0)) },
@@ -438,6 +466,69 @@ struct ContentView: View {
       showingNewNote = true
     } catch {
       errorMessage = error.localizedDescription
+    }
+  }
+
+  private func importPDF(_ url: URL) async {
+    guard let root else { return }
+    var importedReference: NotebookReference?
+    var completed = 0
+
+    do {
+      let pdf = try PDFImportDocument(url: url)
+      let title = url.deletingPathExtension().lastPathComponent
+      pdfImportProgress = "Importing PDF: 0 / \(pdf.pageCount) pages"
+      await Task.yield()
+
+      let firstPage = try pdf.rasterizedPage(at: 0)
+      let (reference, document) = try root.createNote(
+        title: title,
+        parent: libraryFolder,
+        template: "blank",
+        pageSize: INK_PAGE_A4,
+        orientation: INK_PORTRAIT)
+      importedReference = reference
+      try document.importPageImage(
+        at: 0,
+        png: firstPage.png,
+        widthPt: firstPage.widthPt,
+        heightPt: firstPage.heightPt)
+      try document.deletePage(at: 1)
+      try root.save(document, notebook: reference)
+      completed = 1
+      pdfImportProgress = "Importing PDF: 1 / \(pdf.pageCount) pages"
+      await Task.yield()
+
+      for index in 1..<pdf.pageCount {
+        let page = try pdf.rasterizedPage(at: index)
+        try document.importPageImage(
+          at: index,
+          png: page.png,
+          widthPt: page.widthPt,
+          heightPt: page.heightPt)
+        try root.save(document, notebook: reference)
+        completed = index + 1
+        pdfImportProgress = "Importing PDF: \(completed) / \(pdf.pageCount) pages"
+        await Task.yield()
+      }
+
+      selectedTool = .pen
+      currentPage = 0
+      documentRevision = 0
+      pageNavigationRevision = 0
+      session = NotebookSession(reference: reference, document: document)
+      pdfImportProgress = nil
+      refreshLibrary()
+    } catch {
+      pdfImportProgress = nil
+      refreshLibrary()
+      if let importedReference {
+        let noun = completed == 1 ? "page" : "pages"
+        errorMessage =
+          "\(error.localizedDescription) \(completed) imported \(noun) remain in \(importedReference.name)."
+      } else {
+        errorMessage = error.localizedDescription
+      }
     }
   }
 

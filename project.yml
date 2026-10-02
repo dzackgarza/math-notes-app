@@ -19,6 +19,7 @@ targets:
       - framework: build/InkEngine.xcframework
         embed: false
       - package: MJRefresh
+      - sdk: PDFKit.framework
       - sdk: libc++.tbd
     info:
       path: Sources/Info.plist

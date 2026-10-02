@@ -14,6 +14,7 @@ struct NativeLibraryView: View {
   let setSort: (LibrarySort) -> Void
   let toggleLayout: () -> Void
   let createNote: () -> Void
+  let importPDF: () -> Void
   let createFolder: () -> Void
   let renameEntry: (LibraryEntryTarget) -> Void
   let moveEntry: (LibraryEntryTarget) -> Void
@@ -85,6 +86,12 @@ struct NativeLibraryView: View {
         }
 
         Menu {
+          Button(action: importPDF) {
+            Label("Import PDF", systemImage: "doc.badge.plus")
+          }
+
+          Divider()
+
           Button(action: createFolder) {
             Label("New Folder", systemImage: "folder.badge.plus")
           }
