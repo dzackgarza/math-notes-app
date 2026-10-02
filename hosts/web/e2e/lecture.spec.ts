@@ -229,7 +229,7 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   await longPressDrag(page, from, to);
   // A new page file takes the number after the highest of the note's pages
   // (NextPageFile): the copy reuses the number of the deleted page.
-  await expect.poll(async () => (await pages()).map((p) => p.file)).toEqual(["pages/0001.svg", "pages/0002.svg", "pages/0003.svg", "pages/0004.svg"]);
+  await expect.poll(async () => (await storedPages(page, title, notebook)).map((p) => p.file)).toEqual(["pages/0001.svg", "pages/0002.svg", "pages/0003.svg", "pages/0004.svg"]);
   await shot("overview");
   await tile(1).click();
   await expect(page.getByText("1 / 4", { exact: true })).toBeVisible();
