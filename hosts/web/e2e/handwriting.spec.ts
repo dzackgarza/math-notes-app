@@ -154,8 +154,8 @@ test("Flutter handwriting session: pen pressure, palm, finger and wheel navigati
     await backToNotebook(page);
     box = await newNote(page, "Sideways");
     for (const count of [2, 3, 4, 5]) {
-      await button("Pages").click();
-      await button("Add page At end").click();
+      await button("Add page").click();
+      await button("At end").click();
       await expect(page.getByText(`1 / ${count}`, { exact: true })).toBeVisible();
     }
     await button("View").click();
@@ -263,8 +263,8 @@ test("Flutter handwriting session: pen pressure, palm, finger and wheel navigati
     await backToNotebook(page);
     await newNote(page, "Spread");
     for (let added = 0; added < 2; added++) {
-      await button("Pages").click();
-      await button("Add page At end").click();
+      await button("Add page").click();
+      await button("At end").click();
     }
     await expect(page.getByText(/^\d \/ 3$/)).toBeVisible();
     await button("View").click();

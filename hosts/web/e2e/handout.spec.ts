@@ -128,8 +128,8 @@ test("Flutter handout session: a figure, typed text, ten pages, an annotated PDF
   let rightToLeft: Bounds = { left: 0, right: 0, top: 0, bottom: 0 };
 
   await test.step("add page 2 and type a word and a sentence wrapped at 100 pt", async () => {
-    await button("Pages").click();
-    await button("Add page At end").click();
+    await button("Add page").click();
+    await button("At end").click();
     await goToPage(page, 2);
     await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
     await button("Text").click();
@@ -213,8 +213,8 @@ test("Flutter handout session: a figure, typed text, ten pages, an annotated PDF
 
   await test.step("add pages up to ten and export a ten-page A4 PDF", async () => {
     for (let pageNumber = 3; pageNumber <= 10; pageNumber++) {
-      await button("Pages").click();
-      await button("Add page At end").click();
+      await button("Add page").click();
+      await button("At end").click();
     }
     await expect(page.getByText(/^[0-9]+ \/ 10$/)).toBeVisible();
     await button("More").click();

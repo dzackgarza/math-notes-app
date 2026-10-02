@@ -62,8 +62,8 @@ test("Flutter notes for every kind of work: each paper, page size, and orientati
       const saved = await savedPages(page, title, notebook);
       expect(saved.map((entry) => entry.size), title).toEqual([size[2]]);
       expect(saved.map((entry) => entry.strokes), `${title} keeps the handwriting`).toEqual([1]);
-      await button("Pages").click();
-      await button("Add page At end").click();
+      await button("Add page").click();
+      await button("At end").click();
       await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
       expect((await savedPages(page, title, notebook)).map((entry) => entry.size), `${title}, second page`).toEqual([size[2], size[2]]);
     }

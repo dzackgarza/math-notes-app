@@ -872,6 +872,24 @@ class _EditorScreenState extends State<EditorScreen> {
     ),
   );
 
+  List<PullDownMenuEntry> addPageMenu() => [
+    PullDownMenuItem(
+      title: 'Before page ${page + 1}',
+      enabled: !drawing,
+      onTap: () => insertPage(page),
+    ),
+    PullDownMenuItem(
+      title: 'After page ${page + 1}',
+      enabled: !drawing,
+      onTap: () => insertPage(page + 1),
+    ),
+    PullDownMenuItem(
+      title: 'At end',
+      enabled: !drawing,
+      onTap: addPage,
+    ),
+  ];
+
   // One menu per object (docs/specs/tablet-ui.md, Editor): the current page
   // and the page sequence. Delete page is the last group, alone.
   List<PullDownMenuEntry> pagesMenu() => [
@@ -884,25 +902,6 @@ class _EditorScreenState extends State<EditorScreen> {
       title: 'Go to page',
       enabled: !drawing,
       onTap: () => run(goToPage),
-    ),
-    const GroupRule(),
-    PullDownMenuItem(
-      title: 'Add page',
-      subtitle: 'At end',
-      enabled: !drawing,
-      onTap: addPage,
-    ),
-    PullDownMenuItem(
-      title: 'Insert page before',
-      subtitle: 'Before page ${page + 1}',
-      enabled: !drawing,
-      onTap: () => insertPage(page),
-    ),
-    PullDownMenuItem(
-      title: 'Insert page after',
-      subtitle: 'After page ${page + 1}',
-      enabled: !drawing,
-      onTap: () => insertPage(page + 1),
     ),
     const GroupRule(),
     PullDownMenuItem(
@@ -1227,6 +1226,7 @@ class _EditorScreenState extends State<EditorScreen> {
                     ),
                   ),
                   menuButton('Pages', LucideIcons.layoutGrid, pagesMenu),
+                  menuButton('Add page', LucideIcons.plus, addPageMenu),
                   menuButton('View', LucideIcons.layoutPanelLeft, viewMenu),
                   menuButton(
                     'More',

@@ -31,7 +31,7 @@ earlier layers exists and works in the deployed app.
 | Palm rejection: a resting hand neither draws nor moves the page during a stroke | Exists (`PalmRejection` in `hosts/web/flutter/lib/ui/editor/editor_input.dart`). |
 | Pinch zoom | Exists. |
 | Multi-page document, vertical page stack | Exists. **View** also offers horizontal scroll and two pages side by side (`ink_document_set_arrangement`). |
-| Add and delete a page | Exists: held pull at the end, the **Pages** and **⋯** menus, and the page overview. |
+| Add and delete a page | Exists: held pull at the end, the **Add page** control, the **Pages** menu, and the page overview. |
 | Ruled, grid, dotted, and blank paper | Exists. |
 | Autosave and reopen | Exists. |
 | Library with folders | Exists. |

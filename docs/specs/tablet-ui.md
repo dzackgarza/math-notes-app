@@ -70,9 +70,11 @@ toolbar and the tool popovers:
   status as secondary text. Labeled pull-down menus at the right. Each menu
   holds the actions of one object:
   - **Pages** (the current page and the page sequence): page overview; go to
-    page; add page; insert page before or after; select page; clear page;
+    page; select page; clear page;
     paper for new pages (style, size, orientation); bookmarks and add
     bookmark; layers. Delete page is the last group, alone.
+  - **Add page**: insert before the current page, insert after it, or append
+    at the end. Each choice names its position before it runs.
   - **View** (the layout of the pages): fit width or height; vertical
     scroll, horizontal scroll, or two-page layout; split view.
   - **⋯** (the document): save; share and export PDF; compare conflicting versions, shown only

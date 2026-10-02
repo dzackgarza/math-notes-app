@@ -59,7 +59,7 @@ test("Flutter problem set session: pages written, pulled in, reordered, inserted
     };
     await draw(0);
     for (let pageNumber = 2; pageNumber <= 3; pageNumber++) {
-      await choose("Pages", "Add page At end");
+      await choose("Add page", "At end");
       await expect(page.getByText(`${pageNumber - 1} / ${pageNumber}`, { exact: true })).toBeVisible();
       await goToPage(page, pageNumber);
       await expect(page.getByText(`${pageNumber} / ${pageNumber}`, { exact: true })).toBeVisible();
@@ -186,10 +186,10 @@ test("Flutter problem set session: pages written, pulled in, reordered, inserted
     await expect(page.getByRole("heading", { name: next, exact: true })).toBeVisible();
     box = await boxOf(canvas);
     await penStroke(cdp, line(box.x + 150, box.x + 300, box.y + 250), 0.6);
-    await choose("Pages", /^Insert page before/);
+    await choose("Add page", /^Before page/);
     await expect(page.getByText(/^\d \/ 2$/)).toBeVisible();
     await goTo(2);
-    await choose("Pages", /^Insert page after/);
+    await choose("Add page", /^After page/);
     await expect(page.getByText("2 / 3", { exact: true })).toBeVisible();
     expect((await pages()).map(({ file, strokes }) => ({ file, strokes }))).toEqual([
       { file: "pages/0002.svg", strokes: 0 },
@@ -211,7 +211,7 @@ test("Flutter problem set session: pages written, pulled in, reordered, inserted
       if (index === 1) await shot("paper-sheet");
       await button(control).click();
       await button("Done").click();
-      await choose("Pages", "Add page At end");
+      await choose("Add page", "At end");
       await expect(page.getByText(`2 / ${4 + index}`, { exact: true })).toBeVisible();
     }
     expect((await pages()).map(({ size }) => size), "a new page takes the chosen size")
@@ -247,7 +247,7 @@ test("Flutter problem set session: pages written, pulled in, reordered, inserted
     await choose("Pages", "Paper for new pages");
     await button("Lined paper").click();
     await button("Done").click();
-    await choose("Pages", "Add page At end");
+    await choose("Add page", "At end");
     await expect(page.getByText("2 / 7", { exact: true })).toBeVisible();
     expect(await rulings(), "the new page is lined").toEqual([...before, "lined"]);
   });
@@ -273,7 +273,7 @@ test("Flutter problem set session: pages written, pulled in, reordered, inserted
     await page.reload();
     await openNote(first);
     await expect(page.getByText("1 / 4", { exact: true })).toBeVisible();
-    await choose("Pages", "Add page At end");
+    await choose("Add page", "At end");
     await saved();
     await page.reload();
     await openNote(first);

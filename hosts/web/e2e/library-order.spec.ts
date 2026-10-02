@@ -112,8 +112,8 @@ test("Flutter keeps a library in order: keyboard, tags, tabs, moves, trash, rena
     await canvas.waitFor({ timeout: 30_000 });
     let box = await boxOf(canvas);
     await penDiagonal(cdp, { x: box.x + 160, y: box.y + 150 }, { x: box.x + 240, y: box.y + 190 });
-    await button("Pages").click();
-    await button("Add page At end").click();
+    await button("Add page").click();
+    await button("At end").click();
     await goToPage(page, 2);
     await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
 

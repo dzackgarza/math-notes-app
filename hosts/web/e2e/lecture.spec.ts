@@ -181,7 +181,7 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   await shot("page-1");
 
   // Page 2 in the saved heading pen, and a lined page 3.
-  await choose("Pages", "Add page At end");
+  await choose("Add page", "At end");
   await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
   await goToPage(page, 2);
   await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
@@ -204,7 +204,7 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   await choose("Pages", "Paper for new pages");
   await button("Lined paper").click();
   await button("Done").click();
-  await choose("Pages", "Add page At end");
+  await choose("Add page", "At end");
   await expect(page.getByText("2 / 3", { exact: true })).toBeVisible();
   await goToPage(page, 3);
   await penStroke(cdp, line(light.x - 60, light.x + 60, light.y), 0.6);
@@ -212,7 +212,7 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
 
   // A page inserted before page 3 by mistake is deleted in the overview;
   // page 1 is duplicated and its copy dragged to the end.
-  await choose("Pages", /^Insert page before/);
+  await choose("Add page", /^Before page/);
   await expect(page.getByText(/^\d \/ 4$/)).toBeVisible();
   await choose("Pages", "Page overview");
   const tile = (n: number) => button(`Page ${n}`);
