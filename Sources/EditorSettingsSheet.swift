@@ -4,6 +4,7 @@ import SwiftUI
 struct EditorSettingsSheet: View {
   @Binding var fingerDraws: Bool
   let followLinks: Binding<Bool>?
+  @Binding var showTabStrip: Bool
   @Environment(\.dismiss) private var dismiss
 
   var body: some View {
@@ -14,6 +15,7 @@ struct EditorSettingsSheet: View {
           if let followLinks {
             Toggle("Follow links", isOn: followLinks)
           }
+          Toggle("Show tab strip", isOn: $showTabStrip)
         }
       }
       .navigationTitle("Settings")

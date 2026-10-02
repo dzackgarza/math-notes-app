@@ -110,6 +110,7 @@ struct ContentView: View {
   @AppStorage("pageArrangement") private var pageArrangementRaw = EditorPageArrangement.vertical.rawValue
   @AppStorage("editorSplitFraction") private var editorSplitFraction = 0.5
   @AppStorage("fingerDraws") private var fingerDraws = false
+  @AppStorage("showTabStrip") private var showTabStrip = true
   @State private var openNotes = OpenNotesState()
   @State private var showingFolderPicker = false
   @State private var restoredRoot = false
@@ -242,7 +243,8 @@ struct ContentView: View {
     .sheet(isPresented: $showingEditorSettings) {
       EditorSettingsSheet(
         fingerDraws: $fingerDraws,
-        followLinks: followLinksBinding)
+        followLinks: followLinksBinding,
+        showTabStrip: $showTabStrip)
     }
     .sheet(isPresented: $showingOpenNotePicker) {
       if let root {
@@ -469,7 +471,7 @@ struct ContentView: View {
   @ViewBuilder
   private var workspaceView: some View {
     VStack(spacing: 0) {
-      if openNotes.opened.count >= 2 {
+      if showTabStrip && openNotes.opened.count >= 2 {
         openNoteTabs
       }
 
