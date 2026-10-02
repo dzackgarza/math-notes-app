@@ -85,7 +85,8 @@ toolbar and the tool popovers:
   counter, not to menu rows.
 - **Navigation sidebar**: tabs for page thumbnails, bookmarks, outlines, and
   layers. A page thumbnail jumps to that page. Arrange pages opens the larger
-  reorder view. A layer row shows a preview of that layer on the current page,
+  reorder view. Each page row has actions to insert, duplicate, or delete that
+  page. A layer row shows a preview of that layer on the current page,
   its name, visibility, and editing actions.
   The page tab can delete blank pages as one undoable action. Paper rulings
   do not count as content; ink, text, figures, images, bookmarks, links, and

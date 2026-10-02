@@ -246,10 +246,13 @@ extension _EditorDialogs on _EditorScreenState {
   void insertPage(int at) => edit(() => widget.note.document.insertPage(at));
 
   // Deletes the current page and offers its undo in a toast.
-  void deletePage() {
-    final number = page + 1;
+  void deletePage() => deletePageAt(page);
+
+  void deletePageAt(int index) {
+    final number = index + 1;
     edit(() {
-      widget.note.document.deletePage(page);
+      widget.note.document.deletePage(index);
+      if (index < page) page--;
       page = page.clamp(0, widget.note.document.pageCount() - 1);
     });
     pageResultToast('Page $number deleted', true);

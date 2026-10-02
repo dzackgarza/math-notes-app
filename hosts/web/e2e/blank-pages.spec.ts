@@ -28,6 +28,11 @@ test("a note removes blank pages together and one undo restores them", async ({ 
   expect(before[2].text).toContain("Keep this page");
 
   await button("Open navigation").click();
+  await button("Page 2 actions").click();
+  await expect(button("Insert before page 2")).toBeVisible();
+  await expect(button("Duplicate page 2")).toBeVisible();
+  await expect(button("Delete page 2")).toBeVisible();
+  await page.keyboard.press("Escape");
   await button("Delete all blank pages").click();
   await expect(page.getByRole("status", { name: "2 blank pages deleted" })).toBeVisible();
   const kept = await savedPages(page, "Scratch", "Cleanup");
@@ -39,4 +44,18 @@ test("a note removes blank pages together and one undo restores them", async ({ 
   const restored = await savedPages(page, "Scratch", "Cleanup");
   expect(restored.map(({ file }) => file)).toEqual(before.map(({ file }) => file));
   expect(restored[2].text).toContain("Keep this page");
+
+  await button("Page 3 actions").click();
+  await button("Duplicate page 3").click();
+  const copied = await savedPages(page, "Scratch", "Cleanup");
+  expect(copied).toHaveLength(5);
+  expect(copied[3].text).toContain("Keep this page");
+  await button("Undo").click();
+  expect(await savedPages(page, "Scratch", "Cleanup")).toHaveLength(4);
+
+  await button("Page 2 actions").click();
+  await button("Delete page 2").click();
+  expect(await savedPages(page, "Scratch", "Cleanup")).toHaveLength(3);
+  await button("Undo").last().click();
+  expect(await savedPages(page, "Scratch", "Cleanup")).toHaveLength(4);
 });

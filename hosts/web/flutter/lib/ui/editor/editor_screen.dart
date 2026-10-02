@@ -1128,6 +1128,32 @@ class _EditorScreenState extends State<EditorScreen> {
     super.dispose();
   }
 
+  List<PullDownMenuEntry> sidebarPageActions(int index) => [
+    PullDownMenuItem(
+      title: 'Insert before page ${index + 1}',
+      onTap: () => insertPage(index),
+    ),
+    PullDownMenuItem(
+      title: 'Insert after page ${index + 1}',
+      onTap: () => insertPage(index + 1),
+    ),
+    PullDownMenuItem(
+      title: 'Duplicate page ${index + 1}',
+      onTap: () => edit(() {
+        widget.note.document.duplicatePage(index);
+        if (index < page) page++;
+      }),
+    ),
+    if (widget.note.document.pageCount() > 1) ...[
+      const GroupRule(),
+      PullDownMenuItem(
+        title: 'Delete page ${index + 1}',
+        isDestructive: true,
+        onTap: () => deletePageAt(index),
+      ),
+    ],
+  ];
+
   Widget navigationSidebar() {
     final document = widget.note.document;
     final marks = document.navigation().toDart
@@ -1204,38 +1230,57 @@ class _EditorScreenState extends State<EditorScreen> {
                   }
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8),
-                    child: CupertinoButton(
-                      padding: const EdgeInsets.all(8),
-                      onPressed: () => jump(index),
-                      child: Semantics(
-                        selected: page == index,
-                        child: Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: page == index ? selectedFill : null,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            children: [
-                              DecoratedBox(
-                                decoration: const BoxDecoration(
-                                  border: Border.fromBorderSide(
-                                    BorderSide(color: paperEdge),
-                                  ),
-                                ),
-                                child: Image.memory(
-                                  document.pagePng(index, 96).toDart,
-                                  width: 60,
-                                  height: 80,
-                                  fit: BoxFit.contain,
-                                  excludeFromSemantics: true,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: page == index ? selectedFill : null,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Semantics(
+                              selected: page == index,
+                              child: CupertinoButton(
+                                padding: const EdgeInsets.all(8),
+                                onPressed: () => jump(index),
+                                child: Row(
+                                  children: [
+                                    DecoratedBox(
+                                      decoration: const BoxDecoration(
+                                        border: Border.fromBorderSide(
+                                          BorderSide(color: paperEdge),
+                                        ),
+                                      ),
+                                      child: Image.memory(
+                                        document.pagePng(index, 96).toDart,
+                                        width: 60,
+                                        height: 80,
+                                        fit: BoxFit.contain,
+                                        excludeFromSemantics: true,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text('Page ${index + 1}', style: callout),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              Text('Page ${index + 1}', style: callout),
-                            ],
+                            ),
                           ),
-                        ),
+                          PullDownButton(
+                            itemBuilder: (_) => sidebarPageActions(index),
+                            buttonBuilder: (context, showMenu) => Semantics(
+                              label: 'Page ${index + 1} actions',
+                              button: true,
+                              child: CupertinoButton(
+                                padding: const EdgeInsets.all(8),
+                                onPressed: showMenu,
+                                child: const ExcludeSemantics(
+                                  child: Icon(CupertinoIcons.ellipsis_circle),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   );
