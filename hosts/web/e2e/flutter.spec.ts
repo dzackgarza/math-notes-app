@@ -227,10 +227,10 @@ test("Flutter notebook cards retain their notes and metadata after rename", asyn
   await expect(page.getByRole("button", { name: "fields", exact: false }).first()).toHaveAccessibleName(/^fields\s*1$/);
 
   await button("Back to library").click();
-  const card = await boxOf(page.getByRole("button", { name: "Open Field theory", exact: false }));
-  await expectCover(card, "card");
-  expect(await chipIn("groups", card), "the card shows the tag").toBe(true);
-  expect(await chipIn("fields", card)).toBe(true);
+  const opener = page.getByRole("button", { name: "Open Field theory", exact: false });
+  await expectCover(await boxOf(opener), "card");
+  // The card is one button; its chips are part of its name.
+  await expect(opener, "the card shows the tags").toHaveAccessibleName(/ groups fields$/);
   await page.screenshot({ path: info.outputPath("library-card.png") });
 
   // A note made after the reload starts on the notebook's paper and shows
