@@ -41,7 +41,7 @@ struct NativeLibraryView: View {
   let editFolderDetails: (FolderReference) -> Void
   let reviewConflicts: (NotebookReference) -> Void
   let refresh: () -> Void
-  let chooseRoot: () -> Void
+  let showSettings: () -> Void
 
   var body: some View {
     Group {
@@ -311,8 +311,8 @@ struct NativeLibraryView: View {
             Label("Rescan", systemImage: "arrow.clockwise")
           }
 
-          Button(action: chooseRoot) {
-            Label("Change Notes Folder", systemImage: "folder")
+          Button(action: showSettings) {
+            Label("Settings", systemImage: "gearshape")
           }
         } label: {
           Label("Library Options", systemImage: "ellipsis.circle")

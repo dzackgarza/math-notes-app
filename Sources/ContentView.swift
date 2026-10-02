@@ -145,6 +145,8 @@ struct ContentView: View {
   @State private var conflictReview: ConflictReviewRequest?
   @State private var showingOpenNotePicker = false
   @State private var showingEditorSettings = false
+  @State private var settingsFromLibrary = false
+  @State private var chooseFolderAfterSettings = false
   @State private var openNotePickerPurpose: OpenNotePickerPurpose = .tab
   @State private var openNoteChoices: [LibraryNotebookItem] = []
 
@@ -247,12 +249,30 @@ struct ContentView: View {
           showingFolderPicker = false
         })
     }
-    .sheet(isPresented: $showingEditorSettings) {
-      EditorSettingsSheet(
-        fingerDraws: $fingerDraws,
-        followLinks: followLinksBinding,
-        showTabStrip: $showTabStrip,
-        hiddenToolsRaw: $hiddenToolsRaw)
+    .sheet(
+      isPresented: $showingEditorSettings,
+      onDismiss: {
+        if chooseFolderAfterSettings {
+          chooseFolderAfterSettings = false
+          showingFolderPicker = true
+        }
+      }
+    ) {
+      if settingsFromLibrary {
+        EditorSettingsSheet(
+          fingerDraws: $fingerDraws,
+          followLinks: nil,
+          showTabStrip: $showTabStrip,
+          hiddenToolsRaw: $hiddenToolsRaw,
+          onChooseFolder: { chooseFolderAfterSettings = true })
+      } else {
+        EditorSettingsSheet(
+          fingerDraws: $fingerDraws,
+          followLinks: followLinksBinding,
+          showTabStrip: $showTabStrip,
+          hiddenToolsRaw: $hiddenToolsRaw,
+          onChooseFolder: nil)
+      }
     }
     .sheet(isPresented: $showingOpenNotePicker) {
       if let root {
@@ -700,6 +720,7 @@ struct ContentView: View {
       }
       Divider()
       Button("Settings", systemImage: "gearshape") {
+        settingsFromLibrary = false
         showingEditorSettings = true
       }
       Divider()
@@ -881,7 +902,10 @@ struct ContentView: View {
       editFolderDetails: prepareFolderDetails,
       reviewConflicts: { prepareConflicts($0) },
       refresh: refreshLibrary,
-      chooseRoot: { showingFolderPicker = true })
+      showSettings: {
+        settingsFromLibrary = true
+        showingEditorSettings = true
+      })
   }
 
   private func restoreSavedRoot() {

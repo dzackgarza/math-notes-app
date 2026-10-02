@@ -6,6 +6,7 @@ struct EditorSettingsSheet: View {
   let followLinks: Binding<Bool>?
   @Binding var showTabStrip: Bool
   @Binding var hiddenToolsRaw: String
+  let onChooseFolder: (() -> Void)?
   @Environment(\.dismiss) private var dismiss
 
   var body: some View {
@@ -24,6 +25,15 @@ struct EditorSettingsSheet: View {
             Toggle(tool.label, isOn: toolVisibility(tool.rawValue))
           }
           Toggle("Drawing mode", isOn: toolVisibility("drawing"))
+        }
+
+        if let onChooseFolder {
+          Section("Notes folder") {
+            Button("Choose notes folder") {
+              onChooseFolder()
+              dismiss()
+            }
+          }
         }
       }
       .navigationTitle("Settings")
