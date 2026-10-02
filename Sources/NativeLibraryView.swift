@@ -5,6 +5,7 @@ enum LibraryScope: String {
   case folder
   case recent
   case favorites
+  case trash
 }
 
 @MainActor
@@ -27,6 +28,7 @@ struct NativeLibraryView: View {
   let renameEntry: (LibraryEntryTarget) -> Void
   let moveEntry: (LibraryEntryTarget) -> Void
   let trashEntry: (LibraryEntryTarget) -> Void
+  let restoreEntry: (LibraryEntryTarget) -> Void
   let toggleFavorite: (LibraryNotebookItem) -> Void
   let refresh: () -> Void
   let chooseRoot: () -> Void
@@ -50,6 +52,12 @@ struct NativeLibraryView: View {
           Label("No Favorites", systemImage: "star")
         } description: {
           Text("Add a note to Favorites from its menu.")
+        }
+      } else if scope == .trash && listing.notebooks.isEmpty {
+        ContentUnavailableView {
+          Label("Trash is Empty", systemImage: "trash")
+        } description: {
+          Text("Notes moved to Trash appear here until restored in Files or Math Notes.")
         }
       } else if listing.folders.isEmpty && listing.notebooks.isEmpty {
         ContentUnavailableView {
@@ -103,6 +111,8 @@ struct NativeLibraryView: View {
         ? "Recent"
         : scope == .favorites
         ? "Favorites"
+        : scope == .trash
+        ? "Trash"
         : folder.name)
     .navigationBarTitleDisplayMode(.large)
     .searchable(
@@ -158,6 +168,16 @@ struct NativeLibraryView: View {
               Label("Favorites", systemImage: "checkmark")
             } else {
               Label("Favorites", systemImage: "star")
+            }
+          }
+
+          Button {
+            scope = .trash
+          } label: {
+            if scope == .trash {
+              Label("Trash", systemImage: "checkmark")
+            } else {
+              Label("Trash", systemImage: "trash")
             }
           }
 
@@ -235,14 +255,20 @@ struct NativeLibraryView: View {
 
   @ViewBuilder
   private func noteActions(_ item: LibraryNotebookItem) -> some View {
-    Button(
-      item.favorite ? "Remove Favorite" : "Add Favorite",
-      systemImage: item.favorite ? "star.fill" : "star")
-    {
-      toggleFavorite(item)
+    if scope == .trash {
+      Button("Restore", systemImage: "arrow.uturn.backward") {
+        restoreEntry(LibraryEntryTarget(path: item.reference.path, kind: .note))
+      }
+    } else {
+      Button(
+        item.favorite ? "Remove Favorite" : "Add Favorite",
+        systemImage: item.favorite ? "star.fill" : "star")
+      {
+        toggleFavorite(item)
+      }
+      Divider()
+      entryActions(LibraryEntryTarget(path: item.reference.path, kind: .note))
     }
-    Divider()
-    entryActions(LibraryEntryTarget(path: item.reference.path, kind: .note))
   }
 
   private func folderCard(_ item: LibraryFolderItem) -> some View {
@@ -298,7 +324,7 @@ struct NativeLibraryView: View {
           .font(.headline)
           .lineLimit(2)
 
-        if !query.isEmpty || scope == .recent || scope == .favorites {
+        if !query.isEmpty || scope != .folder {
           let parent = item.reference.path.dropLast().joined(separator: " / ")
           if !parent.isEmpty {
             Text(parent)
@@ -364,7 +390,7 @@ struct NativeLibraryView: View {
         VStack(alignment: .leading, spacing: 4) {
           Text(item.reference.name)
             .font(.headline)
-          if !query.isEmpty || scope == .recent || scope == .favorites {
+          if !query.isEmpty || scope != .folder {
             let parent = item.reference.path.dropLast().joined(separator: " / ")
             if !parent.isEmpty {
               Text(parent)

@@ -308,6 +308,7 @@ struct ContentView: View {
       renameEntry: { prepareLibraryMutation(.rename($0)) },
       moveEntry: { prepareLibraryMutation(.move($0)) },
       trashEntry: moveLibraryEntryToTrash,
+      restoreEntry: { prepareLibraryMutation(.restore($0)) },
       toggleFavorite: toggleFavorite,
       refresh: refreshLibrary,
       chooseRoot: { showingFolderPicker = true })
@@ -375,16 +376,28 @@ struct ContentView: View {
 
     do {
       if !libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        let listing = try root.searchLibrary(query: libraryQuery, sort: librarySort)
-        libraryListing = libraryScope == .favorites
-          ? LibraryListing(
+        if libraryScope == .trash {
+          let needle = libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+          let listing = try root.trashNotes(sort: librarySort)
+          libraryListing = LibraryListing(
             folders: [],
-            notebooks: listing.notebooks.filter(\.favorite))
-          : listing
+            notebooks: listing.notebooks.filter {
+              $0.reference.name.localizedCaseInsensitiveContains(needle)
+            })
+        } else {
+          let listing = try root.searchLibrary(query: libraryQuery, sort: librarySort)
+          libraryListing = libraryScope == .favorites
+            ? LibraryListing(
+              folders: [],
+              notebooks: listing.notebooks.filter(\.favorite))
+            : listing
+        }
       } else if libraryScope == .recent {
         libraryListing = try root.allNotes(sort: librarySort)
       } else if libraryScope == .favorites {
         libraryListing = try root.favoriteNotes(sort: librarySort)
+      } else if libraryScope == .trash {
+        libraryListing = try root.trashNotes(sort: librarySort)
       } else {
         libraryListing = try root.library(in: libraryFolder, sort: librarySort)
       }
@@ -430,6 +443,9 @@ struct ContentView: View {
         } else {
           folders = allFolders
         }
+      case .restore:
+        initialParent = FolderReference(path: [])
+        folders = allFolders
       }
 
       libraryMutation = LibraryMutationRequest(
@@ -458,6 +474,11 @@ struct ContentView: View {
           toParent: currentParent,
           name: name)
       case let .move(entry):
+        _ = try root.moveEntry(
+          path: entry.path,
+          toParent: parent,
+          name: entry.name)
+      case let .restore(entry):
         _ = try root.moveEntry(
           path: entry.path,
           toParent: parent,

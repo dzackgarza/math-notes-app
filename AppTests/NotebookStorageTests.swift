@@ -317,6 +317,80 @@ final class NotebookStorageTests: XCTestCase {
     XCTAssertEqual(draft["folder"] as? [String], ["Real analysis"])
   }
 
+  func testLibraryMetadataFollowsTrashAndRestore() throws {
+    let original = Data(
+      """
+      {
+        "format": "math-notes-library",
+        "version": 1,
+        "tags": [],
+        "notes": {
+          "Inbox/Movable": {
+            "favorite": true,
+            "tags": ["algebra"],
+            "description": "Moved from Inbox"
+          }
+        },
+        "folders": {},
+        "startingTemplates": []
+      }
+      """.utf8)
+
+    let trashed = try XCTUnwrap(
+      LibraryMetadataFile.moving(
+        in: original,
+        from: ["Inbox", "Movable"],
+        to: [".trash", "Movable"]))
+    XCTAssertEqual(
+      try LibraryMetadataFile.favoritePaths(in: trashed),
+      Set([".trash/Movable"]))
+
+    let restored = try XCTUnwrap(
+      LibraryMetadataFile.moving(
+        in: trashed,
+        from: [".trash", "Movable"],
+        to: ["Archive", "Movable"]))
+    XCTAssertEqual(
+      try LibraryMetadataFile.favoritePaths(in: restored),
+      Set(["Archive/Movable"]))
+
+    let root = try XCTUnwrap(
+      JSONSerialization.jsonObject(with: restored) as? [String: Any])
+    let notes = try XCTUnwrap(root["notes"] as? [String: Any])
+    let note = try XCTUnwrap(notes["Archive/Movable"] as? [String: Any])
+    XCTAssertEqual(note["tags"] as? [String], ["algebra"])
+    XCTAssertEqual(note["description"] as? String, "Moved from Inbox")
+    XCTAssertNil(notes["Inbox/Movable"])
+    XCTAssertNil(notes[".trash/Movable"])
+  }
+
+  func testLibraryMetadataUsesCanonicalFormatOrder() throws {
+    let data = try LibraryMetadataFile.settingFavorite(
+      in: nil,
+      path: ["Analysis", "Integrals"],
+      favorite: true)
+
+    XCTAssertEqual(
+      String(decoding: data, as: UTF8.self),
+      """
+      {
+        "format": "math-notes-library",
+        "version": 1,
+        "tags": [],
+        "notes": {
+          "Analysis/Integrals": {
+            "favorite": true,
+            "tags": [],
+            "description": ""
+          }
+        },
+        "folders": {},
+        "startingTemplates": []
+      }
+
+      """)
+  }
+
   func testWritesAssetsThenPagesThenNotebookMetadataThenDeletes() {
     let changes = [
       EngineFileChange(path: "pages/0002.svg", kind: .delete),

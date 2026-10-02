@@ -152,9 +152,103 @@ enum LibraryMetadataFile {
   }
 
   private static func encoded(_ root: [String: Any]) throws -> Data {
-    var data = try JSONSerialization.data(
-      withJSONObject: root,
-      options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+    enum Context {
+      case root
+      case tags
+      case tag
+      case notes
+      case note
+      case folders
+      case folder
+      case templates
+      case template
+      case draft
+      case generic
+    }
+
+    func preferredKeys(_ context: Context) -> [String] {
+      switch context {
+      case .root:
+        ["format", "version", "tags", "notes", "folders", "startingTemplates", "draft"]
+      case .tag:
+        ["name", "color"]
+      case .note:
+        ["favorite", "tags", "description"]
+      case .folder:
+        ["description", "paper", "coverColor", "coverStyle", "tags"]
+      case .template:
+        ["name", "folder", "paper", "pageSize", "orientation", "tags"]
+      case .draft:
+        ["folder", "title", "template", "tags", "pageSize", "orientation"]
+      case .tags, .notes, .folders, .templates, .generic:
+        []
+      }
+    }
+
+    func childContext(_ context: Context, key: String) -> Context {
+      switch (context, key) {
+      case (.root, "tags"): .tags
+      case (.root, "notes"): .notes
+      case (.root, "folders"): .folders
+      case (.root, "startingTemplates"): .templates
+      case (.root, "draft"): .draft
+      case (.notes, _): .note
+      case (.folders, _): .folder
+      default: .generic
+      }
+    }
+
+    func elementContext(_ context: Context) -> Context {
+      switch context {
+      case .tags: .tag
+      case .templates: .template
+      default: .generic
+      }
+    }
+
+    func scalar(_ value: Any) throws -> String {
+      let data = try JSONSerialization.data(
+        withJSONObject: value,
+        options: [.fragmentsAllowed, .withoutEscapingSlashes])
+      return String(decoding: data, as: UTF8.self)
+    }
+
+    func render(_ value: Any, context: Context, indent: Int) throws -> String {
+      if let object = value as? [String: Any] {
+        guard !object.isEmpty else { return "{}" }
+        let preferred = preferredKeys(context)
+        let known = preferred.filter { object[$0] != nil }
+        let extras = object.keys.filter { !preferred.contains($0) }.sorted()
+        let keys = known + extras
+        let childIndent = indent + 2
+        let prefix = String(repeating: " ", count: childIndent)
+        let suffix = String(repeating: " ", count: indent)
+        let lines = try keys.map { key in
+          let child = try render(
+            object[key]!,
+            context: childContext(context, key: key),
+            indent: childIndent)
+          return "\(prefix)\(try scalar(key)): \(child)"
+        }
+        return "{\n\(lines.joined(separator: ",\n"))\n\(suffix)}"
+      }
+
+      if let array = value as? [Any] {
+        guard !array.isEmpty else { return "[]" }
+        let childIndent = indent + 2
+        let prefix = String(repeating: " ", count: childIndent)
+        let suffix = String(repeating: " ", count: indent)
+        let context = elementContext(context)
+        let lines = try array.map {
+          "\(prefix)\(try render($0, context: context, indent: childIndent))"
+        }
+        return "[\n\(lines.joined(separator: ",\n"))\n\(suffix)]"
+      }
+
+      return try scalar(value)
+    }
+
+    var data = Data(try render(root, context: .root, indent: 0).utf8)
     data.append(0x0A)
     return data
   }
@@ -542,6 +636,59 @@ final class NotesRootAccess {
     return LibraryListing(
       folders: [],
       notebooks: listing.notebooks.filter(\.favorite))
+  }
+
+  func trashNotes(sort: LibrarySort) throws -> LibraryListing {
+    try coordinatedRead(at: url) { root in
+      let trash = root.appendingPathComponent(".trash", isDirectory: true)
+      guard FileManager.default.fileExists(atPath: trash.path) else {
+        return LibraryListing(folders: [], notebooks: [])
+      }
+
+      let fileManager = FileManager.default
+      let favoritePaths = try LibraryMetadataFile.favoritePaths(
+        in: LibraryMetadataFile.read(at: root))
+      var notebooks: [LibraryNotebookItem] = []
+
+      func visit(_ directory: URL, path: [String]) throws {
+        let children = try fileManager.contentsOfDirectory(
+          at: directory,
+          includingPropertiesForKeys: [.isDirectoryKey],
+          options: [.skipsHiddenFiles])
+        for child in children {
+          guard try child.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true else {
+            continue
+          }
+          let childPath = path + [child.lastPathComponent]
+          if fileManager.fileExists(
+            atPath: child.appendingPathComponent("notebook.json").path)
+          {
+            notebooks.append(
+              LibraryNotebookItem(
+                reference: NotebookReference(path: childPath),
+                modified: try Self.notebookModification(at: child),
+                favorite: favoritePaths.contains(childPath.joined(separator: "/"))))
+          } else {
+            try visit(child, path: childPath)
+          }
+        }
+      }
+
+      try visit(trash, path: [".trash"])
+      let nameOrder: (String, String) -> Bool = {
+        $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+      }
+      switch sort {
+      case .name:
+        notebooks.sort { nameOrder($0.reference.name, $1.reference.name) }
+      case .modified:
+        notebooks.sort {
+          if $0.modified != $1.modified { return $0.modified > $1.modified }
+          return nameOrder($0.reference.name, $1.reference.name)
+        }
+      }
+      return LibraryListing(folders: [], notebooks: notebooks)
+    }
   }
 
   func setFavorite(_ favorite: Bool, for reference: NotebookReference) throws {
