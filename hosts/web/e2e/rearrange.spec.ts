@@ -161,6 +161,8 @@ test("Flutter rearrange session: recolor, lasso edits, shape selections, resize 
   });
 
   await test.step("lower on the page, a figure is resized by its corner handles and duplicated", async () => {
+    await toLibrary();
+    await newNote("Resizing");
     const region = { x: Math.round(box.x) + 150, y: Math.round(box.y) + 130, width: 600, height: 450 };
     // The wheel brings clear paper below the earlier lines into the region.
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
