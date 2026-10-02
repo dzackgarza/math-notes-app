@@ -80,16 +80,18 @@ export async function closeNote(page: Page): Promise<void> {
 }
 
 // A read of a saved file while the app may be saving it again. `getFile()`
-// snapshots the file, and Chromium refuses the snapshot with NotReadableError
-// once the app's writable stream has swapped a new file in (storage/browser/
+// snapshots the file, and Chromium can refuse the snapshot with NotReadableError
+// or NotFoundError once the app's writable stream has swapped a new file in (storage/browser/
 // blob/blob_reader.cc compares the modification time). The next read opens
 // the new file.
 export async function whenSaved<T>(read: () => Promise<T>): Promise<T> {
+  const deadline = Date.now() + 3000;
   for (;;) {
     try {
       return await read();
     } catch (error) {
-      if (!(error instanceof Error && error.message.includes("NotReadableError"))) throw error;
+      if (!(error instanceof Error && /NotReadableError|NotFoundError/.test(error.message)) || Date.now() >= deadline) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 20));
     }
   }
 }

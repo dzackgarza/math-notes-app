@@ -272,7 +272,7 @@ test("Flutter pens session: tool rail, pen and marker popovers, highlighter, col
 
     // The pen is selected, so a tap on it opens its popover.
     await tool("Pen").click();
-    expect((await textIn(page, await boxOf(page.getByText("Size", { exact: true })))).contrast, "the Size heading is legible").toBeGreaterThan(4.5);
+    expect((await textIn(page, await boxOf(page.getByText("Size", { exact: true }).last()))).contrast, "the Size heading is legible").toBeGreaterThan(4.5);
     await tool("0.6 pt").click();
     const thinSample = await sampleInk();
     await tool("3.6 pt").click();
