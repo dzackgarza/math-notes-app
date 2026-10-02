@@ -1258,7 +1258,10 @@ class _EditorScreenState extends State<EditorScreen> {
                 children: [
                   for (var index = layers.length - 1; index >= 0; index--)
                     CupertinoListTile(
-                      title: Text(layers[index].name),
+                      title: Text(
+                        layers[index].name,
+                        style: canvas?.activeLayer() == index ? subhead : callout,
+                      ),
                       leading: DecoratedBox(
                         decoration: const BoxDecoration(
                           border: Border.fromBorderSide(
@@ -1294,6 +1297,23 @@ class _EditorScreenState extends State<EditorScreen> {
                               semanticLabel: layers[index].hidden
                                   ? 'Show ${layers[index].name}'
                                   : 'Hide ${layers[index].name}',
+                            ),
+                          ),
+                          CupertinoButton(
+                            padding: const EdgeInsets.all(4),
+                            onPressed: () => edit(() => document.setLayer(
+                              index,
+                              layers[index].name,
+                              layers[index].hidden,
+                              !layers[index].locked,
+                            )),
+                            child: Icon(
+                              layers[index].locked
+                                  ? CupertinoIcons.lock
+                                  : CupertinoIcons.lock_open,
+                              semanticLabel: layers[index].locked
+                                  ? 'Unlock ${layers[index].name}'
+                                  : 'Lock ${layers[index].name}',
                             ),
                           ),
                           CupertinoButton(
