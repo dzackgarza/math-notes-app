@@ -20,6 +20,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private let document: EngineDocument
   private let scrollView = UIScrollView()
   private let documentView = UIView()
+  private let onFocusRequested: () -> Void
+  private let onViewportChanged: (EditorLinkedViewport) -> Void
   private let onEditCommitted: () -> Void
   private let onCurrentPageChanged: (Int) -> Void
   private let onPageCommandHandled: () -> Void
@@ -32,6 +34,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private let onError: (Error) -> Void
   private lazy var canvasView = InkCanvasView(
     document: document,
+    onInteractionBegan: { [weak self] in self?.onFocusRequested() },
     onInteractionEnded: { [weak self] in self?.canvasInteractionEnded() })
   private let selectionBar = UIStackView()
   private var editFigureButton: UIButton?
@@ -55,6 +58,12 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private var appliedPageCommand: EditorPageCommand?
   private var bookmarkMode = false
   private var hostActive = true
+  private var hostFocused = true
+  private var hostLinked = false
+  private var applyingLinkedViewport = false
+  private var lastAppliedLinkedViewport: EditorLinkedViewport?
+  private var requestedLinkedViewport: EditorLinkedViewport?
+  private var lastLayoutSize = CGSize.zero
   private var reportedPage = -1
 
   private var pullGate = HeldPullGate()
@@ -67,6 +76,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
 
   init(
     document: EngineDocument,
+    onFocusRequested: @escaping () -> Void = {},
+    onViewportChanged: @escaping (EditorLinkedViewport) -> Void = { _ in },
     onEditCommitted: @escaping () -> Void = {},
     onCurrentPageChanged: @escaping (Int) -> Void = { _ in },
     onPageCommandHandled: @escaping () -> Void = {},
@@ -79,6 +90,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     onError: @escaping (Error) -> Void = { _ in }
   ) {
     self.document = document
+    self.onFocusRequested = onFocusRequested
+    self.onViewportChanged = onViewportChanged
     self.onEditCommitted = onEditCommitted
     self.onCurrentPageChanged = onCurrentPageChanged
     self.onPageCommandHandled = onPageCommandHandled
@@ -160,6 +173,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
 
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
+    let layoutSizeChanged = scrollView.bounds.size != lastLayoutSize
+    lastLayoutSize = scrollView.bounds.size
 
     if !setInitialZoom,
       scrollView.bounds.width > 0,
@@ -174,6 +189,17 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     updateContentInsets()
     syncCanvasTransform()
     refreshSelectionBar()
+    if layoutSizeChanged, hostLinked {
+      if hostFocused {
+        DispatchQueue.main.async { [weak self] in
+          self?.publishLinkedViewport()
+        }
+      } else if let requestedLinkedViewport,
+        applyLinkedViewport(requestedLinkedViewport)
+      {
+        lastAppliedLinkedViewport = requestedLinkedViewport
+      }
+    }
   }
 
   func applyHostState(
@@ -190,16 +216,28 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     targetPage: Int,
     navigationRevision: Int,
     pageCommand: EditorPageCommand?,
-    active: Bool
+    active: Bool,
+    focused: Bool,
+    linked: Bool,
+    linkedViewport: EditorLinkedViewport?
   ) {
     loadViewIfNeeded()
 
     if active != hostActive {
       hostActive = active
       view.isUserInteractionEnabled = active
+      canvasView.setActive(active)
       if !active {
         view.endEditing(true)
       }
+    }
+
+    let linkedBecameEnabled = linked && !hostLinked
+    hostFocused = focused
+    hostLinked = linked
+    requestedLinkedViewport = linked ? linkedViewport : nil
+    if !linked {
+      lastAppliedLinkedViewport = nil
     }
 
     if tool != appliedTool || eraserMode != appliedEraserMode || selectorMode != appliedSelectorMode || spaceMode != appliedSpaceMode || pens != appliedPens {
@@ -275,6 +313,19 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
         handlePageCommand(pageCommand)
       }
     }
+
+    if linked, !focused,
+      let linkedViewport,
+      linkedViewport != lastAppliedLinkedViewport,
+      applyLinkedViewport(linkedViewport)
+    {
+      lastAppliedLinkedViewport = linkedViewport
+    }
+    if linkedBecameEnabled, focused {
+      DispatchQueue.main.async { [weak self] in
+        self?.publishLinkedViewport()
+      }
+    }
   }
 
   func viewForZooming(in scrollView: UIScrollView) -> UIView? {
@@ -285,12 +336,22 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     trackBottomPull()
     syncCanvasTransform()
     refreshSelectionBar()
+    publishLinkedViewport()
   }
 
   func scrollViewDidZoom(_ scrollView: UIScrollView) {
     updateContentInsets()
     syncCanvasTransform()
     refreshSelectionBar()
+    publishLinkedViewport()
+  }
+
+  func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+    onFocusRequested()
+  }
+
+  func scrollViewWillBeginZooming(_ scrollView: UIScrollView, with view: UIView?) {
+    onFocusRequested()
   }
 
   func scrollViewWillEndDragging(
@@ -308,6 +369,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     _ interaction: UIDragInteraction,
     itemsForBeginning session: UIDragSession
   ) -> [UIDragItem] {
+    onFocusRequested()
+    guard !figureCaptureActive, !figureCompleting else { return [] }
     let location = session.location(in: canvasView)
     guard let selection = canvasView.selectionFrame(), selection.contains(location) else { return [] }
     do {
@@ -323,6 +386,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     _ interaction: UIContextMenuInteraction,
     configurationForMenuAtLocation location: CGPoint
   ) -> UIContextMenuConfiguration? {
+    onFocusRequested()
     let svg = UIPasteboard.general.string
     let canPaste = svg?.isEmpty == false
     let canSaveClipping = canvasView.selectionFrame() != nil
@@ -389,10 +453,15 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     let button = UIButton(type: .system)
     button.setImage(UIImage(systemName: systemImage), for: .normal)
     button.accessibilityLabel = label
+    button.addTarget(self, action: #selector(focusEditor), for: .touchDown)
     button.addTarget(self, action: action, for: .touchUpInside)
     button.widthAnchor.constraint(equalToConstant: 44).isActive = true
     button.heightAnchor.constraint(equalToConstant: 44).isActive = true
     return button
+  }
+
+  @objc private func focusEditor() {
+    onFocusRequested()
   }
 
   private func canvasInteractionEnded() {
@@ -651,6 +720,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
 
   @objc private func handleModeTap(_ recognizer: UITapGestureRecognizer) {
     guard recognizer.state == .ended else { return }
+    onFocusRequested()
     let point = recognizer.location(in: canvasView)
     if bookmarkMode {
       do {
@@ -791,6 +861,89 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
       animated: animated)
   }
 
+  private func linkedFitScale() -> CGFloat? {
+    guard scrollView.bounds.width > 0,
+      scrollView.bounds.height > 0,
+      documentSize.width > 0,
+      documentSize.height > 0
+    else { return nil }
+
+    let fit: CGFloat
+    if appliedArrangement == .horizontal {
+      fit = max(1, scrollView.bounds.height - 32) / documentSize.height
+    } else {
+      fit = max(1, scrollView.bounds.width - 32) / documentSize.width
+    }
+    return min(
+      max(fit, scrollView.minimumZoomScale),
+      scrollView.maximumZoomScale)
+  }
+
+  private func currentLinkedViewport() -> EditorLinkedViewport? {
+    guard let fit = linkedFitScale(),
+      fit > 0,
+      scrollView.zoomScale > 0
+    else { return nil }
+
+    let center = documentView.convert(
+      CGPoint(x: canvasView.bounds.midX, y: canvasView.bounds.midY),
+      from: canvasView)
+    return EditorLinkedViewport(
+      relativeScale: scrollView.zoomScale / fit,
+      center: center)
+  }
+
+  private func publishLinkedViewport() {
+    guard hostActive,
+      hostFocused,
+      hostLinked,
+      !applyingLinkedViewport,
+      let viewport = currentLinkedViewport()
+    else { return }
+    onViewportChanged(viewport)
+  }
+
+  private func applyLinkedViewport(_ viewport: EditorLinkedViewport) -> Bool {
+    guard let fit = linkedFitScale() else { return false }
+
+    applyingLinkedViewport = true
+    defer { applyingLinkedViewport = false }
+
+    let zoom = min(
+      max(
+        fit * viewport.relativeScale,
+        scrollView.minimumZoomScale),
+      scrollView.maximumZoomScale)
+    scrollView.setZoomScale(zoom, animated: false)
+    updateContentInsets()
+
+    let inset = scrollView.adjustedContentInset
+    let minimumX = -inset.left
+    let minimumY = -inset.top
+    let maximumX = max(
+      minimumX,
+      documentSize.width * zoom - scrollView.bounds.width + inset.right)
+    let maximumY = max(
+      minimumY,
+      documentSize.height * zoom - scrollView.bounds.height + inset.bottom)
+    let x = min(
+      max(
+        viewport.center.x * zoom - scrollView.bounds.width / 2,
+        minimumX),
+      maximumX)
+    let y = min(
+      max(
+        viewport.center.y * zoom - scrollView.bounds.height / 2,
+        minimumY),
+      maximumY)
+    scrollView.setContentOffset(
+      CGPoint(x: x, y: y),
+      animated: false)
+    syncCanvasTransform()
+    refreshSelectionBar()
+    return true
+  }
+
   private func scrollToDocumentEnd() {
     let minimumY = -scrollView.adjustedContentInset.top
     let maximumY = max(
@@ -910,6 +1063,11 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let navigationRevision: Int
   let pageCommand: EditorPageCommand?
   let active: Bool
+  let focused: Bool
+  let linked: Bool
+  let linkedViewport: EditorLinkedViewport?
+  let onFocus: () -> Void
+  let onViewportChanged: (EditorLinkedViewport) -> Void
   let onEditCommitted: () -> Void
   let onCurrentPageChanged: (Int) -> Void
   let onPageCommandHandled: () -> Void
@@ -924,6 +1082,8 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   func makeUIViewController(context: Context) -> InkEditorViewController {
     InkEditorViewController(
       document: document,
+      onFocusRequested: onFocus,
+      onViewportChanged: onViewportChanged,
       onEditCommitted: onEditCommitted,
       onCurrentPageChanged: onCurrentPageChanged,
       onPageCommandHandled: onPageCommandHandled,
@@ -951,7 +1111,10 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       targetPage: targetPage,
       navigationRevision: navigationRevision,
       pageCommand: pageCommand,
-      active: active)
+      active: active,
+      focused: focused,
+      linked: linked,
+      linkedViewport: linkedViewport)
   }
 }
 
@@ -969,18 +1132,24 @@ struct InkEditorView: View {
   @Binding var pageNavigationRevision: Int
   @Binding var pageCommand: EditorPageCommand?
   let active: Bool
+  let focused: Bool
+  let linked: Bool
+  let linkedViewport: EditorLinkedViewport?
   @State private var selectorMode: EditorSelectorMode = .freehand
   @State private var eraserMode: EditorEraserMode = .stroke
   @State private var spaceMode: EditorSpaceMode = .reflow
   @State private var textRequest: EditorTextRequest?
   @State private var drawing = false
   @State private var figureSource = ""
+  let onFocus: () -> Void
+  let onViewportChanged: (EditorLinkedViewport) -> Void
   let onEditCommitted: () -> Void
   let onPensChanged: (EditorPenLibrary) -> Void
   let onInsertImage: () -> Void
   let onShowClippings: () -> Void
   let onSaveClipping: (String) -> Void
   let onDropClipping: (String, CGPoint) -> Bool
+  let onDropSelection: (String, CGPoint) -> Bool
   let onCaptureChanged: (Bool) -> Void
   let onEditFigure: (String) -> Void
   let onError: (Error) -> Void
@@ -1003,7 +1172,15 @@ struct InkEditorView: View {
         navigationRevision: pageNavigationRevision,
         pageCommand: pageCommand,
         active: active,
-        onEditCommitted: onEditCommitted,
+        focused: focused,
+        linked: linked,
+        linkedViewport: linkedViewport,
+        onFocus: onFocus,
+        onViewportChanged: onViewportChanged,
+        onEditCommitted: {
+          documentRevision &+= 1
+          onEditCommitted()
+        },
         onCurrentPageChanged: { currentPage = $0 },
         onPageCommandHandled: {
           DispatchQueue.main.async {
@@ -1105,8 +1282,15 @@ struct InkEditorView: View {
       }
     }
     .dropDestination(for: String.self) { values, location in
-      guard let id = values.first else { return false }
-      return onDropClipping(id, location)
+      onFocus()
+      guard !drawing, let value = values.first else { return false }
+      return onDropClipping(value, location)
+        || onDropSelection(value, location)
+    }
+    .simultaneousGesture(
+      TapGesture().onEnded { onFocus() })
+    .onChange(of: documentRevision) {
+      normalizeViewState()
     }
     .onChange(of: tool) {
       if bookmarkMode { bookmarkMode = false }
@@ -1122,6 +1306,27 @@ struct InkEditorView: View {
     }
   }
 
+
+  private func normalizeViewState() {
+    do {
+      let count = try document.pageCount()
+      let nextPage = min(max(currentPage, 0), max(0, count - 1))
+      if nextPage != currentPage {
+        currentPage = nextPage
+        pageNavigationRevision &+= 1
+      }
+      let layers = try document.layers()
+      if let activeLayerID,
+        !layers.contains(where: { $0.id == activeLayerID })
+      {
+        self.activeLayerID =
+          layers.first(where: { !$0.hidden && !$0.locked })?.id
+            ?? layers.first?.id
+      }
+    } catch {
+      onError(error)
+    }
+  }
   private func history(redo: Bool) {
     do {
       let step: EngineHistoryStep?
@@ -1140,7 +1345,6 @@ struct InkEditorView: View {
         self.activeLayerID =
           layers.first(where: { !$0.hidden && !$0.locked })?.id ?? layers.first?.id
       }
-      documentRevision &+= 1
       pageNavigationRevision &+= 1
       onEditCommitted()
     } catch {

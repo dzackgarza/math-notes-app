@@ -20,13 +20,18 @@ final class InkCanvasView: UIView {
   private var updateLink: UIUpdateLink?
   private var sampleIDs = PencilSampleIDs()
   private var drawingSuppressed = false
+  private let onInteractionBegan: () -> Void
   private let onInteractionEnded: () -> Void
 
   private var metalLayer: CAMetalLayer {
     layer as! CAMetalLayer
   }
 
-  init(document: EngineDocument, onInteractionEnded: @escaping () -> Void = {}) {
+  init(
+    document: EngineDocument,
+    onInteractionBegan: @escaping () -> Void = {},
+    onInteractionEnded: @escaping () -> Void = {}
+  ) {
     guard let device = MTLCreateSystemDefaultDevice(),
           let queue = device.makeCommandQueue()
     else {
@@ -34,6 +39,7 @@ final class InkCanvasView: UIView {
     }
     self.device = device
     self.queue = queue
+    self.onInteractionBegan = onInteractionBegan
     self.onInteractionEnded = onInteractionEnded
 
     super.init(frame: .zero)
@@ -153,11 +159,16 @@ final class InkCanvasView: UIView {
       operation: "ink_canvas_set_view")
   }
 
+  func setActive(_ active: Bool) {
+    updateLink?.isEnabled = active
+  }
+
   func setDrawingSuppressed(_ suppressed: Bool) {
     drawingSuppressed = suppressed
   }
 
   override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+    onInteractionBegan()
     sendPencilTouches(touches, event: event)
   }
 

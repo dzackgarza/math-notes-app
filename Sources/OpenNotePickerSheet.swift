@@ -3,6 +3,7 @@ import SwiftUI
 @MainActor
 struct OpenNotePickerSheet: View {
   let root: NotesRootAccess
+  let title: String
   let notes: [LibraryNotebookItem]
   let opened: Set<NotebookReference>
   let onOpen: (NotebookReference) -> Void
@@ -62,7 +63,7 @@ struct OpenNotePickerSheet: View {
           .listStyle(.insetGrouped)
         }
       }
-      .navigationTitle("Open Note")
+      .navigationTitle(title)
       .navigationBarTitleDisplayMode(.inline)
       .searchable(text: $query, prompt: "Search notes")
       .toolbar {
