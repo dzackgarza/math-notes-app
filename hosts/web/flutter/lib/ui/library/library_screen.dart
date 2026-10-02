@@ -677,6 +677,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             ],
           ),
         ),
+        if (vm.library.folders.toDart.any((item) => item.path.length > 0))
         PullDownButton(
           itemBuilder: (_) {
             final notebooks = vm.library.folders.toDart
@@ -704,12 +705,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     if (selected != null) await create(false, selected.path);
                   }),
                 ),
-              ] else
-                PullDownMenuItem(
-                  title: 'New note in…',
-                  icon: CupertinoIcons.folder,
-                  onTap: () => run(() => create(false)),
-                ),
+              ],
             ];
           },
           buttonBuilder: (context, showMenu) => CupertinoButton(
