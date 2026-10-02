@@ -32,7 +32,6 @@ test("the library tree opens notes and offers explicit creation targets", async 
   await expect(button("Tree note")).toHaveCount(0);
   await button("Trash").click();
   await expect(button("Tree note")).toBeVisible();
-  await button("Back to library").click();
   await button("Create options").click();
   await button("New note in Test Notebook").click();
   await expect(page.getByText("New note in Test Notebook", { exact: true })).toBeVisible();
