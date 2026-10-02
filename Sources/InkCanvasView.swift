@@ -233,7 +233,7 @@ final class InkCanvasView: UIView {
   private func sendFingerTouches(_ touches: Set<UITouch>, event: UIEvent?) -> Bool {
     guard fingerDrawing, !drawingSuppressed, let canvas else { return false }
 
-    let activeTouches = event?.allTouches ?? []
+    let activeTouches = event?.touches(for: self) ?? touches
     let pencilActive = activeTouches.contains {
       $0.type == .pencil && $0.phase != .ended && $0.phase != .cancelled
     }

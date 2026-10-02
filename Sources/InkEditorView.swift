@@ -474,6 +474,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     itemsForBeginning session: UIDragSession
   ) -> [UIDragItem] {
     onFocusRequested()
+    guard !fingerDrawing else { return [] }
     guard !figureCaptureActive, !figureCompleting else { return [] }
     let location = session.location(in: canvasView)
     guard let selection = canvasView.selectionFrame(), selection.contains(location) else { return [] }
@@ -514,7 +515,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     configurationForMenuAtLocation location: CGPoint
   ) -> UIContextMenuConfiguration? {
     onFocusRequested()
-    guard !fingerDrawing else { return nil }
+    if fingerDrawing && interaction.menuAppearance != .compact { return nil }
     let svg = UIPasteboard.general.string
     let canPaste = svg?.isEmpty == false
     let canSaveClipping = canvasView.selectionFrame() != nil
