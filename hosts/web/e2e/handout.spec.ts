@@ -275,6 +275,7 @@ test("Flutter handout session: a figure, typed text, ten pages, an annotated PDF
   await test.step("write in the margin, highlight the bar, and erase only the handwriting", async () => {
     note = first.y + 150;
     expect(await marginInk(note)).toBe(0);
+    await button("Pen").click();
     await penStroke(cdp, line(paperBox.x + 20, paperBox.x + 120, note), 0.6);
     expect(await marginInk(note), "the pen writes in the margin").toBeGreaterThan(80);
 
