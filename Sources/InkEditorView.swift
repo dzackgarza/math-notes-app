@@ -638,6 +638,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
 
   private func scrollToMark(_ mark: EngineNavigationMark) {
     do {
+      guard let markX = mark.x, let markY = mark.y else {
+        throw EngineDocumentError.operation(
+          "Open navigation destination", "The destination has no position")
+      }
       fitPages(animated: false)
       view.layoutIfNeeded()
       let page = try document.pageRect(index: mark.page)
@@ -652,8 +656,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
         minimumY,
         documentSize.height * zoom - scrollView.bounds.height + inset.bottom)
       let target = CGPoint(
-        x: (page.minX + mark.x) * zoom,
-        y: (page.minY + mark.y) * zoom)
+        x: (page.minX + markX) * zoom,
+        y: (page.minY + markY) * zoom)
       let x: CGFloat
       let y: CGFloat
       if appliedArrangement == .horizontal {

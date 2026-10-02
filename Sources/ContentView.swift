@@ -885,10 +885,10 @@ struct ContentView: View {
     do {
       bookmarkMode = false
       let marks = try session.document.navigation()
-        .filter { $0.href.isEmpty }
+        .filter { $0.href.isEmpty && $0.hasPosition }
         .sorted {
           if $0.page != $1.page { return $0.page < $1.page }
-          return $0.y < $1.y
+          return ($0.y ?? 0) < ($1.y ?? 0)
         }
       let destinations = marks.map { mark in
         BookmarkDestination(

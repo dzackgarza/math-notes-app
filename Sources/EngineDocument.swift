@@ -46,14 +46,16 @@ struct EngineNavigationMark: Decodable, Equatable {
   let href: String
   let file: String
   let page: Int
-  let x: Double
-  let y: Double
-  let width: Double
-  let height: Double
+  let x: Double?
+  let y: Double?
+  let width: Double?
+  let height: Double?
 
   var key: String {
     id.isEmpty ? "page:\(page):\(file)" : "bookmark:\(id)"
   }
+
+  var hasPosition: Bool { x != nil && y != nil }
 }
 
 @MainActor
