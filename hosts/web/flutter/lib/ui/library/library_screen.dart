@@ -180,6 +180,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Iterable<String> tagNames(JSArray<JSString> tags) =>
       tags.toDart.map((tag) => tag.toDart);
 
+  bool tagged(JSArray<JSString> tags, String name) =>
+      tagNames(tags).contains(name);
+
   Widget actionsButton(
     String label,
     List<PullDownMenuEntry> Function() items,
@@ -836,8 +839,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
                           text: tag.name,
                           selected:
                               vm.filter == 'tag' && vm.selectedTag == tag.name,
+                          // The tag view lists the notebooks and the notes
+                          // that carry the tag; the count counts both.
                           trailing: Text(
-                            '${notes.where((note) => folder.noteMetadata(note).tags.toDart.any((value) => value.toDart == tag.name)).length}',
+                            '${vm.library.folders.toDart.where((item) => tagged(folder.folderMetadata(item.path).tags, tag.name)).length + notes.where((note) => tagged(folder.noteMetadata(note).tags, tag.name)).length}',
                             style: callout.copyWith(color: secondaryLabel),
                           ),
                           onPressed: () {

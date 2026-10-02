@@ -213,7 +213,8 @@ test("Flutter notebook cards retain their notes and metadata after rename", asyn
   await expect(page.getByText("Lecture notes", { exact: true })).toBeVisible();
   const notebookCover = await boxOf(page.getByRole("heading", { name: "Field theory", exact: true }));
   await expectCover({ x: notebookCover.x - 132, y: notebookCover.y, width: 112, height: 160 }, "notebook view cover");
-  const row = { x: 0, y: header.y - 10, width: header.x + header.width, height: header.height + 20 };
+  // The chips row, across the content: a new chip moves the + to the right.
+  const row = { x: 0, y: header.y - 10, width: page.viewportSize()!.width, height: header.height + 20 };
   expect(await chipIn("groups", row), "the notebook view shows the tag").toBe(true);
   await page.screenshot({ path: info.outputPath("notebook-view.png") });
 
@@ -222,6 +223,8 @@ test("Flutter notebook cards retain their notes and metadata after rename", asyn
   await addTag(page, "fields");
   await button("Save details").click();
   await expect.poll(() => chipIn("fields", row), { message: "the new tag joins the chips" }).toBe(true);
+  // The sidebar counts the notebook that carries the tag.
+  await expect(page.getByRole("button", { name: "fields", exact: false }).first()).toHaveAccessibleName(/^fields\s*1$/);
 
   await button("Back to library").click();
   const card = await boxOf(page.getByRole("button", { name: "Open Field theory", exact: false }));
