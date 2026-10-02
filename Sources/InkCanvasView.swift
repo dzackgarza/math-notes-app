@@ -440,6 +440,11 @@ final class InkCanvasView: UIView {
     try require(ink_canvas_duplicate_selection(canvas), operation: "Duplicate selection")
   }
 
+  func recolorSelection(_ rgb: UInt32) throws {
+    guard let canvas else { return }
+    try require(ink_canvas_recolor_selection(canvas, rgb), operation: "Recolor selection")
+  }
+
   func paste(_ svg: String, at point: CGPoint, placeAtPointer: Bool = false) throws {
     guard let canvas else { return }
     let data = Data(svg.utf8)

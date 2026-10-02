@@ -94,6 +94,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     onInteractionEnded: { [weak self] in self?.canvasInteractionEnded() })
   private let selectionBar = UIStackView()
   private var editFigureButton: UIButton?
+  private var selectionColorButton: UIButton?
   private let figureGenerator = FigureTikZGenerator()
   private var figureCaptureActive = false
   private var figureCompleting = false
@@ -106,6 +107,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private var appliedSelectorMode: EditorSelectorMode = .freehand
   private var appliedSpaceMode: EditorSpaceMode = .reflow
   private var appliedPens = EditorPenSet.defaults
+  private var appliedPalette: [UInt32] = []
   private var appliedArrangement = EditorPageArrangement.vertical
   private var appliedLayerID: String?
   private var documentRevision = 0
@@ -270,6 +272,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     selectorMode: EditorSelectorMode,
     spaceMode: EditorSpaceMode,
     pens: EditorPenSet,
+    palette: [UInt32],
     revision: Int,
     arrangement: EditorPageArrangement,
     activeLayerID: String?,
@@ -314,6 +317,11 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
       appliedSelectorMode = selectorMode
       appliedSpaceMode = spaceMode
       appliedPens = pens
+    }
+
+    if palette != appliedPalette {
+      appliedPalette = palette
+      updateSelectionColorMenu()
     }
 
     if arrangement != appliedArrangement {
@@ -519,6 +527,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
       label: "Cut", systemImage: "scissors", action: #selector(cutSelection)))
     selectionBar.addArrangedSubview(selectionButton(
       label: "Duplicate", systemImage: "plus.square.on.square", action: #selector(duplicateSelection)))
+    let selectionColor = selectionMenuButton(
+      label: "Recolor selection", systemImage: "paintpalette")
+    selectionColorButton = selectionColor
+    selectionBar.addArrangedSubview(selectionColor)
     let editFigure = selectionButton(
       label: "Edit figure", systemImage: "scribble.variable", action: #selector(editSelectedFigure))
     editFigureButton = editFigure
@@ -537,14 +549,48 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   }
 
   private func selectionButton(label: String, systemImage: String, action: Selector) -> UIButton {
+    let button = selectionMenuButton(label: label, systemImage: systemImage)
+    button.addTarget(self, action: action, for: .touchUpInside)
+    return button
+  }
+
+  private func selectionMenuButton(label: String, systemImage: String) -> UIButton {
     let button = UIButton(type: .system)
     button.setImage(UIImage(systemName: systemImage), for: .normal)
     button.accessibilityLabel = label
     button.addTarget(self, action: #selector(focusEditor), for: .touchDown)
-    button.addTarget(self, action: action, for: .touchUpInside)
     button.widthAnchor.constraint(equalToConstant: 44).isActive = true
     button.heightAnchor.constraint(equalToConstant: 44).isActive = true
     return button
+  }
+
+  private func updateSelectionColorMenu() {
+    guard let button = selectionColorButton else { return }
+    button.isEnabled = !appliedPalette.isEmpty
+    button.showsMenuAsPrimaryAction = true
+    button.menu = UIMenu(
+      title: "Selection color",
+      children: appliedPalette.map { rgb in
+        UIAction(
+          title: String(format: "#%06X", rgb & 0xFFFFFF),
+          image: selectionColorImage(rgb)
+        ) { [weak self] _ in
+          self?.recolorSelection(rgb)
+        }
+      })
+  }
+
+  private func selectionColorImage(_ rgb: UInt32) -> UIImage {
+    let size = CGSize(width: 18, height: 18)
+    return UIGraphicsImageRenderer(size: size).image { context in
+      let color = UIColor(
+        red: CGFloat((rgb >> 16) & 0xFF) / 255,
+        green: CGFloat((rgb >> 8) & 0xFF) / 255,
+        blue: CGFloat(rgb & 0xFF) / 255,
+        alpha: 1)
+      color.setFill()
+      context.cgContext.fillEllipse(in: CGRect(origin: .zero, size: size))
+    }
   }
 
   @objc private func focusEditor() {
@@ -617,6 +663,16 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   @objc private func duplicateSelection() {
     do {
       try canvasView.duplicateSelection()
+      onEditCommitted()
+      refreshSelectionBar()
+    } catch {
+      onError(error)
+    }
+  }
+
+  private func recolorSelection(_ rgb: UInt32) {
+    do {
+      try canvasView.recolorSelection(rgb)
       onEditCommitted()
       refreshSelectionBar()
     } catch {
@@ -1187,6 +1243,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let spaceMode: EditorSpaceMode
   let tool: EditorTool
   let pens: EditorPenSet
+  let palette: [UInt32]
   let arrangement: EditorPageArrangement
   let activeLayerID: String?
   let fitRevision: Int
@@ -1240,6 +1297,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       selectorMode: selectorMode,
       spaceMode: spaceMode,
       pens: pens,
+      palette: palette,
       revision: revision,
       arrangement: arrangement,
       activeLayerID: activeLayerID,
@@ -1302,6 +1360,7 @@ struct InkEditorView: View {
         spaceMode: spaceMode,
         tool: tool,
         pens: penLibrary.tools,
+        palette: penLibrary.palette,
         arrangement: arrangement,
         activeLayerID: activeLayerID,
         fitRevision: fitRevision,

@@ -76,6 +76,16 @@ final class EditorToolsTests: XCTestCase {
   }
 
   @MainActor
+  func testEditedPenLibraryRoundTripsPalette() throws {
+    var library = EditorPenLibrary.defaults
+    library.palette = [0x102030, 0xA0B0C0]
+
+    let decoded = try EditorPenLibrary(json: library.json())
+
+    XCTAssertEqual(decoded.palette, [0x102030, 0xA0B0C0])
+  }
+
+  @MainActor
   func testEditedPenLibraryRoundTripsSavedPreset() throws {
     var library = EditorPenLibrary.defaults
     var pen = library.pen
