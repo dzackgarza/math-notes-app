@@ -54,6 +54,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private var fitRevision = 0
   private var appliedPageCommand: EditorPageCommand?
   private var bookmarkMode = false
+  private var hostActive = true
   private var reportedPage = -1
 
   private var pullGate = HeldPullGate()
@@ -188,9 +189,18 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     bookmarkMode: Bool,
     targetPage: Int,
     navigationRevision: Int,
-    pageCommand: EditorPageCommand?
+    pageCommand: EditorPageCommand?,
+    active: Bool
   ) {
     loadViewIfNeeded()
+
+    if active != hostActive {
+      hostActive = active
+      view.isUserInteractionEnabled = active
+      if !active {
+        view.endEditing(true)
+      }
+    }
 
     if tool != appliedTool || eraserMode != appliedEraserMode || selectorMode != appliedSelectorMode || spaceMode != appliedSpaceMode || pens != appliedPens {
       canvasView.applyTool(
@@ -899,6 +909,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let targetPage: Int
   let navigationRevision: Int
   let pageCommand: EditorPageCommand?
+  let active: Bool
   let onEditCommitted: () -> Void
   let onCurrentPageChanged: (Int) -> Void
   let onPageCommandHandled: () -> Void
@@ -939,7 +950,8 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       bookmarkMode: bookmarkMode,
       targetPage: targetPage,
       navigationRevision: navigationRevision,
-      pageCommand: pageCommand)
+      pageCommand: pageCommand,
+      active: active)
   }
 }
 
@@ -956,6 +968,7 @@ struct InkEditorView: View {
   @Binding var documentRevision: Int
   @Binding var pageNavigationRevision: Int
   @Binding var pageCommand: EditorPageCommand?
+  let active: Bool
   @State private var selectorMode: EditorSelectorMode = .freehand
   @State private var eraserMode: EditorEraserMode = .stroke
   @State private var spaceMode: EditorSpaceMode = .reflow
@@ -968,6 +981,7 @@ struct InkEditorView: View {
   let onShowClippings: () -> Void
   let onSaveClipping: (String) -> Void
   let onDropClipping: (String, CGPoint) -> Bool
+  let onCaptureChanged: (Bool) -> Void
   let onEditFigure: (String) -> Void
   let onError: (Error) -> Void
 
@@ -988,6 +1002,7 @@ struct InkEditorView: View {
         targetPage: currentPage,
         navigationRevision: pageNavigationRevision,
         pageCommand: pageCommand,
+        active: active,
         onEditCommitted: onEditCommitted,
         onCurrentPageChanged: { currentPage = $0 },
         onPageCommandHandled: {
@@ -1006,7 +1021,10 @@ struct InkEditorView: View {
           }
         },
         onSaveClipping: onSaveClipping,
-        onFigureCaptureChanged: { drawing = $0 },
+        onFigureCaptureChanged: { capture in
+          drawing = capture
+          onCaptureChanged(capture)
+        },
         onFigureSourceChanged: { figureSource = $0 },
         onEditFigure: onEditFigure,
         onError: onError)

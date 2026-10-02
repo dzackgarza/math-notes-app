@@ -5,9 +5,46 @@ import UIKit
 import UniformTypeIdentifiers
 
 @MainActor
-private struct NotebookSession {
-  let reference: NotebookReference
-  let document: EngineDocument
+private struct NotebookEditorPane: View {
+  @Bindable var session: OpenNotebookSession
+  let active: Bool
+  let arrangement: EditorPageArrangement
+  @Binding var penLibrary: EditorPenLibrary
+  @Binding var tool: EditorTool
+  let onEditCommitted: () -> Void
+  let onPensChanged: (EditorPenLibrary) -> Void
+  let onInsertImage: () -> Void
+  let onShowClippings: () -> Void
+  let onSaveClipping: (String) -> Void
+  let onDropClipping: (String, CGPoint) -> Bool
+  let onEditFigure: (String) -> Void
+  let onError: (Error) -> Void
+
+  var body: some View {
+    InkEditorView(
+      document: session.document,
+      arrangement: arrangement,
+      fitRevision: session.fitRevision,
+      penLibrary: $penLibrary,
+      tool: $tool,
+      activeLayerID: $session.activeLayerID,
+      bookmarkMode: $session.bookmarkMode,
+      currentPage: $session.currentPage,
+      documentRevision: $session.documentRevision,
+      pageNavigationRevision: $session.pageNavigationRevision,
+      pageCommand: $session.editorPageCommand,
+      active: active,
+      onEditCommitted: onEditCommitted,
+      onPensChanged: onPensChanged,
+      onInsertImage: onInsertImage,
+      onShowClippings: onShowClippings,
+      onSaveClipping: onSaveClipping,
+      onDropClipping: onDropClipping,
+      onCaptureChanged: { session.captureActive = $0 },
+      onEditFigure: onEditFigure,
+      onError: onError)
+      .id(session.id)
+  }
 }
 
 @MainActor
@@ -23,19 +60,12 @@ struct ContentView: View {
   @State private var librarySortDirection: LibrarySortDirection = .ascending
   @State private var libraryGrid = true
   @AppStorage("pageArrangement") private var pageArrangementRaw = EditorPageArrangement.vertical.rawValue
-  @State private var session: NotebookSession?
+  @State private var openNotes = OpenNotesState()
   @State private var showingFolderPicker = false
   @State private var restoredRoot = false
   @State private var errorMessage: String?
   @State private var selectedTool: EditorTool = .pen
   @State private var penLibrary = EditorPenLibrary.defaults
-  @State private var activeLayerID: String?
-  @State private var bookmarkMode = false
-  @State private var currentPage = 0
-  @State private var documentRevision = 0
-  @State private var pageNavigationRevision = 0
-  @State private var fitRevision = 0
-  @State private var editorPageCommand: EditorPageCommand?
   @State private var sharePayload: SharePayload?
   @State private var pdfExport: PDFExportRequest?
   @State private var showingPDFImporter = false
@@ -55,61 +85,68 @@ struct ContentView: View {
   @State private var clippings: ClippingsRequest?
   @State private var figureEditor: FigureEditorRequest?
   @State private var conflictReview: ConflictReviewRequest?
-  @State private var openConflictCount = 0
+  @State private var showingOpenNotePicker = false
+  @State private var openNoteChoices: [LibraryNotebookItem] = []
+
+  private var session: OpenNotebookSession? {
+    openNotes.active
+  }
+
+  private var activeLayerID: String? {
+    get { session?.activeLayerID }
+    nonmutating set { session?.activeLayerID = newValue }
+  }
+
+  private var bookmarkMode: Bool {
+    get { session?.bookmarkMode ?? false }
+    nonmutating set { session?.bookmarkMode = newValue }
+  }
+
+  private var currentPage: Int {
+    get { session?.currentPage ?? 0 }
+    nonmutating set { session?.currentPage = newValue }
+  }
+
+  private var documentRevision: Int {
+    get { session?.documentRevision ?? 0 }
+    nonmutating set { session?.documentRevision = newValue }
+  }
+
+  private var pageNavigationRevision: Int {
+    get { session?.pageNavigationRevision ?? 0 }
+    nonmutating set { session?.pageNavigationRevision = newValue }
+  }
+
+  private var fitRevision: Int {
+    get { session?.fitRevision ?? 0 }
+    nonmutating set { session?.fitRevision = newValue }
+  }
+
+  private var editorPageCommand: EditorPageCommand? {
+    get { session?.editorPageCommand }
+    nonmutating set { session?.editorPageCommand = newValue }
+  }
+
+  private var openConflictCount: Int {
+    get { session?.conflictCount ?? 0 }
+    nonmutating set { session?.conflictCount = newValue }
+  }
 
   var body: some View {
     NavigationStack {
       Group {
-        if let session {
-          InkEditorView(
-            document: session.document,
-            arrangement: EditorPageArrangement.stored(pageArrangementRaw),
-            fitRevision: fitRevision,
-            penLibrary: $penLibrary,
-            tool: $selectedTool,
-            activeLayerID: $activeLayerID,
-            bookmarkMode: $bookmarkMode,
-            currentPage: $currentPage,
-            documentRevision: $documentRevision,
-            pageNavigationRevision: $pageNavigationRevision,
-            pageCommand: $editorPageCommand,
-            onEditCommitted: saveOpenNotebook,
-            onPensChanged: persistPenLibrary,
-            onInsertImage: { showingImageImporter = true },
-            onShowClippings: prepareClippings,
-            onSaveClipping: saveClipping,
-            onDropClipping: dropClipping,
-            onEditFigure: openFigureEditor,
-            onError: { errorMessage = $0.localizedDescription })
-            .id(ObjectIdentifier(session.document))
-            .navigationTitle(session.reference.name)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-              ToolbarItem(placement: .topBarLeading) {
-                Button {
-                  self.session = nil
-                  clippings = nil
-                  conflictReview = nil
-                  openConflictCount = 0
-                  activeLayerID = nil
-                  bookmarkMode = false
-                  refreshLibrary()
-                } label: {
-                  Label("Library", systemImage: "chevron.left")
-                }
-              }
-              ToolbarItem(placement: .topBarTrailing) {
-                pagesMenu(session)
-              }
-              ToolbarItem(placement: .topBarTrailing) {
-                viewMenu
-              }
-              ToolbarItem(placement: .topBarTrailing) {
-                documentMenu(session)
-              }
+        if let root {
+          ZStack {
+            workspaceView
+              .opacity(openNotes.inLibrary ? 0 : 1)
+              .allowsHitTesting(!openNotes.inLibrary)
+              .accessibilityHidden(openNotes.inLibrary)
+
+            if openNotes.inLibrary {
+              libraryView(root: root)
+                .background(Color(uiColor: .systemGroupedBackground))
             }
-        } else if let root {
-          libraryView(root: root)
+          }
         } else {
           ContentUnavailableView {
             Label("Choose Notes Folder", systemImage: "folder")
@@ -133,6 +170,19 @@ struct ContentView: View {
         onCancel: {
           showingFolderPicker = false
         })
+    }
+    .sheet(isPresented: $showingOpenNotePicker) {
+      if let root {
+        OpenNotePickerSheet(
+          root: root,
+          notes: openNoteChoices,
+          opened: Set(openNotes.opened.map(\.reference)),
+          onOpen: { reference in
+            showingOpenNotePicker = false
+            openNotebook(reference)
+          },
+          onCancel: { showingOpenNotePicker = false })
+      }
     }
     .sheet(item: $sharePayload) { payload in
       ActivityShareSheet(url: payload.url)
@@ -218,7 +268,9 @@ struct ContentView: View {
       if let session {
         PageOverviewSheet(
           document: session.document,
-          currentPage: $currentPage,
+          currentPage: Binding(
+            get: { session.currentPage },
+            set: { session.currentPage = $0 }),
           onSelect: selectOverviewPage,
           onEdit: pageOverviewEdited,
           onError: { errorMessage = $0.localizedDescription },
@@ -229,7 +281,9 @@ struct ContentView: View {
       if let session {
         LayersSheet(
           document: session.document,
-          activeLayerID: $activeLayerID,
+          activeLayerID: Binding(
+            get: { session.activeLayerID },
+            set: { session.activeLayerID = $0 }),
           onEdit: layerEdited,
           onError: { errorMessage = $0.localizedDescription },
           onDone: { showingLayers = false })
@@ -319,7 +373,105 @@ struct ContentView: View {
   }
 
   @ViewBuilder
-  private func documentMenu(_ session: NotebookSession) -> some View {
+  private var workspaceView: some View {
+    VStack(spacing: 0) {
+      if openNotes.opened.count >= 2 {
+        openNoteTabs
+      }
+
+      ZStack {
+        ForEach(openNotes.opened) { note in
+          let isActive = openNotes.active?.id == note.id
+          NotebookEditorPane(
+            session: note,
+            active: isActive,
+            arrangement: EditorPageArrangement.stored(pageArrangementRaw),
+            penLibrary: $penLibrary,
+            tool: $selectedTool,
+            onEditCommitted: { saveNotebook(note) },
+            onPensChanged: persistPenLibrary,
+            onInsertImage: { showingImageImporter = true },
+            onShowClippings: prepareClippings,
+            onSaveClipping: saveClipping,
+            onDropClipping: dropClipping,
+            onEditFigure: openFigureEditor,
+            onError: { errorMessage = $0.localizedDescription })
+            .opacity(isActive ? 1 : 0)
+            .allowsHitTesting(isActive)
+            .accessibilityHidden(!isActive)
+        }
+      }
+    }
+    .navigationTitle(session?.reference.name ?? "")
+    .navigationBarTitleDisplayMode(.inline)
+    .toolbar {
+      if let session {
+        ToolbarItem(placement: .topBarLeading) {
+          Button(action: showLibrary) {
+            Label("Library", systemImage: "chevron.left")
+          }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+          Button(action: prepareOpenNotePicker) {
+            Label("Open Note", systemImage: "doc.badge.plus")
+          }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+          pagesMenu(session)
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+          viewMenu
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+          documentMenu(session)
+        }
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var openNoteTabs: some View {
+    ScrollView(.horizontal, showsIndicators: false) {
+      HStack(spacing: 4) {
+        ForEach(openNotes.opened) { note in
+          let selected = openNotes.selected?.id == note.id
+          HStack(spacing: 2) {
+            Button {
+              openNotebook(note.reference)
+            } label: {
+              Text(note.reference.name)
+                .lineLimit(1)
+                .fontWeight(selected ? .semibold : .regular)
+                .padding(.leading, 10)
+                .padding(.vertical, 7)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(note.reference.name)
+            .accessibilityAddTraits(selected ? .isSelected : [])
+
+            Button {
+              closeOpenNote(note.id)
+            } label: {
+              Image(systemName: "xmark")
+                .font(.caption)
+                .padding(7)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Close \(note.reference.name)")
+          }
+          .background(
+            selected ? Color(uiColor: .tertiarySystemFill) : Color.clear,
+            in: RoundedRectangle(cornerRadius: 8))
+        }
+      }
+      .padding(.horizontal, 8)
+      .padding(.vertical, 5)
+    }
+    .background(Color(uiColor: .secondarySystemBackground))
+  }
+
+  @ViewBuilder
+  private func documentMenu(_ session: OpenNotebookSession) -> some View {
     Menu {
       Button("Save", systemImage: "square.and.arrow.down") {
         saveOpenNotebook()
@@ -334,13 +486,7 @@ struct ContentView: View {
       }
       Divider()
       Button("Close note", systemImage: "xmark") {
-        self.session = nil
-        clippings = nil
-        conflictReview = nil
-        openConflictCount = 0
-        activeLayerID = nil
-        bookmarkMode = false
-        refreshLibrary()
+        closeOpenNote(session.id)
       }
     } label: {
       Label("More", systemImage: "ellipsis")
@@ -374,7 +520,7 @@ struct ContentView: View {
     }
   }
   @ViewBuilder
-  private func pagesMenu(_ session: NotebookSession) -> some View {
+  private func pagesMenu(_ session: OpenNotebookSession) -> some View {
     let count = (try? session.document.pageCount()) ?? 0
     Menu {
       Button("Page Overview", systemImage: "square.grid.2x2") {
@@ -510,13 +656,136 @@ struct ContentView: View {
     }
   }
 
+  private func makeOpenSession(
+    _ reference: NotebookReference,
+    using root: NotesRootAccess,
+    currentPage: Int = 0
+  ) throws -> OpenNotebookSession {
+    let document = try root.load(reference)
+    let pageCount = try document.pageCount()
+    let session = OpenNotebookSession(
+      reference: reference,
+      document: document,
+      conflictCount: try root.conflictCount(reference))
+    session.currentPage = min(currentPage, max(0, pageCount - 1))
+    return session
+  }
+
+  private func saveSession(
+    _ session: OpenNotebookSession,
+    using root: NotesRootAccess
+  ) throws {
+    try root.save(session.document, notebook: session.reference)
+    session.conflictCount = try root.conflictCount(session.reference)
+  }
+
+  private func handleOpenNotesError(_ error: Error) {
+    guard let stateError = error as? OpenNotesStateError else {
+      errorMessage = error.localizedDescription
+      return
+    }
+
+    switch stateError {
+    case .captureInProgress:
+      errorMessage = stateError.localizedDescription
+    case let .saveFailed(reference, underlying):
+      if let storageError = underlying as? NotebookStorageError {
+        switch storageError {
+        case .externalChanges:
+          prepareConflicts(reference, saveOpen: false)
+          return
+        default:
+          break
+        }
+      }
+      errorMessage = underlying.localizedDescription
+    }
+  }
+
+  private func saveNotebook(_ note: OpenNotebookSession) {
+    guard let root else { return }
+    do {
+      try saveSession(note, using: root)
+    } catch let storageError as NotebookStorageError {
+      switch storageError {
+      case .externalChanges:
+        prepareConflicts(note.reference, saveOpen: false)
+      default:
+        errorMessage = storageError.localizedDescription
+      }
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func showLibrary() {
+    guard let root else { return }
+    do {
+      try openNotes.showLibrary { note in
+        try saveSession(note, using: root)
+      }
+      clippings = nil
+      conflictReview = nil
+      refreshLibrary()
+    } catch {
+      handleOpenNotesError(error)
+    }
+  }
+
+  private func prepareOpenNotePicker() {
+    guard let root else { return }
+    do {
+      openNoteChoices = try root.allNotes(
+        sort: .name,
+        direction: .ascending).notebooks
+      showingOpenNotePicker = true
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func closeOpenNote(_ id: UUID) {
+    guard let root,
+      let index = openNotes.opened.firstIndex(where: { $0.id == id })
+    else { return }
+
+    do {
+      try openNotes.close(index) { note in
+        try saveSession(note, using: root)
+      }
+      clippings = nil
+      conflictReview = nil
+      refreshLibrary()
+    } catch {
+      handleOpenNotesError(error)
+    }
+  }
+
+  private func closeOpenEntries(
+    at path: [String],
+    using root: NotesRootAccess
+  ) throws {
+    try openNotes.closeUnder(path) { note in
+      try saveSession(note, using: root)
+    }
+  }
+
   private func installRoot(_ newRoot: NotesRootAccess) {
-    session = nil
+    if let root {
+      do {
+        try openNotes.closeAll { session in
+          try saveSession(session, using: root)
+        }
+      } catch {
+        handleOpenNotesError(error)
+        return
+      }
+    } else {
+      openNotes.reset()
+    }
+
     clippings = nil
     conflictReview = nil
-    openConflictCount = 0
-    activeLayerID = nil
-    bookmarkMode = false
     libraryFolder = FolderReference(path: [])
     libraryQuery = ""
     libraryScope = .folder
@@ -683,17 +952,20 @@ struct ContentView: View {
       case .createFolder:
         _ = try root.createFolder(parent: parent, name: name)
       case let .rename(entry):
+        try closeOpenEntries(at: entry.path, using: root)
         let currentParent = FolderReference(path: Array(entry.path.dropLast()))
         _ = try root.moveEntry(
           path: entry.path,
           toParent: currentParent,
           name: name)
       case let .move(entry):
+        try closeOpenEntries(at: entry.path, using: root)
         _ = try root.moveEntry(
           path: entry.path,
           toParent: parent,
           name: entry.name)
       case let .restore(entry):
+        try closeOpenEntries(at: entry.path, using: root)
         _ = try root.moveEntry(
           path: entry.path,
           toParent: parent,
@@ -702,17 +974,18 @@ struct ContentView: View {
       libraryMutation = nil
       refreshLibrary()
     } catch {
-      errorMessage = error.localizedDescription
+      handleOpenNotesError(error)
     }
   }
 
   private func moveLibraryEntryToTrash(_ entry: LibraryEntryTarget) {
     guard let root else { return }
     do {
+      try closeOpenEntries(at: entry.path, using: root)
       _ = try root.moveToTrash(path: entry.path)
       refreshLibrary()
     } catch {
-      errorMessage = error.localizedDescription
+      handleOpenNotesError(error)
     }
   }
 
@@ -853,15 +1126,12 @@ struct ContentView: View {
       }
 
       selectedTool = .pen
-      activeLayerID = nil
-      bookmarkMode = false
-      currentPage = 0
-      documentRevision = 0
-      pageNavigationRevision = 0
       clippings = nil
       conflictReview = nil
-      openConflictCount = 0
-      session = NotebookSession(reference: reference, document: document)
+      openNotes.show(
+        OpenNotebookSession(
+          reference: reference,
+          document: document))
       pdfImportProgress = nil
       refreshLibrary()
     } catch {
@@ -916,15 +1186,12 @@ struct ContentView: View {
         orientation: request.orientation)
       showingNewNote = false
       selectedTool = .pen
-      activeLayerID = nil
-      bookmarkMode = false
-      currentPage = 0
-      documentRevision = 0
-      pageNavigationRevision = 0
       clippings = nil
       conflictReview = nil
-      openConflictCount = 0
-      session = NotebookSession(reference: reference, document: document)
+      openNotes.show(
+        OpenNotebookSession(
+          reference: reference,
+          document: document))
       refreshLibrary()
     } catch {
       errorMessage = error.localizedDescription
@@ -934,24 +1201,22 @@ struct ContentView: View {
   private func openNotebook(_ reference: NotebookReference) {
     guard let root else { return }
     do {
-      activeLayerID = nil
-      bookmarkMode = false
-      currentPage = 0
-      documentRevision = 0
-      pageNavigationRevision = 0
+      _ = try openNotes.open(
+        reference,
+        save: { note in
+          try saveSession(note, using: root)
+        },
+        load: { reference in
+          try makeOpenSession(reference, using: root)
+        })
       clippings = nil
       conflictReview = nil
-      let document = try root.load(reference)
-      openConflictCount = try root.conflictCount(reference)
-      session = NotebookSession(
-        reference: reference,
-        document: document)
     } catch {
-      errorMessage = error.localizedDescription
+      handleOpenNotesError(error)
     }
   }
 
-  private func prepareBookmarks(_ session: NotebookSession) {
+  private func prepareBookmarks(_ session: OpenNotebookSession) {
     do {
       bookmarkMode = false
       let marks = try session.document.navigation()
@@ -1009,6 +1274,7 @@ struct ContentView: View {
   ) {
     guard let root else { return }
     do {
+      try openNotes.requireNoCapture("comparing versions")
       if saveOpen, let session, session.reference == reference {
         do {
           try root.save(session.document, notebook: reference)
@@ -1023,9 +1289,7 @@ struct ContentView: View {
       }
 
       let conflicts = try root.conflicts(reference)
-      if session?.reference == reference {
-        openConflictCount = conflicts.count
-      }
+      openNotes.find(reference)?.conflictCount = conflicts.count
       guard let conflict = conflicts.first else {
         conflictReview = nil
         return
@@ -1034,7 +1298,7 @@ struct ContentView: View {
         reference: reference,
         conflict: conflict)
     } catch {
-      errorMessage = error.localizedDescription
+      handleOpenNotesError(error)
     }
   }
 
@@ -1049,23 +1313,19 @@ struct ContentView: View {
         conflict: request.conflict,
         choice: choice)
 
-      if session?.reference == request.reference {
-        let previousPage = currentPage
-        let document = try root.load(request.reference)
-        let pageCount = try document.pageCount()
-        currentPage = min(previousPage, max(0, pageCount - 1))
-        activeLayerID = nil
-        bookmarkMode = false
+      if let previous = openNotes.find(request.reference) {
+        let previousPage = previous.currentPage
+        _ = try openNotes.reloadIfOpen(request.reference) { reference in
+          try makeOpenSession(
+            reference,
+            using: root,
+            currentPage: previousPage)
+        }
         clippings = nil
-        session = NotebookSession(
-          reference: request.reference,
-          document: document)
       }
 
       let remaining = try root.conflicts(request.reference)
-      if session?.reference == request.reference {
-        openConflictCount = remaining.count
-      }
+      openNotes.find(request.reference)?.conflictCount = remaining.count
       refreshLibrary()
       conflictReview = remaining.first.map {
         ConflictReviewRequest(
@@ -1168,7 +1428,7 @@ struct ContentView: View {
     }
   }
 
-  private func preparePDFExport(_ session: NotebookSession) {
+  private func preparePDFExport(_ session: OpenNotebookSession) {
     do {
       pdfExport = PDFExportRequest(
         pageCount: try session.document.pageCount(),
@@ -1180,7 +1440,7 @@ struct ContentView: View {
   }
 
   private func sharePDF(
-    _ session: NotebookSession,
+    _ session: OpenNotebookSession,
     firstPage: Int,
     pageCount: Int,
     layerIDs: [String]
@@ -1209,7 +1469,7 @@ struct ContentView: View {
     }
   }
 
-  private func preparePagePaper(_ session: NotebookSession) {
+  private func preparePagePaper(_ session: OpenNotebookSession) {
     guard let root else { return }
     do {
       pagePaper = PagePaperRequest(
@@ -1267,7 +1527,7 @@ struct ContentView: View {
     saveOpenNotebook()
   }
   private func editPages(
-    _ session: NotebookSession,
+    _ session: OpenNotebookSession,
     _ action: (EngineDocument) throws -> Void
   ) {
     do {
@@ -1281,24 +1541,11 @@ struct ContentView: View {
 
   private func saveOpenNotebookThrowing() throws {
     guard let root, let session else { return }
-    try root.save(session.document, notebook: session.reference)
-    openConflictCount = try root.conflictCount(session.reference)
+    try saveSession(session, using: root)
   }
 
   private func saveOpenNotebook() {
-    do {
-      try saveOpenNotebookThrowing()
-    } catch let storageError as NotebookStorageError {
-      switch storageError {
-      case .externalChanges:
-        if let session {
-          prepareConflicts(session.reference, saveOpen: false)
-        }
-      default:
-        errorMessage = storageError.localizedDescription
-      }
-    } catch {
-      errorMessage = error.localizedDescription
-    }
+    guard let session else { return }
+    saveNotebook(session)
   }
 }

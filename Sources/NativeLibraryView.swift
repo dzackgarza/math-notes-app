@@ -525,7 +525,7 @@ struct NativeLibraryView: View {
 }
 
 @MainActor
-private struct LibraryThumbnail: View {
+struct LibraryThumbnail: View {
   let root: NotesRootAccess
   let item: LibraryNotebookItem
 
