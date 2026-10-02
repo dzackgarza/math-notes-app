@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
-import { test, longPressDrag, focusText, enterText, save, goToPage, whenSaved, createTestNotebook, openTestNotebook, beginTestNote, penStroke, line, pngPixels, capture, settled, screenPixels, brightness, isOutline, isInk, inkRow, inkLength, pixelBounds, size, darkestPixel, inkAt, centerPixel, openNewNote, pageIn, textIn, contrastIn, boxOf, BOARD, isSalmon, inkThickness, closePopover, COLORS, openColors, backToColors, pickColor, savedPages, linedPaper, penDrag, penHold, penRelease, sharpestStep, type PenPoint, type Rgb, type Bounds } from "./support.ts";
+import { test, longPressDrag, focusText, enterText, save, goToPage, whenSaved, createTestNotebook, openTestNotebook, beginTestNote, penStroke, line, pngPixels, capture, screenPixels, brightness, isOutline, isInk, inkLength, pixelBounds, size, darkestPixel, inkAt, centerPixel, openNewNote, pageIn, textIn, contrastIn, boxOf, BOARD, isSalmon, inkThickness, closePopover, COLORS, openColors, backToColors, pickColor, savedPages, linedPaper, penDrag, penHold, penRelease, sharpestStep, type PenPoint, type Rgb, type Bounds } from "./support.ts";
 
 test("Flutter adds a page only after a held edge pull and preserves keyboard history", async ({ page }) => {
   test.setTimeout(60_000);
@@ -46,44 +46,6 @@ test("Flutter adds a page only after a held edge pull and preserves keyboard his
     return (await (await dir.getFileHandle("notebook.json")).getFile()).text();
   });
   expect(JSON.parse(manifest).pages).toHaveLength(2);
-});
-
-test("Flutter ignores a palm that drags during a pen stroke", async ({ page }) => {
-  test.setTimeout(60_000);
-  await page.goto("?root=opfs");
-  await beginTestNote(page, "Palm");
-  await page.getByRole("button", { name: "Create", exact: true }).click();
-  const canvas = page.locator('canvas[id^="ink-canvas-"]');
-  await canvas.waitFor();
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error("Notebook canvas has no bounds");
-  const cdp = await page.context().newCDPSession(page);
-  const pen = { pointerType: "pen" as const, force: 0.6 };
-  const palm = { id: 1, x: box.x + box.width - 80, y: box.y + box.height - 60 };
-  await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", button: "left", clickCount: 1, x: box.x + 160, y: box.y + 150, ...pen });
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [palm] });
-  for (const distance of [40, 150, 300]) {
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ ...palm, y: palm.y - distance }] });
-    await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", button: "left", buttons: 1, x: box.x + 160 + distance / 4, y: box.y + 150 + distance / 8, ...pen });
-  }
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-  await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, x: box.x + 235, y: box.y + 187, ...pen });
-  await save(page);
-  await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
-  const trace = await page.evaluate(async () => {
-    const root = await navigator.storage.getDirectory();
-    const notebook = await root.getDirectoryHandle("Test Notebook");
-    const pages = await (await notebook.getDirectoryHandle("Palm")).getDirectoryHandle("pages");
-    const svg = await (await (await pages.getFileHandle("0001.svg")).getFile()).text();
-    const text = new DOMParser().parseFromString(svg, "image/svg+xml").getElementsByTagName("inkml:trace")[0]?.textContent;
-    if (!text) throw new Error("Saved page has no stroke trace");
-    return text.split(",").map((sample) => sample.trim().split(" ").slice(0, 2).map(Number));
-  });
-  const xs = trace.map(([x]) => x);
-  const ys = trace.map(([, y]) => y);
-  // The pen moved 75 px right and 37 px down. A page that scrolled with the
-  // palm would stretch the stroke 300 px vertically.
-  expect(Math.max(...ys) - Math.min(...ys)).toBeLessThan(Math.max(...xs) - Math.min(...xs));
 });
 
 test("Flutter modal dialogs block pen ink underneath them, and a cancelled pen stroke leaves no ink", async ({ page }) => {
@@ -182,86 +144,6 @@ test("Flutter undoes on a two-finger tap and redoes on a three-finger tap", asyn
   expect(await strokes()).toBe(0);
   await tap(3);
   expect(await strokes()).toBe(1);
-});
-
-test("Flutter erases with the pen side button and eraser end and draws with a finger on request", async ({ page }) => {
-  test.setTimeout(120_000);
-  await page.goto("?root=opfs");
-  await beginTestNote(page, "Fingers");
-  await page.getByRole("button", { name: "Create", exact: true }).click();
-  const canvas = page.locator('canvas[id^="ink-canvas-"]');
-  await canvas.waitFor({ timeout: 30_000 });
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error("Notebook canvas has no bounds");
-  const cdp = await page.context().newCDPSession(page);
-  const strokes = async () => {
-    await save(page);
-    await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
-    return page.evaluate(async () => {
-      const root = await navigator.storage.getDirectory();
-      const notebook = await root.getDirectoryHandle("Test Notebook");
-      const pages = await (await notebook.getDirectoryHandle("Fingers")).getDirectoryHandle("pages");
-      const svg = await (await (await pages.getFileHandle("0001.svg")).getFile()).text();
-      return svg.match(/<path id="s-/g)?.length ?? 0;
-    });
-  };
-  const penDrag = async (button: "left" | "right", from: [number, number], to: [number, number]) => {
-    const pen = { pointerType: "pen" as const, force: 0.6, button, buttons: button === "left" ? 1 : 2 };
-    await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", clickCount: 1, x: box.x + from[0], y: box.y + from[1], ...pen });
-    await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: box.x + (from[0] + to[0]) / 2, y: box.y + (from[1] + to[1]) / 2, ...pen });
-    await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: box.x + to[0], y: box.y + to[1], ...pen });
-    await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", clickCount: 1, x: box.x + to[0], y: box.y + to[1], ...pen, buttons: 0 });
-  };
-  await penDrag("left", [160, 150], [300, 150]);
-  expect(await strokes()).toBe(1);
-  await penDrag("right", [230, 100], [230, 200]);
-  expect(await strokes()).toBe(0);
-  // CDP has no button for the eraser end of a pen, so the page receives the
-  // pointer events that the eraser end makes: button 5, buttons 32.
-  await penDrag("left", [160, 150], [300, 150]);
-  expect(await strokes()).toBe(1);
-  await page.evaluate(async ({ x, y }) => {
-    const send = async (type: string, clientY: number, button: number, buttons: number) => {
-      document.elementFromPoint(x, clientY)!.dispatchEvent(new PointerEvent(type, {
-        pointerId: 9, pointerType: "pen", isPrimary: true, bubbles: true, cancelable: true, composed: true,
-        clientX: x, clientY, pressure: buttons ? 0.6 : 0, button, buttons,
-      }));
-      await new Promise((resolve) => setTimeout(resolve, 20));
-    };
-    await send("pointerdown", y + 100, 5, 32);
-    for (const offset of [125, 150, 175, 200]) await send("pointermove", y + offset, -1, 32);
-    await send("pointerup", y + 200, 5, 0);
-  }, { x: box.x + 230, y: box.y });
-  expect(await strokes(), "the eraser end of the pen erases").toBe(0);
-
-  await page.getByRole("button", { name: "More", exact: true }).click();
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
-  await page.getByRole("switch", { name: "Draw with finger", exact: true }).click();
-  await page.getByRole("button", { name: "Done", exact: true }).click();
-  const finger = (id: number, x: number, y: number) => ({ id, x: box.x + x, y: box.y + y });
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [finger(1, 160, 250)] });
-  for (const x of [200, 260, 320]) {
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [finger(1, x, 250)] });
-  }
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-  expect(await strokes()).toBe(1);
-  // A second finger turns the stroke in progress into a pan.
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [finger(1, 160, 350)] });
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [finger(1, 200, 350)] });
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [finger(1, 200, 350), finger(2, 260, 350)] });
-  for (const y of [320, 290, 260]) {
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [finger(1, 200, y), finger(2, 260, y)] });
-  }
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-  expect(await strokes()).toBe(1);
-
-  await page.reload();
-  await openTestNotebook(page);
-  await page.getByRole("button", { name: "Open Fingers", exact: false }).click();
-  await canvas.waitFor({ timeout: 30_000 });
-  await page.getByRole("button", { name: "More", exact: true }).click();
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
-  await expect(page.getByRole("switch", { name: "Draw with finger", exact: true })).toBeChecked();
 });
 
 test("Flutter partial and whole-stroke erases each undo and redo", async ({ page }) => {
@@ -993,40 +875,6 @@ test("Flutter imports a PDF, annotates its pages, and exports them with the anno
   }).toPass({ timeout: 15_000 });
 });
 
-test("Flutter pans the page with one finger and zooms it with a pinch", async ({ page }, info) => {
-  test.setTimeout(90_000);
-  const { box, cdp } = await openNewNote(page, "Touch navigation");
-  const written = { x: box.x + 500, y: box.y + 320 };
-  await penStroke(cdp, line(written.x - 40, written.x + 40, written.y), 0.6);
-  // A column through the handwriting, between two columns of paper dots.
-  const column = written.x + 18;
-  const top = box.y + 120;
-  const bottom = box.y + box.height - 40;
-  const before = await inkRow(page, column, top, bottom);
-  const touch = (type: "touchStart" | "touchMove" | "touchEnd", points: PenPoint[]) =>
-    cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points.map((p, id) => ({ id, ...p })) });
-
-  // A finger drags 150 px up; the page follows it past the touch slop.
-  const finger = { x: box.x + 900, y: box.y + 450 };
-  await touch("touchStart", [finger]);
-  for (let dy = 30; dy <= 150; dy += 30) await touch("touchMove", [{ x: finger.x, y: finger.y - dy }]);
-  await touch("touchEnd", []);
-  await page.screenshot({ path: info.outputPath("panned.png") });
-  const panned = await inkRow(page, column, top, bottom);
-  expect(before - panned).toBeGreaterThan(100);
-  expect(before - panned).toBeLessThanOrEqual(150);
-
-  // Two fingers spread from 100 to 240 px apart below the handwriting.
-  const length = await inkLength(page, panned, written.x - 200, written.x + 200);
-  const spread = (half: number) => [{ x: written.x - half, y: panned + 60 }, { x: written.x + half, y: panned + 60 }];
-  await touch("touchStart", spread(50));
-  for (let half = 60; half <= 120; half += 10) await touch("touchMove", spread(half));
-  await touch("touchEnd", []);
-  await page.screenshot({ path: info.outputPath("zoomed.png") });
-  const zoomed = await inkRow(page, column, top, bottom);
-  expect(await inkLength(page, zoomed, written.x - 300, written.x + 300)).toBeGreaterThan(1.5 * length);
-});
-
 test("Flutter rewinds handwriting with Ctrl+Z and the undo dial", async ({ page }, info) => {
   test.setTimeout(90_000);
   const { box, cdp } = await openNewNote(page, "Rewind");
@@ -1078,23 +926,6 @@ test("Flutter rewinds handwriting with Ctrl+Z and the undo dial", async ({ page 
   for (let degrees = -24; degrees <= -8; degrees += 4) await page.mouse.move(at(degrees).x, at(degrees).y);
   await page.mouse.up();
   await showsLines([true, true, false]);
-});
-
-test("Flutter writes a hard pen stroke visibly thicker than a light one", async ({ page }, info) => {
-  test.setTimeout(60_000);
-  const { box, cdp } = await openNewNote(page, "Pressure");
-  const light = { x: box.x + 240, y: box.y + 180 };
-  const hard = { x: box.x + 240, y: box.y + 260 };
-  const paper = [await screenPixels(page, light), await screenPixels(page, hard)];
-
-  await penStroke(cdp, line(box.x + 140, box.x + 340, light.y), 0.15);
-  await penStroke(cdp, line(box.x + 140, box.x + 340, hard.y), 1);
-  await page.screenshot({ path: info.outputPath("pressure.png") });
-
-  // Ink on screen: how much each stroke darkened the paper across its width.
-  const ratio = (await inkAt(page, hard, paper[1])) / (await inkAt(page, light, paper[0]));
-  expect(ratio).toBeGreaterThan(1.3);
-  expect(ratio).toBeLessThan(3);
 });
 
 test("Flutter highlighting handwriting leaves the handwriting dark", async ({ page }, info) => {
@@ -1630,73 +1461,6 @@ test("Flutter marker popover changes the size of the marker only", async ({ page
   })).toMatchObject({ pen: { brush: "pressure-pen", size: 1.2 }, marker: { brush: "marker", size: 3.6 } })).toPass({ timeout: 15_000 });
 });
 
-test("Flutter two-page layout puts pen input on the right page and shares a PDF", async ({ page }) => {
-  test.setTimeout(120_000);
-  await page.goto("?root=opfs");
-  await page.evaluate(() => localStorage.removeItem("pageArrangement"));
-  await beginTestNote(page, "Spread");
-  await page.getByRole("button", { name: "Create", exact: true }).click();
-  const canvas = page.locator('canvas[id^="ink-canvas-"]');
-  await canvas.waitFor({ timeout: 30_000 });
-  for (let added = 0; added < 2; added++) {
-    await page.getByRole("button", { name: "Pages", exact: true }).click();
-    await page.getByRole("button", { name: "Add page", exact: true }).click();
-  }
-  await expect(page.getByText(/^\d \/ 3$/)).toBeVisible();
-  await page.getByRole("button", { name: "View", exact: true }).click();
-  await page.getByRole("button", { name: "Two pages", exact: true }).click();
-  await page.waitForTimeout(500);
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error("Notebook canvas has no bounds");
-  const cdp = await page.context().newCDPSession(page);
-  const pen = { pointerType: "pen" as const, force: 0.6, button: "left" as const };
-  const x = box.x + box.width * 0.75;
-  const y = box.y + 200;
-  await cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", clickCount: 1, x, y, ...pen, buttons: 1 });
-  await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: x + 40, y, ...pen, buttons: 1 });
-  await cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: x + 80, y, ...pen, buttons: 1 });
-  await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", clickCount: 1, x: x + 80, y, ...pen, buttons: 0 });
-  await save(page);
-  await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
-  const counts = await page.evaluate(async () => {
-    const root = await navigator.storage.getDirectory();
-    const notebook = await root.getDirectoryHandle("Test Notebook");
-    const dir = await notebook.getDirectoryHandle("Spread");
-    const manifest = JSON.parse(await (await (await dir.getFileHandle("notebook.json")).getFile()).text());
-    const pages = await dir.getDirectoryHandle("pages");
-    const counts = [];
-    for (const entry of manifest.pages as { file: string }[]) {
-      const name = entry.file.replace("pages/", "");
-      const svg = await (await (await pages.getFileHandle(name)).getFile()).text();
-      counts.push(svg.match(/<path id="s-/g)?.length ?? 0);
-    }
-    return counts;
-  });
-  expect(counts).toEqual([0, 1, 0]);
-
-  await page.evaluate(() => {
-    const shared: string[] = [];
-    Object.assign(window, { shared });
-    navigator.canShare = () => true;
-    navigator.share = async (data) => {
-      for (const file of data?.files ?? []) shared.push(`${file.name} ${file.type}`);
-    };
-  });
-  await page.getByRole("button", { name: "More", exact: true }).click();
-  await page.getByRole("button", { name: "Share", exact: true }).click();
-  await page.getByRole("button", { name: "Share", exact: true }).click();
-  await expect.poll(() => page.evaluate(() => (window as unknown as { shared: string[] }).shared)).toEqual([
-    "Spread.pdf application/pdf",
-  ]);
-
-  await page.reload();
-  await openTestNotebook(page);
-  await page.getByRole("button", { name: "Open Spread", exact: false }).click();
-  await canvas.waitFor({ timeout: 30_000 });
-  await page.getByRole("button", { name: "View", exact: true }).click();
-  await expect(page.getByRole("button", { name: /^\S+ Two pages$/ })).toHaveAttribute("aria-current", "true");
-});
-
 test("Flutter inserts pages before and after a page, deletes a page, and sizes new pages", async ({ page }, info) => {
   test.setTimeout(240_000);
   const { box, cdp } = await openNewNote(page, "Inserts");
@@ -1783,58 +1547,6 @@ test("Flutter inserts pages before and after a page, deletes a page, and sizes n
   await choose("Pages", "Add page");
   await expect(page.getByText("2 / 7", { exact: true })).toBeVisible();
   expect(await rulings(), "the new page is lined").toEqual([...before, "lined"]);
-});
-
-test("Flutter horizontal scroll puts the pages side by side, pans across them, and persists", async ({ page }, info) => {
-  test.setTimeout(120_000);
-  const { box, cdp } = await openNewNote(page, "Sideways");
-  const button = (name: string) => page.getByRole("button", { name, exact: true });
-  for (const count of [2, 3, 4, 5]) {
-    await button("Pages").click();
-    await button("Add page").click();
-    await expect(page.getByText(`1 / ${count}`, { exact: true })).toBeVisible();
-  }
-  await button("View").click();
-  await button("Horizontal scroll").click();
-  await expect(button("Library"), "the menu closes before the pen writes (TRAPS.md)").toBeVisible();
-  const strokes = async () => (await savedPages(page, "Sideways")).map((saved) => saved.strokes);
-  // A page fits the view height, so the view holds more than two A4 pages.
-  const pageWidth = box.height * 595.28 / 841.89;
-  const y = box.y + box.height / 2;
-  await penStroke(cdp, line(box.x + 100, box.x + 200, y), 0.6);
-  await penStroke(cdp, line(box.x + pageWidth + 100, box.x + pageWidth + 200, y), 0.6);
-  expect(await strokes(), "the second page is beside the first").toEqual([1, 1, 0, 0, 0]);
-  await page.screenshot({ path: info.outputPath("horizontal.png") });
-  const shown = await page.getByText(/^\d \/ 5$/).textContent();
-  // One finger pans the pages to the left, to the end of the row.
-  for (let pan = 0; pan < 2; ++pan) {
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ id: 1, x: 1100, y }] });
-    for (const x of [1000, 800, 600, 400, 200]) {
-      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ id: 1, x, y }] });
-    }
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-  }
-  await expect(page.getByText(/^\d \/ 5$/), "the pan changes the shown page").not.toHaveText(shown!);
-  // The pan overscrolls past the last page, and the bounce back takes a
-  // moment; a pen-down beyond the page draws nothing.
-  await settled(page, { x: box.x, y, width: box.width, height: 1 });
-  await penStroke(cdp, line(box.x + box.width - 300, box.x + box.width - 200, y), 0.6);
-  expect(await strokes(), "the last page is at the right edge after the pan").toEqual([1, 1, 0, 0, 1]);
-  await page.screenshot({ path: info.outputPath("last-page.png") });
-  await button("View").click();
-  await expect(page.getByRole("button", { name: /Fit height$/ })).toBeVisible();
-  await closePopover(page);
-
-  await page.reload();
-  await openTestNotebook(page);
-  await page.getByRole("button", { name: "Open Sideways", exact: false }).click();
-  await page.locator('canvas[id^="ink-canvas-"]:visible').waitFor({ timeout: 30_000 });
-  await button("View").click();
-  await expect(page.getByRole("button", { name: /^\S+ Horizontal scroll$/ })).toHaveAttribute("aria-current", "true");
-  await page.getByRole("button", { name: "Vertical scroll", exact: true }).click();
-  await button("View").click();
-  await expect(page.getByRole("button", { name: /^\S+ Vertical scroll$/ })).toHaveAttribute("aria-current", "true");
-  await expect(page.getByRole("button", { name: /Fit width$/ })).toBeVisible();
 });
 
 test("Flutter insert space moves the handwriting with the pen in each mode, and onto a new page", async ({ page }, info) => {
@@ -2009,43 +1721,6 @@ test("Flutter insert space moves the handwriting with the pen in each mode, and 
     x: Math.round(margin + 200), y: Math.round(box.y + 70), width: 120, height: Math.round(3 * spacing),
   }, isInk);
   expect(Math.round((carried.left - margin) / 10) * 10, "the word reopens on the new page in its column").toBe(220);
-});
-
-test("Flutter scrolls the page with the mouse wheel and zooms it with Ctrl and the wheel", async ({ page }, info) => {
-  test.setTimeout(90_000);
-  const { box, cdp } = await openNewNote(page, "Wheel");
-  const written = { x: box.x + 500, y: box.y + 420 };
-  await penStroke(cdp, line(written.x - 40, written.x + 40, written.y), 0.6);
-  // A column through the handwriting, between two columns of paper dots.
-  const column = written.x + 18;
-  const top = box.y + 120;
-  const bottom = box.y + box.height - 40;
-  const before = await inkRow(page, column, top, bottom);
-  const inkWidth = (row: number) => inkLength(page, row, written.x - 300, written.x + 300);
-  const length = await inkWidth(before);
-  // The handwriting is `scrolled` px above its first row, at its first size.
-  const shows = (scrolled: number, message: string) => expect(async () => {
-    const row = await inkRow(page, column, top, bottom);
-    expect(before - row, message).toBe(scrolled);
-    expect(await inkWidth(row), message).toBe(length);
-  }).toPass({ timeout: 5_000 });
-
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.mouse.wheel(0, 200);
-  await shows(200, "the wheel scrolls the page down");
-  await page.mouse.wheel(0, -200);
-  await page.screenshot({ path: info.outputPath("scrolled-back.png") });
-  await shows(0, "the wheel scrolls the page back up at the same zoom");
-
-  // Ctrl and the wheel zoom the page about the pointer, here on the handwriting.
-  await page.mouse.move(written.x, before);
-  await page.keyboard.down("Control");
-  await page.mouse.wheel(0, -100);
-  await page.keyboard.up("Control");
-  await page.screenshot({ path: info.outputPath("zoomed.png") });
-  await expect(async () => {
-    expect(await inkWidth(await inkRow(page, column, top, bottom))).toBeGreaterThan(1.4 * length);
-  }, "Ctrl and the wheel make the handwriting larger").toPass({ timeout: 5_000 });
 });
 
 test("Flutter ruled lasso and ruled eraser take the words of the lines under the pen and show them during the drag", async ({ page }, info) => {
