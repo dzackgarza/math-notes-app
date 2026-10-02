@@ -27,9 +27,9 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
     await button("Open navigation").click();
     await expect(page.getByText("Arrange pages", { exact: true })).toBeVisible();
     await page.getByText("Bookmarks", { exact: true }).click();
-    await expect(page.getByText("No bookmarks", { exact: true })).toBeVisible();
+    await expect(page.getByRole("group", { name: /No bookmarks/ })).toBeVisible();
     await page.getByText("Outlines", { exact: true }).click();
-    await expect(page.getByText("No outlines", { exact: true })).toBeVisible();
+    await expect(page.getByRole("group", { name: /No outlines/ })).toBeVisible();
     await page.getByText("Layers", { exact: true }).click();
     await expect(button("Hide Ink")).toBeVisible();
     await expect(button("Edit Ink")).toBeVisible();
