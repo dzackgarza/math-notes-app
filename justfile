@@ -122,8 +122,13 @@ web-fetch:
       exit 1
     fi
     dir="hosts/web/flutter/build/ci/$run"
-    gh run download "$run" -n engine-module -D "$dir/engine"
-    gh run download "$run" -n web-app -D "$dir/web"
+    if [ ! -f "$dir/.ready" ]; then
+      if [ -e "$dir" ]; then trash "$dir"; fi
+      mkdir -p "$dir"
+      gh run download "$run" -n engine-module -D "$dir/engine"
+      gh run download "$run" -n web-app -D "$dir/web"
+      touch "$dir/.ready"
+    fi
     mkdir -p hosts/web/src/engine/wasm
     rsync -a "$dir/engine/" hosts/web/src/engine/wasm/
     rsync -a --delete "$dir/web/" /var/www/math-notes/
