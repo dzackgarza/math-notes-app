@@ -23,6 +23,11 @@ final class EditorToolsTests: XCTestCase {
     XCTAssertEqual(pens.highlighter.opacity, 0.35)
   }
 
+  func testEraserModesMapToTheSharedEngineABI() {
+    XCTAssertEqual(EditorEraserMode.stroke.engineValue, INK_ERASER_STROKE)
+    XCTAssertEqual(EditorEraserMode.partial.engineValue, INK_ERASER_FREE)
+  }
+
   @MainActor
   func testHistoryUsesTheSharedDocument() throws {
     let document = EngineDocument(seed: 11)

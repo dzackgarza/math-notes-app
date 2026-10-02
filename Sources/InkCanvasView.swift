@@ -85,12 +85,12 @@ final class InkCanvasView: UIView {
     updateSurfaceSize()
   }
 
-  func applyTool(_ tool: EditorTool, pens: EditorPenSet) {
+  func applyTool(_ tool: EditorTool, pens: EditorPenSet, eraserMode: EditorEraserMode = .stroke) {
     guard let canvas else { return }
 
     func setEraser(active: Bool) {
       check(
-        ink_canvas_set_eraser(canvas, INK_ERASER_STROKE, active ? 1 : 0),
+        ink_canvas_set_eraser(canvas, eraserMode.engineValue, active ? 1 : 0),
         operation: "ink_canvas_set_eraser")
     }
 

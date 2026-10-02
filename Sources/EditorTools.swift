@@ -31,6 +31,27 @@ enum EditorTool: String, CaseIterable, Identifiable {
   }
 }
 
+enum EditorEraserMode: String, CaseIterable, Identifiable {
+  case stroke = "Stroke"
+  case partial = "Partial"
+
+  var id: Self { self }
+
+  var engineValue: InkEraser {
+    switch self {
+    case .stroke: INK_ERASER_STROKE
+    case .partial: INK_ERASER_FREE
+    }
+  }
+
+  var systemImage: String {
+    switch self {
+    case .stroke: "scribble.variable"
+    case .partial: "eraser"
+    }
+  }
+}
+
 @MainActor
 struct EditorPenSet {
   let pen: InkToolSettings
@@ -58,18 +79,24 @@ struct EditorPenSet {
 
 struct EditorToolRail: View {
   @Binding var tool: EditorTool
+  @Binding var eraserMode: EditorEraserMode
+  @State private var showingEraserModes = false
   let undo: () -> Void
   let redo: () -> Void
 
   var body: some View {
     VStack(spacing: 8) {
       ForEach(EditorTool.allCases) { item in
-        railButton(
-          label: item.label,
-          systemImage: item.systemImage,
-          selected: tool == item
-        ) {
-          tool = item
+        if item == .eraser {
+          eraserButton
+        } else {
+          railButton(
+            label: item.label,
+            systemImage: item.systemImage,
+            selected: tool == item
+          ) {
+            tool = item
+          }
         }
       }
 
@@ -87,6 +114,47 @@ struct EditorToolRail: View {
     }
     .padding(.leading, 8)
     .padding(.top, 8)
+  }
+
+  private var eraserButton: some View {
+    railButton(
+      label: "Eraser, \(eraserMode.rawValue)",
+      systemImage: EditorTool.eraser.systemImage,
+      selected: tool == .eraser
+    ) {
+      if tool == .eraser {
+        showingEraserModes = true
+      } else {
+        tool = .eraser
+      }
+    }
+    .popover(isPresented: $showingEraserModes, arrowEdge: .leading) {
+      HStack(spacing: 12) {
+        ForEach(EditorEraserMode.allCases) { mode in
+          Button {
+            eraserMode = mode
+            tool = .eraser
+            showingEraserModes = false
+          } label: {
+            VStack(spacing: 8) {
+              Image(systemName: mode.systemImage)
+                .font(.system(size: 24))
+                .frame(width: 44, height: 44)
+                .background(
+                  eraserMode == mode ? Color.accentColor.opacity(0.14) : Color.clear,
+                  in: RoundedRectangle(cornerRadius: 10))
+              Text(mode.rawValue)
+                .font(.caption)
+            }
+          }
+          .buttonStyle(.plain)
+          .foregroundStyle(eraserMode == mode ? Color.accentColor : Color.primary)
+          .accessibilityValue(eraserMode == mode ? "Selected" : "")
+        }
+      }
+      .padding(16)
+      .presentationCompactAdaptation(.popover)
+    }
   }
 
   @ViewBuilder
