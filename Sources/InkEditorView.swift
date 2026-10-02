@@ -7,6 +7,7 @@ enum EditorPageCommand: Equatable {
   case select(Int)
   case clear(Int)
   case addBookmark
+  case linkSelection(String)
   case jumpToMark(EngineNavigationMark)
   case requestTextAtCenter
   case commitText(EditorTextRequest, EngineTextProperties)
@@ -27,6 +28,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private let onPageCommandHandled: () -> Void
   private let onBookmarkModeChanged: (Bool) -> Void
   private let onTextRequested: (EditorTextRequest) -> Void
+  private let onLinkSelectionRequested: (Int) -> Void
+  private let onFollowLink: (String, Int) -> Void
   private let onSaveClipping: (String) -> Void
   private let onFigureCaptureChanged: (Bool) -> Void
   private let onFigureSourceChanged: (String) -> Void
@@ -83,6 +86,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     onPageCommandHandled: @escaping () -> Void = {},
     onBookmarkModeChanged: @escaping (Bool) -> Void = { _ in },
     onTextRequested: @escaping (EditorTextRequest) -> Void = { _ in },
+    onLinkSelectionRequested: @escaping (Int) -> Void = { _ in },
+    onFollowLink: @escaping (String, Int) -> Void = { _, _ in },
     onSaveClipping: @escaping (String) -> Void = { _ in },
     onFigureCaptureChanged: @escaping (Bool) -> Void = { _ in },
     onFigureSourceChanged: @escaping (String) -> Void = { _ in },
@@ -97,6 +102,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     self.onPageCommandHandled = onPageCommandHandled
     self.onBookmarkModeChanged = onBookmarkModeChanged
     self.onTextRequested = onTextRequested
+    self.onLinkSelectionRequested = onLinkSelectionRequested
+    self.onFollowLink = onFollowLink
     self.onSaveClipping = onSaveClipping
     self.onFigureCaptureChanged = onFigureCaptureChanged
     self.onFigureSourceChanged = onFigureSourceChanged
@@ -162,13 +169,15 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     configureSelectionBar()
     canvasView.addInteraction(UIContextMenuInteraction(delegate: self))
     canvasView.addInteraction(UIDragInteraction(delegate: self))
-    let modeTap = UITapGestureRecognizer(target: self, action: #selector(handleModeTap))
-    modeTap.cancelsTouchesInView = false
-    modeTap.allowedTouchTypes = [
-      NSNumber(value: UITouch.TouchType.direct.rawValue),
-      NSNumber(value: UITouch.TouchType.pencil.rawValue),
-    ]
-    canvasView.addGestureRecognizer(modeTap)
+    let directTap = UITapGestureRecognizer(target: self, action: #selector(handleDirectTap))
+    directTap.cancelsTouchesInView = false
+    directTap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
+    canvasView.addGestureRecognizer(directTap)
+
+    let pencilTap = UITapGestureRecognizer(target: self, action: #selector(handlePencilModeTap))
+    pencilTap.cancelsTouchesInView = false
+    pencilTap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.pencil.rawValue)]
+    canvasView.addGestureRecognizer(pencilTap)
   }
 
   override func viewDidLayoutSubviews() {
@@ -441,6 +450,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     selectionBar.addArrangedSubview(selectionButton(
       label: "Bookmark selection", systemImage: "bookmark", action: #selector(bookmarkSelection)))
     selectionBar.addArrangedSubview(selectionButton(
+      label: "Link selection", systemImage: "link", action: #selector(linkSelection)))
+    selectionBar.addArrangedSubview(selectionButton(
       label: "Remove bookmark or link", systemImage: "link.badge.minus", action: #selector(ungroupSelection)))
     selectionBar.addArrangedSubview(selectionButton(
       label: "Save to clippings", systemImage: "tray.and.arrow.down", action: #selector(saveClipping)))
@@ -547,6 +558,11 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     }
   }
 
+  @objc private func linkSelection() {
+    guard let page = canvasView.selectionPage() else { return }
+    onLinkSelectionRequested(page)
+  }
+
   @objc private func ungroupSelection() {
     do {
       try canvasView.ungroupSelection()
@@ -604,6 +620,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
           canvasView.setDrawingSuppressed(true)
           onBookmarkModeChanged(true)
         }
+      case let .linkSelection(href):
+        try canvasView.linkSelection(href)
+        onEditCommitted()
       case let .jumpToMark(mark):
         scrollToMark(mark)
       case .requestTextAtCenter:
@@ -718,10 +737,22 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     }
   }
 
-  @objc private func handleModeTap(_ recognizer: UITapGestureRecognizer) {
+  @objc private func handleDirectTap(_ recognizer: UITapGestureRecognizer) {
     guard recognizer.state == .ended else { return }
     onFocusRequested()
     let point = recognizer.location(in: canvasView)
+    guard !handleModeTap(at: point), !figureCaptureActive, !figureCompleting else { return }
+    followLink(at: point)
+  }
+
+  @objc private func handlePencilModeTap(_ recognizer: UITapGestureRecognizer) {
+    guard recognizer.state == .ended else { return }
+    onFocusRequested()
+    _ = handleModeTap(at: recognizer.location(in: canvasView))
+  }
+
+  @discardableResult
+  private func handleModeTap(at point: CGPoint) -> Bool {
     if bookmarkMode {
       do {
         try canvasView.addBookmark(at: point)
@@ -730,10 +761,36 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
       } catch {
         onError(error)
       }
-      return
+      return true
     }
     if appliedTool == .text {
       requestText(at: point)
+      return true
+    }
+    return false
+  }
+
+  private func followLink(at point: CGPoint) {
+    do {
+      guard let page = canvasView.page(at: point) else { return }
+      let pageRect = try document.pageRect(index: page)
+      let contentPoint = documentView.convert(point, from: canvasView)
+      let local = CGPoint(
+        x: contentPoint.x - pageRect.minX,
+        y: contentPoint.y - pageRect.minY)
+
+      let marks = try document.navigation()
+      for mark in marks.reversed() where mark.page == page && !mark.href.isEmpty {
+        guard let x = mark.x, let y = mark.y, let width = mark.width, let height = mark.height else {
+          continue
+        }
+        if CGRect(x: x, y: y, width: width, height: height).contains(local) {
+          onFollowLink(mark.href, page)
+          return
+        }
+      }
+    } catch {
+      onError(error)
     }
   }
 
@@ -1073,6 +1130,8 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let onPageCommandHandled: () -> Void
   let onBookmarkModeChanged: (Bool) -> Void
   let onTextRequested: (EditorTextRequest) -> Void
+  let onLinkSelectionRequested: (Int) -> Void
+  let onFollowLink: (String, Int) -> Void
   let onSaveClipping: (String) -> Void
   let onFigureCaptureChanged: (Bool) -> Void
   let onFigureSourceChanged: (String) -> Void
@@ -1089,6 +1148,8 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       onPageCommandHandled: onPageCommandHandled,
       onBookmarkModeChanged: onBookmarkModeChanged,
       onTextRequested: onTextRequested,
+      onLinkSelectionRequested: onLinkSelectionRequested,
+      onFollowLink: onFollowLink,
       onSaveClipping: onSaveClipping,
       onFigureCaptureChanged: onFigureCaptureChanged,
       onFigureSourceChanged: onFigureSourceChanged,
@@ -1148,6 +1209,8 @@ struct InkEditorView: View {
   let onInsertImage: () -> Void
   let onShowClippings: () -> Void
   let onSaveClipping: (String) -> Void
+  let onLinkSelectionRequested: (Int) -> Void
+  let onFollowLink: (String, Int) -> Void
   let onDropClipping: (String, CGPoint) -> Bool
   let onDropSelection: (String, CGPoint) -> Bool
   let onCaptureChanged: (Bool) -> Void
@@ -1197,6 +1260,8 @@ struct InkEditorView: View {
             textRequest = request
           }
         },
+        onLinkSelectionRequested: onLinkSelectionRequested,
+        onFollowLink: onFollowLink,
         onSaveClipping: onSaveClipping,
         onFigureCaptureChanged: { capture in
           drawing = capture

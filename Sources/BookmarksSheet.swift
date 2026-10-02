@@ -11,7 +11,16 @@ struct BookmarkDestination: Identifiable {
 
 struct BookmarksRequest: Identifiable {
   let id = UUID()
+  let title: String
   let destinations: [BookmarkDestination]
+
+  init(
+    title: String = "Pages and bookmarks",
+    destinations: [BookmarkDestination]
+  ) {
+    self.title = title
+    self.destinations = destinations
+  }
 }
 
 struct BookmarksSheet: View {
@@ -50,7 +59,7 @@ struct BookmarksSheet: View {
         }
         .buttonStyle(.plain)
       }
-      .navigationTitle("Pages and bookmarks")
+      .navigationTitle(request.title)
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {

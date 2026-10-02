@@ -265,12 +265,22 @@ final class InkCanvasView: UIView {
   }
 
   func selectionFrame() -> CGRect? {
+    guard let info = selectionInfo() else { return nil }
+    return CGRect(x: info.x, y: info.y, width: info.width, height: info.height)
+  }
+
+  func selectionPage() -> Int? {
+    guard let info = selectionInfo(), info.page >= 0 else { return nil }
+    return Int(info.page)
+  }
+
+  private func selectionInfo() -> InkSelectionInfo? {
     guard let canvas else { return nil }
     var info = InkSelectionInfo()
     let status = ink_canvas_selection(canvas, &info)
     check(status, operation: "ink_canvas_selection")
     guard status == INK_OK, info.count > 0 else { return nil }
-    return CGRect(x: info.x, y: info.y, width: info.width, height: info.height)
+    return info
   }
 
   func bookmarkSelection() throws {
@@ -283,6 +293,12 @@ final class InkCanvasView: UIView {
     try require(
       ink_canvas_add_bookmark(canvas, point.x, point.y),
       operation: "Add bookmark")
+  }
+
+  func linkSelection(_ href: String) throws {
+    guard let canvas else { return }
+    let status = href.withCString { ink_canvas_link_selection(canvas, $0) }
+    try require(status, operation: "Link selection")
   }
 
   func ungroupSelection() throws {

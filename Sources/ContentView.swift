@@ -7,13 +7,28 @@ import UniformTypeIdentifiers
 private enum OpenNotePickerPurpose {
   case tab
   case reference
+  case linkTarget
 
   var title: String {
     switch self {
     case .tab: "Open Note"
     case .reference: "Choose Reference"
+    case .linkTarget: "Choose Linked Note"
     }
   }
+}
+
+private enum BookmarkPickerPurpose {
+  case navigate
+  case link
+}
+
+@MainActor
+private struct PendingLink {
+  let sourceReference: NotebookReference
+  let sourceFile: String
+  let viewState: OpenNotebookViewState
+  var targetReference: NotebookReference?
 }
 
 @MainActor
@@ -34,6 +49,8 @@ private struct NotebookEditorPane: View {
   let onInsertImage: () -> Void
   let onShowClippings: () -> Void
   let onSaveClipping: (String) -> Void
+  let onLinkSelectionRequested: (Int) -> Void
+  let onFollowLink: (String, Int) -> Void
   let onDropClipping: (String, CGPoint) -> Bool
   let onDropSelection: (String, CGPoint) -> Bool
   let onEditFigure: (String) -> Void
@@ -63,6 +80,8 @@ private struct NotebookEditorPane: View {
       onInsertImage: onInsertImage,
       onShowClippings: onShowClippings,
       onSaveClipping: onSaveClipping,
+      onLinkSelectionRequested: onLinkSelectionRequested,
+      onFollowLink: onFollowLink,
       onDropClipping: onDropClipping,
       onDropSelection: onDropSelection,
       onCaptureChanged: { viewState.captureActive = $0 },
@@ -108,6 +127,9 @@ struct ContentView: View {
   @State private var showingLayers = false
   @State private var goToPage: GoToPageRequest?
   @State private var bookmarks: BookmarksRequest?
+  @State private var bookmarkPickerPurpose: BookmarkPickerPurpose = .navigate
+  @State private var pendingLink: PendingLink?
+  @State private var showingLinkChooser = false
   @State private var clippings: ClippingsRequest?
   @State private var figureEditor: FigureEditorRequest?
   @State private var conflictReview: ConflictReviewRequest?
@@ -216,9 +238,16 @@ struct ContentView: View {
               openNotebook(reference)
             case .reference:
               showReference(reference)
+            case .linkTarget:
+              prepareLinkDestinations(reference)
             }
           },
-          onCancel: { showingOpenNotePicker = false })
+          onCancel: {
+            showingOpenNotePicker = false
+            if case .linkTarget = openNotePickerPurpose {
+              pendingLink = nil
+            }
+          })
       }
     }
     .sheet(item: $sharePayload) { payload in
@@ -340,7 +369,15 @@ struct ContentView: View {
       BookmarksSheet(
         request: request,
         onSelect: selectBookmark,
-        onCancel: { bookmarks = nil })
+        onCancel: cancelBookmarks)
+    }
+    .sheet(isPresented: $showingLinkChooser) {
+      LinkSelectionSheet(
+        onChoose: handleLinkChoice,
+        onCancel: {
+          showingLinkChooser = false
+          pendingLink = nil
+        })
     }
     .sheet(item: $figureEditor) { request in
       FigureEditorSheet(
@@ -549,6 +586,14 @@ struct ContentView: View {
       onSaveClipping: { svg in
         openNotes.focusRight(right)
         saveClipping(svg)
+      },
+      onLinkSelectionRequested: { page in
+        openNotes.focusRight(right)
+        prepareLink(note, viewState: viewState, sourcePage: page)
+      },
+      onFollowLink: { href, page in
+        openNotes.focusRight(right)
+        followLink(href, source: note, viewState: viewState, page: page)
       },
       onDropClipping: { id, point in
         openNotes.focusRight(right)
@@ -1415,28 +1460,210 @@ struct ContentView: View {
   private func prepareBookmarks(_ session: OpenNotebookSession) {
     do {
       bookmarkMode = false
-      let marks = try session.document.navigation()
-        .filter { $0.href.isEmpty && $0.hasPosition }
-        .sorted {
-          if $0.page != $1.page { return $0.page < $1.page }
-          return ($0.y ?? 0) < ($1.y ?? 0)
-        }
-      let destinations = marks.map { mark in
-        BookmarkDestination(
-          mark: mark,
-          preview: mark.id.isEmpty ? nil : try? session.document.bookmarkPNG(id: mark.id))
-      }
-      bookmarks = BookmarksRequest(destinations: destinations)
+      bookmarkPickerPurpose = .navigate
+      pendingLink = nil
+      bookmarks = BookmarksRequest(
+        destinations: try bookmarkDestinations(session.document))
     } catch {
       errorMessage = error.localizedDescription
     }
   }
 
+  private func bookmarkDestinations(_ document: EngineDocument) throws -> [BookmarkDestination] {
+    try document.navigation()
+      .filter { $0.href.isEmpty && $0.hasPosition }
+      .sorted {
+        if $0.page != $1.page { return $0.page < $1.page }
+        return ($0.y ?? 0) < ($1.y ?? 0)
+      }
+      .map { mark in
+        BookmarkDestination(
+          mark: mark,
+          preview: mark.id.isEmpty ? nil : try? document.bookmarkPNG(id: mark.id))
+      }
+  }
+
   private func selectBookmark(_ mark: EngineNavigationMark) {
     bookmarks = nil
-    bookmarkMode = false
-    currentPage = mark.page
-    editorPageCommand = .jumpToMark(mark)
+    switch bookmarkPickerPurpose {
+    case .navigate:
+      bookmarkMode = false
+      currentPage = mark.page
+      editorPageCommand = .jumpToMark(mark)
+    case .link:
+      guard let pending = pendingLink, let targetReference = pending.targetReference else {
+        pendingLink = nil
+        bookmarkPickerPurpose = .navigate
+        return
+      }
+      do {
+        let href = try NotebookLink.href(
+          source: pending.sourceReference,
+          sourceFile: pending.sourceFile,
+          target: targetReference,
+          mark: mark)
+        pending.viewState.editorPageCommand = .linkSelection(href)
+        pendingLink = nil
+        bookmarkPickerPurpose = .navigate
+      } catch {
+        errorMessage = error.localizedDescription
+      }
+    }
+  }
+
+  private func cancelBookmarks() {
+    bookmarks = nil
+    if case .link = bookmarkPickerPurpose {
+      pendingLink = nil
+      bookmarkPickerPurpose = .navigate
+    }
+  }
+
+  private func prepareLink(
+    _ source: OpenNotebookSession,
+    viewState: OpenNotebookViewState,
+    sourcePage: Int
+  ) {
+    do {
+      let sourceFile = try pageFile(source.document, page: sourcePage)
+      pendingLink = PendingLink(
+        sourceReference: source.reference,
+        sourceFile: sourceFile,
+        viewState: viewState,
+        targetReference: nil)
+      showingLinkChooser = true
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func handleLinkChoice(_ choice: LinkSelectionChoice) {
+    guard let pending = pendingLink else { return }
+    switch choice {
+    case .sameNotebook:
+      showingLinkChooser = false
+      prepareLinkDestinations(pending.sourceReference)
+    case .anotherNotebook:
+      showingLinkChooser = false
+      prepareOpenNotePicker(.linkTarget)
+    case let .href(href):
+      if applyPendingLink(href) {
+        showingLinkChooser = false
+      }
+    }
+  }
+
+  private func prepareLinkDestinations(_ reference: NotebookReference) {
+    guard let root, var pending = pendingLink else { return }
+    do {
+      let document: EngineDocument
+      if let opened = openNotes.find(reference) {
+        document = opened.document
+      } else {
+        document = try root.load(reference)
+      }
+      pending.targetReference = reference
+      pendingLink = pending
+      bookmarkPickerPurpose = .link
+      bookmarks = BookmarksRequest(
+        title: "Choose Link Destination",
+        destinations: try bookmarkDestinations(document))
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  @discardableResult
+  private func applyPendingLink(_ href: String) -> Bool {
+    guard let pending = pendingLink else { return false }
+    do {
+      _ = try NotebookLink.resolve(
+        source: pending.sourceReference,
+        sourceFile: pending.sourceFile,
+        href: href)
+      pending.viewState.editorPageCommand = .linkSelection(href)
+      pendingLink = nil
+      bookmarkPickerPurpose = .navigate
+      return true
+    } catch {
+      errorMessage = error.localizedDescription
+      return false
+    }
+  }
+
+  private func followLink(
+    _ href: String,
+    source: OpenNotebookSession,
+    viewState: OpenNotebookViewState,
+    page: Int
+  ) {
+    guard let root else { return }
+    do {
+      let sourceFile = try pageFile(source.document, page: page)
+      switch try NotebookLink.resolve(
+        source: source.reference,
+        sourceFile: sourceFile,
+        href: href)
+      {
+      case let .external(url):
+        guard UIApplication.shared.canOpenURL(url) else {
+          throw EngineDocumentError.operation(
+            "Open link",
+            "No application can open this link.")
+        }
+        UIApplication.shared.open(url, options: [:])
+
+      case let .page(reference, file, id):
+        let targetDocument: EngineDocument
+        let targetView: OpenNotebookViewState
+        if reference == source.reference {
+          targetDocument = source.document
+          targetView = viewState
+        } else {
+          let target = try openNotes.open(
+            reference,
+            save: { note in
+              try saveSession(note, using: root)
+            },
+            load: { reference in
+              try makeOpenSession(reference, using: root)
+            })
+          openNotes.focusRight(false)
+          targetDocument = target.document
+          targetView = target.primaryView
+        }
+
+        let targetMarks = try targetDocument.navigation()
+        guard let mark = targetMarks.first(where: { candidate in
+          candidate.href.isEmpty
+            && candidate.file == file
+            && candidate.id == id
+            && candidate.hasPosition
+        }) else {
+          throw EngineDocumentError.operation(
+            "Open link",
+            "The link destination is not in this notebook.")
+        }
+        targetView.currentPage = mark.page
+        targetView.editorPageCommand = .jumpToMark(mark)
+        clippings = nil
+        conflictReview = nil
+      }
+    } catch {
+      handleOpenNotesError(error)
+    }
+  }
+
+  private func pageFile(_ document: EngineDocument, page: Int) throws -> String {
+    let marks = try document.navigation()
+    guard let mark = marks.first(where: { candidate in
+      candidate.page == page && candidate.id.isEmpty && candidate.href.isEmpty
+    }) else {
+      throw EngineDocumentError.operation(
+        "Open link",
+        "The source page is not in this notebook.")
+    }
+    return mark.file
   }
 
   private func openFigureEditor(_ id: String) {
