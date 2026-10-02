@@ -171,6 +171,8 @@ class _EditorScreenState extends State<EditorScreen> {
   Timer? pullTimer;
   bool pullReady = false;
   bool atEnd = false;
+  bool navigationOpen = false;
+  int navigationTab = 0;
   static int nextView = 0;
   // The View menu's page layout for every notebook: 0 is vertical scroll, 1
   // is horizontal scroll, and 2 is two pages per row in vertical scroll.
@@ -1126,6 +1128,175 @@ class _EditorScreenState extends State<EditorScreen> {
     super.dispose();
   }
 
+  Widget navigationSidebar() {
+    final document = widget.note.document;
+    final marks = document.navigation().toDart
+        .where((mark) => mark.href.isEmpty && mark.id.isNotEmpty)
+        .toList()
+      ..sort((a, b) {
+        final order = a.page.compareTo(b.page);
+        return order == 0 ? a.y.compareTo(b.y) : order;
+      });
+    final layers = document.layers().toDart;
+    final tabs = ['Pages', 'Bookmarks', 'Outlines', 'Layers'];
+    return Container(
+      width: 296,
+      decoration: const BoxDecoration(
+        color: surface2,
+        border: Border(right: BorderSide(color: separator)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Text('Navigation', style: headline),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Wrap(
+              children: [
+                for (var index = 0; index < tabs.length; index++)
+                  SizedBox(
+                    width: 140,
+                    child: CupertinoButton(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      onPressed: () => setState(() => navigationTab = index),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        decoration: BoxDecoration(
+                          color: navigationTab == index ? selectedFill : null,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Center(
+                          child: Text(
+                            tabs[index],
+                            style: navigationTab == index ? subhead : callout,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Container(height: 1, color: separator),
+          Expanded(
+            child: switch (navigationTab) {
+              0 => ListView.builder(
+                padding: const EdgeInsets.all(12),
+                itemCount: document.pageCount() + 1,
+                itemBuilder: (context, index) {
+                  if (index == document.pageCount()) {
+                    return CupertinoButton(
+                      onPressed: () => run(showPages),
+                      child: const Text('Arrange pages'),
+                    );
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: CupertinoButton(
+                      padding: const EdgeInsets.all(8),
+                      onPressed: () => jump(index),
+                      child: Semantics(
+                        selected: page == index,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: page == index ? selectedFill : null,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              DecoratedBox(
+                                decoration: const BoxDecoration(
+                                  border: Border.fromBorderSide(
+                                    BorderSide(color: paperEdge),
+                                  ),
+                                ),
+                                child: Image.memory(
+                                  document.pagePng(index, 96).toDart,
+                                  width: 60,
+                                  height: 80,
+                                  fit: BoxFit.contain,
+                                  excludeFromSemantics: true,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Text('Page ${index + 1}', style: callout),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              1 => marks.isEmpty
+                  ? Center(child: Text('No bookmarks', style: callout))
+                  : ListView(
+                      children: [
+                        for (final mark in marks)
+                          CupertinoListTile(
+                            title: Text('Bookmark on page ${mark.page + 1}'),
+                            leading: const Icon(CupertinoIcons.bookmark),
+                            onTap: () => jumpToMark(mark),
+                          ),
+                      ],
+                    ),
+              2 => Center(child: Text('No outlines', style: callout)),
+              3 => ListView(
+                children: [
+                  for (var index = layers.length - 1; index >= 0; index--)
+                    CupertinoListTile(
+                      title: Text(layers[index].name),
+                      leading: const Icon(CupertinoIcons.square_stack),
+                      onTap: layers[index].hidden || layers[index].locked
+                          ? null
+                          : () => edit(() => canvas!.setLayer(index)),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CupertinoButton(
+                            padding: const EdgeInsets.all(4),
+                            onPressed: () => edit(() => document.setLayer(
+                              index,
+                              layers[index].name,
+                              !layers[index].hidden,
+                              layers[index].locked,
+                            )),
+                            child: Icon(
+                              layers[index].hidden
+                                  ? CupertinoIcons.eye_slash
+                                  : CupertinoIcons.eye,
+                              semanticLabel: layers[index].hidden
+                                  ? 'Show ${layers[index].name}'
+                                  : 'Hide ${layers[index].name}',
+                            ),
+                          ),
+                          CupertinoButton(
+                            padding: const EdgeInsets.all(4),
+                            onPressed: () => run(() => manageLayers(
+                              context, document, canvas!, edit,
+                            )),
+                            child: Icon(
+                              CupertinoIcons.ellipsis,
+                              semanticLabel: 'Edit ${layers[index].name}',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+              _ => throw StateError('Invalid navigation tab'),
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     context.watch<EditorViewModel>();
@@ -1170,16 +1341,32 @@ class _EditorScreenState extends State<EditorScreen> {
         autofocus: true,
         child: CupertinoPageScaffold(
           navigationBar: CupertinoNavigationBar(
-            leading: MergeSemantics(
-              child: Semantics(
-                label: 'Library',
-                button: true,
-                child: CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: () => run(widget.onLibrary),
-                  child: const Icon(LucideIcons.chevronLeft),
+            leading: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                MergeSemantics(
+                  child: Semantics(
+                    label: 'Library',
+                    button: true,
+                    child: CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: () => run(widget.onLibrary),
+                      child: const Icon(LucideIcons.chevronLeft),
+                    ),
+                  ),
                 ),
-              ),
+                MergeSemantics(
+                  child: Semantics(
+                    label: navigationOpen ? 'Close navigation' : 'Open navigation',
+                    button: true,
+                    child: CupertinoButton(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      onPressed: () => setState(() => navigationOpen = !navigationOpen),
+                      child: const Icon(LucideIcons.layoutGrid, size: 20),
+                    ),
+                  ),
+                ),
+              ],
             ),
             middle: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1256,6 +1443,7 @@ class _EditorScreenState extends State<EditorScreen> {
                 Expanded(
                   child: Row(
                     children: [
+                      if (navigationOpen) navigationSidebar(),
                       Expanded(
                         child: LayoutBuilder(
                           builder: (context, constraints) {

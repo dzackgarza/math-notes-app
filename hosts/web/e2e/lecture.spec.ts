@@ -23,6 +23,17 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   await button("Create").click();
   const canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
   await canvas.waitFor({ timeout: 30_000 });
+  await test.step("the left navigation opens pages, bookmarks, outlines, and layers", async () => {
+    await button("Open navigation").click();
+    await expect(page.getByText("Arrange pages", { exact: true })).toBeVisible();
+    await page.getByText("Bookmarks", { exact: true }).click();
+    await expect(page.getByText("No bookmarks", { exact: true })).toBeVisible();
+    await page.getByText("Outlines", { exact: true }).click();
+    await expect(page.getByText("No outlines", { exact: true })).toBeVisible();
+    await page.getByText("Layers", { exact: true }).click();
+    await expect(page.getByText("Ink", { exact: true })).toBeVisible();
+    await button("Close navigation").click();
+  });
   const box = await boxOf(canvas);
   const cdp = await page.context().newCDPSession(page);
   const pages = () => savedPages(page, title, notebook);

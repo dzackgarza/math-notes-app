@@ -66,7 +66,8 @@ toolbar and the tool popovers:
 
 ![Noteful pen tool](ui/noteful-pen-tool.webp)
 
-- **Top bar**: back to the library; the note title; **Open note**; the save
+- **Top bar**: back to the library; a button for the collapsible left navigation
+  sidebar; the note title; **Open note**; the save
   status as secondary text. Labeled pull-down menus at the right. Each menu
   holds the actions of one object:
   - **Pages** (the current page and the page sequence): page overview; go to
@@ -82,6 +83,9 @@ toolbar and the tool popovers:
     close the note; Settings.
   Navigation between pages belongs to scrolling, swipe, and the page
   counter, not to menu rows.
+- **Navigation sidebar**: tabs for page thumbnails, bookmarks, outlines, and
+  layers. A page thumbnail jumps to that page. Arrange pages opens the larger
+  reorder view. A layer row shows its name, visibility, and editing actions.
 - **Tabs**: a tab strip under the top bar while two or more notes are open,
   one tab per note with a close button. The active tab is marked by label
   color and selected semantics.
