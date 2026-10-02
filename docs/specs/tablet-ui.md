@@ -13,8 +13,8 @@ are the reference for look and interaction.
 
 ![Library](ui/tablet-library.png)
 
-- **Sidebar**, always visible: the app name; Library, Search, Recent,
-  Favorites, Trash; a Tags list with a color and a count per tag, and
+- **Sidebar**, always visible: the app name; Library, Recent,
+  Pinned, Trash; a Tags list with a color and a count per tag, and
   **+** to add a tag; Settings at the bottom.
 - **Main pane**: title "Library" and a one-line description; **New Notebook**
   (secondary) and **New Note** (primary) buttons; a search field; a filter
@@ -204,6 +204,5 @@ The mockups add the following to FORMAT.md and FEATURES.md:
    new-note fields (paper, size, tags, and so on) that the user saves and
    reuses. The names in the mockup are sample content.
 4. **Tabs** of open notes in the editor.
-5. **Search, Recent, Favorites** are views of one table of notes: Search
-   filters by title, Recent sorts by modification time, and Favorites filters
-   by a favorite flag stored with the other metadata.
+5. The Library search field filters by title. **Recent** sorts notes by
+   modification time. **Pinned** filters by the saved pin flag.

@@ -65,8 +65,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
             (
               'favorite',
               folder.noteMetadata(note).favorite
-                  ? 'Remove favorite'
-                  : 'Add favorite',
+                  ? 'Unpin note'
+                  : 'Pin note',
             ),
             ('details', 'Details and tags'),
             ('rename', 'Rename'),
@@ -434,7 +434,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   ];
 
   String get filterLabel => switch (vm.filter) {
-    'favorites' => 'Favorites',
+    'favorites' => 'Pinned',
     'recent' => 'Recent',
     'trash' => 'Trash',
     'tag' => vm.selectedTag!,
@@ -452,7 +452,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     for (final (value, title) in const [
       ('all', 'All'),
       ('recent', 'Recent'),
-      ('favorites', 'Favorites'),
+      ('favorites', 'Pinned'),
       ('trash', 'Trash'),
     ])
       PullDownMenuItem.selectable(
@@ -496,7 +496,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     vm.query.isNotEmpty
                         ? 'Nothing matches "${vm.query}".'
                         : switch (vm.filter) {
-                            'favorites' => 'No favorite notes.',
+                            'favorites' => 'No pinned notes.',
                             'recent' => 'No recent notes.',
                             'trash' => 'The trash is empty.',
                             _ => 'Nothing has the tag ${vm.selectedTag}.',
@@ -748,16 +748,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
         },
       ),
       (
-        label: 'Search',
-        icon: CupertinoIcons.search,
-        selected: vm.filter == 'all' && vm.query.isNotEmpty,
-        action: () {
-          vm.showNotebook(null);
-          vm.setFilter('all');
-          searchFocus.requestFocus();
-        },
-      ),
-      (
         label: 'Recent',
         icon: CupertinoIcons.clock,
         selected: vm.filter == 'recent',
@@ -769,8 +759,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
         },
       ),
       (
-        label: 'Favorites',
-        icon: CupertinoIcons.star,
+        label: 'Pinned',
+        icon: CupertinoIcons.pin,
         selected: vm.filter == 'favorites',
         action: () {
           vm.showNotebook(null);

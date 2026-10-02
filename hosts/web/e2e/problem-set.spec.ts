@@ -256,8 +256,8 @@ test("Flutter problem set session: pages written, pulled in, reordered, inserted
     await expect(page.getByText("2 / 4", { exact: true })).toBeVisible();
     await button("Library").click();
     await button(`${first} actions`).click();
-    await button("Add favorite").click();
-    await page.getByText("Favorites", { exact: true }).click();
+    await button("Pin note").click();
+    await page.getByText("Pinned", { exact: true }).click();
     await expect(page.getByRole("button", { name: `Open ${first}`, exact: false })).toBeVisible();
     await expect(page.getByRole("button", { name: `Open ${next}`, exact: false })).not.toBeVisible();
     await expect.poll(() => whenSaved(() => page.evaluate(async (key) => {
@@ -282,7 +282,7 @@ test("Flutter problem set session: pages written, pulled in, reordered, inserted
   await test.step("back online, the favorite stays", async () => {
     await page.context().setOffline(false);
     await page.reload();
-    await page.getByText("Favorites", { exact: true }).click();
+    await page.getByText("Pinned", { exact: true }).click();
     await expect(page.getByRole("button", { name: `Open ${first}`, exact: false })).toBeVisible();
   });
 });

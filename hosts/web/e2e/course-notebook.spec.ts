@@ -120,7 +120,7 @@ test("Flutter course notebook: set up a course notebook", async ({ page }, info)
   });
 
   await test.step("the user trashes the note from its card menu and checks the library chrome", async () => {
-    const noteMenu = ["Add favorite", "Details and tags", "Rename", "Move", "Move to trash"].map(button);
+    const noteMenu = ["Pin note", "Details and tags", "Rename", "Move", "Move to trash"].map(button);
     await openMenuAt(button("Week 1 actions"), noteMenu);
     await page.screenshot({ path: info.outputPath("note-menu.png") });
     await button("Move to trash").click();

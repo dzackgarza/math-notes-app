@@ -290,8 +290,8 @@ test("Flutter lifetime: first year with one notes folder", async ({ page, baseUR
     await expect(page.getByRole("button", { name: "Open Integrals", exact: false })).toBeVisible();
     await expect(page.getByRole("button", { name: "Open Compactness", exact: false })).toHaveCount(0);
     await button("Integrals actions").click();
-    await button("Add favorite").click();
-    await page.getByText("Favorites", { exact: true }).click();
+    await button("Pin note").click();
+    await page.getByText("Pinned", { exact: true }).click();
     await expect(page.getByRole("button", { name: "Open Integrals", exact: false })).toBeVisible();
     await expect(page.getByRole("button", { name: "Open Compactness", exact: false })).toHaveCount(0);
   });
