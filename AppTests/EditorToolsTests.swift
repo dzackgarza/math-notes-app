@@ -26,6 +26,12 @@ final class EditorToolsTests: XCTestCase {
   func testEraserModesMapToTheSharedEngineABI() {
     XCTAssertEqual(EditorEraserMode.stroke.engineValue, INK_ERASER_STROKE)
     XCTAssertEqual(EditorEraserMode.partial.engineValue, INK_ERASER_FREE)
+    XCTAssertEqual(EditorEraserMode.ruled.engineValue, INK_ERASER_STROKE)
+    XCTAssertNil(EditorEraserMode.stroke.selectorValue)
+    XCTAssertNil(EditorEraserMode.partial.selectorValue)
+    XCTAssertEqual(
+      EditorEraserMode.ruled.selectorValue?.rawValue,
+      INK_SELECTOR_RULED_ERASE.rawValue)
   }
 
   func testSelectorModesMapToTheSharedEngineABI() {

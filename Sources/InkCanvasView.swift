@@ -94,22 +94,24 @@ final class InkCanvasView: UIView {
         operation: "ink_canvas_set_eraser")
     }
 
-    func setLasso(active: Bool) {
+    func setSelector(_ kind: InkSelector, active: Bool) {
       check(
-        ink_canvas_set_selector(canvas, selectorMode.engineValue, active ? 1 : 0),
+        ink_canvas_set_selector(canvas, kind, active ? 1 : 0),
         operation: "ink_canvas_set_selector")
     }
 
     switch tool {
     case .eraser:
-      setLasso(active: false)
-      setEraser(active: true)
+      if let selector = eraserMode.selectorValue {
+        setSelector(selector, active: true)
+      } else {
+        setEraser(active: true)
+      }
     case .lasso:
-      setEraser(active: false)
-      setLasso(active: true)
+      setSelector(selectorMode.engineValue, active: true)
     case .pen, .marker, .highlighter:
       setEraser(active: false)
-      setLasso(active: false)
+      setSelector(selectorMode.engineValue, active: false)
       var settings = switch tool {
       case .pen: pens.pen
       case .marker: pens.marker

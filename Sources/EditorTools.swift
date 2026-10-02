@@ -34,13 +34,21 @@ enum EditorTool: String, CaseIterable, Identifiable {
 enum EditorEraserMode: String, CaseIterable, Identifiable {
   case stroke = "Stroke"
   case partial = "Partial"
+  case ruled = "Ruled"
 
   var id: Self { self }
 
   var engineValue: InkEraser {
     switch self {
-    case .stroke: INK_ERASER_STROKE
+    case .stroke, .ruled: INK_ERASER_STROKE
     case .partial: INK_ERASER_FREE
+    }
+  }
+
+  var selectorValue: InkSelector? {
+    switch self {
+    case .stroke, .partial: nil
+    case .ruled: INK_SELECTOR_RULED_ERASE
     }
   }
 
@@ -48,6 +56,7 @@ enum EditorEraserMode: String, CaseIterable, Identifiable {
     switch self {
     case .stroke: "scribble.variable"
     case .partial: "eraser"
+    case .ruled: "ruler"
     }
   }
 }
