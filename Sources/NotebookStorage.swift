@@ -25,6 +25,7 @@ struct LibraryFolderItem: Identifiable {
 struct LibraryNotebookItem: Identifiable {
   let reference: NotebookReference
   let modified: Date
+  let favorite: Bool
 
   var id: String { reference.id }
 }
@@ -39,6 +40,124 @@ struct NotebookReference: Hashable, Identifiable {
 
   var id: String { path.joined(separator: "/") }
   var name: String { path.last ?? "Untitled" }
+}
+
+enum LibraryMetadataFile {
+  static let name = ".library.json"
+
+  static func read(at root: URL) throws -> Data? {
+    let file = root.appendingPathComponent(name)
+    guard FileManager.default.fileExists(atPath: file.path) else { return nil }
+    return try Data(contentsOf: file)
+  }
+
+  static func favoritePaths(in data: Data?) throws -> Set<String> {
+    let root = try object(from: data)
+    let notes = root["notes"] as? [String: Any] ?? [:]
+    return Set(notes.compactMap { key, value in
+      guard let note = value as? [String: Any], note["favorite"] as? Bool == true else {
+        return nil
+      }
+      return key
+    })
+  }
+
+  static func settingFavorite(
+    in data: Data?,
+    path: [String],
+    favorite: Bool
+  ) throws -> Data {
+    var root = try object(from: data)
+    var notes = root["notes"] as? [String: Any] ?? [:]
+    let key = path.joined(separator: "/")
+    var note = notes[key] as? [String: Any] ?? [
+      "favorite": false,
+      "tags": [String](),
+      "description": "",
+    ]
+    note["favorite"] = favorite
+    if note["tags"] == nil { note["tags"] = [String]() }
+    if note["description"] == nil { note["description"] = "" }
+    notes[key] = note
+    root["notes"] = notes
+    return try encoded(root)
+  }
+
+  static func moving(
+    in data: Data?,
+    from source: [String],
+    to destination: [String]
+  ) throws -> Data? {
+    guard data != nil else { return nil }
+    var root = try object(from: data)
+    let sourceKey = source.joined(separator: "/")
+    let destinationKey = destination.joined(separator: "/")
+
+    func remap(_ values: [String: Any]) -> [String: Any] {
+      var result: [String: Any] = [:]
+      for (key, value) in values {
+        let inside = key == sourceKey || key.hasPrefix("\(sourceKey)/")
+        result[
+          inside ? destinationKey + String(key.dropFirst(sourceKey.count)) : key
+        ] = value
+      }
+      return result
+    }
+
+    func remapPath(_ path: [String]) -> [String] {
+      guard path.count >= source.count,
+        Array(path.prefix(source.count)) == source
+      else { return path }
+      return destination + Array(path.dropFirst(source.count))
+    }
+
+    root["notes"] = remap(root["notes"] as? [String: Any] ?? [:])
+    root["folders"] = remap(root["folders"] as? [String: Any] ?? [:])
+
+    if let templates = root["startingTemplates"] as? [[String: Any]] {
+      root["startingTemplates"] = templates.map { template in
+        var updated = template
+        if let folder = template["folder"] as? [String] {
+          updated["folder"] = remapPath(folder)
+        }
+        return updated
+      }
+    }
+
+    if var draft = root["draft"] as? [String: Any],
+      let folder = draft["folder"] as? [String]
+    {
+      draft["folder"] = remapPath(folder)
+      root["draft"] = draft
+    }
+
+    return try encoded(root)
+  }
+
+  private static func object(from data: Data?) throws -> [String: Any] {
+    guard let data else {
+      return [
+        "format": "math-notes-library",
+        "version": 1,
+        "tags": [[String: String]](),
+        "notes": [String: Any](),
+        "folders": [String: Any](),
+        "startingTemplates": [[String: Any]](),
+      ]
+    }
+    guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+      throw NotebookStorageError.coordinationFailed(name)
+    }
+    return root
+  }
+
+  private static func encoded(_ root: [String: Any]) throws -> Data {
+    var data = try JSONSerialization.data(
+      withJSONObject: root,
+      options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+    data.append(0x0A)
+    return data
+  }
 }
 
 enum NotebookStorageError: LocalizedError {
@@ -236,6 +355,8 @@ final class NotesRootAccess {
       let directory = parent.path.reduce(root) { partial, component in
         partial.appendingPathComponent(component, isDirectory: true)
       }
+      let favoritePaths = try LibraryMetadataFile.favoritePaths(
+        in: LibraryMetadataFile.read(at: root))
       let children = try FileManager.default.contentsOfDirectory(
         at: directory,
         includingPropertiesForKeys: [.isDirectoryKey],
@@ -256,7 +377,8 @@ final class NotesRootAccess {
           notebooks.append(
             LibraryNotebookItem(
               reference: NotebookReference(path: path),
-              modified: try Self.notebookModification(at: child)))
+              modified: try Self.notebookModification(at: child),
+              favorite: favoritePaths.contains(path.joined(separator: "/"))))
         } else {
           folders.append(
             LibraryFolderItem(
@@ -298,6 +420,8 @@ final class NotesRootAccess {
 
     return try coordinatedRead(at: url) { root in
       let fileManager = FileManager.default
+      let favoritePaths = try LibraryMetadataFile.favoritePaths(
+        in: LibraryMetadataFile.read(at: root))
       var folders: [LibraryFolderItem] = []
       var notebooks: [LibraryNotebookItem] = []
 
@@ -321,7 +445,8 @@ final class NotesRootAccess {
               notebooks.append(
                 LibraryNotebookItem(
                   reference: NotebookReference(path: childPath),
-                  modified: try Self.notebookModification(at: child)))
+                  modified: try Self.notebookModification(at: child),
+                  favorite: favoritePaths.contains(childPath.joined(separator: "/"))))
             }
           } else {
             if name.localizedCaseInsensitiveContains(needle) {
@@ -364,6 +489,8 @@ final class NotesRootAccess {
   func allNotes(sort: LibrarySort) throws -> LibraryListing {
     try coordinatedRead(at: url) { root in
       let fileManager = FileManager.default
+      let favoritePaths = try LibraryMetadataFile.favoritePaths(
+        in: LibraryMetadataFile.read(at: root))
       var notebooks: [LibraryNotebookItem] = []
 
       func visit(_ directory: URL, path: [String]) throws {
@@ -383,9 +510,10 @@ final class NotesRootAccess {
             atPath: child.appendingPathComponent("notebook.json").path)
           {
             notebooks.append(
-              LibraryNotebookItem(
-                reference: NotebookReference(path: childPath),
-                modified: try Self.notebookModification(at: child)))
+            LibraryNotebookItem(
+              reference: NotebookReference(path: childPath),
+              modified: try Self.notebookModification(at: child),
+              favorite: favoritePaths.contains(childPath.joined(separator: "/"))))
           } else {
             try visit(child, path: childPath)
           }
@@ -406,6 +534,25 @@ final class NotesRootAccess {
         }
       }
       return LibraryListing(folders: [], notebooks: notebooks)
+    }
+  }
+
+  func favoriteNotes(sort: LibrarySort) throws -> LibraryListing {
+    let listing = try allNotes(sort: sort)
+    return LibraryListing(
+      folders: [],
+      notebooks: listing.notebooks.filter(\.favorite))
+  }
+
+  func setFavorite(_ favorite: Bool, for reference: NotebookReference) throws {
+    try coordinatedWrite(at: url, options: .forMerging) { root in
+      let updated = try LibraryMetadataFile.settingFavorite(
+        in: LibraryMetadataFile.read(at: root),
+        path: reference.path,
+        favorite: favorite)
+      try updated.write(
+        to: root.appendingPathComponent(LibraryMetadataFile.name),
+        options: .atomic)
     }
   }
 
@@ -437,6 +584,7 @@ final class NotesRootAccess {
     let source = urlForPath(path)
     let destination = urlForPath(destinationPath)
     try coordinatedMove(from: source, to: destination, name: cleanName)
+    try moveLibraryMetadata(from: path, to: destinationPath)
     thumbnailCache.removeAll()
     return destinationPath
   }
@@ -674,6 +822,20 @@ final class NotesRootAccess {
     let directory = urlForPath(path)
     return try coordinatedRead(at: directory) { coordinatedDirectory in
       try FileManager.default.contentsOfDirectory(atPath: coordinatedDirectory.path)
+    }
+  }
+
+  private func moveLibraryMetadata(from source: [String], to destination: [String]) throws {
+    try coordinatedWrite(at: url, options: .forMerging) { root in
+      guard let current = try LibraryMetadataFile.read(at: root),
+        let updated = try LibraryMetadataFile.moving(
+          in: current,
+          from: source,
+          to: destination)
+      else { return }
+      try updated.write(
+        to: root.appendingPathComponent(LibraryMetadataFile.name),
+        options: .atomic)
     }
   }
 

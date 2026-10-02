@@ -4,6 +4,7 @@ import UIKit
 enum LibraryScope: String {
   case folder
   case recent
+  case favorites
 }
 
 @MainActor
@@ -26,6 +27,7 @@ struct NativeLibraryView: View {
   let renameEntry: (LibraryEntryTarget) -> Void
   let moveEntry: (LibraryEntryTarget) -> Void
   let trashEntry: (LibraryEntryTarget) -> Void
+  let toggleFavorite: (LibraryNotebookItem) -> Void
   let refresh: () -> Void
   let chooseRoot: () -> Void
 
@@ -42,6 +44,12 @@ struct NativeLibraryView: View {
           Label("No Recent Notes", systemImage: "clock")
         } description: {
           Text("Notes appear here after they are created or edited.")
+        }
+      } else if scope == .favorites && listing.notebooks.isEmpty {
+        ContentUnavailableView {
+          Label("No Favorites", systemImage: "star")
+        } description: {
+          Text("Add a note to Favorites from its menu.")
         }
       } else if listing.folders.isEmpty && listing.notebooks.isEmpty {
         ContentUnavailableView {
@@ -89,7 +97,13 @@ struct NativeLibraryView: View {
       }
     }
     .navigationTitle(
-      !query.isEmpty ? "Search" : scope == .recent ? "Recent" : folder.name)
+      !query.isEmpty
+        ? "Search"
+        : scope == .recent
+        ? "Recent"
+        : scope == .favorites
+        ? "Favorites"
+        : folder.name)
     .navigationBarTitleDisplayMode(.large)
     .searchable(
       text: $query,
@@ -134,6 +148,16 @@ struct NativeLibraryView: View {
               Label("Recent", systemImage: "checkmark")
             } else {
               Label("Recent", systemImage: "clock")
+            }
+          }
+
+          Button {
+            scope = .favorites
+          } label: {
+            if scope == .favorites {
+              Label("Favorites", systemImage: "checkmark")
+            } else {
+              Label("Favorites", systemImage: "star")
             }
           }
 
@@ -209,6 +233,18 @@ struct NativeLibraryView: View {
     }
   }
 
+  @ViewBuilder
+  private func noteActions(_ item: LibraryNotebookItem) -> some View {
+    Button(
+      item.favorite ? "Remove Favorite" : "Add Favorite",
+      systemImage: item.favorite ? "star.fill" : "star")
+    {
+      toggleFavorite(item)
+    }
+    Divider()
+    entryActions(LibraryEntryTarget(path: item.reference.path, kind: .note))
+  }
+
   private func folderCard(_ item: LibraryFolderItem) -> some View {
     Button {
       openFolder(item.reference)
@@ -262,7 +298,7 @@ struct NativeLibraryView: View {
           .font(.headline)
           .lineLimit(2)
 
-        if !query.isEmpty || scope == .recent {
+        if !query.isEmpty || scope == .recent || scope == .favorites {
           let parent = item.reference.path.dropLast().joined(separator: " / ")
           if !parent.isEmpty {
             Text(parent)
@@ -280,7 +316,7 @@ struct NativeLibraryView: View {
     .buttonStyle(.plain)
     .accessibilityLabel("Open \(item.reference.name)")
     .contextMenu {
-      entryActions(LibraryEntryTarget(path: item.reference.path, kind: .note))
+      noteActions(item)
     }
   }
 
@@ -328,7 +364,7 @@ struct NativeLibraryView: View {
         VStack(alignment: .leading, spacing: 4) {
           Text(item.reference.name)
             .font(.headline)
-          if !query.isEmpty || scope == .recent {
+          if !query.isEmpty || scope == .recent || scope == .favorites {
             let parent = item.reference.path.dropLast().joined(separator: " / ")
             if !parent.isEmpty {
               Text(parent)
@@ -344,7 +380,7 @@ struct NativeLibraryView: View {
     }
     .buttonStyle(.plain)
     .contextMenu {
-      entryActions(LibraryEntryTarget(path: item.reference.path, kind: .note))
+      noteActions(item)
     }
   }
 }

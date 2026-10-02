@@ -308,6 +308,7 @@ struct ContentView: View {
       renameEntry: { prepareLibraryMutation(.rename($0)) },
       moveEntry: { prepareLibraryMutation(.move($0)) },
       trashEntry: moveLibraryEntryToTrash,
+      toggleFavorite: toggleFavorite,
       refresh: refreshLibrary,
       chooseRoot: { showingFolderPicker = true })
   }
@@ -374,9 +375,16 @@ struct ContentView: View {
 
     do {
       if !libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        libraryListing = try root.searchLibrary(query: libraryQuery, sort: librarySort)
+        let listing = try root.searchLibrary(query: libraryQuery, sort: librarySort)
+        libraryListing = libraryScope == .favorites
+          ? LibraryListing(
+            folders: [],
+            notebooks: listing.notebooks.filter(\.favorite))
+          : listing
       } else if libraryScope == .recent {
         libraryListing = try root.allNotes(sort: librarySort)
+      } else if libraryScope == .favorites {
+        libraryListing = try root.favoriteNotes(sort: librarySort)
       } else {
         libraryListing = try root.library(in: libraryFolder, sort: librarySort)
       }
@@ -466,6 +474,16 @@ struct ContentView: View {
     guard let root else { return }
     do {
       _ = try root.moveToTrash(path: entry.path)
+      refreshLibrary()
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func toggleFavorite(_ item: LibraryNotebookItem) {
+    guard let root else { return }
+    do {
+      try root.setFavorite(!item.favorite, for: item.reference)
       refreshLibrary()
     } catch {
       errorMessage = error.localizedDescription

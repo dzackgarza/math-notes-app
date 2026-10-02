@@ -242,6 +242,81 @@ final class NotebookStorageTests: XCTestCase {
     XCTAssertThrowsError(try validatedLibraryName("A\\B"))
   }
 
+  func testLibraryFavoriteMetadataPersistsAndFollowsMoves() throws {
+    let original = Data(
+      """
+      {
+        "format": "math-notes-library",
+        "version": 1,
+        "tags": [{ "name": "Research", "color": "#2F6FEB" }],
+        "notes": {
+          "Analysis/Integrals": {
+            "favorite": false,
+            "tags": ["Research"],
+            "description": "Measure theory"
+          }
+        },
+        "folders": {
+          "Analysis": {
+            "description": "Analysis notes",
+            "paper": "grid-medium",
+            "coverColor": "#24324A",
+            "coverStyle": "spine",
+            "tags": ["Research"]
+          }
+        },
+        "startingTemplates": [{
+          "name": "Seminar notes",
+          "folder": ["Analysis"],
+          "paper": "grid-medium",
+          "pageSize": "letter",
+          "tags": ["Research"]
+        }],
+        "draft": {
+          "folder": ["Analysis"],
+          "title": "Derived categories",
+          "template": "grid-medium",
+          "tags": ["Research"],
+          "pageSize": "letter"
+        }
+      }
+      """.utf8)
+
+    let favored = try LibraryMetadataFile.settingFavorite(
+      in: original,
+      path: ["Analysis", "Integrals"],
+      favorite: true)
+    XCTAssertEqual(
+      try LibraryMetadataFile.favoritePaths(in: favored),
+      Set(["Analysis/Integrals"]))
+
+    let moved = try XCTUnwrap(
+      LibraryMetadataFile.moving(
+        in: favored,
+        from: ["Analysis"],
+        to: ["Real analysis"]))
+    XCTAssertEqual(
+      try LibraryMetadataFile.favoritePaths(in: moved),
+      Set(["Real analysis/Integrals"]))
+
+    let root = try XCTUnwrap(
+      JSONSerialization.jsonObject(with: moved) as? [String: Any])
+    let notes = try XCTUnwrap(root["notes"] as? [String: Any])
+    let note = try XCTUnwrap(notes["Real analysis/Integrals"] as? [String: Any])
+    XCTAssertEqual(note["tags"] as? [String], ["Research"])
+    XCTAssertEqual(note["description"] as? String, "Measure theory")
+    XCTAssertNil(notes["Analysis/Integrals"])
+
+    let folders = try XCTUnwrap(root["folders"] as? [String: Any])
+    XCTAssertNotNil(folders["Real analysis"])
+    XCTAssertNil(folders["Analysis"])
+
+    let templates = try XCTUnwrap(root["startingTemplates"] as? [[String: Any]])
+    XCTAssertEqual(templates.first?["folder"] as? [String], ["Real analysis"])
+    let draft = try XCTUnwrap(root["draft"] as? [String: Any])
+    XCTAssertEqual(draft["folder"] as? [String], ["Real analysis"])
+  }
+
   func testWritesAssetsThenPagesThenNotebookMetadataThenDeletes() {
     let changes = [
       EngineFileChange(path: "pages/0002.svg", kind: .delete),
