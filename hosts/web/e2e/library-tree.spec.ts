@@ -21,6 +21,17 @@ test("the library tree opens notes and offers explicit creation targets", async 
   await expect(page.getByRole("heading", { name: "Tree note", exact: true })).toBeVisible();
 
   await button("Library").click();
+  await button("Tree note actions").click();
+  await button("Pin note").click();
+  await button("Pinned").click();
+  await expect(button("Test Notebook")).toHaveCount(2);
+  await button("Test Notebook").last().click();
+  await expect(button("Tree note")).toHaveCount(2);
+  await button("Tree note actions").click();
+  await button("Move to trash").click();
+  await expect(button("Tree note")).toHaveCount(0);
+  await button("Trash").click();
+  await expect(button("Tree note")).toBeVisible();
   await button("Back to library").click();
   await button("Create options").click();
   await button("New note in Test Notebook").click();

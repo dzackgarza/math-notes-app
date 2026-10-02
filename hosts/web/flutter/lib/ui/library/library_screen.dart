@@ -33,7 +33,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
   bool libraryExpanded = true;
   bool untaggedExpanded = false;
   bool trashExpanded = false;
+  bool recentExpanded = false;
+  bool pinnedExpanded = false;
   final expandedNotebooks = <String>{};
+  final expandedGroups = <String>{};
 
   LibraryViewModel get vm => context.read<LibraryViewModel>();
   NotesFolder get folder => context.read<NotesFolder>();
@@ -890,6 +893,45 @@ class _LibraryScreenState extends State<LibraryScreen> {
     ];
   }
 
+  List<Widget> noteGroup(String group, Iterable<native.Note> notes) {
+    final matching = notes.where(treeNoteMatches).toList();
+    final folders = vm.library.folders.toDart.where((item) {
+      final key = native.pathKey(item.path);
+      return matching.any((note) =>
+          native.pathKey(note.path.toDart.sublist(0, note.path.length - 1).toJS) ==
+          key);
+    }).toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+    return [
+      for (final item in folders) ...[
+        treeRow(
+          text: item.path.length == 0 ? 'My Notes' : item.name,
+          icon: CupertinoIcons.book,
+          depth: 1,
+          trailing: expandedGroups.contains('$group/${native.pathKey(item.path)}')
+              ? CupertinoIcons.chevron_down
+              : CupertinoIcons.chevron_right,
+          onPressed: () => setState(() {
+            final key = '$group/${native.pathKey(item.path)}';
+            if (!expandedGroups.remove(key)) expandedGroups.add(key);
+          }),
+        ),
+        if (expandedGroups.contains('$group/${native.pathKey(item.path)}') ||
+            vm.query.isNotEmpty)
+          for (final note in matching.where((note) =>
+              native.pathKey(
+                note.path.toDart.sublist(0, note.path.length - 1).toJS,
+              ) == native.pathKey(item.path)))
+            treeRow(
+              text: note.name,
+              icon: CupertinoIcons.doc_text,
+              depth: 2,
+              onPressed: () => run(() => session.open(note.path)),
+            ),
+      ],
+    ];
+  }
+
   Widget sidebar() {
     final tags = vm.library.metadata.tags.toDart;
     final topNotebooks = vm.library.folders.toDart
@@ -974,6 +1016,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
                       ? Icon(libraryExpanded
                             ? CupertinoIcons.chevron_down
                             : CupertinoIcons.chevron_right, size: 14)
+                      : item.label == 'Recent'
+                      ? Icon(recentExpanded
+                            ? CupertinoIcons.chevron_down
+                            : CupertinoIcons.chevron_right, size: 14)
+                      : item.label == 'Pinned'
+                      ? Icon(pinnedExpanded
+                            ? CupertinoIcons.chevron_down
+                            : CupertinoIcons.chevron_right, size: 14)
                       : item.label == 'Trash'
                       ? Icon(trashExpanded
                             ? CupertinoIcons.chevron_down
@@ -983,6 +1033,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     item.action();
                     if (item.label == 'Library') {
                       setState(() => libraryExpanded = !libraryExpanded);
+                    } else if (item.label == 'Recent') {
+                      setState(() => recentExpanded = !recentExpanded);
+                    } else if (item.label == 'Pinned') {
+                      setState(() => pinnedExpanded = !pinnedExpanded);
                     } else if (item.label == 'Trash') {
                       setState(() => trashExpanded = !trashExpanded);
                     }
@@ -1001,16 +1055,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     ),
                   ),
                   if (untaggedExpanded)
-                    for (final note in notes.where(
-                      (note) => folder.noteMetadata(note).tags.length == 0 &&
-                          treeNoteMatches(note),
-                    ))
-                      treeRow(
-                        text: note.name,
-                        icon: CupertinoIcons.doc_text,
-                        depth: 2,
-                        onPressed: () => run(() => session.open(note.path)),
-                      ),
+                    ...noteGroup(
+                      'untagged',
+                      notes.where((note) =>
+                          folder.noteMetadata(note).tags.length == 0),
+                    ),
                   for (final notebook in topNotebooks)
                     ...notebookBranch(notebook, 1),
                 ],
@@ -1022,6 +1071,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
                       depth: 1,
                       onPressed: () => vm.setFilter('trash'),
                     ),
+                if (item.label == 'Recent' && recentExpanded)
+                  ...noteGroup('recent', notes),
+                if (item.label == 'Pinned' && pinnedExpanded)
+                  ...noteGroup(
+                    'pinned',
+                    notes.where((note) => folder.noteMetadata(note).favorite),
+                  ),
               ],
               if (tags.isNotEmpty)
                 Padding(
@@ -1033,7 +1089,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 )
               else
                 const SizedBox(height: 12),
-                      for (final tag in tags)
+                      for (final tag in tags) ...[
                         sidebarRow(
                           leading: Icon(
                             CupertinoIcons.circle_fill,
@@ -1045,17 +1101,42 @@ class _LibraryScreenState extends State<LibraryScreen> {
                               vm.filter == 'tag' && vm.selectedTag == tag.name,
                           // The tag view lists the notebooks and the notes
                           // that carry the tag; the count counts both.
-                          trailing: Text(
-                            '${vm.library.folders.toDart.where((item) => tagged(folder.folderMetadata(item.path).tags, tag.name)).length + notes.where((note) => tagged(folder.noteMetadata(note).tags, tag.name)).length}',
-                            style: callout.copyWith(color: secondaryLabel),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '${vm.library.folders.toDart.where((item) => tagged(folder.folderMetadata(item.path).tags, tag.name)).length + notes.where((note) => tagged(folder.noteMetadata(note).tags, tag.name)).length}',
+                                style: callout.copyWith(color: secondaryLabel),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                expandedGroups.contains('tag:${tag.name}')
+                                    ? CupertinoIcons.chevron_down
+                                    : CupertinoIcons.chevron_right,
+                                size: 14,
+                              ),
+                            ],
                           ),
                           onPressed: () {
                             vm.showNotebook(null);
                             search.clear();
                             vm.setQuery('');
                             vm.setFilter('tag', tag.name);
+                            setState(() {
+                              final key = 'tag:${tag.name}';
+                              if (!expandedGroups.remove(key)) {
+                                expandedGroups.add(key);
+                              }
+                            });
                           },
                         ),
+                        if (expandedGroups.contains('tag:${tag.name}'))
+                          ...noteGroup(
+                            'tag:${tag.name}',
+                            notes.where((note) =>
+                                tagged(folder.noteMetadata(note).tags, tag.name)),
+                          ),
+                      ],
                       sidebarRow(
                         leading: const Icon(CupertinoIcons.add),
                         text: 'New tag',
