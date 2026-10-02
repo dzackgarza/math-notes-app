@@ -368,7 +368,7 @@ final class EngineDocument {
             &size)
         }
       }
-      ink_export_pdf(pointer, titleBytes, &spec, &bytes, &size)
+      return ink_export_pdf(pointer, titleBytes, &spec, &bytes, &size)
     }
     try check(status, operation: "Export PDF")
     guard size > 0, let bytes else { return Data() }
