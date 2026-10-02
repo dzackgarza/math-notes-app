@@ -442,7 +442,7 @@ final class NotebookStorageTests: XCTestCase {
         paper: "grid-medium",
         coverColor: "#24324A",
         coverStyle: "spine",
-        tags: ["Seminar", "Reading"])))
+        tags: ["Seminar", "Reading"]))
     XCTAssertEqual(
       try LibraryMetadataFile.folderDetails(in: folderData, path: ["Analysis"]),
       LibraryFolderDetails(
