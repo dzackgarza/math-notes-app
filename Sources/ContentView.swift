@@ -30,6 +30,7 @@ struct ContentView: View {
   @State private var selectedTool: EditorTool = .pen
   @State private var penLibrary = EditorPenLibrary.defaults
   @State private var activeLayerID: String?
+  @State private var bookmarkMode = false
   @State private var currentPage = 0
   @State private var documentRevision = 0
   @State private var pageNavigationRevision = 0
@@ -50,6 +51,7 @@ struct ContentView: View {
   @State private var showingPageOverview = false
   @State private var showingLayers = false
   @State private var goToPage: GoToPageRequest?
+  @State private var bookmarks: BookmarksRequest?
 
   var body: some View {
     NavigationStack {
@@ -62,6 +64,7 @@ struct ContentView: View {
             penLibrary: $penLibrary,
             tool: $selectedTool,
             activeLayerID: $activeLayerID,
+            bookmarkMode: $bookmarkMode,
             currentPage: $currentPage,
             documentRevision: $documentRevision,
             pageNavigationRevision: $pageNavigationRevision,
@@ -77,6 +80,7 @@ struct ContentView: View {
                 Button {
                   self.session = nil
                   activeLayerID = nil
+                  bookmarkMode = false
                   refreshLibrary()
                 } label: {
                   Label("Library", systemImage: "chevron.left")
@@ -229,6 +233,12 @@ struct ContentView: View {
         },
         onCancel: { goToPage = nil })
     }
+    .sheet(item: $bookmarks) { request in
+      BookmarksSheet(
+        request: request,
+        onSelect: selectBookmark,
+        onCancel: { bookmarks = nil })
+    }
     .alert(
       "Math Notes",
       isPresented: Binding(
@@ -276,6 +286,7 @@ struct ContentView: View {
       Button("Close note", systemImage: "xmark") {
         self.session = nil
         activeLayerID = nil
+        bookmarkMode = false
         refreshLibrary()
       }
     } label: {
@@ -353,6 +364,12 @@ struct ContentView: View {
         preparePagePaper(session)
       }
       Divider()
+      Button("Bookmarks", systemImage: "bookmark") {
+        prepareBookmarks(session)
+      }
+      Button("Add Bookmark", systemImage: "bookmark.fill") {
+        editorPageCommand = .addBookmark
+      }
       Button("Layers", systemImage: "square.3.layers.3d") {
         showingLayers = true
       }
@@ -442,6 +459,7 @@ struct ContentView: View {
   private func installRoot(_ newRoot: NotesRootAccess) {
     session = nil
     activeLayerID = nil
+    bookmarkMode = false
     libraryFolder = FolderReference(path: [])
     libraryQuery = ""
     libraryScope = .folder
@@ -776,6 +794,7 @@ struct ContentView: View {
 
       selectedTool = .pen
       activeLayerID = nil
+      bookmarkMode = false
       currentPage = 0
       documentRevision = 0
       pageNavigationRevision = 0
@@ -835,6 +854,7 @@ struct ContentView: View {
       showingNewNote = false
       selectedTool = .pen
       activeLayerID = nil
+      bookmarkMode = false
       currentPage = 0
       documentRevision = 0
       pageNavigationRevision = 0
@@ -849,6 +869,7 @@ struct ContentView: View {
     guard let root else { return }
     do {
       activeLayerID = nil
+      bookmarkMode = false
       currentPage = 0
       documentRevision = 0
       pageNavigationRevision = 0
@@ -858,6 +879,33 @@ struct ContentView: View {
     } catch {
       errorMessage = error.localizedDescription
     }
+  }
+
+  private func prepareBookmarks(_ session: NotebookSession) {
+    do {
+      bookmarkMode = false
+      let marks = try session.document.navigation()
+        .filter { $0.href.isEmpty }
+        .sorted {
+          if $0.page != $1.page { return $0.page < $1.page }
+          return $0.y < $1.y
+        }
+      let destinations = marks.map { mark in
+        BookmarkDestination(
+          mark: mark,
+          preview: mark.id.isEmpty ? nil : try? session.document.bookmarkPNG(id: mark.id))
+      }
+      bookmarks = BookmarksRequest(destinations: destinations)
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func selectBookmark(_ mark: EngineNavigationMark) {
+    bookmarks = nil
+    bookmarkMode = false
+    currentPage = mark.page
+    editorPageCommand = .jumpToMark(mark)
   }
 
   private func preparePDFExport(_ session: NotebookSession) {

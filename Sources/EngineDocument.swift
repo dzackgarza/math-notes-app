@@ -41,6 +41,21 @@ struct EngineLayer: Decodable, Equatable, Identifiable {
   let locked: Bool
 }
 
+struct EngineNavigationMark: Decodable, Equatable {
+  let id: String
+  let href: String
+  let file: String
+  let page: Int
+  let x: Double
+  let y: Double
+  let width: Double
+  let height: Double
+
+  var key: String {
+    id.isEmpty ? "page:\(page):\(file)" : "bookmark:\(id)"
+  }
+}
+
 @MainActor
 final class EngineDocument {
   let pointer: OpaquePointer
@@ -146,6 +161,15 @@ final class EngineDocument {
     guard let json else { return [] }
     return try JSONDecoder().decode(
       [EngineLayer].self,
+      from: Data(String(cString: json).utf8))
+  }
+
+  func navigation() throws -> [EngineNavigationMark] {
+    var json: UnsafePointer<CChar>?
+    try check(ink_document_navigation(pointer, &json), operation: "List notebook navigation")
+    guard let json else { return [] }
+    return try JSONDecoder().decode(
+      [EngineNavigationMark].self,
       from: Data(String(cString: json).utf8))
   }
 
@@ -322,6 +346,17 @@ final class EngineDocument {
     try check(
       ink_document_page_png(pointer, index, width, &bytes, &size),
       operation: "Render page thumbnail")
+    guard size > 0, let bytes else { return Data() }
+    return Data(bytes: bytes, count: size)
+  }
+
+  func bookmarkPNG(id: String, width: Int32 = 720) throws -> Data {
+    var bytes: UnsafePointer<UInt8>?
+    var size = 0
+    let status = id.withCString {
+      ink_document_bookmark_png(pointer, $0, width, &bytes, &size)
+    }
+    try check(status, operation: "Render bookmark preview")
     guard size > 0, let bytes else { return Data() }
     return Data(bytes: bytes, count: size)
   }

@@ -262,6 +262,23 @@ final class InkCanvasView: UIView {
     return CGRect(x: info.x, y: info.y, width: info.width, height: info.height)
   }
 
+  func bookmarkSelection() throws {
+    guard let canvas else { return }
+    try require(ink_canvas_bookmark_selection(canvas), operation: "Bookmark selection")
+  }
+
+  func addBookmark(at point: CGPoint) throws {
+    guard let canvas else { return }
+    try require(
+      ink_canvas_add_bookmark(canvas, point.x, point.y),
+      operation: "Add bookmark")
+  }
+
+  func ungroupSelection() throws {
+    guard let canvas else { return }
+    try require(ink_canvas_ungroup_selection(canvas), operation: "Remove bookmark or link")
+  }
+
   func selectText(at point: CGPoint) throws -> Bool {
     guard let canvas else { return false }
     var found: Int32 = 0

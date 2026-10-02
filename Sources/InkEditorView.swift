@@ -6,6 +6,8 @@ import UIKit
 enum EditorPageCommand: Equatable {
   case select(Int)
   case clear(Int)
+  case addBookmark
+  case jumpToMark(EngineNavigationMark)
   case requestTextAtCenter
   case commitText(EditorTextRequest, EngineTextProperties)
   case pasteSVGAtCenter(String)
@@ -19,6 +21,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private let onEditCommitted: () -> Void
   private let onCurrentPageChanged: (Int) -> Void
   private let onPageCommandHandled: () -> Void
+  private let onBookmarkModeChanged: (Bool) -> Void
   private let onTextRequested: (EditorTextRequest) -> Void
   private let onError: (Error) -> Void
   private lazy var canvasView = InkCanvasView(
@@ -38,6 +41,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private var pageNavigationRevision = 0
   private var fitRevision = 0
   private var appliedPageCommand: EditorPageCommand?
+  private var bookmarkMode = false
   private var reportedPage = -1
 
   private var pullGate = HeldPullGate()
@@ -53,6 +57,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     onEditCommitted: @escaping () -> Void = {},
     onCurrentPageChanged: @escaping (Int) -> Void = { _ in },
     onPageCommandHandled: @escaping () -> Void = {},
+    onBookmarkModeChanged: @escaping (Bool) -> Void = { _ in },
     onTextRequested: @escaping (EditorTextRequest) -> Void = { _ in },
     onError: @escaping (Error) -> Void = { _ in }
   ) {
@@ -60,6 +65,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     self.onEditCommitted = onEditCommitted
     self.onCurrentPageChanged = onCurrentPageChanged
     self.onPageCommandHandled = onPageCommandHandled
+    self.onBookmarkModeChanged = onBookmarkModeChanged
     self.onTextRequested = onTextRequested
     self.onError = onError
     documentSize = document.contentSize()
@@ -121,13 +127,13 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     configureBottomPull()
     configureSelectionBar()
     canvasView.addInteraction(UIContextMenuInteraction(delegate: self))
-    let textTap = UITapGestureRecognizer(target: self, action: #selector(handleTextTap))
-    textTap.cancelsTouchesInView = false
-    textTap.allowedTouchTypes = [
+    let modeTap = UITapGestureRecognizer(target: self, action: #selector(handleModeTap))
+    modeTap.cancelsTouchesInView = false
+    modeTap.allowedTouchTypes = [
       NSNumber(value: UITouch.TouchType.direct.rawValue),
       NSNumber(value: UITouch.TouchType.pencil.rawValue),
     ]
-    canvasView.addGestureRecognizer(textTap)
+    canvasView.addGestureRecognizer(modeTap)
   }
 
   override func viewDidLayoutSubviews() {
@@ -158,6 +164,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     arrangement: EditorPageArrangement,
     activeLayerID: String?,
     fitRevision: Int,
+    bookmarkMode: Bool,
     targetPage: Int,
     navigationRevision: Int,
     pageCommand: EditorPageCommand?
@@ -177,7 +184,6 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
       appliedSpaceMode = spaceMode
       appliedPens = pens
     }
-    canvasView.setDrawingSuppressed(tool == .text)
 
     if arrangement != appliedArrangement {
       do {
@@ -212,6 +218,11 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
       self.fitRevision = fitRevision
       fitPages(animated: true)
     }
+
+    if bookmarkMode != self.bookmarkMode {
+      self.bookmarkMode = bookmarkMode
+    }
+    canvasView.setDrawingSuppressed(bookmarkMode || tool == .text)
 
     if revision != documentRevision {
       documentRevision = revision
@@ -299,6 +310,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     selectionBar.addArrangedSubview(selectionButton(
       label: "Duplicate", systemImage: "plus.square.on.square", action: #selector(duplicateSelection)))
     selectionBar.addArrangedSubview(selectionButton(
+      label: "Bookmark selection", systemImage: "bookmark", action: #selector(bookmarkSelection)))
+    selectionBar.addArrangedSubview(selectionButton(
+      label: "Remove bookmark or link", systemImage: "link.badge.minus", action: #selector(ungroupSelection)))
+    selectionBar.addArrangedSubview(selectionButton(
       label: "Delete selection", systemImage: "trash", action: #selector(deleteSelection)))
     view.addSubview(selectionBar)
   }
@@ -369,6 +384,26 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     }
   }
 
+  @objc private func bookmarkSelection() {
+    do {
+      try canvasView.bookmarkSelection()
+      onEditCommitted()
+      refreshSelectionBar()
+    } catch {
+      onError(error)
+    }
+  }
+
+  @objc private func ungroupSelection() {
+    do {
+      try canvasView.ungroupSelection()
+      onEditCommitted()
+      refreshSelectionBar()
+    } catch {
+      onError(error)
+    }
+  }
+
   @objc private func deleteSelection() {
     do {
       try canvasView.deleteSelection()
@@ -389,6 +424,17 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
         try canvasView.selectAll(page: page)
         try canvasView.deleteSelection()
         onEditCommitted()
+      case .addBookmark:
+        if canvasView.selectionFrame() != nil {
+          try canvasView.bookmarkSelection()
+          onEditCommitted()
+        } else {
+          bookmarkMode = true
+          canvasView.setDrawingSuppressed(true)
+          onBookmarkModeChanged(true)
+        }
+      case let .jumpToMark(mark):
+        scrollToMark(mark)
       case .requestTextAtCenter:
         requestText(
           at: CGPoint(
@@ -421,9 +467,22 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     }
   }
 
-  @objc private func handleTextTap(_ recognizer: UITapGestureRecognizer) {
-    guard appliedTool == .text, recognizer.state == .ended else { return }
-    requestText(at: recognizer.location(in: canvasView))
+  @objc private func handleModeTap(_ recognizer: UITapGestureRecognizer) {
+    guard recognizer.state == .ended else { return }
+    let point = recognizer.location(in: canvasView)
+    if bookmarkMode {
+      do {
+        try canvasView.addBookmark(at: point)
+        onEditCommitted()
+        refreshSelectionBar()
+      } catch {
+        onError(error)
+      }
+      return
+    }
+    if appliedTool == .text {
+      requestText(at: point)
+    }
   }
 
   private func requestText(at point: CGPoint) {
@@ -577,6 +636,39 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     }
   }
 
+  private func scrollToMark(_ mark: EngineNavigationMark) {
+    do {
+      fitPages(animated: false)
+      view.layoutIfNeeded()
+      let page = try document.pageRect(index: mark.page)
+      let zoom = scrollView.zoomScale
+      let inset = scrollView.adjustedContentInset
+      let minimumX = -inset.left
+      let minimumY = -inset.top
+      let maximumX = max(
+        minimumX,
+        documentSize.width * zoom - scrollView.bounds.width + inset.right)
+      let maximumY = max(
+        minimumY,
+        documentSize.height * zoom - scrollView.bounds.height + inset.bottom)
+      let target = CGPoint(
+        x: (page.minX + mark.x) * zoom,
+        y: (page.minY + mark.y) * zoom)
+      let x: CGFloat
+      let y: CGFloat
+      if appliedArrangement == .horizontal {
+        x = min(max(target.x - 48, minimumX), maximumX)
+        y = min(max(scrollView.contentOffset.y, minimumY), maximumY)
+      } else {
+        x = min(max(scrollView.contentOffset.x, minimumX), maximumX)
+        y = min(max(target.y - 48, minimumY), maximumY)
+      }
+      scrollView.setContentOffset(CGPoint(x: x, y: y), animated: true)
+    } catch {
+      onError(error)
+    }
+  }
+
   private func updateContentInsets() {
     let scaledWidth = documentSize.width * scrollView.zoomScale
     let scaledHeight = documentSize.height * scrollView.zoomScale
@@ -626,6 +718,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let arrangement: EditorPageArrangement
   let activeLayerID: String?
   let fitRevision: Int
+  let bookmarkMode: Bool
   let revision: Int
   let targetPage: Int
   let navigationRevision: Int
@@ -633,6 +726,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let onEditCommitted: () -> Void
   let onCurrentPageChanged: (Int) -> Void
   let onPageCommandHandled: () -> Void
+  let onBookmarkModeChanged: (Bool) -> Void
   let onTextRequested: (EditorTextRequest) -> Void
   let onError: (Error) -> Void
 
@@ -642,6 +736,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       onEditCommitted: onEditCommitted,
       onCurrentPageChanged: onCurrentPageChanged,
       onPageCommandHandled: onPageCommandHandled,
+      onBookmarkModeChanged: onBookmarkModeChanged,
       onTextRequested: onTextRequested,
       onError: onError)
   }
@@ -657,6 +752,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       arrangement: arrangement,
       activeLayerID: activeLayerID,
       fitRevision: fitRevision,
+      bookmarkMode: bookmarkMode,
       targetPage: targetPage,
       navigationRevision: navigationRevision,
       pageCommand: pageCommand)
@@ -671,6 +767,7 @@ struct InkEditorView: View {
   @Binding var penLibrary: EditorPenLibrary
   @Binding var tool: EditorTool
   @Binding var activeLayerID: String?
+  @Binding var bookmarkMode: Bool
   @Binding var currentPage: Int
   @Binding var documentRevision: Int
   @Binding var pageNavigationRevision: Int
@@ -696,6 +793,7 @@ struct InkEditorView: View {
         arrangement: arrangement,
         activeLayerID: activeLayerID,
         fitRevision: fitRevision,
+        bookmarkMode: bookmarkMode,
         revision: documentRevision,
         targetPage: currentPage,
         navigationRevision: pageNavigationRevision,
@@ -705,6 +803,11 @@ struct InkEditorView: View {
         onPageCommandHandled: {
           DispatchQueue.main.async {
             pageCommand = nil
+          }
+        },
+        onBookmarkModeChanged: { active in
+          DispatchQueue.main.async {
+            bookmarkMode = active
           }
         },
         onTextRequested: { request in
@@ -725,6 +828,28 @@ struct InkEditorView: View {
         insertText: { pageCommand = .requestTextAtCenter },
         insertImage: onInsertImage,
         onPensChanged: onPensChanged)
+
+      if bookmarkMode {
+        HStack(spacing: 10) {
+          Image(systemName: "bookmark")
+          Text("Add Bookmark")
+            .fontWeight(.semibold)
+          Text("Tap the line to mark.")
+            .foregroundStyle(.secondary)
+          Button("Done") {
+            bookmarkMode = false
+          }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(.regularMaterial, in: Capsule())
+        .frame(maxWidth: .infinity, alignment: .top)
+        .padding(.top, 8)
+        .padding(.horizontal, 80)
+      }
+    }
+    .onChange(of: tool) {
+      if bookmarkMode { bookmarkMode = false }
     }
     .sheet(item: $textRequest) { request in
       TextEditorSheet(

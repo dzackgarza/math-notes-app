@@ -154,6 +154,32 @@ final class NotebookStorageTests: XCTestCase {
     XCTAssertEqual(String(decoding: pdf.prefix(5), as: UTF8.self), "%PDF-")
   }
 
+  @MainActor
+  func testNavigationAndBookmarkPreviewUseSharedDocumentData() throws {
+    let repository = URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+    let fixture = repository
+      .appendingPathComponent("core/tests/fixtures/documents/full", isDirectory: true)
+    let document = EngineDocument(seed: 73)
+    try document.loadNotebook(
+      Data(contentsOf: fixture.appendingPathComponent("notebook.json")))
+    try document.loadPage(
+      path: "pages/0002.svg",
+      data: Data(contentsOf: fixture.appendingPathComponent("pages/0002.svg")))
+
+    let destinations = try document.navigation().filter { $0.href.isEmpty }
+    XCTAssertEqual(destinations.filter { $0.id.isEmpty }.count, 4)
+    let bookmark = try XCTUnwrap(
+      destinations.first { $0.id == "b-bookmark0001" })
+    XCTAssertEqual(bookmark.page, 1)
+    XCTAssertEqual(bookmark.x, 80, accuracy: 0.01)
+
+    let preview = try document.bookmarkPNG(id: bookmark.id, width: 240)
+    XCTAssertGreaterThan(preview.count, 8)
+    XCTAssertEqual(Array(preview.prefix(8)), [137, 80, 78, 71, 13, 10, 26, 10])
+  }
+
 
   @MainActor
   func testPDFExportRangeUsesTheSharedSpec() throws {
