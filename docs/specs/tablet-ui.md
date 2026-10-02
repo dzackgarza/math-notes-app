@@ -14,9 +14,10 @@ are the reference for look and interaction.
 ![Library](ui/tablet-library.png)
 
 - **Sidebar**, always visible: Library expands into Untagged and a nested
-  notebook and note tree. Recent and Pinned show filtered library views. Trash
-  expands to show its contents. Tags show a color and count, with **+** to add
-  a tag. Settings stays at the bottom. The tree reflects search and file changes.
+  notebook and note tree. Recent, Pinned, and each tag expand into notebook
+  groups with matching notes. Trash expands to show its contents. Tags show a
+  color and count, with **+** to add a tag. Settings stays at the bottom. The
+  tree reflects search and file changes.
 - **Main pane**: Library search, filter and sort controls, a grid/list choice,
   and a prominent **+ New notebook** action. Its adjacent menu offers a note
   in the recently edited notebook or a notebook chosen from a list. The
