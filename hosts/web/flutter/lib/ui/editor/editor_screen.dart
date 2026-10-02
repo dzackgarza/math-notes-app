@@ -896,11 +896,6 @@ class _EditorScreenState extends State<EditorScreen> {
   // and the page sequence. Delete page is the last group, alone.
   List<PullDownMenuEntry> pagesMenu() => [
     PullDownMenuItem(
-      title: 'Page overview',
-      enabled: !drawing,
-      onTap: () => run(showPages),
-    ),
-    PullDownMenuItem(
       title: 'Go to page',
       enabled: !drawing,
       onTap: () => run(goToPage),
@@ -924,7 +919,6 @@ class _EditorScreenState extends State<EditorScreen> {
       onTap: () => run(paperMenu),
     ),
     const GroupRule(),
-    PullDownMenuItem(title: 'Bookmarks', onTap: () => run(bookmarks)),
     PullDownMenuItem(
       title: 'Add bookmark',
       enabled: !drawing,
@@ -934,12 +928,6 @@ class _EditorScreenState extends State<EditorScreen> {
         else
           chooseTool('bookmark');
       },
-    ),
-    PullDownMenuItem(
-      title: 'Layers',
-      enabled: !drawing && canvas != null,
-      onTap: () =>
-          run(() => manageLayers(context, widget.note.document, canvas!, edit)),
     ),
     const GroupRule(),
     PullDownMenuItem(
@@ -1217,7 +1205,10 @@ class _EditorScreenState extends State<EditorScreen> {
                     return Column(
                       children: [
                         CupertinoButton(
-                          onPressed: () => run(showPages),
+                          onPressed: () {
+                            setState(() => navigationOpen = false);
+                            run(showPages);
+                          },
                           child: const Text('Arrange pages'),
                         ),
                         if (document.pageCount() > 1)
@@ -1363,9 +1354,12 @@ class _EditorScreenState extends State<EditorScreen> {
                           ),
                           CupertinoButton(
                             padding: const EdgeInsets.all(4),
-                            onPressed: () => run(() => manageLayers(
-                              context, document, canvas!, edit,
-                            )),
+                            onPressed: () {
+                              setState(() => navigationOpen = false);
+                              run(() => manageLayers(
+                                context, document, canvas!, edit,
+                              ));
+                            },
                             child: Icon(
                               CupertinoIcons.ellipsis,
                               semanticLabel: 'Edit ${layers[index].name}',

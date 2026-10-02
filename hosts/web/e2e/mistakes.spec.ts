@@ -248,8 +248,9 @@ test("Flutter mistakes session: blocked and cancelled strokes, finger-tap undo, 
     expect(await capture(page, { x: heading.x - 10, y: heading.y + heading.height / 2, width: 1, height: 1 }), "the action sheet is leaf").toEqual([[0xee, 0xf0, 0xea]]);
     await button("Done").click();
 
-    await button("Pages").click();
-    await page.getByRole("button", { name: /^Layers/ }).click();
+    await button("Open navigation").click();
+    await page.getByText("Layers", { exact: true }).click();
+    await button("Edit Ink").click();
     // The empty list below the last control of the only layer row.
     const last = await boxOf(button("Delete Ink"));
     await blurred(last.x + 10, last.y + last.height + 20, last.y + last.height + 60, "the layers sheet");

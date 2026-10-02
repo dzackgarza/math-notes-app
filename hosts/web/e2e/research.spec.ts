@@ -47,8 +47,9 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
     { x: rows[0].x - 80, y: top },
   ], 0.6);
   const layers = async (action: () => Promise<void>) => {
-    await button("Pages").click();
-    await button("Layers").click();
+    await button("Open navigation").click();
+    await page.getByText("Layers", { exact: true }).click();
+    await button("Edit Ink").click();
     await action();
     await button("Done").click();
     // Pen events before the sheet's barrier is gone never reach the page

@@ -197,8 +197,8 @@ test("Flutter lifetime: first year with one notes folder", async ({ page, baseUR
     expect(await inked()).toEqual([false, false, true, false]);
     await autosaved([3, 2, 1], "the handwriting of pages 2 and 3 reaches the note file");
     await shot("page-3-written");
-    await button("Pages").click();
-    await button("Page overview").click();
+    await button("Open navigation").click();
+    await button("Arrange pages").click();
     for (const number of [1, 2, 3]) await expect(button(`Page ${number}`)).toBeVisible();
     await shot("page-overview");
     await button("Page 1").click();

@@ -506,11 +506,6 @@ extension _EditorDialogs on _EditorScreenState {
     last.dispose();
   }
 
-  Future<void> bookmarks() async {
-    final mark = await chooseDestination(context, widget.note.document);
-    if (mark != null && mounted) jumpToMark(mark);
-  }
-
   Future<void> linkSelection() async {
     final action = await showModalSheet<String>(
       context: context,

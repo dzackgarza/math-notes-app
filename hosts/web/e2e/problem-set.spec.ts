@@ -65,7 +65,8 @@ test("Flutter problem set session: pages written, pulled in, reordered, inserted
       await expect(page.getByText(`${pageNumber} / ${pageNumber}`, { exact: true })).toBeVisible();
       await draw((pageNumber - 1) * 30);
     }
-    await choose("Pages", "Page overview");
+    await button("Open navigation").click();
+    await button("Arrange pages").click();
     await button("Page 1").click();
     await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
     expect((await savedPages(page, first, notebook)).map(({ strokes }) => strokes)).toEqual([1, 1, 1]);
@@ -124,7 +125,8 @@ test("Flutter problem set session: pages written, pulled in, reordered, inserted
   });
 
   await test.step("duplicate, delete, reorder, and open pages in the page overview", async () => {
-    await choose("Pages", "Page overview");
+    await button("Open navigation").click();
+    await button("Arrange pages").click();
     const tile = (n: number) => button(`Page ${n}`);
     await expect(tile(4)).toBeVisible();
     const act = async (n: number, action: string) => {
