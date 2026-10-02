@@ -714,12 +714,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
           },
           buttonBuilder: (context, showMenu) => CupertinoButton(
             onPressed: showMenu,
-            child: const Semantics(
+            child: Semantics(
               label: 'Create options',
               button: true,
-              child: Icon(CupertinoIcons.chevron_down),
+              child: const Icon(CupertinoIcons.chevron_down),
             ),
           ),
+        ),
         ])
       else ...[
         CupertinoButton(
