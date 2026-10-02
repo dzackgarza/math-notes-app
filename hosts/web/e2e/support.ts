@@ -80,18 +80,16 @@ export async function closeNote(page: Page): Promise<void> {
 }
 
 // A read of a saved file while the app may be saving it again. `getFile()`
-// snapshots the file, and Chromium can refuse the snapshot with NotReadableError
-// or NotFoundError once the app's writable stream has swapped a new file in (storage/browser/
+// snapshots the file, and Chromium refuses the snapshot with NotReadableError
+// once the app's writable stream has swapped a new file in (storage/browser/
 // blob/blob_reader.cc compares the modification time). The next read opens
 // the new file.
 export async function whenSaved<T>(read: () => Promise<T>): Promise<T> {
-  const deadline = Date.now() + 3000;
   for (;;) {
     try {
       return await read();
     } catch (error) {
-      if (!(error instanceof Error && /NotReadableError|NotFoundError/.test(error.message)) || Date.now() >= deadline) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      if (!(error instanceof Error && error.message.includes("NotReadableError"))) throw error;
     }
   }
 }
@@ -105,6 +103,7 @@ export async function createTestNotebook(page: Page, name = "Test Notebook"): Pr
   await page.getByRole("button", { name: "New notebook", exact: true }).click();
   await enterText(page.getByRole("textbox", { name: "Notebook title", exact: true }), name);
   await page.getByRole("button", { name: "Create", exact: true }).click();
+  await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
 }
 
 export async function openTestNotebook(page: Page, name = "Test Notebook"): Promise<void> {
@@ -456,21 +455,12 @@ export async function tabOrder(page: Page, presses: number): Promise<string[]> {
 export function storedPages(page: Page, title: string, notebook = "Test Notebook") {
   return whenSaved(() => page.evaluate(async ({ title, notebook }) => {
     const root = await navigator.storage.getDirectory();
-    const directory = async (parent: FileSystemDirectoryHandle, name: string, path: string) => {
-      try { return await parent.getDirectoryHandle(name); }
-      catch (error) { throw new Error(`Cannot read directory ${path}: ${error}`); }
-    };
-    const notebookDir = await directory(root, notebook, notebook);
-    const dir = await directory(notebookDir, title, `${notebook}/${title}`);
-    let manifest: { pages: { file: string }[] };
-    try { manifest = JSON.parse(await (await (await dir.getFileHandle("notebook.json")).getFile()).text()); }
-    catch (error) { throw new Error(`Cannot read manifest ${notebook}/${title}/notebook.json: ${error}`); }
-    const pages = await directory(dir, "pages", `${notebook}/${title}/pages`);
+    const dir = await (await root.getDirectoryHandle(notebook)).getDirectoryHandle(title);
+    const manifest = JSON.parse(await (await (await dir.getFileHandle("notebook.json")).getFile()).text());
+    const pages = await dir.getDirectoryHandle("pages");
     const saved = [];
-    for (const entry of manifest.pages) {
-      let svg: string;
-      try { svg = await (await (await pages.getFileHandle(entry.file.replace("pages/", ""))).getFile()).text(); }
-      catch (error) { throw new Error(`Cannot read page ${notebook}/${title}/${entry.file}: ${error}`); }
+    for (const entry of manifest.pages as { file: string }[]) {
+      const svg = await (await (await pages.getFileHandle(entry.file.replace("pages/", ""))).getFile()).text();
       const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
       saved.push({
         file: entry.file,
