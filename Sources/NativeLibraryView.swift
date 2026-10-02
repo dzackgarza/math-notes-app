@@ -6,6 +6,7 @@ struct NativeLibraryView: View {
   let root: NotesRootAccess
   let folder: FolderReference
   let listing: LibraryListing
+  @Binding var query: String
   let sort: LibrarySort
   let grid: Bool
   let openFolder: (FolderReference) -> Void
@@ -24,7 +25,13 @@ struct NativeLibraryView: View {
 
   var body: some View {
     Group {
-      if listing.folders.isEmpty && listing.notebooks.isEmpty {
+      if !query.isEmpty && listing.folders.isEmpty && listing.notebooks.isEmpty {
+        ContentUnavailableView {
+          Label("No Results", systemImage: "magnifyingglass")
+        } description: {
+          Text("Nothing matches “\(query)”.")
+        }
+      } else if listing.folders.isEmpty && listing.notebooks.isEmpty {
         ContentUnavailableView {
           Label("No Notes Here", systemImage: "folder")
         } description: {
@@ -69,8 +76,15 @@ struct NativeLibraryView: View {
         .listStyle(.insetGrouped)
       }
     }
-    .navigationTitle(folder.name)
+    .navigationTitle(query.isEmpty ? folder.name : "Search")
     .navigationBarTitleDisplayMode(.large)
+    .searchable(
+      text: $query,
+      placement: .navigationBarDrawer(displayMode: .always),
+      prompt: "Search notebooks and notes")
+    .onChange(of: query) {
+      refresh()
+    }
     .toolbar {
       if !folder.path.isEmpty {
         ToolbarItem(placement: .topBarLeading) {
@@ -209,6 +223,15 @@ struct NativeLibraryView: View {
           .font(.headline)
           .lineLimit(2)
 
+        if !query.isEmpty {
+          let parent = item.reference.path.dropLast().joined(separator: " / ")
+          if !parent.isEmpty {
+            Text(parent)
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+
         Text(item.modified, format: .dateTime.month(.abbreviated).day().year())
           .font(.caption)
           .foregroundStyle(.secondary)
@@ -266,6 +289,14 @@ struct NativeLibraryView: View {
         VStack(alignment: .leading, spacing: 4) {
           Text(item.reference.name)
             .font(.headline)
+          if !query.isEmpty {
+            let parent = item.reference.path.dropLast().joined(separator: " / ")
+            if !parent.isEmpty {
+              Text(parent)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+          }
           Text(item.modified, format: .dateTime.month(.abbreviated).day().year())
             .font(.caption)
             .foregroundStyle(.secondary)

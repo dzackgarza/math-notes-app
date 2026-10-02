@@ -290,6 +290,77 @@ final class NotesRootAccess {
     }
   }
 
+  func searchLibrary(query: String, sort: LibrarySort) throws -> LibraryListing {
+    let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !needle.isEmpty else {
+      return try library(in: FolderReference(path: []), sort: sort)
+    }
+
+    return try coordinatedRead(at: url) { root in
+      let fileManager = FileManager.default
+      var folders: [LibraryFolderItem] = []
+      var notebooks: [LibraryNotebookItem] = []
+
+      func visit(_ directory: URL, path: [String]) throws {
+        let children = try fileManager.contentsOfDirectory(
+          at: directory,
+          includingPropertiesForKeys: [.isDirectoryKey],
+          options: [.skipsHiddenFiles])
+
+        for child in children {
+          let name = child.lastPathComponent
+          guard !name.hasPrefix("."),
+            try child.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true
+          else { continue }
+
+          let childPath = path + [name]
+          if fileManager.fileExists(
+            atPath: child.appendingPathComponent("notebook.json").path)
+          {
+            if name.localizedCaseInsensitiveContains(needle) {
+              notebooks.append(
+                LibraryNotebookItem(
+                  reference: NotebookReference(path: childPath),
+                  modified: try Self.notebookModification(at: child)))
+            }
+          } else {
+            if name.localizedCaseInsensitiveContains(needle) {
+              folders.append(
+                LibraryFolderItem(
+                  reference: FolderReference(path: childPath),
+                  modified: try Self.latestNotebookModification(in: child)))
+            }
+            try visit(child, path: childPath)
+          }
+        }
+      }
+
+      try visit(root, path: [])
+      let nameOrder: (String, String) -> Bool = {
+        $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+      }
+      switch sort {
+      case .name:
+        folders.sort { nameOrder($0.reference.name, $1.reference.name) }
+        notebooks.sort { nameOrder($0.reference.name, $1.reference.name) }
+      case .modified:
+        folders.sort {
+          switch ($0.modified, $1.modified) {
+          case let (left?, right?) where left != right:
+            return left > right
+          default:
+            return nameOrder($0.reference.name, $1.reference.name)
+          }
+        }
+        notebooks.sort {
+          if $0.modified != $1.modified { return $0.modified > $1.modified }
+          return nameOrder($0.reference.name, $1.reference.name)
+        }
+      }
+      return LibraryListing(folders: folders, notebooks: notebooks)
+    }
+  }
+
   func createFolder(parent: FolderReference, name: String) throws -> FolderReference {
     let cleanName = try validatedLibraryName(name)
     let path = parent.path + [cleanName]

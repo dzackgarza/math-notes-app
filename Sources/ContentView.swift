@@ -13,6 +13,7 @@ struct ContentView: View {
   @State private var root: NotesRootAccess?
   @State private var libraryFolder = FolderReference(path: [])
   @State private var libraryListing = LibraryListing(folders: [], notebooks: [])
+  @State private var libraryQuery = ""
   @State private var librarySort: LibrarySort = .name
   @State private var libraryGrid = true
   @AppStorage("pageArrangement") private var pageArrangementRaw = EditorPageArrangement.vertical.rawValue
@@ -279,9 +280,11 @@ struct ContentView: View {
       root: root,
       folder: libraryFolder,
       listing: libraryListing,
+      query: $libraryQuery,
       sort: librarySort,
       grid: libraryGrid,
       openFolder: { folder in
+        libraryQuery = ""
         libraryFolder = folder
         refreshLibrary()
       },
@@ -324,6 +327,7 @@ struct ContentView: View {
   private func installRoot(_ newRoot: NotesRootAccess) {
     session = nil
     libraryFolder = FolderReference(path: [])
+    libraryQuery = ""
     libraryListing = LibraryListing(folders: [], notebooks: [])
     root = newRoot
     reloadPenLibrary()
@@ -365,7 +369,11 @@ struct ContentView: View {
     }
 
     do {
-      libraryListing = try root.library(in: libraryFolder, sort: librarySort)
+      if libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        libraryListing = try root.library(in: libraryFolder, sort: librarySort)
+      } else {
+        libraryListing = try root.searchLibrary(query: libraryQuery, sort: librarySort)
+      }
     } catch {
       if !libraryFolder.path.isEmpty {
         libraryFolder = FolderReference(path: [])
