@@ -139,6 +139,21 @@ final class NotebookStorageTests: XCTestCase {
     XCTAssertEqual(String(decoding: pdf.prefix(5), as: UTF8.self), "%PDF-")
   }
 
+  @MainActor
+  func testPDFExportCanSelectLayers() throws {
+    let document = EngineDocument(seed: 71)
+    try document.addLayer(name: "Annotations")
+    let layers = try document.layers()
+    XCTAssertEqual(layers.count, 2)
+
+    let pdf = try document.exportPDF(
+      title: "Layer Export",
+      layerIDs: [layers[1].id])
+
+    XCTAssertGreaterThan(pdf.count, 5)
+    XCTAssertEqual(String(decoding: pdf.prefix(5), as: UTF8.self), "%PDF-")
+  }
+
 
   @MainActor
   func testPDFExportRangeUsesTheSharedSpec() throws {

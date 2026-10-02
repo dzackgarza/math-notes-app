@@ -5,6 +5,7 @@ struct PDFExportRequest: Identifiable {
   let id = UUID()
   let pageCount: Int
   let currentPage: Int
+  let layers: [EngineLayer]
 }
 
 private enum PDFExportScope: String, CaseIterable, Identifiable {
@@ -16,16 +17,17 @@ private enum PDFExportScope: String, CaseIterable, Identifiable {
 
 struct PDFExportSheet: View {
   let request: PDFExportRequest
-  let onExport: (Int, Int) -> Void
+  let onExport: (Int, Int, [String]) -> Void
   let onCancel: () -> Void
 
   @State private var scope: PDFExportScope = .all
   @State private var firstPage: Int
   @State private var lastPage: Int
+  @State private var includedLayers: Set<String>
 
   init(
     request: PDFExportRequest,
-    onExport: @escaping (Int, Int) -> Void,
+    onExport: @escaping (Int, Int, [String]) -> Void,
     onCancel: @escaping () -> Void
   ) {
     self.request = request
@@ -34,6 +36,8 @@ struct PDFExportSheet: View {
     let current = min(max(request.currentPage + 1, 1), max(request.pageCount, 1))
     _firstPage = State(initialValue: current)
     _lastPage = State(initialValue: current)
+    _includedLayers = State(
+      initialValue: Set(request.layers.filter { !$0.hidden }.map(\.id)))
   }
 
   var body: some View {
@@ -61,6 +65,22 @@ struct PDFExportSheet: View {
             LabeledContent("Page count", value: "\(request.pageCount)")
           }
         }
+
+        Section("Layers") {
+          ForEach(request.layers) { layer in
+            Toggle(
+              layer.name,
+              isOn: Binding(
+                get: { includedLayers.contains(layer.id) },
+                set: { included in
+                  if included {
+                    includedLayers.insert(layer.id)
+                  } else {
+                    includedLayers.remove(layer.id)
+                  }
+                }))
+          }
+        }
       }
       .navigationTitle("Export PDF")
       .navigationBarTitleDisplayMode(.inline)
@@ -70,10 +90,13 @@ struct PDFExportSheet: View {
         }
         ToolbarItem(placement: .confirmationAction) {
           Button("Export") {
+            let layers = request.layers
+              .filter { includedLayers.contains($0.id) }
+              .map(\.id)
             if scope == .all {
-              onExport(0, request.pageCount)
+              onExport(0, request.pageCount, layers)
             } else {
-              onExport(firstPage - 1, lastPage - firstPage + 1)
+              onExport(firstPage - 1, lastPage - firstPage + 1, layers)
             }
           }
           .disabled(request.pageCount <= 0)

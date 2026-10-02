@@ -329,7 +329,8 @@ final class EngineDocument {
   func exportPDF(
     title: String,
     firstPage: Int = 0,
-    pageCount requestedPageCount: Int? = nil
+    pageCount requestedPageCount: Int? = nil,
+    layerIDs: [String]? = nil
   ) throws -> Data {
     let count: Int
     if let requestedPageCount {
@@ -345,7 +346,28 @@ final class EngineDocument {
 
     var bytes: UnsafePointer<UInt8>?
     var size = 0
+    let layerJSON: String?
+    if let layerIDs {
+      let data = try JSONEncoder().encode(layerIDs)
+      guard let value = String(data: data, encoding: .utf8) else {
+        throw EngineDocumentError.operation("Export PDF", "Could not encode layer selection")
+      }
+      layerJSON = value
+    } else {
+      layerJSON = nil
+    }
     let status = title.withCString { titleBytes in
+      if let layerJSON {
+        return layerJSON.withCString { layerBytes in
+          ink_export_pdf_layers(
+            pointer,
+            titleBytes,
+            &spec,
+            layerBytes,
+            &bytes,
+            &size)
+        }
+      }
       ink_export_pdf(pointer, titleBytes, &spec, &bytes, &size)
     }
     try check(status, operation: "Export PDF")

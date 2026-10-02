@@ -120,12 +120,16 @@ struct ContentView: View {
     .sheet(item: $pdfExport) { request in
       PDFExportSheet(
         request: request,
-        onExport: { firstPage, pageCount in
+        onExport: { firstPage, pageCount, layerIDs in
           guard let session else {
             pdfExport = nil
             return
           }
-          sharePDF(session, firstPage: firstPage, pageCount: pageCount)
+          sharePDF(
+            session,
+            firstPage: firstPage,
+            pageCount: pageCount,
+            layerIDs: layerIDs)
         },
         onCancel: { pdfExport = nil })
     }
@@ -817,7 +821,8 @@ struct ContentView: View {
     do {
       pdfExport = PDFExportRequest(
         pageCount: try session.document.pageCount(),
-        currentPage: currentPage)
+        currentPage: currentPage,
+        layers: try session.document.layers())
     } catch {
       errorMessage = error.localizedDescription
     }
@@ -826,7 +831,8 @@ struct ContentView: View {
   private func sharePDF(
     _ session: NotebookSession,
     firstPage: Int,
-    pageCount: Int
+    pageCount: Int,
+    layerIDs: [String]
   ) {
     do {
       try saveOpenNotebookThrowing()
@@ -834,7 +840,8 @@ struct ContentView: View {
       let data = try session.document.exportPDF(
         title: session.reference.name,
         firstPage: firstPage,
-        pageCount: pageCount)
+        pageCount: pageCount,
+        layerIDs: layerIDs)
       let safeName = session.reference.name.replacingOccurrences(of: "/", with: "-")
       let baseName = firstPage == 0 && pageCount == total ? safeName : "\(safeName)-pages-\(firstPage + 1)-\(firstPage + pageCount)"
       let url = FileManager.default.temporaryDirectory
