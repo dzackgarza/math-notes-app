@@ -507,15 +507,15 @@ test("Flutter rearrange session: recolor, lasso edits, shape selections, resize 
     await page.getByRole("button", { name: "Open Space", exact: false }).click();
     await canvas.waitFor({ timeout: 30_000 });
     await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
-    await paper.find(Math.round(pageIn(box).y + 120));
-    await shows(3, [60, 440, 600], "the first page reopens with its words in place");
+    const reopened = await linedPaper(page, cdp, pageIn(await boxOf(canvas)));
+    await reopened.shows(3, [60, 440, 600], "the first page reopens with its words in place");
     await goToPage(page, 2);
     await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
     await page.screenshot({ path: info.outputPath("reopened.png") });
     // The push put the word three lines below the top of the page, below the tool bar.
     const carried = await pixelBounds(page, {
-      x: Math.round(margin + 200), y: Math.round(box.y + 70), width: 120, height: Math.round(3 * spacing),
+      x: Math.round(reopened.margin + 200), y: Math.round(box.y + 70), width: 120, height: Math.round(3 * reopened.spacing),
     }, isInk);
-    expect(Math.round((carried.left - margin) / 10) * 10, "the word reopens on the new page in its column").toBe(220);
+    expect(Math.round((carried.left - reopened.margin) / 10) * 10, "the word reopens on the new page in its column").toBe(220);
   });
 });
