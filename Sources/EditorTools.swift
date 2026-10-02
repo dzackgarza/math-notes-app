@@ -8,6 +8,7 @@ enum EditorTool: String, CaseIterable, Identifiable {
   case eraser
   case lasso
   case text
+  case image
   case space
 
   var id: Self { self }
@@ -21,6 +22,7 @@ enum EditorTool: String, CaseIterable, Identifiable {
     case .lasso: "Lasso"
     case .space: "Insert Space"
     case .text: "Text"
+    case .image: "Image"
     }
   }
 
@@ -33,6 +35,7 @@ enum EditorTool: String, CaseIterable, Identifiable {
     case .lasso: "lasso"
     case .space: "arrow.up.and.down.and.arrow.left.and.right"
     case .text: "textformat"
+    case .image: "photo"
     }
   }
 }
@@ -169,6 +172,7 @@ struct EditorToolRail: View {
   let undo: () -> Void
   let redo: () -> Void
   let insertText: () -> Void
+  let insertImage: () -> Void
   let onPensChanged: (EditorPenLibrary) -> Void
 
   var body: some View {
@@ -189,6 +193,12 @@ struct EditorToolRail: View {
             tool = .text
             insertText()
           }
+        } else if item == .image {
+          railButton(
+            label: item.label,
+            systemImage: item.systemImage,
+            selected: false,
+            action: insertImage)
         } else {
           railButton(
             label: item.label,

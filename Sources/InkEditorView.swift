@@ -8,6 +8,7 @@ enum EditorPageCommand: Equatable {
   case clear(Int)
   case requestTextAtCenter
   case commitText(EditorTextRequest, EngineTextProperties)
+  case pasteSVGAtCenter(String)
 }
 
 @MainActor
@@ -406,6 +407,13 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
             existing: request.existing)
           onEditCommitted()
         }
+      case let .pasteSVGAtCenter(svg):
+        try canvasView.paste(
+          svg,
+          at: CGPoint(
+            x: canvasView.bounds.midX,
+            y: canvasView.bounds.midY))
+        onEditCommitted()
       }
       refreshSelectionBar()
     } catch {
@@ -673,6 +681,7 @@ struct InkEditorView: View {
   @State private var textRequest: EditorTextRequest?
   let onEditCommitted: () -> Void
   let onPensChanged: (EditorPenLibrary) -> Void
+  let onInsertImage: () -> Void
   let onError: (Error) -> Void
 
   var body: some View {
@@ -714,6 +723,7 @@ struct InkEditorView: View {
         undo: { history(redo: false) },
         redo: { history(redo: true) },
         insertText: { pageCommand = .requestTextAtCenter },
+        insertImage: onInsertImage,
         onPensChanged: onPensChanged)
     }
     .sheet(item: $textRequest) { request in

@@ -127,6 +127,9 @@ final class InkCanvasView: UIView {
     case .text:
       setEraser(active: false)
       setSelector(selectorMode.engineValue, active: false)
+    case .image:
+      setEraser(active: false)
+      setSelector(selectorMode.engineValue, active: false)
     case .pen, .marker, .highlighter:
       setEraser(active: false)
       setSelector(selectorMode.engineValue, active: false)
@@ -134,7 +137,7 @@ final class InkCanvasView: UIView {
       case .pen: pens.pen
       case .marker: pens.marker
       case .highlighter: pens.highlighter
-      case .eraser, .lasso, .space, .text: pens.pen
+      case .eraser, .lasso, .space, .text, .image: pens.pen
       }
       check(ink_canvas_set_tool(canvas, &settings), operation: "ink_canvas_set_tool")
     }

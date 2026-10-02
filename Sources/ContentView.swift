@@ -1,6 +1,8 @@
 import Foundation
 import InkEngine
 import SwiftUI
+import UIKit
+import UniformTypeIdentifiers
 
 @MainActor
 private struct NotebookSession {
@@ -36,6 +38,7 @@ struct ContentView: View {
   @State private var sharePayload: SharePayload?
   @State private var pdfExport: PDFExportRequest?
   @State private var showingPDFImporter = false
+  @State private var showingImageImporter = false
   @State private var pdfImportProgress: String?
   @State private var showingNewNote = false
   @State private var newNoteFolders: [FolderReference] = []
@@ -65,6 +68,7 @@ struct ContentView: View {
             pageCommand: $editorPageCommand,
             onEditCommitted: saveOpenNotebook,
             onPensChanged: persistPenLibrary,
+            onInsertImage: { showingImageImporter = true },
             onError: { errorMessage = $0.localizedDescription })
             .navigationTitle(session.reference.name)
             .navigationBarTitleDisplayMode(.inline)
@@ -142,6 +146,17 @@ struct ContentView: View {
           }
         },
         onCancel: { showingPDFImporter = false })
+    }
+    .fileImporter(
+      isPresented: $showingImageImporter,
+      allowedContentTypes: [.png, .jpeg]
+    ) { result in
+      switch result {
+      case let .success(url):
+        importImage(url)
+      case let .failure(error):
+        errorMessage = error.localizedDescription
+      }
     }
     .sheet(isPresented: $showingNewNote) {
       NewNoteSheet(
@@ -777,6 +792,34 @@ struct ContentView: View {
       } else {
         errorMessage = error.localizedDescription
       }
+    }
+  }
+
+  private func importImage(_ url: URL) {
+    guard let session else { return }
+    let scoped = url.startAccessingSecurityScopedResource()
+    defer {
+      if scoped { url.stopAccessingSecurityScopedResource() }
+    }
+
+    do {
+      let data = try Data(contentsOf: url)
+      guard let image = UIImage(data: data), let cgImage = image.cgImage else {
+        throw ImageImportError.invalidImageSize
+      }
+      let page = try session.document.pageRect(index: currentPage)
+      let contentType = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType
+      let ext = url.pathExtension.lowercased()
+      let mimeType = contentType?.preferredMIMEType
+        ?? (ext == "jpg" || ext == "jpeg" ? "image/jpeg" : "image/png")
+      let svg = try imageImportSVG(
+        data: data,
+        mimeType: mimeType,
+        imageSize: CGSize(width: CGFloat(cgImage.width), height: CGFloat(cgImage.height)),
+        pageSize: page.size)
+      editorPageCommand = .pasteSVGAtCenter(svg)
+    } catch {
+      errorMessage = error.localizedDescription
     }
   }
 
