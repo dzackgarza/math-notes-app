@@ -217,7 +217,7 @@ function exportPdf(note: OpenNotebook, first: number, count: number, layers: str
 async function sharePdf(note: OpenNotebook, first: number, count: number, layers: string[]): Promise<void> {
   const bytes = note.document.exportPdf(note.name, first, count, layers);
   const file = new File([bytes], `${note.name}.pdf`, { type: "application/pdf" });
-  if (!navigator.canShare?.({ files: [file] })) throw new Error("This browser cannot share files; use Export PDF");
+  if (!navigator.canShare?.({ files: [file] })) throw new Error("This browser cannot share files; use Download PDF.");
   await navigator.share({ files: [file], title: note.name });
 }
 
