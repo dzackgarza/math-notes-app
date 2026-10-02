@@ -184,6 +184,25 @@ enum LibraryMetadataFile {
     return try encoded(root)
   }
 
+  static func addingTag(
+    in data: Data?,
+    name: String,
+    color: String
+  ) throws -> Data {
+    let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !cleanName.isEmpty else {
+      throw NotebookStorageError.invalidName("Enter a tag name.")
+    }
+    var root = try object(from: data)
+    var values = root["tags"] as? [[String: Any]] ?? []
+    guard !values.contains(where: { $0["name"] as? String == cleanName }) else {
+      throw NotebookStorageError.invalidName("This tag name is already in use.")
+    }
+    values.append(["name": cleanName, "color": color])
+    root["tags"] = values
+    return try encoded(root)
+  }
+
   static func moving(
     in data: Data?,
     from source: [String],
@@ -816,6 +835,79 @@ final class NotesRootAccess {
       notebooks: listing.notebooks.filter(\.favorite))
   }
 
+  func taggedLibrary(
+    tag: String,
+    query: String,
+    sort: LibrarySort,
+    direction: LibrarySortDirection
+  ) throws -> LibraryListing {
+    let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    let allNotebooks = try allNotes(sort: sort, direction: direction).notebooks
+    var notebooks: [LibraryNotebookItem] = []
+    for item in allNotebooks {
+      let details = try noteDetails(for: item.reference)
+      guard details.tags.contains(tag) else { continue }
+      if needle.isEmpty ||
+        item.reference.name.localizedCaseInsensitiveContains(needle) ||
+        details.description.localizedCaseInsensitiveContains(needle) ||
+        details.tags.contains(where: { $0.localizedCaseInsensitiveContains(needle) })
+      {
+        notebooks.append(item)
+      }
+    }
+
+    var folderItems: [LibraryFolderItem] = []
+    for reference in try folders() where !reference.path.isEmpty {
+      let details = try folderDetails(for: reference)
+      guard details.tags.contains(tag) else { continue }
+      let descendantNames = allNotebooks.lazy
+        .filter {
+          $0.reference.path.count > reference.path.count &&
+          Array($0.reference.path.prefix(reference.path.count)) == reference.path
+        }
+        .map(\.reference.name)
+      guard needle.isEmpty ||
+        reference.name.localizedCaseInsensitiveContains(needle) ||
+        details.description.localizedCaseInsensitiveContains(needle) ||
+        details.tags.contains(where: { $0.localizedCaseInsensitiveContains(needle) }) ||
+        descendantNames.contains(where: { $0.localizedCaseInsensitiveContains(needle) })
+      else { continue }
+
+      let directory = urlForPath(reference.path)
+      folderItems.append(
+        LibraryFolderItem(
+          reference: reference,
+          modified: try coordinatedRead(at: directory) {
+            try Self.latestNotebookModification(in: $0)
+          }))
+    }
+
+    let nameOrder: (String, String) -> Bool = {
+      $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+    }
+    let ascending = direction == .ascending
+    switch sort {
+    case .name:
+      folderItems.sort {
+        ascending
+          ? nameOrder($0.reference.name, $1.reference.name)
+          : nameOrder($1.reference.name, $0.reference.name)
+      }
+    case .modified:
+      folderItems.sort {
+        switch ($0.modified, $1.modified) {
+        case let (left?, right?) where left != right:
+          return ascending ? left < right : left > right
+        default:
+          return ascending
+            ? nameOrder($0.reference.name, $1.reference.name)
+            : nameOrder($1.reference.name, $0.reference.name)
+        }
+      }
+    }
+    return LibraryListing(folders: folderItems, notebooks: notebooks)
+  }
+
   func trashNotes(
     sort: LibrarySort,
     direction: LibrarySortDirection
@@ -933,6 +1025,18 @@ final class NotesRootAccess {
         in: LibraryMetadataFile.read(at: root),
         path: reference.path,
         details: details)
+      try updated.write(
+        to: root.appendingPathComponent(LibraryMetadataFile.name),
+        options: .atomic)
+    }
+  }
+
+  func addLibraryTag(name: String, color: String) throws {
+    try coordinatedWrite(at: url, options: .forMerging) { root in
+      let updated = try LibraryMetadataFile.addingTag(
+        in: LibraryMetadataFile.read(at: root),
+        name: name,
+        color: color)
       try updated.write(
         to: root.appendingPathComponent(LibraryMetadataFile.name),
         options: .atomic)

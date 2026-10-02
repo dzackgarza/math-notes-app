@@ -15,6 +15,8 @@ struct ContentView: View {
   @State private var libraryListing = LibraryListing(folders: [], notebooks: [])
   @State private var libraryQuery = ""
   @State private var libraryScope: LibraryScope = .folder
+  @State private var libraryTags: [LibraryTag] = []
+  @State private var libraryTag: String?
   @State private var librarySort: LibrarySort = .name
   @State private var librarySortDirection: LibrarySortDirection = .ascending
   @State private var libraryGrid = true
@@ -38,6 +40,7 @@ struct ContentView: View {
   @State private var newNoteTemplates: [String] = []
   @State private var libraryMutation: LibraryMutationRequest?
   @State private var libraryDetails: LibraryDetailsRequest?
+  @State private var showingNewTag = false
   @State private var pagePaper: PagePaperRequest?
   @State private var showingPageOverview = false
 
@@ -156,6 +159,11 @@ struct ContentView: View {
             paper: paper)
         },
         onCancel: { libraryDetails = nil })
+    }
+    .sheet(isPresented: $showingNewTag) {
+      LibraryTagSheet(
+        onAdd: addLibraryTag,
+        onCancel: { showingNewTag = false })
     }
     .sheet(item: $pagePaper) { request in
       PagePaperSheet(
@@ -305,6 +313,8 @@ struct ContentView: View {
       listing: libraryListing,
       query: $libraryQuery,
       scope: $libraryScope,
+      tags: libraryTags,
+      selectedTag: libraryTag,
       sort: librarySort,
       sortDirection: librarySortDirection,
       grid: libraryGrid,
@@ -328,6 +338,13 @@ struct ContentView: View {
         librarySortDirection = direction
         refreshLibrary()
       },
+      selectTag: { tag in
+        libraryTag = tag
+        libraryQuery = ""
+        libraryScope = .tag
+        refreshLibrary()
+      },
+      createTag: { showingNewTag = true },
       toggleLayout: { libraryGrid.toggle() },
       createNote: prepareNewNote,
       importPDF: { showingPDFImporter = true },
@@ -363,6 +380,8 @@ struct ContentView: View {
     libraryFolder = FolderReference(path: [])
     libraryQuery = ""
     libraryScope = .folder
+    libraryTags = []
+    libraryTag = nil
     libraryListing = LibraryListing(folders: [], notebooks: [])
     root = newRoot
     reloadPenLibrary()
@@ -404,7 +423,14 @@ struct ContentView: View {
     }
 
     do {
-      if !libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      libraryTags = try root.libraryTags()
+      if libraryScope == .tag, let libraryTag {
+        libraryListing = try root.taggedLibrary(
+          tag: libraryTag,
+          query: libraryQuery,
+          sort: librarySort,
+          direction: librarySortDirection)
+      } else if !libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
         if libraryScope == .trash {
           let needle = libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines)
           let listing = try root.trashNotes(
@@ -606,6 +632,20 @@ struct ContentView: View {
           for: reference)
       }
       libraryDetails = nil
+      refreshLibrary()
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func addLibraryTag(_ name: String, _ color: String) {
+    guard let root else { return }
+    do {
+      try root.addLibraryTag(name: name, color: color)
+      showingNewTag = false
+      libraryTag = name
+      libraryQuery = ""
+      libraryScope = .tag
       refreshLibrary()
     } catch {
       errorMessage = error.localizedDescription

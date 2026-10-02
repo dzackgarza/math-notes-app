@@ -456,6 +456,22 @@ final class NotebookStorageTests: XCTestCase {
       LibraryTag(name: "Reading", color: "#8B5CF6"))
   }
 
+  func testLibraryTagCreationUsesChosenColorAndRejectsDuplicates() throws {
+    let first = try LibraryMetadataFile.addingTag(
+      in: nil,
+      name: "Research",
+      color: "#8B5CF6")
+    XCTAssertEqual(
+      try LibraryMetadataFile.tags(in: first),
+      [LibraryTag(name: "Research", color: "#8B5CF6")])
+
+    XCTAssertThrowsError(
+      try LibraryMetadataFile.addingTag(
+        in: first,
+        name: "Research",
+        color: "#2F6FEB"))
+  }
+
   func testWritesAssetsThenPagesThenNotebookMetadataThenDeletes() {
     let changes = [
       EngineFileChange(path: "pages/0002.svg", kind: .delete),

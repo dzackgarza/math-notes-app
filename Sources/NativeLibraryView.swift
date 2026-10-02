@@ -6,6 +6,7 @@ enum LibraryScope: String {
   case recent
   case favorites
   case trash
+  case tag
 }
 
 @MainActor
@@ -15,6 +16,8 @@ struct NativeLibraryView: View {
   let listing: LibraryListing
   @Binding var query: String
   @Binding var scope: LibraryScope
+  let tags: [LibraryTag]
+  let selectedTag: String?
   let sort: LibrarySort
   let sortDirection: LibrarySortDirection
   let grid: Bool
@@ -23,6 +26,8 @@ struct NativeLibraryView: View {
   let goUp: () -> Void
   let setSort: (LibrarySort) -> Void
   let setSortDirection: (LibrarySortDirection) -> Void
+  let selectTag: (String) -> Void
+  let createTag: () -> Void
   let toggleLayout: () -> Void
   let createNote: () -> Void
   let importPDF: () -> Void
@@ -62,6 +67,12 @@ struct NativeLibraryView: View {
           Label("Trash is Empty", systemImage: "trash")
         } description: {
           Text("Notes moved to Trash appear here until restored in Files or Math Notes.")
+        }
+      } else if scope == .tag && listing.folders.isEmpty && listing.notebooks.isEmpty {
+        ContentUnavailableView {
+          Label("No Tagged Notes", systemImage: "tag")
+        } description: {
+          Text("Nothing has the tag \(selectedTag ?? "").")
         }
       } else if listing.folders.isEmpty && listing.notebooks.isEmpty {
         ContentUnavailableView {
@@ -117,6 +128,8 @@ struct NativeLibraryView: View {
         ? "Favorites"
         : scope == .trash
         ? "Trash"
+        : scope == .tag
+        ? selectedTag ?? "Tags"
         : folder.name)
     .navigationBarTitleDisplayMode(.large)
     .searchable(
@@ -184,6 +197,25 @@ struct NativeLibraryView: View {
             } else {
               Label("Trash", systemImage: "trash")
             }
+          }
+
+          if !tags.isEmpty {
+            Divider()
+            ForEach(tags) { tag in
+              Button {
+                selectTag(tag.name)
+              } label: {
+                if scope == .tag && selectedTag == tag.name {
+                  Label(tag.name, systemImage: "checkmark")
+                } else {
+                  Label(tag.name, systemImage: "tag")
+                }
+              }
+            }
+          }
+
+          Button(action: createTag) {
+            Label("New Tag…", systemImage: "tag.badge.plus")
           }
 
           Divider()
