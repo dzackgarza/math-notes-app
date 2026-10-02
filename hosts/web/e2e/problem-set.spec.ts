@@ -222,6 +222,7 @@ test("Flutter problem set session: pages written, pulled in, reordered, inserted
 
   await test.step("delete a page, restore it from the toast, delete the written page, and add a lined page", async () => {
     await button("Pages").click();
+    await button("Delete page").scrollIntoViewIfNeeded();
     expect(await contrastIn(page, button("Delete page")), "Delete page is legible").toBeGreaterThan(4.5);
     await button("Delete page").click();
     await expect(page.getByText(/^\d \/ 6$/)).toBeVisible();
