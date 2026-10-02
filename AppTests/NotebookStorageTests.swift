@@ -391,6 +391,71 @@ final class NotebookStorageTests: XCTestCase {
       """)
   }
 
+  func testLibraryDetailsPersistAndRegisterUnknownTags() throws {
+    let original = Data(
+      """
+      {
+        "format": "math-notes-library",
+        "version": 1,
+        "tags": [
+          { "name": "Research", "color": "#2F6FEB" }
+        ],
+        "notes": {
+          "Analysis/Integrals": {
+            "favorite": true,
+            "tags": ["Research"],
+            "description": "Old description"
+          }
+        },
+        "folders": {},
+        "startingTemplates": []
+      }
+      """.utf8)
+
+    let noteData = try LibraryMetadataFile.settingNoteDetails(
+      in: original,
+      path: ["Analysis", "Integrals"],
+      details: LibraryNoteDetails(
+        favorite: true,
+        tags: ["Research", "Seminar", "Seminar", "  "],
+        description: "Measure theory"))
+    XCTAssertEqual(
+      try LibraryMetadataFile.noteDetails(
+        in: noteData,
+        path: ["Analysis", "Integrals"]),
+      LibraryNoteDetails(
+        favorite: true,
+        tags: ["Research", "Seminar"],
+        description: "Measure theory"))
+    XCTAssertEqual(
+      try LibraryMetadataFile.tags(in: noteData),
+      [
+        LibraryTag(name: "Research", color: "#2F6FEB"),
+        LibraryTag(name: "Seminar", color: "#3FA35B"),
+      ])
+
+    let folderData = try LibraryMetadataFile.settingFolderDetails(
+      in: noteData,
+      path: ["Analysis"],
+      details: LibraryFolderDetails(
+        description: "Analysis notes",
+        paper: "grid-medium",
+        coverColor: "#24324A",
+        coverStyle: "spine",
+        tags: ["Seminar", "Reading"])))
+    XCTAssertEqual(
+      try LibraryMetadataFile.folderDetails(in: folderData, path: ["Analysis"]),
+      LibraryFolderDetails(
+        description: "Analysis notes",
+        paper: "grid-medium",
+        coverColor: "#24324A",
+        coverStyle: "spine",
+        tags: ["Seminar", "Reading"]))
+    XCTAssertEqual(
+      try LibraryMetadataFile.tags(in: folderData).last,
+      LibraryTag(name: "Reading", color: "#8B5CF6"))
+  }
+
   func testWritesAssetsThenPagesThenNotebookMetadataThenDeletes() {
     let changes = [
       EngineFileChange(path: "pages/0002.svg", kind: .delete),

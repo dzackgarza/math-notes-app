@@ -49,8 +49,33 @@ struct NotebookReference: Hashable, Identifiable {
   var name: String { path.last ?? "Untitled" }
 }
 
+struct LibraryTag: Hashable, Identifiable {
+  let name: String
+  let color: String
+
+  var id: String { name }
+}
+
+struct LibraryNoteDetails: Equatable {
+  var favorite: Bool
+  var tags: [String]
+  var description: String
+}
+
+struct LibraryFolderDetails: Equatable {
+  var description: String
+  var paper: String
+  var coverColor: String
+  var coverStyle: String
+  var tags: [String]
+}
+
 enum LibraryMetadataFile {
   static let name = ".library.json"
+  static let tagColors = [
+    "#2F6FEB", "#3FA35B", "#8B5CF6", "#F08A24",
+    "#2BB3C0", "#D6455D", "#1F3A93", "#C084FC",
+  ]
 
   static func read(at root: URL) throws -> Data? {
     let file = root.appendingPathComponent(name)
@@ -67,6 +92,39 @@ enum LibraryMetadataFile {
       }
       return key
     })
+  }
+
+  static func tags(in data: Data?) throws -> [LibraryTag] {
+    let root = try object(from: data)
+    let values = root["tags"] as? [[String: Any]] ?? []
+    return values.compactMap { value in
+      guard let name = value["name"] as? String,
+        let color = value["color"] as? String
+      else { return nil }
+      return LibraryTag(name: name, color: color)
+    }
+  }
+
+  static func noteDetails(in data: Data?, path: [String]) throws -> LibraryNoteDetails {
+    let root = try object(from: data)
+    let notes = root["notes"] as? [String: Any] ?? [:]
+    let note = notes[path.joined(separator: "/")] as? [String: Any] ?? [:]
+    return LibraryNoteDetails(
+      favorite: note["favorite"] as? Bool ?? false,
+      tags: note["tags"] as? [String] ?? [],
+      description: note["description"] as? String ?? "")
+  }
+
+  static func folderDetails(in data: Data?, path: [String]) throws -> LibraryFolderDetails {
+    let root = try object(from: data)
+    let folders = root["folders"] as? [String: Any] ?? [:]
+    let folder = folders[path.joined(separator: "/")] as? [String: Any] ?? [:]
+    return LibraryFolderDetails(
+      description: folder["description"] as? String ?? "",
+      paper: folder["paper"] as? String ?? "dotted",
+      coverColor: folder["coverColor"] as? String ?? "#24324A",
+      coverStyle: folder["coverStyle"] as? String ?? "classic",
+      tags: folder["tags"] as? [String] ?? [])
   }
 
   static func settingFavorite(
@@ -87,6 +145,42 @@ enum LibraryMetadataFile {
     if note["description"] == nil { note["description"] = "" }
     notes[key] = note
     root["notes"] = notes
+    return try encoded(root)
+  }
+
+  static func settingNoteDetails(
+    in data: Data?,
+    path: [String],
+    details: LibraryNoteDetails
+  ) throws -> Data {
+    var root = try object(from: data)
+    registerTags(details.tags, in: &root)
+    var notes = root["notes"] as? [String: Any] ?? [:]
+    notes[path.joined(separator: "/")] = [
+      "favorite": details.favorite,
+      "tags": normalizedTags(details.tags),
+      "description": details.description,
+    ]
+    root["notes"] = notes
+    return try encoded(root)
+  }
+
+  static func settingFolderDetails(
+    in data: Data?,
+    path: [String],
+    details: LibraryFolderDetails
+  ) throws -> Data {
+    var root = try object(from: data)
+    registerTags(details.tags, in: &root)
+    var folders = root["folders"] as? [String: Any] ?? [:]
+    folders[path.joined(separator: "/")] = [
+      "description": details.description,
+      "paper": details.paper,
+      "coverColor": details.coverColor,
+      "coverStyle": details.coverStyle,
+      "tags": normalizedTags(details.tags),
+    ]
+    root["folders"] = folders
     return try encoded(root)
   }
 
@@ -139,6 +233,27 @@ enum LibraryMetadataFile {
     }
 
     return try encoded(root)
+  }
+
+  private static func normalizedTags(_ names: [String]) -> [String] {
+    var seen = Set<String>()
+    return names.compactMap { name in
+      let value = name.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !value.isEmpty, seen.insert(value).inserted else { return nil }
+      return value
+    }
+  }
+
+  private static func registerTags(_ names: [String], in root: inout [String: Any]) {
+    var values = root["tags"] as? [[String: Any]] ?? []
+    var known = Set(values.compactMap { $0["name"] as? String })
+    for name in normalizedTags(names) where known.insert(name).inserted {
+      values.append([
+        "name": name,
+        "color": tagColors[values.count % tagColors.count],
+      ])
+    }
+    root["tags"] = values
   }
 
   private static func object(from data: Data?) throws -> [String: Any] {
@@ -772,6 +887,52 @@ final class NotesRootAccess {
         in: LibraryMetadataFile.read(at: root),
         path: reference.path,
         favorite: favorite)
+      try updated.write(
+        to: root.appendingPathComponent(LibraryMetadataFile.name),
+        options: .atomic)
+    }
+  }
+
+  func libraryTags() throws -> [LibraryTag] {
+    try coordinatedRead(at: url) { root in
+      try LibraryMetadataFile.tags(in: LibraryMetadataFile.read(at: root))
+    }
+  }
+
+  func noteDetails(for reference: NotebookReference) throws -> LibraryNoteDetails {
+    try coordinatedRead(at: url) { root in
+      try LibraryMetadataFile.noteDetails(
+        in: LibraryMetadataFile.read(at: root),
+        path: reference.path)
+    }
+  }
+
+  func folderDetails(for reference: FolderReference) throws -> LibraryFolderDetails {
+    try coordinatedRead(at: url) { root in
+      try LibraryMetadataFile.folderDetails(
+        in: LibraryMetadataFile.read(at: root),
+        path: reference.path)
+    }
+  }
+
+  func saveNoteDetails(_ details: LibraryNoteDetails, for reference: NotebookReference) throws {
+    try coordinatedWrite(at: url, options: .forMerging) { root in
+      let updated = try LibraryMetadataFile.settingNoteDetails(
+        in: LibraryMetadataFile.read(at: root),
+        path: reference.path,
+        details: details)
+      try updated.write(
+        to: root.appendingPathComponent(LibraryMetadataFile.name),
+        options: .atomic)
+    }
+  }
+
+  func saveFolderDetails(_ details: LibraryFolderDetails, for reference: FolderReference) throws {
+    try coordinatedWrite(at: url, options: .forMerging) { root in
+      let updated = try LibraryMetadataFile.settingFolderDetails(
+        in: LibraryMetadataFile.read(at: root),
+        path: reference.path,
+        details: details)
       try updated.write(
         to: root.appendingPathComponent(LibraryMetadataFile.name),
         options: .atomic)

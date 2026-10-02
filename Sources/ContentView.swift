@@ -36,6 +36,7 @@ struct ContentView: View {
   @State private var newNoteFolders: [FolderReference] = []
   @State private var newNoteTemplates: [String] = []
   @State private var libraryMutation: LibraryMutationRequest?
+  @State private var libraryDetails: LibraryDetailsRequest?
   @State private var pagePaper: PagePaperRequest?
   @State private var showingPageOverview = false
 
@@ -141,6 +142,18 @@ struct ContentView: View {
           applyLibraryMutation(request, name: name, parent: parent)
         },
         onCancel: { libraryMutation = nil })
+    }
+    .sheet(item: $libraryDetails) { request in
+      LibraryDetailsSheet(
+        request: request,
+        onSave: { description, tags, paper in
+          saveLibraryDetails(
+            request,
+            description: description,
+            tags: tags,
+            paper: paper)
+        },
+        onCancel: { libraryDetails = nil })
     }
     .sheet(item: $pagePaper) { request in
       PagePaperSheet(
@@ -316,6 +329,8 @@ struct ContentView: View {
       trashEntry: moveLibraryEntryToTrash,
       restoreEntry: { prepareLibraryMutation(.restore($0)) },
       toggleFavorite: toggleFavorite,
+      editNoteDetails: prepareNoteDetails,
+      editFolderDetails: prepareFolderDetails,
       refresh: refreshLibrary,
       chooseRoot: { showingFolderPicker = true })
   }
@@ -528,6 +543,61 @@ struct ContentView: View {
     guard let root else { return }
     do {
       try root.setFavorite(!item.favorite, for: item.reference)
+      refreshLibrary()
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func prepareNoteDetails(_ reference: NotebookReference) {
+    guard let root else { return }
+    do {
+      libraryDetails = LibraryDetailsRequest(
+        target: .note(reference, try root.noteDetails(for: reference)),
+        knownTags: try root.libraryTags())
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func prepareFolderDetails(_ reference: FolderReference) {
+    guard let root else { return }
+    do {
+      libraryDetails = LibraryDetailsRequest(
+        target: .folder(reference, try root.folderDetails(for: reference)),
+        knownTags: try root.libraryTags())
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func saveLibraryDetails(
+    _ request: LibraryDetailsRequest,
+    description: String,
+    tags: [String],
+    paper: String?
+  ) {
+    guard let root else { return }
+    do {
+      switch request.target {
+      case let .note(reference, current):
+        try root.saveNoteDetails(
+          LibraryNoteDetails(
+            favorite: current.favorite,
+            tags: tags,
+            description: description),
+          for: reference)
+      case let .folder(reference, current):
+        try root.saveFolderDetails(
+          LibraryFolderDetails(
+            description: description,
+            paper: paper ?? current.paper,
+            coverColor: current.coverColor,
+            coverStyle: current.coverStyle,
+            tags: tags),
+          for: reference)
+      }
+      libraryDetails = nil
       refreshLibrary()
     } catch {
       errorMessage = error.localizedDescription

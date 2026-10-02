@@ -32,6 +32,8 @@ struct NativeLibraryView: View {
   let trashEntry: (LibraryEntryTarget) -> Void
   let restoreEntry: (LibraryEntryTarget) -> Void
   let toggleFavorite: (LibraryNotebookItem) -> Void
+  let editNoteDetails: (NotebookReference) -> Void
+  let editFolderDetails: (FolderReference) -> Void
   let refresh: () -> Void
   let chooseRoot: () -> Void
 
@@ -313,9 +315,21 @@ struct NativeLibraryView: View {
       {
         toggleFavorite(item)
       }
+      Button("Details and Tags", systemImage: "tag") {
+        editNoteDetails(item.reference)
+      }
       Divider()
       entryActions(LibraryEntryTarget(path: item.reference.path, kind: .note))
     }
+  }
+
+  @ViewBuilder
+  private func folderActions(_ item: LibraryFolderItem) -> some View {
+    Button("Details and Tags", systemImage: "tag") {
+      editFolderDetails(item.reference)
+    }
+    Divider()
+    entryActions(LibraryEntryTarget(path: item.reference.path, kind: .folder))
   }
 
   private func folderCard(_ item: LibraryFolderItem) -> some View {
@@ -351,7 +365,7 @@ struct NativeLibraryView: View {
     .buttonStyle(.plain)
     .accessibilityLabel("Open \(item.reference.name)")
     .contextMenu {
-      entryActions(LibraryEntryTarget(path: item.reference.path, kind: .folder))
+      folderActions(item)
     }
   }
 
@@ -420,7 +434,7 @@ struct NativeLibraryView: View {
     }
     .buttonStyle(.plain)
     .contextMenu {
-      entryActions(LibraryEntryTarget(path: item.reference.path, kind: .folder))
+      folderActions(item)
     }
   }
 
