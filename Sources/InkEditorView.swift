@@ -833,7 +833,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
 
   private func syncDrawingSuppression() {
     canvasView.setDrawingSuppressed(
-      bookmarkMode || appliedTool == .text || figureCompleting)
+      bookmarkMode || appliedTool == .text || appliedTool == .navigate || figureCompleting)
   }
 
   private func refreshFigurePreview() {
@@ -910,14 +910,17 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     onFocusRequested()
     let point = recognizer.location(in: canvasView)
     guard !handleModeTap(at: point), !figureCaptureActive, !figureCompleting else { return }
-    guard !fingerDrawing else { return }
+    guard appliedTool == .navigate else { return }
     followLink(at: point)
   }
 
   @objc private func handlePencilModeTap(_ recognizer: UITapGestureRecognizer) {
     guard recognizer.state == .ended else { return }
     onFocusRequested()
-    _ = handleModeTap(at: recognizer.location(in: canvasView))
+    let point = recognizer.location(in: canvasView)
+    if handleModeTap(at: point) { return }
+    guard appliedTool == .navigate, !figureCaptureActive, !figureCompleting else { return }
+    followLink(at: point)
   }
 
   @objc private func handleUndoTap(_ recognizer: UITapGestureRecognizer) {
@@ -1563,6 +1566,26 @@ struct InkEditorView: View {
         .padding(.top, 8)
         .padding(.horizontal, 80)
       }
+
+      if tool == .navigate {
+        HStack(spacing: 10) {
+          Image(systemName: "link")
+          Text("Follow links")
+            .fontWeight(.semibold)
+          Button {
+            tool = drawingTool
+          } label: {
+            Image(systemName: "xmark")
+          }
+          .accessibilityLabel("Close Follow links")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(.regularMaterial, in: Capsule())
+        .frame(maxWidth: .infinity, alignment: .top)
+        .padding(.top, 8)
+        .padding(.horizontal, 80)
+      }
     }
     .onDrop(
       of: [notebookSelectionDragType, .plainText],
@@ -1589,7 +1612,7 @@ struct InkEditorView: View {
         onCancel: { textRequest = nil })
     }
     .onChange(of: tool) { old, next in
-      if old != next {
+      if old != next, old != .navigate {
         previousPencilTool = old
       }
     }

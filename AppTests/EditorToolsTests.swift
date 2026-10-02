@@ -120,6 +120,14 @@ final class EditorToolsTests: XCTestCase {
     XCTAssertEqual(decoded.saved[0].rgb, 0x2F6FEB)
     XCTAssertEqual(decoded.saved[0].size, 2.4)
   }
+  func testFollowLinksIsTransientAndNotToolbarCustomizable() {
+    XCTAssertTrue(EditorTool.allCases.contains(.navigate))
+    XCTAssertFalse(EditorTool.toolbarCases.contains(.navigate))
+    XCTAssertEqual(
+      Set(EditorTool.toolbarCases.map(\.rawValue)),
+      Set(["pen", "marker", "highlighter", "eraser", "lasso", "text", "image", "space"]))
+  }
+
   @MainActor
   func testHistoryUsesTheSharedDocument() throws {
     let document = EngineDocument(seed: 11)

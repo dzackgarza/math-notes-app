@@ -11,8 +11,13 @@ enum EditorTool: String, CaseIterable, Identifiable {
   case text
   case image
   case space
+  case navigate
 
   var id: Self { self }
+
+  static var toolbarCases: [Self] {
+    allCases.filter { $0 != .navigate }
+  }
 
   var label: String {
     switch self {
@@ -22,6 +27,7 @@ enum EditorTool: String, CaseIterable, Identifiable {
     case .eraser: "Eraser"
     case .lasso: "Lasso"
     case .space: "Insert Space"
+    case .navigate: "Follow links"
     case .text: "Text"
     case .image: "Image"
     }
@@ -35,6 +41,7 @@ enum EditorTool: String, CaseIterable, Identifiable {
     case .eraser: "eraser"
     case .lasso: "lasso"
     case .space: "arrow.up.and.down.and.arrow.left.and.right"
+    case .navigate: "link"
     case .text: "textformat"
     case .image: "photo"
     }
@@ -263,7 +270,7 @@ struct EditorToolRail: View {
   }
 
   private var visibleTools: [EditorTool] {
-    drawing ? [.pen, .marker, .highlighter] : EditorTool.allCases
+    drawing ? [.pen, .marker, .highlighter] : EditorTool.toolbarCases
   }
 
   private var colorButton: some View {

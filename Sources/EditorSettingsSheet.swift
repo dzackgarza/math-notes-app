@@ -3,6 +3,7 @@ import SwiftUI
 @MainActor
 struct EditorSettingsSheet: View {
   @Binding var fingerDraws: Bool
+  let followLinks: Binding<Bool>?
   @Environment(\.dismiss) private var dismiss
 
   var body: some View {
@@ -10,6 +11,9 @@ struct EditorSettingsSheet: View {
       Form {
         Section {
           Toggle("Draw with finger", isOn: $fingerDraws)
+          if let followLinks {
+            Toggle("Follow links", isOn: followLinks)
+          }
         }
       }
       .navigationTitle("Settings")

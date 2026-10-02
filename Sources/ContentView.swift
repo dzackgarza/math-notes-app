@@ -152,6 +152,14 @@ struct ContentView: View {
     openNotes.focusedView
   }
 
+  private var followLinksBinding: Binding<Bool> {
+    Binding(
+      get: { selectedTool == .navigate },
+      set: { enabled in
+        selectedTool = enabled ? .navigate : selectedDrawingTool
+      })
+  }
+
   private var activeLayerID: String? {
     get { viewState?.activeLayerID }
     nonmutating set { viewState?.activeLayerID = newValue }
@@ -232,7 +240,9 @@ struct ContentView: View {
         })
     }
     .sheet(isPresented: $showingEditorSettings) {
-      EditorSettingsSheet(fingerDraws: $fingerDraws)
+      EditorSettingsSheet(
+        fingerDraws: $fingerDraws,
+        followLinks: followLinksBinding)
     }
     .sheet(isPresented: $showingOpenNotePicker) {
       if let root {
