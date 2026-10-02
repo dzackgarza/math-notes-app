@@ -31,7 +31,8 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
     await page.getByText("Outlines", { exact: true }).click();
     await expect(page.getByText("No outlines", { exact: true })).toBeVisible();
     await page.getByText("Layers", { exact: true }).click();
-    await expect(page.getByText("Ink", { exact: true })).toBeVisible();
+    await expect(button("Hide Ink")).toBeVisible();
+    await expect(button("Edit Ink")).toBeVisible();
     await button("Close navigation").click();
   });
   const box = await boxOf(canvas);

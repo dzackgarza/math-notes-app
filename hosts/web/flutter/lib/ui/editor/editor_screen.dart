@@ -1158,7 +1158,7 @@ class _EditorScreenState extends State<EditorScreen> {
               children: [
                 for (var index = 0; index < tabs.length; index++)
                   SizedBox(
-                    width: 140,
+                    width: 132,
                     child: CupertinoButton(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       onPressed: () => setState(() => navigationTab = index),
