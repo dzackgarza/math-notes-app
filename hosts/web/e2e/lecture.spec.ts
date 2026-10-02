@@ -335,7 +335,6 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   title = "Lecture 1 Compactness";
   await expect(page.getByRole("button", { name: `Open ${title}`, exact: false })).toBeVisible();
   await button("Back to library").click();
-  await button("Search").click();
   await enterText(page.getByRole("textbox", { name: "Search notebooks and notes", exact: true }), "Compact");
   await expect(page.getByRole("button", { name: `Open ${title}`, exact: false })).toBeVisible();
   await expect(page.getByRole("button", { name: "Open paper", exact: false })).toHaveCount(0);
