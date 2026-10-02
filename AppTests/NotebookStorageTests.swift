@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import InkEngine
 import XCTest
@@ -101,6 +102,24 @@ final class NotebookStorageTests: XCTestCase {
     XCTAssertEqual(String(decoding: pdf.prefix(5), as: UTF8.self), "%PDF-")
   }
 
+
+  @MainActor
+  func testPDFExportRangeUsesTheSharedSpec() throws {
+    let document = EngineDocument(seed: 53)
+    try document.appendPage()
+    try document.appendPage()
+
+    let expected = try document.pageRect(index: 1)
+    let pdf = try document.exportPDF(title: "Range Export", firstPage: 1, pageCount: 1)
+    let provider = try XCTUnwrap(CGDataProvider(data: pdf as CFData))
+    let exported = try XCTUnwrap(CGPDFDocument(provider))
+    let page = try XCTUnwrap(exported.page(at: 1))
+    let media = page.getBoxRect(.mediaBox)
+
+    XCTAssertEqual(exported.numberOfPages, 1)
+    XCTAssertEqual(media.width, expected.width, accuracy: 0.01)
+    XCTAssertEqual(media.height, expected.height, accuracy: 0.01)
+  }
   @MainActor
   func testBuiltinTemplateFactoryMatchesTheSharedCreationPath() throws {
     XCTAssertEqual(

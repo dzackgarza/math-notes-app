@@ -26,6 +26,7 @@ struct ContentView: View {
   @State private var documentRevision = 0
   @State private var pageNavigationRevision = 0
   @State private var sharePayload: SharePayload?
+  @State private var pdfExport: PDFExportRequest?
   @State private var showingNewNote = false
   @State private var newNoteFolders: [FolderReference] = []
   @State private var newNoteTemplates: [String] = []
@@ -98,6 +99,18 @@ struct ContentView: View {
     .sheet(item: $sharePayload) { payload in
       ActivityShareSheet(url: payload.url)
     }
+    .sheet(item: $pdfExport) { request in
+      PDFExportSheet(
+        request: request,
+        onExport: { firstPage, pageCount in
+          guard let session else {
+            pdfExport = nil
+            return
+          }
+          sharePDF(session, firstPage: firstPage, pageCount: pageCount)
+        },
+        onCancel: { pdfExport = nil })
+    }
     .sheet(isPresented: $showingNewNote) {
       NewNoteSheet(
         folders: newNoteFolders,
@@ -157,8 +170,8 @@ struct ContentView: View {
       Button("Save", systemImage: "square.and.arrow.down") {
         saveOpenNotebook()
       }
-      Button("Share PDF", systemImage: "square.and.arrow.up") {
-        sharePDF(session)
+      Button("Export PDF…", systemImage: "square.and.arrow.up") {
+        preparePDFExport(session)
       }
       Divider()
       Button("Close note", systemImage: "xmark") {
@@ -463,16 +476,39 @@ struct ContentView: View {
     }
   }
 
-  private func sharePDF(_ session: NotebookSession) {
+  private func preparePDFExport(_ session: NotebookSession) {
+    do {
+      pdfExport = PDFExportRequest(
+        pageCount: try session.document.pageCount(),
+        currentPage: currentPage)
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func sharePDF(
+    _ session: NotebookSession,
+    firstPage: Int,
+    pageCount: Int
+  ) {
     do {
       try saveOpenNotebookThrowing()
-      let data = try session.document.exportPDF(title: session.reference.name)
+      let total = try session.document.pageCount()
+      let data = try session.document.exportPDF(
+        title: session.reference.name,
+        firstPage: firstPage,
+        pageCount: pageCount)
       let safeName = session.reference.name.replacingOccurrences(of: "/", with: "-")
+      let baseName = firstPage == 0 && pageCount == total ? safeName : "\(safeName)-pages-\(firstPage + 1)-\(firstPage + pageCount)"
       let url = FileManager.default.temporaryDirectory
-        .appendingPathComponent(safeName)
+        .appendingPathComponent(baseName)
         .appendingPathExtension("pdf")
       try data.write(to: url, options: .atomic)
-      sharePayload = SharePayload(url: url)
+      let payload = SharePayload(url: url)
+      pdfExport = nil
+      DispatchQueue.main.async {
+        sharePayload = payload
+      }
     } catch {
       errorMessage = error.localizedDescription
     }
