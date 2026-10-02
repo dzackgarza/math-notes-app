@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { test, longPressDrag, enterText, goToPage, whenSaved, createTestNotebook, openTestNotebook, storedNote, penStroke, line, pngPixels, screenPixels, isOutline, isInk, inkRow, pixelBounds, size, inkAt, boxOf, storedFills, closePopover, openColors, pickColor, storedPages, savedPages, type PenPoint, type Rgb, type Bounds } from "./support.ts";
 
 test("Flutter lecture session: every core tool on one note, pages, a PDF beside it, reload, library, a sync conflict, and export", async ({ page, context }, info) => {
-  test.setTimeout(600_000);
+  test.setTimeout(300_000);
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const shot = (name: string) => page.screenshot({ path: info.outputPath(`${name}.png`) });
   const button = (name: string) => page.getByRole("button", { name, exact: true });
@@ -228,7 +228,8 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   await expect(page.getByText(/^\d \/ 4$/)).toBeVisible();
   if (await button("Open navigation").count() > 0)
     await button("Open navigation").click();
-  await button("Pages").last().click();
+  await button("Navigation Pages").click();
+  await expect(button("Arrange pages")).toBeVisible();
   await button("Arrange pages").click();
   const tile = (n: number) => button(`Page ${n}`);
   const act = async (n: number, action: string) => {

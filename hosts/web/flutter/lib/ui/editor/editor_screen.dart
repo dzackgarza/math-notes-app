@@ -1173,19 +1173,28 @@ class _EditorScreenState extends State<EditorScreen> {
                 for (var index = 0; index < tabs.length; index++)
                   SizedBox(
                     width: 132,
-                    child: CupertinoButton(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      onPressed: () => setState(() => navigationTab = index),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        decoration: BoxDecoration(
-                          color: navigationTab == index ? selectedFill : null,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Center(
-                          child: Text(
-                            tabs[index],
-                            style: navigationTab == index ? subhead : callout,
+                    child: MergeSemantics(
+                      child: Semantics(
+                        label: 'Navigation ${tabs[index]}',
+                        button: true,
+                        selected: navigationTab == index,
+                        child: CupertinoButton(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          onPressed: () => setState(() => navigationTab = index),
+                          child: ExcludeSemantics(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              decoration: BoxDecoration(
+                                color: navigationTab == index ? selectedFill : null,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  tabs[index],
+                                  style: navigationTab == index ? subhead : callout,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ),
