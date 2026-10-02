@@ -226,8 +226,9 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   // page 1 is duplicated and its copy dragged to the end.
   await choose("Add page", /^Before page/);
   await expect(page.getByText(/^\d \/ 4$/)).toBeVisible();
-  if (await button("Arrange pages").count() === 0)
+  if (await button("Open navigation").count() > 0)
     await button("Open navigation").click();
+  await button("Pages").last().click();
   await button("Arrange pages").click();
   const tile = (n: number) => button(`Page ${n}`);
   const act = async (n: number, action: string) => {
