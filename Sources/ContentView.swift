@@ -41,6 +41,7 @@ private struct NotebookEditorPane: View {
   let linkedViewport: EditorLinkedViewport?
   let arrangement: EditorPageArrangement
   let fingerDraws: Bool
+  let hiddenTools: Set<String>
   @Binding var penLibrary: EditorPenLibrary
   @Binding var tool: EditorTool
   @Binding var drawingTool: EditorTool
@@ -77,6 +78,7 @@ private struct NotebookEditorPane: View {
       linked: linked,
       linkedViewport: linkedViewport,
       fingerDraws: fingerDraws,
+      hiddenTools: hiddenTools,
       onFocus: onFocus,
       onViewportChanged: onViewportChanged,
       onEditCommitted: onEditCommitted,
@@ -111,6 +113,7 @@ struct ContentView: View {
   @AppStorage("editorSplitFraction") private var editorSplitFraction = 0.5
   @AppStorage("fingerDraws") private var fingerDraws = false
   @AppStorage("showTabStrip") private var showTabStrip = true
+  @AppStorage("hiddenTools") private var hiddenToolsRaw = ""
   @State private var openNotes = OpenNotesState()
   @State private var showingFolderPicker = false
   @State private var restoredRoot = false
@@ -151,6 +154,10 @@ struct ContentView: View {
 
   private var viewState: OpenNotebookViewState? {
     openNotes.focusedView
+  }
+
+  private var hiddenTools: Set<String> {
+    Set(hiddenToolsRaw.split(separator: ",").map(String.init))
   }
 
   private var followLinksBinding: Binding<Bool> {
@@ -244,7 +251,8 @@ struct ContentView: View {
       EditorSettingsSheet(
         fingerDraws: $fingerDraws,
         followLinks: followLinksBinding,
-        showTabStrip: $showTabStrip)
+        showTabStrip: $showTabStrip,
+        hiddenToolsRaw: $hiddenToolsRaw)
     }
     .sheet(isPresented: $showingOpenNotePicker) {
       if let root {
@@ -592,6 +600,7 @@ struct ContentView: View {
       linkedViewport: openNotes.linkedViewport,
       arrangement: EditorPageArrangement.stored(pageArrangementRaw),
       fingerDraws: fingerDraws,
+      hiddenTools: hiddenTools,
       penLibrary: $penLibrary,
       tool: $selectedTool,
       drawingTool: $selectedDrawingTool,

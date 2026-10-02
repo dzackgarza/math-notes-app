@@ -1410,6 +1410,7 @@ struct InkEditorView: View {
   let linked: Bool
   let linkedViewport: EditorLinkedViewport?
   let fingerDraws: Bool
+  let hiddenTools: Set<String>
   @State private var selectorMode: EditorSelectorMode = .freehand
   @State private var eraserMode: EditorEraserMode = .stroke
   @State private var spaceMode: EditorSpaceMode = .reflow
@@ -1498,6 +1499,7 @@ struct InkEditorView: View {
         selectorMode: $selectorMode,
         spaceMode: $spaceMode,
         penLibrary: $penLibrary,
+        hiddenTools: hiddenTools,
         undo: { history(redo: false) },
         redo: { history(redo: true) },
         insertText: { pageCommand = .requestTextAtCenter },

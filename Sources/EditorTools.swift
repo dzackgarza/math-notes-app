@@ -174,6 +174,7 @@ struct EditorToolRail: View {
   @Binding var selectorMode: EditorSelectorMode
   @Binding var spaceMode: EditorSpaceMode
   @Binding var penLibrary: EditorPenLibrary
+  let hiddenTools: Set<String>
   @State private var showingEraserModes = false
   @State private var showingSelectorModes = false
   @State private var showingSpaceModes = false
@@ -227,11 +228,13 @@ struct EditorToolRail: View {
         }
       }
 
-      railButton(
-        label: drawing ? "Finish drawing" : "Drawing mode",
-        systemImage: "scribble.variable",
-        selected: drawing,
-        action: toggleDrawing)
+      if !hiddenTools.contains("drawing") {
+        railButton(
+          label: drawing ? "Finish drawing" : "Drawing mode",
+          systemImage: "scribble.variable",
+          selected: drawing,
+          action: toggleDrawing)
+      }
 
       if !drawing {
         railButton(label: "Clippings", systemImage: "tray", action: showClippings)
@@ -270,7 +273,8 @@ struct EditorToolRail: View {
   }
 
   private var visibleTools: [EditorTool] {
-    drawing ? [.pen, .marker, .highlighter] : EditorTool.toolbarCases
+    let tools: [EditorTool] = drawing ? [.pen, .marker, .highlighter] : EditorTool.toolbarCases
+    return tools.filter { !hiddenTools.contains($0.rawValue) }
   }
 
   private var colorButton: some View {

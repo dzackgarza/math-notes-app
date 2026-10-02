@@ -5,6 +5,7 @@ struct EditorSettingsSheet: View {
   @Binding var fingerDraws: Bool
   let followLinks: Binding<Bool>?
   @Binding var showTabStrip: Bool
+  @Binding var hiddenToolsRaw: String
   @Environment(\.dismiss) private var dismiss
 
   var body: some View {
@@ -17,6 +18,13 @@ struct EditorSettingsSheet: View {
           }
           Toggle("Show tab strip", isOn: $showTabStrip)
         }
+
+        Section("Toolbar") {
+          ForEach(EditorTool.toolbarCases) { tool in
+            Toggle(tool.label, isOn: toolVisibility(tool.rawValue))
+          }
+          Toggle("Drawing mode", isOn: toolVisibility("drawing"))
+        }
       }
       .navigationTitle("Settings")
       .navigationBarTitleDisplayMode(.inline)
@@ -26,5 +34,23 @@ struct EditorSettingsSheet: View {
         }
       }
     }
+  }
+
+  private var hiddenTools: Set<String> {
+    Set(hiddenToolsRaw.split(separator: ",").map(String.init))
+  }
+
+  private func toolVisibility(_ key: String) -> Binding<Bool> {
+    Binding(
+      get: { !hiddenTools.contains(key) },
+      set: { visible in
+        var next = hiddenTools
+        if visible {
+          next.remove(key)
+        } else {
+          next.insert(key)
+        }
+        hiddenToolsRaw = next.sorted().joined(separator: ",")
+      })
   }
 }
