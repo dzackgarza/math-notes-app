@@ -488,7 +488,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               ? emptyState(
                   CupertinoIcons.book,
                   'Your notebooks appear here.',
-                  'Create notebook',
+                  'New notebook',
                   () => run(() => create(true)),
                 )
               : Center(
@@ -619,7 +619,17 @@ class _LibraryScreenState extends State<LibraryScreen> {
         const SizedBox(height: 16),
         Text(message, style: body.copyWith(color: secondaryLabel)),
         const SizedBox(height: 20),
-        CupertinoButton.filled(onPressed: onPressed, child: Text(action)),
+        CupertinoButton.filled(
+          onPressed: onPressed,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(CupertinoIcons.add, size: 20),
+              const SizedBox(width: 8),
+              Text(action),
+            ],
+          ),
+        ),
       ],
     ),
   );
@@ -644,7 +654,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
         const Spacer(),
       menu('Sort', CupertinoIcons.arrow_up_arrow_down, sortMenu),
       const SizedBox(width: 8),
-      if (notebook == null)
+      if (notebook == null &&
+          (vm.filter != 'all' ||
+              vm.query.isNotEmpty ||
+              vm.library.folders.toDart.any(
+                (item) => item.path.length > 0 || item.notes.length > 0,
+              )))
         CupertinoButton.filled(
           onPressed: () => run(() => create(true)),
           child: const Row(
