@@ -38,6 +38,42 @@ final class NotebookStorageTests: XCTestCase {
   }
 
   @MainActor
+  func testLayerManagementUsesSharedDocumentState() throws {
+    let document = EngineDocument(seed: 67)
+    XCTAssertEqual(try document.layers().map(\.name), ["Ink"])
+
+    try document.addLayer(name: "Annotations")
+    var layers = try document.layers()
+    XCTAssertEqual(layers.map(\.name), ["Ink", "Annotations"])
+    let annotationsID = layers[1].id
+
+    XCTAssertNotNil(try document.undo())
+    XCTAssertEqual(try document.layers().map(\.name), ["Ink"])
+    XCTAssertNotNil(try document.redo())
+    layers = try document.layers()
+    XCTAssertEqual(layers.map(\.name), ["Ink", "Annotations"])
+    XCTAssertEqual(layers[1].id, annotationsID)
+
+    try document.setLayer(
+      index: 1,
+      name: "Hidden annotations",
+      hidden: true,
+      locked: false)
+    layers = try document.layers()
+    XCTAssertEqual(layers[1].id, annotationsID)
+    XCTAssertTrue(layers[1].hidden)
+
+    try document.moveLayer(from: 1, to: 0)
+    layers = try document.layers()
+    XCTAssertEqual(layers[0].id, annotationsID)
+    XCTAssertEqual(layers.map(\.name), ["Hidden annotations", "Ink"])
+
+    try document.removeLayer(index: 0, mergeDown: false)
+    XCTAssertEqual(try document.layers().map(\.name), ["Ink"])
+    XCTAssertFalse(try document.dirtyFiles().isEmpty)
+  }
+
+  @MainActor
   func testPageMoveUsesSharedOrderAndGeometry() throws {
     let document = EngineDocument(seed: 43)
     try document.appendPage()

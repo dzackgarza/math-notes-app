@@ -28,6 +28,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private var appliedSelectorMode: EditorSelectorMode = .freehand
   private var appliedPens = EditorPenSet.defaults
   private var appliedArrangement = EditorPageArrangement.vertical
+  private var appliedLayerID: String?
   private var documentRevision = 0
   private var pageNavigationRevision = 0
   private var appliedPageCommand: EditorPageCommand?
@@ -147,6 +148,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     pens: EditorPenSet,
     revision: Int,
     arrangement: EditorPageArrangement,
+    activeLayerID: String?,
     targetPage: Int,
     navigationRevision: Int,
     pageCommand: EditorPageCommand?
@@ -172,6 +174,21 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
         scrollToPage(targetPage)
       } catch {
         onError(error)
+      }
+    }
+
+    if activeLayerID != appliedLayerID {
+      appliedLayerID = activeLayerID
+      if let activeLayerID {
+        do {
+          let layers = try document.layers()
+          guard let index = layers.firstIndex(where: { $0.id == activeLayerID }) else {
+            throw EngineDocumentError.operation("Set active layer", "layer no longer exists")
+          }
+          try canvasView.setLayer(index)
+        } catch {
+          onError(error)
+        }
       }
     }
 
@@ -520,6 +537,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let tool: EditorTool
   let pens: EditorPenSet
   let arrangement: EditorPageArrangement
+  let activeLayerID: String?
   let revision: Int
   let targetPage: Int
   let navigationRevision: Int
@@ -546,6 +564,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       pens: pens,
       revision: revision,
       arrangement: arrangement,
+      activeLayerID: activeLayerID,
       targetPage: targetPage,
       navigationRevision: navigationRevision,
       pageCommand: pageCommand)
@@ -558,6 +577,7 @@ struct InkEditorView: View {
   let arrangement: EditorPageArrangement
   @Binding var penLibrary: EditorPenLibrary
   @Binding var tool: EditorTool
+  @Binding var activeLayerID: String?
   @Binding var currentPage: Int
   @Binding var documentRevision: Int
   @Binding var pageNavigationRevision: Int
@@ -577,6 +597,7 @@ struct InkEditorView: View {
         tool: tool,
         pens: penLibrary.tools,
         arrangement: arrangement,
+        activeLayerID: activeLayerID,
         revision: documentRevision,
         targetPage: currentPage,
         navigationRevision: pageNavigationRevision,
@@ -612,6 +633,13 @@ struct InkEditorView: View {
       guard let step else { return }
       let count = try document.pageCount()
       currentPage = min(max(step.page, 0), max(0, count - 1))
+      let layers = try document.layers()
+      if let activeLayerID,
+        !layers.contains(where: { $0.id == activeLayerID })
+      {
+        self.activeLayerID =
+          layers.first(where: { !$0.hidden && !$0.locked })?.id ?? layers.first?.id
+      }
       documentRevision &+= 1
       pageNavigationRevision &+= 1
       onEditCommitted()

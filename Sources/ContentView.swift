@@ -27,6 +27,7 @@ struct ContentView: View {
   @State private var errorMessage: String?
   @State private var selectedTool: EditorTool = .pen
   @State private var penLibrary = EditorPenLibrary.defaults
+  @State private var activeLayerID: String?
   @State private var currentPage = 0
   @State private var documentRevision = 0
   @State private var pageNavigationRevision = 0
@@ -43,6 +44,7 @@ struct ContentView: View {
   @State private var showingNewTag = false
   @State private var pagePaper: PagePaperRequest?
   @State private var showingPageOverview = false
+  @State private var showingLayers = false
 
   var body: some View {
     NavigationStack {
@@ -53,6 +55,7 @@ struct ContentView: View {
             arrangement: EditorPageArrangement.stored(pageArrangementRaw),
             penLibrary: $penLibrary,
             tool: $selectedTool,
+            activeLayerID: $activeLayerID,
             currentPage: $currentPage,
             documentRevision: $documentRevision,
             pageNavigationRevision: $pageNavigationRevision,
@@ -66,6 +69,7 @@ struct ContentView: View {
               ToolbarItem(placement: .topBarLeading) {
                 Button {
                   self.session = nil
+                  activeLayerID = nil
                   refreshLibrary()
                 } label: {
                   Label("Library", systemImage: "chevron.left")
@@ -183,6 +187,16 @@ struct ContentView: View {
           onDone: { showingPageOverview = false })
       }
     }
+    .sheet(isPresented: $showingLayers) {
+      if let session {
+        LayersSheet(
+          document: session.document,
+          activeLayerID: $activeLayerID,
+          onEdit: layerEdited,
+          onError: { errorMessage = $0.localizedDescription },
+          onDone: { showingLayers = false })
+      }
+    }
     .alert(
       "Math Notes",
       isPresented: Binding(
@@ -229,6 +243,7 @@ struct ContentView: View {
       Divider()
       Button("Close note", systemImage: "xmark") {
         self.session = nil
+        activeLayerID = nil
         refreshLibrary()
       }
     } label: {
@@ -291,6 +306,10 @@ struct ContentView: View {
       }
       Button("Paper for New Pages", systemImage: "doc.text") {
         preparePagePaper(session)
+      }
+      Divider()
+      Button("Layers", systemImage: "square.3.layers.3d") {
+        showingLayers = true
       }
       Divider()
       Button("Delete page", systemImage: "trash", role: .destructive) {
@@ -377,6 +396,7 @@ struct ContentView: View {
 
   private func installRoot(_ newRoot: NotesRootAccess) {
     session = nil
+    activeLayerID = nil
     libraryFolder = FolderReference(path: [])
     libraryQuery = ""
     libraryScope = .folder
@@ -710,6 +730,7 @@ struct ContentView: View {
       }
 
       selectedTool = .pen
+      activeLayerID = nil
       currentPage = 0
       documentRevision = 0
       pageNavigationRevision = 0
@@ -740,6 +761,7 @@ struct ContentView: View {
         orientation: request.orientation)
       showingNewNote = false
       selectedTool = .pen
+      activeLayerID = nil
       currentPage = 0
       documentRevision = 0
       pageNavigationRevision = 0
@@ -753,6 +775,7 @@ struct ContentView: View {
   private func openNotebook(_ reference: NotebookReference) {
     guard let root else { return }
     do {
+      activeLayerID = nil
       currentPage = 0
       documentRevision = 0
       pageNavigationRevision = 0
@@ -852,6 +875,11 @@ struct ContentView: View {
     currentPage = page
     documentRevision &+= 1
     pageNavigationRevision &+= 1
+    saveOpenNotebook()
+  }
+
+  private func layerEdited() {
+    documentRevision &+= 1
     saveOpenNotebook()
   }
   private func editPages(

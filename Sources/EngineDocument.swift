@@ -34,6 +34,13 @@ struct EngineHistoryStep {
   let page: Int
 }
 
+struct EngineLayer: Decodable, Equatable, Identifiable {
+  let id: String
+  let name: String
+  let hidden: Bool
+  let locked: Bool
+}
+
 @MainActor
 final class EngineDocument {
   let pointer: OpaquePointer
@@ -131,6 +138,44 @@ final class EngineDocument {
     var count = 0
     try check(ink_document_page_count(pointer, &count), operation: "Count notebook pages")
     return count
+  }
+
+  func layers() throws -> [EngineLayer] {
+    var json: UnsafePointer<CChar>?
+    try check(ink_document_layers(pointer, &json), operation: "List notebook layers")
+    guard let json else { return [] }
+    return try JSONDecoder().decode(
+      [EngineLayer].self,
+      from: Data(String(cString: json).utf8))
+  }
+
+  func addLayer(name: String) throws {
+    let status = name.withCString { ink_document_add_layer(pointer, $0) }
+    try check(status, operation: "Add notebook layer")
+  }
+
+  func setLayer(
+    index: Int,
+    name: String,
+    hidden: Bool,
+    locked: Bool
+  ) throws {
+    let status = name.withCString {
+      ink_document_set_layer(pointer, index, $0, hidden ? 1 : 0, locked ? 1 : 0)
+    }
+    try check(status, operation: "Edit notebook layer")
+  }
+
+  func moveLayer(from: Int, to: Int) throws {
+    try check(
+      ink_document_move_layer(pointer, from, to),
+      operation: "Move notebook layer")
+  }
+
+  func removeLayer(index: Int, mergeDown: Bool) throws {
+    try check(
+      ink_document_remove_layer(pointer, index, mergeDown ? 1 : 0),
+      operation: mergeDown ? "Merge notebook layer" : "Delete notebook layer")
   }
 
   func insertPage(at index: Int) throws {

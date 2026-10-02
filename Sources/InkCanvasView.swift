@@ -240,6 +240,18 @@ final class InkCanvasView: UIView {
     try require(ink_canvas_select_all(canvas, page), operation: "Select page")
   }
 
+  func activeLayer() throws -> Int {
+    guard let canvas else { return -1 }
+    var index: Int32 = -1
+    try require(ink_canvas_active_layer(canvas, &index), operation: "Read active layer")
+    return Int(index)
+  }
+
+  func setLayer(_ index: Int) throws {
+    guard let canvas else { return }
+    try require(ink_canvas_set_layer(canvas, index), operation: "Set active layer")
+  }
+
   func copySelection() throws -> String? {
     guard let canvas else { return nil }
     var bytes: UnsafePointer<UInt8>?
