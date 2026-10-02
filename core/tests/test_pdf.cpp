@@ -125,8 +125,10 @@ TEST_CASE("Saved notebook fixtures export deterministic PDFs and page rasters") 
       REQUIRE_FALSE(page.error);
       const uint8_t *png = nullptr;
       size_t png_size = 0;
-      REQUIRE(ink_document_page_png(session.document, index,
-                  int32_t(std::lround(page.width)), &png, &png_size) == INK_OK);
+      const InkStatus rendered = ink_document_page_png(session.document, index,
+                  int32_t(std::lround(page.width)), &png, &png_size);
+      INFO(name << " page " << index + 1 << ": " << ink_last_error());
+      REQUIRE(rendered == INK_OK);
       std::ofstream("pdf-fixtures/" + std::string(name) + "-" +
                     std::to_string(index + 1) + ".png", std::ios::binary)
           .write(reinterpret_cast<const char *>(png), png_size);
