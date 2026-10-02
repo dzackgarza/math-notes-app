@@ -45,6 +45,7 @@ struct ContentView: View {
   @State private var pagePaper: PagePaperRequest?
   @State private var showingPageOverview = false
   @State private var showingLayers = false
+  @State private var goToPage: GoToPageRequest?
 
   var body: some View {
     NavigationStack {
@@ -197,6 +198,16 @@ struct ContentView: View {
           onDone: { showingLayers = false })
       }
     }
+    .sheet(item: $goToPage) { request in
+      GoToPageSheet(
+        request: request,
+        onGo: { page in
+          currentPage = page
+          pageNavigationRevision &+= 1
+          goToPage = nil
+        },
+        onCancel: { goToPage = nil })
+    }
     .alert(
       "Math Notes",
       isPresented: Binding(
@@ -277,6 +288,12 @@ struct ContentView: View {
       Button("Page Overview", systemImage: "square.grid.2x2") {
         showingPageOverview = true
       }
+      Button("Go to Page", systemImage: "number") {
+        goToPage = GoToPageRequest(
+          pageCount: count,
+          currentPage: currentPage)
+      }
+      .disabled(count == 0)
       Divider()
       Button("Add page", systemImage: "plus.rectangle") {
         editPages(session) { document in
