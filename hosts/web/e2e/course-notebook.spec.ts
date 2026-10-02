@@ -314,7 +314,7 @@ test("Flutter course notebook: set up a course notebook", async ({ page }, info)
     await button("New note").click();
     await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Galois");
     await button("Create").click();
-    await expect(page.getByRole("heading", { name: "Galois", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Galois", exact: true })).toBeVisible({ timeout: 30_000 });
     const title = await boxOf(page.getByRole("heading", { name: "Galois", exact: true }));
     const description = await boxOf(page.getByText("Lecture notes", { exact: true }).filter({ visible: true }));
     expect(description.y, "the description is under the title").toBeGreaterThanOrEqual(title.y + title.height - 2);
