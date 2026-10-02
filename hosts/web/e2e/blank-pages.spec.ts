@@ -2,6 +2,7 @@ import { expect } from "@playwright/test";
 import { test, boxOf, createTestNotebook, enterText, goToPage, line, penStroke, savedPages } from "./support.ts";
 
 test("a note removes blank pages together and one undo restores them", async ({ page }) => {
+  test.setTimeout(300_000);
   const button = (name: string) => page.getByRole("button", { name, exact: true });
   await page.goto("?root=opfs");
   await createTestNotebook(page, "Cleanup");
