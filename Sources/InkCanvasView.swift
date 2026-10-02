@@ -4,6 +4,12 @@ import Metal
 import QuartzCore
 import UIKit
 
+struct EngineTextProperties: Codable, Equatable {
+  var content: String
+  var width: Double
+  var rtl: Bool
+}
+
 @MainActor
 final class InkCanvasView: UIView {
   override class var layerClass: AnyClass { CAMetalLayer.self }
@@ -13,6 +19,7 @@ final class InkCanvasView: UIView {
   private var canvas: OpaquePointer?
   private var updateLink: UIUpdateLink?
   private var sampleIDs = PencilSampleIDs()
+  private var drawingSuppressed = false
   private let onInteractionEnded: () -> Void
 
   private var metalLayer: CAMetalLayer {
@@ -117,6 +124,9 @@ final class InkCanvasView: UIView {
       setSelector(selectorMode.engineValue, active: true)
     case .space:
       setSelector(spaceMode.engineValue, active: true)
+    case .text:
+      setEraser(active: false)
+      setSelector(selectorMode.engineValue, active: false)
     case .pen, .marker, .highlighter:
       setEraser(active: false)
       setSelector(selectorMode.engineValue, active: false)
@@ -124,7 +134,7 @@ final class InkCanvasView: UIView {
       case .pen: pens.pen
       case .marker: pens.marker
       case .highlighter: pens.highlighter
-      case .eraser, .lasso, .space: pens.pen
+      case .eraser, .lasso, .space, .text: pens.pen
       }
       check(ink_canvas_set_tool(canvas, &settings), operation: "ink_canvas_set_tool")
     }
@@ -138,6 +148,10 @@ final class InkCanvasView: UIView {
         transform.a, transform.b, transform.c, transform.d,
         transform.tx, transform.ty),
       operation: "ink_canvas_set_view")
+  }
+
+  func setDrawingSuppressed(_ suppressed: Bool) {
+    drawingSuppressed = suppressed
   }
 
   override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -160,7 +174,7 @@ final class InkCanvasView: UIView {
   }
 
   override func touchesEstimatedPropertiesUpdated(_ touches: Set<UITouch>) {
-    guard let canvas else { return }
+    guard !drawingSuppressed, let canvas else { return }
 
     var updates: [InkPenSample] = []
     for touch in touches where touch.type == .pencil {
@@ -186,7 +200,7 @@ final class InkCanvasView: UIView {
 
   @discardableResult
   private func sendPencilTouches(_ touches: Set<UITouch>, event: UIEvent?) -> Bool {
-    guard let canvas else { return false }
+    guard !drawingSuppressed, let canvas else { return false }
 
     var samples: [InkPenSample] = []
     for touch in touches where touch.type == .pencil {
@@ -243,6 +257,45 @@ final class InkCanvasView: UIView {
     check(status, operation: "ink_canvas_selection")
     guard status == INK_OK, info.count > 0 else { return nil }
     return CGRect(x: info.x, y: info.y, width: info.width, height: info.height)
+  }
+
+  func selectText(at point: CGPoint) throws -> Bool {
+    guard let canvas else { return false }
+    var found: Int32 = 0
+    try require(
+      ink_canvas_select_text_at(canvas, point.x, point.y, &found),
+      operation: "Select text")
+    return found != 0
+  }
+
+  func textProperties() throws -> EngineTextProperties {
+    guard let canvas else {
+      throw EngineDocumentError.operation("Read text properties", "Canvas is unavailable")
+    }
+    var json: UnsafePointer<CChar>?
+    try require(ink_canvas_text_properties(canvas, &json), operation: "Read text properties")
+    guard let json else {
+      throw EngineDocumentError.operation("Read text properties", "No text properties returned")
+    }
+    return try JSONDecoder().decode(
+      EngineTextProperties.self,
+      from: Data(String(cString: json).utf8))
+  }
+
+  func editText(
+    _ properties: EngineTextProperties,
+    at point: CGPoint,
+    existing: Bool
+  ) throws {
+    guard let canvas else { return }
+    let data = try JSONEncoder().encode(properties)
+    guard let json = String(data: data, encoding: .utf8) else {
+      throw EngineDocumentError.operation("Edit text", "Could not encode text properties")
+    }
+    let status = json.withCString {
+      ink_canvas_edit_text(canvas, $0, point.x, point.y, existing ? 1 : 0)
+    }
+    try require(status, operation: existing ? "Edit text" : "Insert text")
   }
 
   func selectAll(page: Int) throws {

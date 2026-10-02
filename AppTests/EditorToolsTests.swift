@@ -1,3 +1,4 @@
+import Foundation
 import InkEngine
 import XCTest
 @testable import MathNotes
@@ -45,6 +46,22 @@ final class EditorToolsTests: XCTestCase {
     XCTAssertEqual(EditorSpaceMode.vertical.engineValue, INK_SELECTOR_SPACE_VERTICAL)
     XCTAssertEqual(EditorSpaceMode.horizontal.engineValue, INK_SELECTOR_SPACE_HORIZONTAL)
     XCTAssertEqual(EditorSpaceMode.reflow.engineValue, INK_SELECTOR_SPACE_RULED)
+  }
+
+  func testTextPropertiesMatchSharedJSONShape() throws {
+    let properties = EngineTextProperties(
+      content: "مرحبا\nText",
+      width: 312.5,
+      rtl: true)
+    let data = try JSONEncoder().encode(properties)
+    XCTAssertEqual(
+      try JSONDecoder().decode(EngineTextProperties.self, from: data),
+      properties)
+    let object = try XCTUnwrap(
+      JSONSerialization.jsonObject(with: data) as? [String: Any])
+    XCTAssertEqual(object["content"] as? String, "مرحبا\nText")
+    XCTAssertEqual(object["width"] as? Double, 312.5)
+    XCTAssertEqual(object["rtl"] as? Bool, true)
   }
 
 

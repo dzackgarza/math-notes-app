@@ -6,6 +6,8 @@ import UIKit
 enum EditorPageCommand: Equatable {
   case select(Int)
   case clear(Int)
+  case requestTextAtCenter
+  case commitText(EditorTextRequest, EngineTextProperties)
 }
 
 @MainActor
@@ -16,6 +18,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private let onEditCommitted: () -> Void
   private let onCurrentPageChanged: (Int) -> Void
   private let onPageCommandHandled: () -> Void
+  private let onTextRequested: (EditorTextRequest) -> Void
   private let onError: (Error) -> Void
   private lazy var canvasView = InkCanvasView(
     document: document,
@@ -49,12 +52,14 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     onEditCommitted: @escaping () -> Void = {},
     onCurrentPageChanged: @escaping (Int) -> Void = { _ in },
     onPageCommandHandled: @escaping () -> Void = {},
+    onTextRequested: @escaping (EditorTextRequest) -> Void = { _ in },
     onError: @escaping (Error) -> Void = { _ in }
   ) {
     self.document = document
     self.onEditCommitted = onEditCommitted
     self.onCurrentPageChanged = onCurrentPageChanged
     self.onPageCommandHandled = onPageCommandHandled
+    self.onTextRequested = onTextRequested
     self.onError = onError
     documentSize = document.contentSize()
     super.init(nibName: nil, bundle: nil)
@@ -115,6 +120,13 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     configureBottomPull()
     configureSelectionBar()
     canvasView.addInteraction(UIContextMenuInteraction(delegate: self))
+    let textTap = UITapGestureRecognizer(target: self, action: #selector(handleTextTap))
+    textTap.cancelsTouchesInView = false
+    textTap.allowedTouchTypes = [
+      NSNumber(value: UITouch.TouchType.direct.rawValue),
+      NSNumber(value: UITouch.TouchType.pencil.rawValue),
+    ]
+    canvasView.addGestureRecognizer(textTap)
   }
 
   override func viewDidLayoutSubviews() {
@@ -164,6 +176,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
       appliedSpaceMode = spaceMode
       appliedPens = pens
     }
+    canvasView.setDrawingSuppressed(tool == .text)
 
     if arrangement != appliedArrangement {
       do {
@@ -375,8 +388,48 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
         try canvasView.selectAll(page: page)
         try canvasView.deleteSelection()
         onEditCommitted()
+      case .requestTextAtCenter:
+        requestText(
+          at: CGPoint(
+            x: canvasView.bounds.midX,
+            y: canvasView.bounds.midY))
+      case let .commitText(request, properties):
+        if properties.content.isEmpty {
+          if request.existing {
+            try canvasView.deleteSelection()
+            onEditCommitted()
+          }
+        } else {
+          try canvasView.editText(
+            properties,
+            at: request.point,
+            existing: request.existing)
+          onEditCommitted()
+        }
       }
       refreshSelectionBar()
+    } catch {
+      onError(error)
+    }
+  }
+
+  @objc private func handleTextTap(_ recognizer: UITapGestureRecognizer) {
+    guard appliedTool == .text, recognizer.state == .ended else { return }
+    requestText(at: recognizer.location(in: canvasView))
+  }
+
+  private func requestText(at point: CGPoint) {
+    do {
+      let existing = try canvasView.selectText(at: point)
+      let properties = existing
+        ? try canvasView.textProperties()
+        : EngineTextProperties(content: "", width: 300, rtl: false)
+      refreshSelectionBar()
+      onTextRequested(
+        EditorTextRequest(
+          point: point,
+          existing: existing,
+          properties: properties))
     } catch {
       onError(error)
     }
@@ -572,6 +625,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let onEditCommitted: () -> Void
   let onCurrentPageChanged: (Int) -> Void
   let onPageCommandHandled: () -> Void
+  let onTextRequested: (EditorTextRequest) -> Void
   let onError: (Error) -> Void
 
   func makeUIViewController(context: Context) -> InkEditorViewController {
@@ -580,6 +634,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       onEditCommitted: onEditCommitted,
       onCurrentPageChanged: onCurrentPageChanged,
       onPageCommandHandled: onPageCommandHandled,
+      onTextRequested: onTextRequested,
       onError: onError)
   }
 
@@ -615,6 +670,7 @@ struct InkEditorView: View {
   @State private var selectorMode: EditorSelectorMode = .freehand
   @State private var eraserMode: EditorEraserMode = .stroke
   @State private var spaceMode: EditorSpaceMode = .reflow
+  @State private var textRequest: EditorTextRequest?
   let onEditCommitted: () -> Void
   let onPensChanged: (EditorPenLibrary) -> Void
   let onError: (Error) -> Void
@@ -642,6 +698,11 @@ struct InkEditorView: View {
             pageCommand = nil
           }
         },
+        onTextRequested: { request in
+          DispatchQueue.main.async {
+            textRequest = request
+          }
+        },
         onError: onError)
 
       EditorToolRail(
@@ -652,7 +713,17 @@ struct InkEditorView: View {
         penLibrary: $penLibrary,
         undo: { history(redo: false) },
         redo: { history(redo: true) },
+        insertText: { pageCommand = .requestTextAtCenter },
         onPensChanged: onPensChanged)
+    }
+    .sheet(item: $textRequest) { request in
+      TextEditorSheet(
+        request: request,
+        onSave: { properties in
+          pageCommand = .commitText(request, properties)
+          textRequest = nil
+        },
+        onCancel: { textRequest = nil })
     }
   }
 

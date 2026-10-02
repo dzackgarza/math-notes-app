@@ -60,7 +60,7 @@ struct EditorPenLibrary {
     case .pen: pen
     case .marker: marker
     case .highlighter: highlighter
-    case .eraser, .lasso, .space: pen
+    case .eraser, .lasso, .space, .text: pen
     }
   }
 
@@ -69,7 +69,7 @@ struct EditorPenLibrary {
     case .pen: pen = settings
     case .marker: marker = settings
     case .highlighter: highlighter = settings
-    case .eraser, .lasso, .space: break
+    case .eraser, .lasso, .space, .text: break
     }
   }
 
