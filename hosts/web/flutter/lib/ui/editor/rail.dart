@@ -109,13 +109,38 @@ extension _EditorRail on _EditorScreenState {
               onPressed: rgb == null
                   ? null
                   : () => run(() => colorPopover(anchor)),
-              child: Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: rgb == null ? surface3 : Color(0xFF000000 | rgb),
-                  border: Border.all(color: label, width: 2),
+              child: SizedBox(
+                width: 44,
+                height: 44,
+                child: Stack(
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: rgb == null
+                              ? surface3
+                              : Color(0xFF000000 | rgb),
+                          border: Border.all(color: label, width: 2),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 18,
+                        height: 18,
+                        decoration: const BoxDecoration(
+                          color: surface2,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(LucideIcons.plus, size: 14),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -189,6 +214,14 @@ extension _EditorRail on _EditorScreenState {
             ),
           ],
         ),
+        if (const ['pen', 'marker', 'highlighter'].contains(tool))
+          CupertinoButton(
+            onPressed: () => run(() async {
+              await writePens(saved: [...savedPens, penTool]);
+              if (context.mounted) update(() {});
+            }),
+            child: const Text('Save current tool and color'),
+          ),
         if (savedPens.isNotEmpty) ...[
           section('Saved pens'),
           Wrap(
