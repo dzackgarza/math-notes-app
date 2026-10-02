@@ -85,6 +85,41 @@ final class NotebookStorageTests: XCTestCase {
     XCTAssertEqual(index["pageSize"] as? String, "A4")
   }
 
+  @MainActor
+  func testPageSizeSettingUsesTheSharedDocument() throws {
+    let document = EngineDocument(seed: 31)
+
+    try document.setPageSize(INK_PAGE_LETTER, orientation: INK_LANDSCAPE)
+    let setting = try document.pageSize()
+
+    XCTAssertEqual(setting.size, INK_PAGE_LETTER)
+    XCTAssertEqual(setting.orientation, INK_LANDSCAPE)
+    XCTAssertEqual(setting.width, 792, accuracy: 0.001)
+    XCTAssertEqual(setting.height, 612, accuracy: 0.001)
+  }
+
+  @MainActor
+  func testTemplateSettingUpdatesNotebookMetadata() throws {
+    let template = try EngineDocument.builtinTemplate(name: "grid-medium", seed: 37)
+    let templatePage = try XCTUnwrap(
+      try template.dirtyFiles().first { $0.path == "pages/0001.svg" })
+    guard case let .write(page) = templatePage.kind else {
+      return XCTFail("The built-in template page was not writable data")
+    }
+
+    let document = EngineDocument(seed: 41)
+    try document.setTemplate(name: "grid-medium", page: page)
+
+    let indexChange = try XCTUnwrap(
+      try document.dirtyFiles().first { $0.path == "notebook.json" })
+    guard case let .write(indexBytes) = indexChange.kind else {
+      return XCTFail("The notebook index was not writable data")
+    }
+    let index = try XCTUnwrap(
+      JSONSerialization.jsonObject(with: indexBytes) as? [String: Any])
+    XCTAssertEqual(index["template"] as? String, "grid-medium")
+  }
+
   func testLibraryNameValidationMatchesTheWebRules() throws {
     XCTAssertEqual(try validatedLibraryName("  Stable pairs  "), "Stable pairs")
     XCTAssertThrowsError(try validatedLibraryName(""))

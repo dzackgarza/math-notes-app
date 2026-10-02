@@ -389,6 +389,29 @@ final class NotesRootAccess {
     }
   }
 
+  func templateName(for reference: NotebookReference) throws -> String? {
+    let indexURL = urlForNotebook(reference).appendingPathComponent("notebook.json")
+    return try coordinatedRead(at: indexURL) { coordinatedURL in
+      let data = try Data(contentsOf: coordinatedURL)
+      return try JSONDecoder().decode(NotebookIndex.self, from: data).template
+    }
+  }
+
+  @MainActor
+  func applyTemplate(name: String, to document: EngineDocument) throws {
+    try ensureBuiltinTemplates()
+    let pageURL = url
+      .appendingPathComponent(".templates", isDirectory: true)
+      .appendingPathComponent(name, isDirectory: true)
+      .appendingPathComponent("pages", isDirectory: true)
+      .appendingPathComponent("0001.svg")
+    guard try itemExists(at: [".templates", name, "pages", "0001.svg"]) else {
+      throw NotebookStorageError.missingTemplate(name)
+    }
+    let page = try coordinatedRead(at: pageURL) { try Data(contentsOf: $0) }
+    try document.setTemplate(name: name, page: page)
+  }
+
   @MainActor
   func createNote(
     title: String,

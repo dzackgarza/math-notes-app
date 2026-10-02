@@ -1,4 +1,5 @@
 import Foundation
+import InkEngine
 import SwiftUI
 
 @MainActor
@@ -26,6 +27,7 @@ struct ContentView: View {
   @State private var newNoteFolders: [FolderReference] = []
   @State private var newNoteTemplates: [String] = []
   @State private var libraryMutation: LibraryMutationRequest?
+  @State private var pagePaper: PagePaperRequest?
 
   var body: some View {
     NavigationStack {
@@ -101,6 +103,13 @@ struct ContentView: View {
         },
         onCancel: { libraryMutation = nil })
     }
+    .sheet(item: $pagePaper) { request in
+      PagePaperSheet(
+        request: request,
+        onTemplate: applyPageTemplate,
+        onPageSize: applyPageSize,
+        onDone: { pagePaper = nil })
+    }
     .alert(
       "Math Notes",
       isPresented: Binding(
@@ -162,6 +171,9 @@ struct ContentView: View {
         editPages(session) { document in
           try document.duplicatePage(at: currentPage)
         }
+      }
+      Button("Paper for New Pages", systemImage: "doc.text") {
+        preparePagePaper(session)
       }
       Divider()
       Button("Delete page", systemImage: "trash", role: .destructive) {
@@ -390,6 +402,47 @@ struct ContentView: View {
         .appendingPathExtension("pdf")
       try data.write(to: url, options: .atomic)
       sharePayload = SharePayload(url: url)
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func preparePagePaper(_ session: NotebookSession) {
+    guard let root else { return }
+    do {
+      pagePaper = PagePaperRequest(
+        templates: try root.templateNames(),
+        template: try root.templateName(for: session.reference),
+        pageSize: try session.document.pageSize())
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func applyPageTemplate(_ name: String) {
+    guard let root, let session else { return }
+    do {
+      try root.applyTemplate(name: name, to: session.document)
+      try root.save(session.document, notebook: session.reference)
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func applyPageSize(
+    _ size: InkPageSize,
+    _ orientation: InkOrientation,
+    _ width: Double,
+    _ height: Double
+  ) {
+    guard let root, let session else { return }
+    do {
+      try session.document.setPageSize(
+        size,
+        orientation: orientation,
+        width: width,
+        height: height)
+      try root.save(session.document, notebook: session.reference)
     } catch {
       errorMessage = error.localizedDescription
     }

@@ -23,6 +23,13 @@ enum EngineDocumentError: LocalizedError {
   }
 }
 
+struct EnginePageSize {
+  let size: InkPageSize
+  let orientation: InkOrientation
+  let width: Double
+  let height: Double
+}
+
 @MainActor
 final class EngineDocument {
   let pointer: OpaquePointer
@@ -126,6 +133,33 @@ final class EngineDocument {
 
   func duplicatePage(at index: Int) throws {
     try check(ink_document_duplicate_page(pointer, index), operation: "Duplicate notebook page")
+  }
+
+
+  func pageSize() throws -> EnginePageSize {
+    var size = INK_PAGE_A4
+    var orientation = INK_PORTRAIT
+    var width = 0.0
+    var height = 0.0
+    try check(
+      ink_document_page_size(pointer, &size, &orientation, &width, &height),
+      operation: "Read notebook page size")
+    return EnginePageSize(
+      size: size,
+      orientation: orientation,
+      width: width,
+      height: height)
+  }
+
+  func setPageSize(
+    _ size: InkPageSize,
+    orientation: InkOrientation,
+    width: Double = 0,
+    height: Double = 0
+  ) throws {
+    try check(
+      ink_document_set_page_size(pointer, size, orientation, width, height),
+      operation: "Set notebook page size")
   }
 
   func deletePage(at index: Int) throws {
