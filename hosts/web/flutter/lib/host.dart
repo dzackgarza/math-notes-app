@@ -406,6 +406,7 @@ extension type Host(JSObject value) implements JSObject {
     int count,
     JSArray<JSString> layers,
   );
+  external bool canSharePdf();
   external JSPromise<JSBoolean> insertImage(
     OpenNote note,
     Canvas canvas,

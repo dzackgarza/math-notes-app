@@ -82,9 +82,9 @@ test("Flutter problem set session: pages written, pulled in, reordered, inserted
     await save(page);
     await expect.poll(firstPageSvg).toContain("Every basis spans the space.");
     await button("More").click();
-    await button("Export PDF").click();
+    await button("Share").click();
     const exported = page.waitForEvent("download");
-    await button("Export").click();
+    await button("Download PDF").click();
     const pdfPath = info.outputPath("problem-set.pdf");
     await (await exported).saveAs(pdfPath);
     expect(execFileSync("pdfinfo", [pdfPath], { encoding: "utf8" })).toMatch(/Pages:\s+3/);

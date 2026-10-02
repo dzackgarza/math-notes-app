@@ -292,7 +292,7 @@ test("Flutter handwriting session: pen pressure, palm, finger and wheel navigati
     });
     await button("More").click();
     await button("Share").click();
-    await button("Share").click();
+    await button("Send to apps").click();
     await expect.poll(() => page.evaluate(() => (window as unknown as { shared: string[] }).shared)).toEqual([
       "Spread.pdf application/pdf",
     ]);

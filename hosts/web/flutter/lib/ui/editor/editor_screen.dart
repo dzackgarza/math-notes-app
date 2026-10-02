@@ -986,12 +986,7 @@ class _EditorScreenState extends State<EditorScreen> {
     PullDownMenuItem(
       title: 'Share',
       enabled: !drawing,
-      onTap: () => run(() => exportPdf(share: true)),
-    ),
-    PullDownMenuItem(
-      title: 'Export PDF',
-      enabled: !drawing,
-      onTap: () => run(() => exportPdf(share: false)),
+      onTap: () => run(shareNote),
     ),
     if (conflicts > 0)
       PullDownMenuItem(

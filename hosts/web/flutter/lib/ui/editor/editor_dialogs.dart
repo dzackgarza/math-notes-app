@@ -343,9 +343,8 @@ extension _EditorDialogs on _EditorScreenState {
     if (chosen != null) jump(chosen);
   }
 
-  // The page range and layers of a PDF, which goes to a download or to the
-  // system share sheet.
-  Future<void> exportPdf({required bool share}) async {
+  // One share sheet chooses the PDF content and its destination.
+  Future<void> shareNote() async {
     final layers = widget.note.document.layers().toDart;
     final included = {
       for (final layer in layers)
@@ -355,7 +354,7 @@ extension _EditorDialogs on _EditorScreenState {
     final last = TextEditingController(
       text: '${widget.note.document.pageCount()}',
     );
-    final accepted = await showModalDialog<bool>(
+    final destination = await showModalDialog<String>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, update) {
@@ -366,12 +365,22 @@ extension _EditorDialogs on _EditorScreenState {
               to != null &&
               from >= 1 &&
               to >= from &&
-              to <= widget.note.document.pageCount();
+              to <= widget.note.document.pageCount() &&
+              included.isNotEmpty;
           return Alert(
-            title: Text(share ? 'Share PDF' : 'Export PDF'),
+            title: const Text('Share note'),
             content: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 16),
+                Text('Format', style: subhead),
+                const SizedBox(height: 4),
+                const Text('PDF'),
+                const SizedBox(height: 16),
+                Text('Page range', style: subhead),
+                const SizedBox(height: 8),
+                const Text('First page'),
+                const SizedBox(height: 4),
                 CupertinoTextField(
                   cursorOpacityAnimates: false,
                   decoration: fieldDecoration,
@@ -382,6 +391,8 @@ extension _EditorDialogs on _EditorScreenState {
                   onChanged: (_) => update(() {}),
                 ),
                 const SizedBox(height: 12),
+                const Text('Last page'),
+                const SizedBox(height: 4),
                 CupertinoTextField(
                   cursorOpacityAnimates: false,
                   decoration: fieldDecoration,
@@ -391,58 +402,74 @@ extension _EditorDialogs on _EditorScreenState {
                   keyboardType: TextInputType.number,
                   onChanged: (_) => update(() {}),
                 ),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 240),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        // Each switch is named by its layer, as in Settings.
-                        for (final layer in layers)
-                          MergeSemantics(
-                            child: CupertinoListTile(
-                              title: Text(layer.name),
-                              trailing: CupertinoSwitch(
-                                value: included.contains(layer.id),
-                                onChanged: (value) => update(() {
-                                  if (value)
-                                    included.add(layer.id);
-                                  else
-                                    included.remove(layer.id);
-                                }),
+                if (layers.length > 1) ...[
+                  const SizedBox(height: 16),
+                  Text('Included layers', style: subhead),
+                ],
+                if (layers.length > 1)
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 240),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          // Each switch is named by its layer, as in Settings.
+                          for (final layer in layers)
+                            MergeSemantics(
+                              child: CupertinoListTile(
+                                title: Text(layer.name),
+                                trailing: CupertinoSwitch(
+                                  value: included.contains(layer.id),
+                                  onChanged: (value) => update(() {
+                                    if (value)
+                                      included.add(layer.id);
+                                    else
+                                      included.remove(layer.id);
+                                  }),
+                                ),
                               ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
             actions: [
               AlertAction(
-                onPressed: () => Navigator.pop(context, false),
+                onPressed: () => Navigator.pop(context),
                 child: const Text('Cancel'),
               ),
               AlertAction(
-                onPressed: valid ? () => Navigator.pop(context, true) : null,
-                child: Text(share ? 'Share' : 'Export'),
+                onPressed: valid
+                    ? () => Navigator.pop(context, 'download')
+                    : null,
+                child: const Text('Download PDF'),
               ),
+              if (native.host.canSharePdf())
+                AlertAction(
+                  onPressed: valid
+                      ? () => Navigator.pop(context, 'share')
+                      : null,
+                  child: const Text('Send to apps'),
+                ),
             ],
           );
         },
       ),
     );
-    if (accepted == true) {
+    if (destination != null) {
       await widget.note.saver.save().toDart;
       final from = int.parse(first.text) - 1;
       final count = int.parse(last.text) - from;
       final ids = included.map((id) => id.toJS).toList().toJS;
       first.dispose();
       last.dispose();
-      if (share)
-        await native.host.sharePdf(widget.note, from, count, ids).toDart;
-      else
-        native.host.exportPdf(widget.note, from, count, ids);
+      switch (destination) {
+        case 'share':
+          await native.host.sharePdf(widget.note, from, count, ids).toDart;
+        case 'download':
+          native.host.exportPdf(widget.note, from, count, ids);
+      }
       return;
     }
     first.dispose();

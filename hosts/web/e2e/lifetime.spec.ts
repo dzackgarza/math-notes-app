@@ -357,9 +357,9 @@ test("Flutter lifetime: first year with one notes folder", async ({ page, baseUR
     await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
     expect(await inked()).toEqual([true, false, false, true]);
     await button("More").click();
-    await button("Export PDF").click();
+    await button("Share").click();
     const download = page.waitForEvent("download");
-    await button("Export").click();
+    await button("Download PDF").click();
     const pdfPath = info.outputPath("integrals.pdf");
     await (await download).saveAs(pdfPath);
     expect(execFileSync("pdfinfo", [pdfPath], { encoding: "utf8" })).toMatch(/Pages:\s+3/);

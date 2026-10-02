@@ -218,9 +218,9 @@ test("Flutter handout session: a figure, typed text, ten pages, an annotated PDF
     }
     await expect(page.getByText(/^[0-9]+ \/ 10$/)).toBeVisible();
     await button("More").click();
-    await button("Export PDF").click();
+    await button("Share").click();
     const download = page.waitForEvent("download");
-    await button("Export").click();
+    await button("Download PDF").click();
     const pdfPath = info.outputPath("handout.pdf");
     await (await download).saveAs(pdfPath);
     expect(execFileSync("qpdf", ["--check", pdfPath], { encoding: "utf8" })).toContain("No syntax or stream encoding errors found");
@@ -319,9 +319,9 @@ test("Flutter handout session: a figure, typed text, ten pages, an annotated PDF
 
   await test.step("export the annotated paper", async () => {
     await button("More").click();
-    await button("Export PDF").click();
+    await button("Share").click();
     const download = page.waitForEvent("download");
-    await button("Export").click();
+    await button("Download PDF").click();
     const pdfPath = info.outputPath("paper.pdf");
     await (await download).saveAs(pdfPath);
     expect(execFileSync("qpdf", ["--check", pdfPath], { encoding: "utf8" })).toContain("No syntax or stream encoding errors found");

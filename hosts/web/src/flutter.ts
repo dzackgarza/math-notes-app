@@ -221,6 +221,10 @@ async function sharePdf(note: OpenNotebook, first: number, count: number, layers
   await navigator.share({ files: [file], title: note.name });
 }
 
+function canSharePdf(): boolean {
+  return navigator.canShare?.({ files: [new File([""], "note.pdf", { type: "application/pdf" })] }) === true;
+}
+
 async function insertImage(note: OpenNotebook, canvas: Canvas, page: number, x: number, y: number): Promise<boolean> {
   const file = await new Promise<File | null>((resolve) => {
     const input = document.createElement("input");
@@ -257,7 +261,7 @@ const api = {
   importPdf,
   applyTemplate: reading(applyTemplate), listTemplates: reading(listTemplates), finishFigure, figureSource,
   thumbnail: reading(thumbnail), tagColors: TAG_COLORS,
-  cacheApp, paperPreview: reading(paperPreview), exportPdf, sharePdf, insertImage, checkPlatform, loadEngine, startRoot, pickRoot, requestPermission, watchRoot,
+  cacheApp, paperPreview: reading(paperPreview), exportPdf, sharePdf, canSharePdf, insertImage, checkPlatform, loadEngine, startRoot, pickRoot, requestPermission, watchRoot,
   prepareRoot, library,
   createNotebook, openNotebook,
   createFolder: writing(createFolder), moveEntry: writing(moveEntry), moveToTrash: writing(moveToTrash),

@@ -390,9 +390,9 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   await closePopover(page);
 
   // The export: four A4 pages with the typed definition and the red heading.
-  await choose("More", "Export PDF");
+  await choose("More", "Share");
   const download = page.waitForEvent("download");
-  await button("Export").click();
+  await button("Download PDF").click();
   const pdfPath = info.outputPath("lecture.pdf");
   await (await download).saveAs(pdfPath);
   const pdfInfo = execFileSync("pdfinfo", [pdfPath], { encoding: "utf8" });

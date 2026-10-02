@@ -127,11 +127,11 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   // only.
   const exportPdf = async (name: string, exclude: string[] = []) => {
     await button("More").click();
-    await button("Export PDF").click();
+    await button("Share").click();
     for (const layer of exclude) await page.getByRole("switch", { name: layer, exact: true }).click();
     await shot(`export-${name}`);
     const download = page.waitForEvent("download");
-    await button("Export").click();
+    await button("Download PDF").click();
     const path = info.outputPath(`${name}.pdf`);
     await (await download).saveAs(path);
     return path;
