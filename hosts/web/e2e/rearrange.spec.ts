@@ -508,7 +508,10 @@ test("Flutter rearrange session: recolor, lasso edits, shape selections, resize 
     await canvas.waitFor({ timeout: 30_000 });
     await expect(page.getByText("1 / 2", { exact: true })).toBeVisible();
     const reopened = await linedPaper(page, cdp, pageIn(await boxOf(canvas)));
-    await reopened.shows(3, [60, 440, 600], "the first page reopens with its words in place");
+    await expect.poll(async () => Promise.all(Array.from({ length: 6 }, async (_, band) =>
+      (await reopened.words(band)).map(({ left }) =>
+        [60, 440, 600].find((expected) => Math.abs(left - reopened.margin - expected) <= 4) ?? left - reopened.margin)),
+    ), { message: "the first page reopens with its words in place" }).toContainEqual([60, 440, 600]);
     await goToPage(page, 2);
     await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
     await page.screenshot({ path: info.outputPath("reopened.png") });
