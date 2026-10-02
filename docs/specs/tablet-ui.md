@@ -13,12 +13,14 @@ are the reference for look and interaction.
 
 ![Library](ui/tablet-library.png)
 
-- **Sidebar**, always visible: the app name; Library, Recent,
-  Pinned, Trash; a Tags list with a color and a count per tag, and
-  **+** to add a tag; Settings at the bottom.
-- **Main pane**: title "Library" and a one-line description; **New Notebook**
-  (secondary) and **New Note** (primary) buttons; a search field; a filter
-  menu ("All Notebooks"); a sort menu ("Last Modified"); a grid/list toggle.
+- **Sidebar**, always visible: Library expands into Untagged and a nested
+  notebook and note tree. Recent and Pinned show filtered library views. Trash
+  expands to show its contents. Tags show a color and count, with **+** to add
+  a tag. Settings stays at the bottom. The tree reflects search and file changes.
+- **Main pane**: Library search, filter and sort controls, a grid/list choice,
+  and a prominent **+ New notebook** action. Its adjacent menu offers a note
+  in the recently edited notebook or a notebook chosen from a list. The
+  creation sheet names the destination before the note is made.
 - **Notebook cards** in a grid: a cloth-bound volume in its cover color,
   with the first handwritten page set into the cloth and the title on a
   printed paper label; under it the title, the note count, "Modified …",
