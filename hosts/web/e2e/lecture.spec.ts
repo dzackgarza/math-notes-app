@@ -227,13 +227,13 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   const from = await boxOf(tile(2));
   const to = await boxOf(tile(4));
   await longPressDrag(page, from, to);
+  // A new page file takes the number after the highest of the note's pages
+  // (NextPageFile): the copy reuses the number of the deleted page.
+  await expect.poll(async () => (await pages()).map((p) => p.file)).toEqual(["pages/0001.svg", "pages/0002.svg", "pages/0003.svg", "pages/0004.svg"]);
   await shot("overview");
   await tile(1).click();
   await expect(page.getByText("1 / 4", { exact: true })).toBeVisible();
   let saved = await pages();
-  // A new page file takes the number after the highest of the note's pages
-  // (NextPageFile): the copy reuses the number of the deleted page.
-  expect(saved.map((p) => p.file)).toEqual(["pages/0001.svg", "pages/0002.svg", "pages/0003.svg", "pages/0004.svg"]);
   expect(saved.map((p) => p.strokes)).toEqual([5, 2, 1, 5]);
   expect(saved[2].ruling, "page 3 is lined").toBe("lined");
   expect(saved[3].ruling, "the copy keeps the paper of page 1").toBe(saved[0].ruling);
