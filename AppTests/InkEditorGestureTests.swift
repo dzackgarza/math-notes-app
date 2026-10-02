@@ -22,6 +22,18 @@ final class InkEditorGestureTests: XCTestCase {
     }
   }
 
+  func testFingerDrawingRequiresTwoTouchesForScrollPan() {
+    let controller = InkEditorViewController(document: EngineDocument(seed: 103))
+    controller.loadViewIfNeeded()
+    let scroll = findScrollView(in: controller.view)
+
+    XCTAssertEqual(scroll?.panGestureRecognizer.minimumNumberOfTouches, 1)
+    controller.setFingerDrawing(true)
+    XCTAssertEqual(scroll?.panGestureRecognizer.minimumNumberOfTouches, 2)
+    controller.setFingerDrawing(false)
+    XCTAssertEqual(scroll?.panGestureRecognizer.minimumNumberOfTouches, 1)
+  }
+
   func testEditorRegistersApplePencilInteraction() {
     let controller = InkEditorViewController(document: EngineDocument(seed: 102))
     controller.loadViewIfNeeded()
@@ -33,5 +45,10 @@ final class InkEditorGestureTests: XCTestCase {
 
   private func gestureRecognizers(in view: UIView) -> [UIGestureRecognizer] {
     (view.gestureRecognizers ?? []) + view.subviews.flatMap { gestureRecognizers(in: $0) }
+  }
+
+  private func findScrollView(in view: UIView) -> UIScrollView? {
+    if let scroll = view as? UIScrollView { return scroll }
+    return view.subviews.lazy.compactMap { findScrollView(in: $0) }.first
   }
 }

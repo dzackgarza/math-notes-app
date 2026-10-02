@@ -40,6 +40,7 @@ private struct NotebookEditorPane: View {
   let linked: Bool
   let linkedViewport: EditorLinkedViewport?
   let arrangement: EditorPageArrangement
+  let fingerDraws: Bool
   @Binding var penLibrary: EditorPenLibrary
   @Binding var tool: EditorTool
   @Binding var drawingTool: EditorTool
@@ -75,6 +76,7 @@ private struct NotebookEditorPane: View {
       focused: focused,
       linked: linked,
       linkedViewport: linkedViewport,
+      fingerDraws: fingerDraws,
       onFocus: onFocus,
       onViewportChanged: onViewportChanged,
       onEditCommitted: onEditCommitted,
@@ -107,6 +109,7 @@ struct ContentView: View {
   @State private var libraryGrid = true
   @AppStorage("pageArrangement") private var pageArrangementRaw = EditorPageArrangement.vertical.rawValue
   @AppStorage("editorSplitFraction") private var editorSplitFraction = 0.5
+  @AppStorage("fingerDraws") private var fingerDraws = false
   @State private var openNotes = OpenNotesState()
   @State private var showingFolderPicker = false
   @State private var restoredRoot = false
@@ -137,6 +140,7 @@ struct ContentView: View {
   @State private var figureEditor: FigureEditorRequest?
   @State private var conflictReview: ConflictReviewRequest?
   @State private var showingOpenNotePicker = false
+  @State private var showingEditorSettings = false
   @State private var openNotePickerPurpose: OpenNotePickerPurpose = .tab
   @State private var openNoteChoices: [LibraryNotebookItem] = []
 
@@ -226,6 +230,9 @@ struct ContentView: View {
         onCancel: {
           showingFolderPicker = false
         })
+    }
+    .sheet(isPresented: $showingEditorSettings) {
+      EditorSettingsSheet(fingerDraws: $fingerDraws)
     }
     .sheet(isPresented: $showingOpenNotePicker) {
       if let root {
@@ -572,6 +579,7 @@ struct ContentView: View {
       linked: active && openNotes.splitOpen && openNotes.linkedViews,
       linkedViewport: openNotes.linkedViewport,
       arrangement: EditorPageArrangement.stored(pageArrangementRaw),
+      fingerDraws: fingerDraws,
       penLibrary: $penLibrary,
       tool: $selectedTool,
       drawingTool: $selectedDrawingTool,
@@ -668,6 +676,10 @@ struct ContentView: View {
       }
       Button("Export PDF…", systemImage: "square.and.arrow.up") {
         preparePDFExport(session)
+      }
+      Divider()
+      Button("Settings", systemImage: "gearshape") {
+        showingEditorSettings = true
       }
       Divider()
       if openNotes.rightFocused && openNotes.splitOpen {

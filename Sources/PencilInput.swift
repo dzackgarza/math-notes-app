@@ -17,20 +17,6 @@ struct PencilSampleFactory {
   static func values(for touch: UITouch, in view: UIView) -> PencilSampleValues {
     let maximumForce = touch.maximumPossibleForce
     let pressure = maximumForce > 0 ? Float(touch.force / maximumForce) : 0
-    let phase: UInt8
-    switch touch.phase {
-    case .began:
-      phase = UInt8(INK_PHASE_BEGIN.rawValue)
-    case .moved, .stationary:
-      phase = UInt8(INK_PHASE_MOVE.rawValue)
-    case .ended:
-      phase = UInt8(INK_PHASE_END.rawValue)
-    case .cancelled:
-      phase = UInt8(INK_PHASE_CANCEL.rawValue)
-    @unknown default:
-      phase = UInt8(INK_PHASE_CANCEL.rawValue)
-    }
-
     return PencilSampleValues(
       location: touch.location(in: view),
       timeMs: touch.timestamp * 1000,
@@ -39,7 +25,34 @@ struct PencilSampleFactory {
       azimuth: Float(touch.azimuthAngle(in: view)),
       roll: Float(touch.rollAngle),
       has: UInt32(INK_HAS_PRESSURE) | UInt32(INK_HAS_ALTITUDE) | UInt32(INK_HAS_AZIMUTH),
-      phase: phase)
+      phase: phase(for: touch.phase))
+  }
+
+  static func fingerValues(for touch: UITouch, in view: UIView) -> PencilSampleValues {
+    PencilSampleValues(
+      location: touch.location(in: view),
+      timeMs: touch.timestamp * 1000,
+      pressure: 0,
+      altitude: 0,
+      azimuth: 0,
+      roll: 0,
+      has: 0,
+      phase: phase(for: touch.phase))
+  }
+
+  private static func phase(for phase: UITouch.Phase) -> UInt8 {
+    switch phase {
+    case .began:
+      UInt8(INK_PHASE_BEGIN.rawValue)
+    case .moved, .stationary:
+      UInt8(INK_PHASE_MOVE.rawValue)
+    case .ended:
+      UInt8(INK_PHASE_END.rawValue)
+    case .cancelled:
+      UInt8(INK_PHASE_CANCEL.rawValue)
+    @unknown default:
+      UInt8(INK_PHASE_CANCEL.rawValue)
+    }
   }
 
   static func make(values: PencilSampleValues, id: UInt32, predicted: Bool) -> InkPenSample {

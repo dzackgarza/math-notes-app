@@ -20,6 +20,8 @@ final class InkCanvasView: UIView {
   private var updateLink: UIUpdateLink?
   private var sampleIDs = PencilSampleIDs()
   private var drawingSuppressed = false
+  private var fingerDrawing = false
+  private var fingerTouch: UITouch?
   private let onInteractionBegan: () -> Void
   private let onInteractionEnded: () -> Void
 
@@ -165,25 +167,40 @@ final class InkCanvasView: UIView {
 
   func setDrawingSuppressed(_ suppressed: Bool) {
     drawingSuppressed = suppressed
+    if suppressed {
+      cancelFingerStroke()
+    }
+  }
+
+  func setFingerDrawing(_ enabled: Bool) {
+    guard fingerDrawing != enabled else { return }
+    if !enabled {
+      cancelFingerStroke()
+    }
+    fingerDrawing = enabled
   }
 
   override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
     onInteractionBegan()
+    _ = sendFingerTouches(touches, event: event)
     sendPencilTouches(touches, event: event)
   }
 
   override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+    _ = sendFingerTouches(touches, event: event)
     sendPencilTouches(touches, event: event)
   }
 
   override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-    let handled = sendPencilTouches(touches, event: event)
-    if handled {
+    let fingerHandled = sendFingerTouches(touches, event: event)
+    let pencilHandled = sendPencilTouches(touches, event: event)
+    if fingerHandled || pencilHandled {
       onInteractionEnded()
     }
   }
 
   override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+    _ = sendFingerTouches(touches, event: event)
     sendPencilTouches(touches, event: event)
   }
 
@@ -210,6 +227,67 @@ final class InkCanvasView: UIView {
       ink_input_update(canvas, buffer.baseAddress, buffer.count)
     }
     check(status, operation: "ink_input_update")
+  }
+
+  @discardableResult
+  private func sendFingerTouches(_ touches: Set<UITouch>, event: UIEvent?) -> Bool {
+    guard fingerDrawing, !drawingSuppressed, let canvas else { return false }
+
+    let activeTouches = event?.allTouches ?? []
+    let pencilActive = activeTouches.contains {
+      $0.type == .pencil && $0.phase != .ended && $0.phase != .cancelled
+    }
+    let activeDirectTouches = activeTouches.filter {
+      $0.type == .direct && $0.phase != .ended && $0.phase != .cancelled
+    }
+    if pencilActive || activeDirectTouches.count >= 2 {
+      cancelFingerStroke()
+      return false
+    }
+
+    if fingerTouch == nil,
+      let began = touches.first(where: { $0.type == .direct && $0.phase == .began })
+    {
+      fingerTouch = began
+    }
+    guard let fingerTouch, touches.contains(where: { $0 === fingerTouch }) else {
+      return false
+    }
+
+    let coalesced = event?.coalescedTouches(for: fingerTouch) ?? [fingerTouch]
+    var samples: [InkPenSample] = []
+    for touch in coalesced {
+      let id = sampleIDs.issue(estimationIndex: nil, trackEstimate: false)
+      samples.append(
+        PencilSampleFactory.make(
+          values: PencilSampleFactory.fingerValues(for: touch, in: self),
+          id: id,
+          predicted: false))
+    }
+    guard !samples.isEmpty else { return false }
+    let status = samples.withUnsafeBufferPointer { buffer in
+      ink_input(canvas, buffer.baseAddress, buffer.count)
+    }
+    check(status, operation: "ink_input")
+
+    let ended = fingerTouch.phase == .ended || fingerTouch.phase == .cancelled
+    if ended {
+      self.fingerTouch = nil
+    }
+    return status == INK_OK && ended
+  }
+
+  private func cancelFingerStroke() {
+    guard let fingerTouch, let canvas else {
+      self.fingerTouch = nil
+      return
+    }
+    var values = PencilSampleFactory.fingerValues(for: fingerTouch, in: self)
+    values.phase = UInt8(INK_PHASE_CANCEL.rawValue)
+    let id = sampleIDs.issue(estimationIndex: nil, trackEstimate: false)
+    var sample = PencilSampleFactory.make(values: values, id: id, predicted: false)
+    check(ink_input(canvas, &sample, 1), operation: "ink_input")
+    self.fingerTouch = nil
   }
 
   @discardableResult

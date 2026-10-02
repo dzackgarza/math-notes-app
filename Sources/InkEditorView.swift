@@ -121,6 +121,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private var hostActive = true
   private var hostFocused = true
   private var hostLinked = false
+  private var fingerDrawing = false
   private var applyingLinkedViewport = false
   private var lastAppliedLinkedViewport: EditorLinkedViewport?
   private var requestedLinkedViewport: EditorLinkedViewport?
@@ -306,7 +307,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     active: Bool,
     focused: Bool,
     linked: Bool,
-    linkedViewport: EditorLinkedViewport?
+    linkedViewport: EditorLinkedViewport?,
+    fingerDraws: Bool
   ) {
     loadViewIfNeeded()
 
@@ -325,6 +327,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     requestedLinkedViewport = linked ? linkedViewport : nil
     if !linked {
       lastAppliedLinkedViewport = nil
+    }
+
+    if fingerDraws != fingerDrawing {
+      setFingerDrawing(fingerDraws)
     }
 
     if tool != appliedTool || eraserMode != appliedEraserMode || selectorMode != appliedSelectorMode || spaceMode != appliedSpaceMode || pens != appliedPens {
@@ -420,6 +426,12 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     }
   }
 
+  func setFingerDrawing(_ enabled: Bool) {
+    fingerDrawing = enabled
+    scrollView.panGestureRecognizer.minimumNumberOfTouches = enabled ? 2 : 1
+    canvasView.setFingerDrawing(enabled)
+  }
+
   func viewForZooming(in scrollView: UIScrollView) -> UIView? {
     documentView
   }
@@ -502,6 +514,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     configurationForMenuAtLocation location: CGPoint
   ) -> UIContextMenuConfiguration? {
     onFocusRequested()
+    guard !fingerDrawing else { return nil }
     let svg = UIPasteboard.general.string
     let canPaste = svg?.isEmpty == false
     let canSaveClipping = canvasView.selectionFrame() != nil
@@ -896,6 +909,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     onFocusRequested()
     let point = recognizer.location(in: canvasView)
     guard !handleModeTap(at: point), !figureCaptureActive, !figureCompleting else { return }
+    guard !fingerDrawing else { return }
     followLink(at: point)
   }
 
@@ -1308,6 +1322,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let focused: Bool
   let linked: Bool
   let linkedViewport: EditorLinkedViewport?
+  let fingerDraws: Bool
   let onFocus: () -> Void
   let onViewportChanged: (EditorLinkedViewport) -> Void
   let onEditCommitted: () -> Void
@@ -1367,7 +1382,8 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       active: active,
       focused: focused,
       linked: linked,
-      linkedViewport: linkedViewport)
+      linkedViewport: linkedViewport,
+      fingerDraws: fingerDraws)
   }
 }
 
@@ -1389,6 +1405,7 @@ struct InkEditorView: View {
   let focused: Bool
   let linked: Bool
   let linkedViewport: EditorLinkedViewport?
+  let fingerDraws: Bool
   @State private var selectorMode: EditorSelectorMode = .freehand
   @State private var eraserMode: EditorEraserMode = .stroke
   @State private var spaceMode: EditorSpaceMode = .reflow
@@ -1433,6 +1450,7 @@ struct InkEditorView: View {
         focused: focused,
         linked: linked,
         linkedViewport: linkedViewport,
+        fingerDraws: fingerDraws,
         onFocus: onFocus,
         onViewportChanged: onViewportChanged,
         onEditCommitted: {
