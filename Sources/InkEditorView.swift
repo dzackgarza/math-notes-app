@@ -70,7 +70,7 @@ enum EditorPageCommand: Equatable {
 }
 
 @MainActor
-final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIContextMenuInteractionDelegate, UIDragInteractionDelegate {
+final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIContextMenuInteractionDelegate, UIDragInteractionDelegate, UIPencilInteractionDelegate {
   private let document: EngineDocument
   private let scrollView = UIScrollView()
   private let documentView = UIView()
@@ -84,6 +84,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private let onLinkSelectionRequested: (Int) -> Void
   private let onFollowLink: (String, Int) -> Void
   private let onSaveClipping: (String) -> Void
+  private let onUndo: () -> Void
+  private let onRedo: () -> Void
+  private let onPencilAction: (UIPencilPreferredAction) -> Void
   private let onFigureCaptureChanged: (Bool) -> Void
   private let onFigureSourceChanged: (String) -> Void
   private let onEditFigure: (String) -> Void
@@ -144,6 +147,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     onLinkSelectionRequested: @escaping (Int) -> Void = { _ in },
     onFollowLink: @escaping (String, Int) -> Void = { _, _ in },
     onSaveClipping: @escaping (String) -> Void = { _ in },
+    onUndo: @escaping () -> Void = {},
+    onRedo: @escaping () -> Void = {},
+    onPencilAction: @escaping (UIPencilPreferredAction) -> Void = { _ in },
     onFigureCaptureChanged: @escaping (Bool) -> Void = { _ in },
     onFigureSourceChanged: @escaping (String) -> Void = { _ in },
     onEditFigure: @escaping (String) -> Void = { _ in },
@@ -160,6 +166,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     self.onLinkSelectionRequested = onLinkSelectionRequested
     self.onFollowLink = onFollowLink
     self.onSaveClipping = onSaveClipping
+    self.onUndo = onUndo
+    self.onRedo = onRedo
+    self.onPencilAction = onPencilAction
     self.onFigureCaptureChanged = onFigureCaptureChanged
     self.onFigureSourceChanged = onFigureSourceChanged
     self.onEditFigure = onEditFigure
@@ -180,6 +189,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     super.viewDidLoad()
 
     view.backgroundColor = .systemGroupedBackground
+    view.addInteraction(UIPencilInteraction(delegate: self))
 
     scrollView.translatesAutoresizingMaskIntoConstraints = false
     scrollView.delegate = self
@@ -233,6 +243,18 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     pencilTap.cancelsTouchesInView = false
     pencilTap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.pencil.rawValue)]
     canvasView.addGestureRecognizer(pencilTap)
+
+    let undoTap = UITapGestureRecognizer(target: self, action: #selector(handleUndoTap))
+    undoTap.cancelsTouchesInView = false
+    undoTap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
+    undoTap.numberOfTouchesRequired = 2
+    canvasView.addGestureRecognizer(undoTap)
+
+    let redoTap = UITapGestureRecognizer(target: self, action: #selector(handleRedoTap))
+    redoTap.cancelsTouchesInView = false
+    redoTap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
+    redoTap.numberOfTouchesRequired = 3
+    canvasView.addGestureRecognizer(redoTap)
   }
 
   override func viewDidLayoutSubviews() {
@@ -883,6 +905,36 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     _ = handleModeTap(at: recognizer.location(in: canvasView))
   }
 
+  @objc private func handleUndoTap(_ recognizer: UITapGestureRecognizer) {
+    guard recognizer.state == .ended else { return }
+    onFocusRequested()
+    onUndo()
+  }
+
+  @objc private func handleRedoTap(_ recognizer: UITapGestureRecognizer) {
+    guard recognizer.state == .ended else { return }
+    onFocusRequested()
+    onRedo()
+  }
+
+  func pencilInteraction(
+    _ interaction: UIPencilInteraction,
+    didReceiveTap tap: UIPencilInteraction.Tap
+  ) {
+    guard hostActive, hostFocused else { return }
+    onFocusRequested()
+    onPencilAction(UIPencilInteraction.preferredTapAction)
+  }
+
+  func pencilInteraction(
+    _ interaction: UIPencilInteraction,
+    didReceiveSqueeze squeeze: UIPencilInteraction.Squeeze
+  ) {
+    guard hostActive, hostFocused, squeeze.phase == .ended else { return }
+    onFocusRequested()
+    onPencilAction(UIPencilInteraction.preferredSqueezeAction)
+  }
+
   @discardableResult
   private func handleModeTap(at point: CGPoint) -> Bool {
     if bookmarkMode {
@@ -1266,6 +1318,9 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let onLinkSelectionRequested: (Int) -> Void
   let onFollowLink: (String, Int) -> Void
   let onSaveClipping: (String) -> Void
+  let onUndo: () -> Void
+  let onRedo: () -> Void
+  let onPencilAction: (UIPencilPreferredAction) -> Void
   let onFigureCaptureChanged: (Bool) -> Void
   let onFigureSourceChanged: (String) -> Void
   let onEditFigure: (String) -> Void
@@ -1284,6 +1339,9 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       onLinkSelectionRequested: onLinkSelectionRequested,
       onFollowLink: onFollowLink,
       onSaveClipping: onSaveClipping,
+      onUndo: onUndo,
+      onRedo: onRedo,
+      onPencilAction: onPencilAction,
       onFigureCaptureChanged: onFigureCaptureChanged,
       onFigureSourceChanged: onFigureSourceChanged,
       onEditFigure: onEditFigure,
@@ -1337,6 +1395,7 @@ struct InkEditorView: View {
   @State private var textRequest: EditorTextRequest?
   @State private var drawing = false
   @State private var figureSource = ""
+  @State private var previousPencilTool: EditorTool?
   let onFocus: () -> Void
   let onViewportChanged: (EditorLinkedViewport) -> Void
   let onEditCommitted: () -> Void
@@ -1399,6 +1458,9 @@ struct InkEditorView: View {
         onLinkSelectionRequested: onLinkSelectionRequested,
         onFollowLink: onFollowLink,
         onSaveClipping: onSaveClipping,
+        onUndo: { _ = history(redo: false) },
+        onRedo: { _ = history(redo: true) },
+        onPencilAction: applyPencilAction,
         onFigureCaptureChanged: { capture in
           drawing = capture
           onCaptureChanged(capture)
@@ -1507,8 +1569,34 @@ struct InkEditorView: View {
         },
         onCancel: { textRequest = nil })
     }
+    .onChange(of: tool) { old, next in
+      if old != next {
+        previousPencilTool = old
+      }
+    }
   }
 
+  private func applyPencilAction(_ action: UIPencilPreferredAction) {
+    switch action {
+    case .switchEraser:
+      if tool == .eraser, let previousPencilTool, previousPencilTool != .eraser {
+        let current = tool
+        tool = previousPencilTool
+        self.previousPencilTool = current
+      } else if tool != .eraser {
+        let current = tool
+        tool = .eraser
+        previousPencilTool = current
+      }
+    case .switchPrevious:
+      guard let previousPencilTool, previousPencilTool != tool else { return }
+      let current = tool
+      tool = previousPencilTool
+      self.previousPencilTool = current
+    default:
+      break
+    }
+  }
 
   private func normalizeViewState() {
     do {
@@ -1531,6 +1619,7 @@ struct InkEditorView: View {
     }
   }
   private func history(redo: Bool) -> Bool {
+    guard !drawing else { return false }
     do {
       let step: EngineHistoryStep?
       if redo {
