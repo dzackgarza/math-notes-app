@@ -1450,8 +1450,9 @@ static InkStatus ExportPdfSelection(InkDocument *document, const char *title,
       const auto ids = nlohmann::json::parse(layers).get<std::set<std::string>>();
       for (auto &layer : current.notebook.layers) layer.hidden = !ids.contains(layer.id);
     }
-    if (!spec->page_count || spec->first_page >= current.pages.size() ||
-        spec->page_count > current.pages.size() - spec->first_page) {
+    const size_t listed = ink_engine::ListedPageCount(current);
+    if (!spec->page_count || spec->first_page >= listed ||
+        spec->page_count > listed - spec->first_page) {
       return Fail(INK_ERROR_ARGUMENT, "PDF page range out of bounds");
     }
     for (size_t index = spec->first_page; index < spec->first_page + spec->page_count; ++index) {

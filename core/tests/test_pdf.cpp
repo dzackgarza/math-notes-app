@@ -108,7 +108,9 @@ TEST_CASE("Saved notebook fixtures export deterministic PDFs and page rasters") 
       REQUIRE(ink_document_load_asset(session.document, path.c_str(),
                   reinterpret_cast<const uint8_t *>(bytes.data()), bytes.size()) == INK_OK);
     }
-    const InkPdfExportSpec spec{.first_page = 0, .page_count = session.doc().pages.size()};
+    size_t listed = 0;
+    REQUIRE(ink_document_page_count(session.document, &listed) == INK_OK);
+    const InkPdfExportSpec spec{.first_page = 0, .page_count = listed};
     const uint8_t *pdf = nullptr;
     size_t size = 0;
     REQUIRE(ink_export_pdf(session.document, session.doc().notebook.title.c_str(),
@@ -120,7 +122,14 @@ TEST_CASE("Saved notebook fixtures export deterministic PDFs and page rasters") 
     std::ofstream("pdf-fixtures/" + std::string(name) + ".pdf", std::ios::binary)
         .write(first.data(), first.size());
 
-    for (size_t index = 0; index < session.doc().pages.size(); ++index) {
+    if (session.doc().pages.size() > listed) {
+      const InkPdfExportSpec orphan{.first_page = 0,
+                                     .page_count = session.doc().pages.size()};
+      REQUIRE(ink_export_pdf(session.document, session.doc().notebook.title.c_str(),
+                             &orphan, &pdf, &size) == INK_ERROR_ARGUMENT);
+    }
+
+    for (size_t index = 0; index < listed; ++index) {
       const auto &page = *session.doc().pages[index];
       REQUIRE_FALSE(page.error);
       const uint8_t *png = nullptr;
