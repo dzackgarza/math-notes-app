@@ -135,6 +135,7 @@ test("Flutter problem set session: pages written, pulled in, reordered, inserted
     await expect(tile(5)).toBeVisible();
     await act(5, "Delete");
     await expect(tile(5)).toHaveCount(0);
+    await expect(button("Done")).toBeVisible();
     await longPressDrag(page, await boxOf(tile(1)), await boxOf(tile(3)));
     await shot("page-overview");
     await tile(2).click();
