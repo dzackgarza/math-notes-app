@@ -86,6 +86,22 @@ final class EditorToolsTests: XCTestCase {
   }
 
   @MainActor
+  func testPenLibraryColorAndSavedBrushOwnership() {
+    var library = EditorPenLibrary.defaults
+    let originalMarker = library.marker.rgb
+    let originalHighlighter = library.highlighter.rgb
+
+    library.setColor(0x2468AC, for: .pen)
+
+    XCTAssertEqual(library.pen.rgb, 0x2468AC)
+    XCTAssertEqual(library.marker.rgb, originalMarker)
+    XCTAssertEqual(library.highlighter.rgb, originalHighlighter)
+    XCTAssertEqual(library.drawingTool(for: library.pen), .pen)
+    XCTAssertEqual(library.drawingTool(for: library.marker), .marker)
+    XCTAssertEqual(library.drawingTool(for: library.highlighter), .highlighter)
+  }
+
+  @MainActor
   func testEditedPenLibraryRoundTripsSavedPreset() throws {
     var library = EditorPenLibrary.defaults
     var pen = library.pen

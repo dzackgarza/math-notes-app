@@ -1,3 +1,4 @@
+import Foundation
 import InkEngine
 import SwiftUI
 
@@ -161,6 +162,7 @@ struct EditorPenSet: Equatable {
 @MainActor
 struct EditorToolRail: View {
   @Binding var tool: EditorTool
+  @Binding var drawingTool: EditorTool
   @Binding var eraserMode: EditorEraserMode
   @Binding var selectorMode: EditorSelectorMode
   @Binding var spaceMode: EditorSpaceMode
@@ -169,6 +171,7 @@ struct EditorToolRail: View {
   @State private var showingSelectorModes = false
   @State private var showingSpaceModes = false
   @State private var editingPen: EditorTool?
+  @State private var showingColors = false
   let undo: () -> Bool
   let redo: () -> Bool
   let insertText: () -> Void
@@ -234,6 +237,8 @@ struct EditorToolRail: View {
           _ = redo()
         }
       }
+
+      colorButton
     }
     .padding(8)
     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
@@ -250,10 +255,47 @@ struct EditorToolRail: View {
         onPersist: onPensChanged)
         .presentationCompactAdaptation(.popover)
     }
+    .onChange(of: tool) { _, next in
+      if [.pen, .marker, .highlighter].contains(next) {
+        drawingTool = next
+      }
+    }
   }
 
   private var visibleTools: [EditorTool] {
     drawing ? [.pen, .marker, .highlighter] : EditorTool.allCases
+  }
+
+  private var colorButton: some View {
+    let rgb = penLibrary.settings(for: drawingTool).rgb
+    return Button {
+      showingColors = true
+    } label: {
+      Circle()
+        .fill(
+          Color(
+            .sRGB,
+            red: Double((rgb >> 16) & 0xFF) / 255,
+            green: Double((rgb >> 8) & 0xFF) / 255,
+            blue: Double(rgb & 0xFF) / 255,
+            opacity: 1))
+        .frame(width: 28, height: 28)
+        .overlay {
+          Circle()
+            .stroke(Color.primary, lineWidth: 2)
+        }
+        .frame(width: 42, height: 42)
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(String(format: "Colors #%06x", rgb & 0xFFFFFF))
+    .popover(isPresented: $showingColors, arrowEdge: .leading) {
+      ColorPalettePopover(
+        tool: $tool,
+        drawingTool: $drawingTool,
+        library: $penLibrary,
+        onPersist: onPensChanged)
+        .presentationCompactAdaptation(.popover)
+    }
   }
 
   private var eraserButton: some View {

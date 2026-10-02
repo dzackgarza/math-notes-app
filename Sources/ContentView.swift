@@ -42,6 +42,7 @@ private struct NotebookEditorPane: View {
   let arrangement: EditorPageArrangement
   @Binding var penLibrary: EditorPenLibrary
   @Binding var tool: EditorTool
+  @Binding var drawingTool: EditorTool
   let onFocus: () -> Void
   let onViewportChanged: (EditorLinkedViewport) -> Void
   let onEditCommitted: () -> Void
@@ -63,6 +64,7 @@ private struct NotebookEditorPane: View {
       fitRevision: viewState.fitRevision,
       penLibrary: $penLibrary,
       tool: $tool,
+      drawingTool: $drawingTool,
       activeLayerID: $viewState.activeLayerID,
       bookmarkMode: $viewState.bookmarkMode,
       currentPage: $viewState.currentPage,
@@ -110,6 +112,7 @@ struct ContentView: View {
   @State private var restoredRoot = false
   @State private var errorMessage: String?
   @State private var selectedTool: EditorTool = .pen
+  @State private var selectedDrawingTool: EditorTool = .pen
   @State private var penLibrary = EditorPenLibrary.defaults
   @State private var sharePayload: SharePayload?
   @State private var pdfExport: PDFExportRequest?
@@ -571,6 +574,7 @@ struct ContentView: View {
       arrangement: EditorPageArrangement.stored(pageArrangementRaw),
       penLibrary: $penLibrary,
       tool: $selectedTool,
+      drawingTool: $selectedDrawingTool,
       onFocus: { openNotes.focusRight(right) },
       onViewportChanged: { openNotes.setLinkedViewport($0) },
       onEditCommitted: { saveNotebook(note) },
@@ -1333,6 +1337,7 @@ struct ContentView: View {
       }
 
       selectedTool = .pen
+      selectedDrawingTool = .pen
       clippings = nil
       conflictReview = nil
       openNotes.show(
@@ -1393,6 +1398,7 @@ struct ContentView: View {
         orientation: request.orientation)
       showingNewNote = false
       selectedTool = .pen
+      selectedDrawingTool = .pen
       clippings = nil
       conflictReview = nil
       openNotes.show(

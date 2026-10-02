@@ -1320,6 +1320,7 @@ struct InkEditorView: View {
   let fitRevision: Int
   @Binding var penLibrary: EditorPenLibrary
   @Binding var tool: EditorTool
+  @Binding var drawingTool: EditorTool
   @Binding var activeLayerID: String?
   @Binding var bookmarkMode: Bool
   @Binding var currentPage: Int
@@ -1408,6 +1409,7 @@ struct InkEditorView: View {
 
       EditorToolRail(
         tool: $tool,
+        drawingTool: $drawingTool,
         eraserMode: $eraserMode,
         selectorMode: $selectorMode,
         spaceMode: $spaceMode,

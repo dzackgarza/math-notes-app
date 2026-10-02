@@ -73,6 +73,22 @@ struct EditorPenLibrary {
     }
   }
 
+  mutating func setColor(_ rgb: UInt32, for tool: EditorTool) {
+    var settings = settings(for: tool)
+    settings.rgb = rgb
+    setSettings(settings, for: tool)
+  }
+
+  func drawingTool(for settings: InkToolSettings) -> EditorTool {
+    if settings.brush == marker.brush {
+      return .marker
+    }
+    if settings.brush == highlighter.brush {
+      return .highlighter
+    }
+    return .pen
+  }
+
   func json() throws -> Data {
     var file = InkPenFile()
     file.pen = pen
