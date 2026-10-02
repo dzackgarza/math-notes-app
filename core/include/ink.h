@@ -119,6 +119,9 @@ InkStatus ink_clipping_add(InkDocument *document, const uint8_t *svg, size_t siz
 InkStatus ink_clipping_svg(InkDocument *document, size_t index, const char **svg);
 /* Removes a page; ink_document_dirty_files then lists its file for deletion. */
 InkStatus ink_document_delete_page(InkDocument *document, size_t index);
+/* Removes listed pages with no authored elements or background image in one
+   undo step. Keeps one page when every page is blank. */
+InkStatus ink_document_delete_blank_pages(InkDocument *document, size_t *removed);
 /* Moves page `from` to position `to`. Page files keep their names. */
 InkStatus ink_document_move_page(InkDocument *document, size_t from, size_t to);
 /* A copy of page `index` after it, with a new file and new element ids. */

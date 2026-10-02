@@ -252,6 +252,32 @@ extension _EditorDialogs on _EditorScreenState {
       widget.note.document.deletePage(page);
       page = page.clamp(0, widget.note.document.pageCount() - 1);
     });
+    pageResultToast('Page $number deleted', true);
+  }
+
+  void deleteBlankPages() {
+    final document = widget.note.document;
+    final currentFile = document.navigation().toDart[page].file;
+    final removed = document.deleteBlankPages();
+    if (removed == 0) {
+      pageResultToast('No blank pages', false);
+      return;
+    }
+    final files = document.navigation().toDart;
+    final samePage = files.take(document.pageCount()).toList().indexWhere(
+      (mark) => mark.file == currentFile,
+    );
+    widget.note.saver.schedule();
+    setState(() {
+      page = samePage < 0
+          ? page.clamp(0, document.pageCount() - 1)
+          : samePage;
+    });
+    updateView();
+    pageResultToast('$removed blank ${removed == 1 ? 'page' : 'pages'} deleted', true);
+  }
+
+  void pageResultToast(String message, bool undoable) {
     toastification.showCustom(
       alignment: Alignment.bottomCenter,
       autoCloseDuration: const Duration(seconds: 6),
@@ -276,15 +302,16 @@ extension _EditorDialogs on _EditorScreenState {
                   container: true,
                   role: SemanticsRole.status,
                   liveRegion: true,
-                  child: Text('Page $number deleted', style: callout),
+                  child: Text(message, style: callout),
                 ),
-                CupertinoButton(
-                  onPressed: () {
-                    toastification.dismiss(toast);
-                    history(false);
-                  },
-                  child: Text('Undo', style: subhead),
-                ),
+                if (undoable)
+                  CupertinoButton(
+                    onPressed: () {
+                      toastification.dismiss(toast);
+                      history(false);
+                    },
+                    child: Text('Undo', style: subhead),
+                  ),
               ],
             ),
           ),

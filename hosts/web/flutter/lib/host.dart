@@ -223,6 +223,7 @@ extension type Document(JSObject value) implements JSObject {
   external int pageCount();
   external void insertPage(int index);
   external void deletePage(int index);
+  external int deleteBlankPages();
   external void movePage(int from, int to);
   external void duplicatePage(int index);
   external JSUint8Array pagePng(int index, int width);

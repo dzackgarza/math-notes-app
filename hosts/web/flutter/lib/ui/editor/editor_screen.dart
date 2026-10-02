@@ -1188,9 +1188,18 @@ class _EditorScreenState extends State<EditorScreen> {
                 itemCount: document.pageCount() + 1,
                 itemBuilder: (context, index) {
                   if (index == document.pageCount()) {
-                    return CupertinoButton(
-                      onPressed: () => run(showPages),
-                      child: const Text('Arrange pages'),
+                    return Column(
+                      children: [
+                        CupertinoButton(
+                          onPressed: () => run(showPages),
+                          child: const Text('Arrange pages'),
+                        ),
+                        if (document.pageCount() > 1)
+                          CupertinoButton(
+                            onPressed: deleteBlankPages,
+                            child: const Text('Delete all blank pages'),
+                          ),
+                      ],
                     );
                   }
                   return Padding(

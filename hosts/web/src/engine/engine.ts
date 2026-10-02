@@ -611,6 +611,14 @@ export class InkDocument {
     this.engine.check(this.engine.module._ink_document_delete_page(this.pointer, index));
   }
 
+  deleteBlankPages(): number {
+    const e = this.engine;
+    return e.withScratch(4, (out) => {
+      e.check(e.module._ink_document_delete_blank_pages(this.pointer, out));
+      return e.view().getUint32(out, true);
+    });
+  }
+
   importPageImage(index: number, png: Uint8Array, width: number, height: number): void {
     const e = this.engine;
     const bytes = e.copyIn(png);

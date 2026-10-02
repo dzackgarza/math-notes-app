@@ -554,6 +554,27 @@ InkStatus ink_document_delete_page(InkDocument *document, size_t index) {
   });
 }
 
+InkStatus ink_document_delete_blank_pages(InkDocument *document, size_t *removed) {
+  return Call([&] {
+    if (!document || !removed) return NullArgument("document or removed");
+    auto next = document->history.current();
+    size_t remaining = ink_engine::ListedPageCount(next);
+    *removed = 0;
+    for (size_t index = remaining; index-- > 0 && remaining > 1;) {
+      const ink_engine::Page &page = *next.pages[index];
+      if (page.error || page.background.image ||
+          std::any_of(page.layers.begin(), page.layers.end(),
+                      [](const ink_engine::LayerContent &layer) { return layer.elements.size() != 0; }))
+        continue;
+      next = ink_engine::DeletePage(std::move(next), index);
+      --remaining;
+      ++*removed;
+    }
+    if (*removed) document->history.Push(std::move(next));
+    return INK_OK;
+  });
+}
+
 InkStatus ink_document_move_page(InkDocument *document, size_t from, size_t to) {
   return Call([&] {
     if (!document) return NullArgument("document");

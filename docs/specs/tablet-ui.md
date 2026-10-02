@@ -87,6 +87,9 @@ toolbar and the tool popovers:
   layers. A page thumbnail jumps to that page. Arrange pages opens the larger
   reorder view. A layer row shows a preview of that layer on the current page,
   its name, visibility, and editing actions.
+  The page tab can delete blank pages as one undoable action. Paper rulings
+  do not count as content; ink, text, figures, images, bookmarks, links, and
+  imported PDF backgrounds keep their pages. One page remains in the note.
 - **Tabs**: a tab strip under the top bar while two or more notes are open,
   one tab per note with a close button. The active tab is marked by label
   color and selected semantics.
