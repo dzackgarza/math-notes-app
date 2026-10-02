@@ -22,12 +22,14 @@ struct ContentView: View {
   @State private var selectedTool: EditorTool = .pen
   @State private var currentPage = 0
   @State private var documentRevision = 0
+  @State private var pageNavigationRevision = 0
   @State private var sharePayload: SharePayload?
   @State private var showingNewNote = false
   @State private var newNoteFolders: [FolderReference] = []
   @State private var newNoteTemplates: [String] = []
   @State private var libraryMutation: LibraryMutationRequest?
   @State private var pagePaper: PagePaperRequest?
+  @State private var showingPageOverview = false
 
   var body: some View {
     NavigationStack {
@@ -38,6 +40,7 @@ struct ContentView: View {
             tool: $selectedTool,
             currentPage: $currentPage,
             documentRevision: $documentRevision,
+            pageNavigationRevision: $pageNavigationRevision,
             onEditCommitted: saveOpenNotebook,
             onError: { errorMessage = $0.localizedDescription })
             .navigationTitle(session.reference.name)
@@ -110,6 +113,17 @@ struct ContentView: View {
         onPageSize: applyPageSize,
         onDone: { pagePaper = nil })
     }
+    .sheet(isPresented: $showingPageOverview) {
+      if let session {
+        PageOverviewSheet(
+          document: session.document,
+          currentPage: $currentPage,
+          onSelect: selectOverviewPage,
+          onEdit: pageOverviewEdited,
+          onError: { errorMessage = $0.localizedDescription },
+          onDone: { showingPageOverview = false })
+      }
+    }
     .alert(
       "Math Notes",
       isPresented: Binding(
@@ -152,6 +166,10 @@ struct ContentView: View {
   private func pagesMenu(_ session: NotebookSession) -> some View {
     let count = (try? session.document.pageCount()) ?? 0
     Menu {
+      Button("Page Overview", systemImage: "square.grid.2x2") {
+        showingPageOverview = true
+      }
+      Divider()
       Button("Add page", systemImage: "plus.rectangle") {
         editPages(session) { document in
           try document.appendPage()
@@ -372,6 +390,7 @@ struct ContentView: View {
       selectedTool = .pen
       currentPage = 0
       documentRevision = 0
+      pageNavigationRevision = 0
       session = NotebookSession(reference: reference, document: document)
       refreshLibrary()
     } catch {
@@ -384,6 +403,7 @@ struct ContentView: View {
     do {
       currentPage = 0
       documentRevision = 0
+      pageNavigationRevision = 0
       session = NotebookSession(
         reference: reference,
         document: try root.load(reference))
@@ -448,6 +468,17 @@ struct ContentView: View {
     }
   }
 
+  private func selectOverviewPage(_ index: Int) {
+    currentPage = index
+    pageNavigationRevision &+= 1
+    showingPageOverview = false
+  }
+  private func pageOverviewEdited(_ page: Int) {
+    currentPage = page
+    documentRevision &+= 1
+    pageNavigationRevision &+= 1
+    saveOpenNotebook()
+  }
   private func editPages(
     _ session: NotebookSession,
     _ action: (EngineDocument) throws -> Void

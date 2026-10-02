@@ -19,6 +19,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
   private var setInitialZoom = false
   private var appliedTool: EditorTool = .pen
   private var documentRevision = 0
+  private var pageNavigationRevision = 0
   private var reportedPage = -1
 
   private var pullGate = HeldPullGate()
@@ -114,7 +115,13 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
     refreshSelectionBar()
   }
 
-  func applyHostState(tool: EditorTool, pens: EditorPenSet, revision: Int) {
+  func applyHostState(
+    tool: EditorTool,
+    pens: EditorPenSet,
+    revision: Int,
+    targetPage: Int,
+    navigationRevision: Int
+  ) {
     loadViewIfNeeded()
 
     if tool != appliedTool {
@@ -122,13 +129,19 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
       appliedTool = tool
     }
 
-    guard revision != documentRevision else { return }
-    documentRevision = revision
-    let nextSize = document.contentSize()
-    if nextSize != documentSize {
-      refreshDocumentGeometry()
+    if revision != documentRevision {
+      documentRevision = revision
+      let nextSize = document.contentSize()
+      if nextSize != documentSize {
+        refreshDocumentGeometry()
+      }
+      refreshSelectionBar()
     }
-    refreshSelectionBar()
+
+    if navigationRevision != pageNavigationRevision {
+      pageNavigationRevision = navigationRevision
+      scrollToPage(targetPage)
+    }
   }
 
   func viewForZooming(in scrollView: UIScrollView) -> UIView? {
@@ -374,6 +387,22 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIC
       CGPoint(x: scrollView.contentOffset.x, y: maximumY),
       animated: true)
   }
+  private func scrollToPage(_ index: Int) {
+    do {
+      let page = try document.pageRect(index: index)
+      let zoom = scrollView.zoomScale
+      let inset = scrollView.adjustedContentInset
+      let minimumX = -inset.left
+      let minimumY = -inset.top
+      let maximumX = max(minimumX, documentSize.width * zoom - scrollView.bounds.width + inset.right)
+      let maximumY = max(minimumY, documentSize.height * zoom - scrollView.bounds.height + inset.bottom)
+      let x = min(max(page.midX * zoom - scrollView.bounds.width / 2, minimumX), maximumX)
+      let y = min(max(page.midY * zoom - scrollView.bounds.height / 2, minimumY), maximumY)
+      scrollView.setContentOffset(CGPoint(x: x, y: y), animated: true)
+    } catch {
+      onError(error)
+    }
+  }
 
   private func updateContentInsets() {
     let scaledWidth = documentSize.width * scrollView.zoomScale
@@ -418,6 +447,8 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let document: EngineDocument
   let tool: EditorTool
   let revision: Int
+  let targetPage: Int
+  let navigationRevision: Int
   let onEditCommitted: () -> Void
   let onCurrentPageChanged: (Int) -> Void
   let onError: (Error) -> Void
@@ -434,7 +465,9 @@ private struct InkEditorHost: UIViewControllerRepresentable {
     uiViewController.applyHostState(
       tool: tool,
       pens: .defaults,
-      revision: revision)
+      revision: revision,
+      targetPage: targetPage,
+      navigationRevision: navigationRevision)
   }
 }
 
@@ -444,6 +477,7 @@ struct InkEditorView: View {
   @Binding var tool: EditorTool
   @Binding var currentPage: Int
   @Binding var documentRevision: Int
+  @Binding var pageNavigationRevision: Int
   let onEditCommitted: () -> Void
   let onError: (Error) -> Void
 
@@ -453,6 +487,8 @@ struct InkEditorView: View {
         document: document,
         tool: tool,
         revision: documentRevision,
+        targetPage: currentPage,
+        navigationRevision: pageNavigationRevision,
         onEditCommitted: onEditCommitted,
         onCurrentPageChanged: { currentPage = $0 },
         onError: onError)

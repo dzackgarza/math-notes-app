@@ -36,6 +36,33 @@ final class NotebookStorageTests: XCTestCase {
   }
 
   @MainActor
+  func testPageMoveUsesSharedOrderAndGeometry() throws {
+    let document = EngineDocument(seed: 43)
+    try document.appendPage()
+    try document.appendPage()
+
+    let first = try document.pageRect(index: 0)
+    let second = try document.pageRect(index: 1)
+    XCTAssertGreaterThan(second.minY, first.minY)
+
+    try document.markSaved()
+    try document.movePage(from: 0, to: 2)
+
+    let changes = try document.dirtyFiles()
+    XCTAssertEqual(changes.map(\.path), ["notebook.json"])
+    let indexChange = try XCTUnwrap(changes.first)
+    guard case let .write(indexBytes) = indexChange.kind else {
+      return XCTFail("The reordered notebook index was not writable data")
+    }
+    let index = try XCTUnwrap(
+      JSONSerialization.jsonObject(with: indexBytes) as? [String: Any])
+    let pages = try XCTUnwrap(index["pages"] as? [[String: Any]])
+    XCTAssertEqual(
+      pages.compactMap { $0["file"] as? String },
+      ["pages/0002.svg", "pages/0003.svg", "pages/0001.svg"])
+  }
+
+  @MainActor
   func testPDFExportUsesTheSharedDocument() throws {
     let document = EngineDocument(seed: 17)
 

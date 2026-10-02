@@ -135,6 +135,20 @@ final class EngineDocument {
     try check(ink_document_duplicate_page(pointer, index), operation: "Duplicate notebook page")
   }
 
+  func movePage(from: Int, to: Int) throws {
+    try check(ink_document_move_page(pointer, from, to), operation: "Move notebook page")
+  }
+
+  func pageRect(index: Int) throws -> CGRect {
+    var x = 0.0
+    var y = 0.0
+    var width = 0.0
+    var height = 0.0
+    try check(
+      ink_document_page_rect(pointer, index, &x, &y, &width, &height),
+      operation: "Read notebook page rectangle")
+    return CGRect(x: x, y: y, width: width, height: height)
+  }
 
   func pageSize() throws -> EnginePageSize {
     var size = INK_PAGE_A4
