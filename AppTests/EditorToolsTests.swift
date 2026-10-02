@@ -129,6 +129,20 @@ final class EditorToolsTests: XCTestCase {
   }
 
   @MainActor
+  func testDeletedPageCanBeRestoredByUndo() throws {
+    let document = EngineDocument(seed: 13)
+    try document.appendPage()
+    XCTAssertEqual(try document.pageCount(), 2)
+
+    try document.deletePage(at: 0)
+    XCTAssertEqual(try document.pageCount(), 1)
+
+    let undo = try XCTUnwrap(document.undo())
+    XCTAssertGreaterThanOrEqual(undo.page, 0)
+    XCTAssertEqual(try document.pageCount(), 2)
+  }
+
+  @MainActor
   func testHistoryUsesTheSharedDocument() throws {
     let document = EngineDocument(seed: 11)
     XCTAssertEqual(try document.pageCount(), 1)

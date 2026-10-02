@@ -32,6 +32,14 @@ private struct PendingLink {
 }
 
 @MainActor
+private struct DeletedPageToast: Identifiable {
+  let id = UUID()
+  let session: OpenNotebookSession
+  let viewState: OpenNotebookViewState
+  let number: Int
+}
+
+@MainActor
 private struct NotebookEditorPane: View {
   @Bindable var session: OpenNotebookSession
   @Bindable var viewState: OpenNotebookViewState
@@ -145,6 +153,7 @@ struct ContentView: View {
   @State private var conflictReview: ConflictReviewRequest?
   @State private var showingOpenNotePicker = false
   @State private var showingEditorSettings = false
+  @State private var deletedPageToast: DeletedPageToast?
   @State private var settingsFromLibrary = false
   @State private var chooseFolderAfterSettings = false
   @State private var openNotePickerPurpose: OpenNotePickerPurpose = .tab
@@ -478,6 +487,22 @@ struct ContentView: View {
     }
     .task {
       restoreSavedRoot()
+    }
+    .overlay(alignment: .bottom) {
+      if let toast = deletedPageToast, !openNotes.inLibrary {
+        HStack(spacing: 12) {
+          Text("Page \(toast.number) deleted")
+          Button("Undo") {
+            undoDeletedPage(toast)
+          }
+        }
+        .padding(.leading, 16)
+        .padding(.trailing, 8)
+        .padding(.vertical, 6)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .shadow(radius: 8, y: 3)
+        .padding(16)
+      }
     }
     .overlay {
       if let pdfImportProgress {
@@ -839,8 +864,13 @@ struct ContentView: View {
       Divider()
       Button("Delete page", systemImage: "trash", role: .destructive) {
         editPages(session) { document in
-          try document.deletePage(at: currentPage)
-          currentPage = min(currentPage, max(0, try document.pageCount() - 1))
+          let deleted = currentPage
+          try document.deletePage(at: deleted)
+          currentPage = min(deleted, max(0, try document.pageCount() - 1))
+          showDeletedPageToast(
+            number: deleted + 1,
+            session: session,
+            viewState: viewState ?? session.primaryView)
         }
       }
       .disabled(count <= 1)
@@ -2019,6 +2049,37 @@ struct ContentView: View {
   private func layerEdited() {
     documentRevision &+= 1
     saveOpenNotebook()
+  }
+
+  private func showDeletedPageToast(
+    number: Int,
+    session: OpenNotebookSession,
+    viewState: OpenNotebookViewState
+  ) {
+    let toast = DeletedPageToast(session: session, viewState: viewState, number: number)
+    deletedPageToast = toast
+    UIAccessibility.post(notification: .announcement, argument: "Page \(number) deleted")
+    Task { @MainActor in
+      try? await Task.sleep(for: .seconds(6))
+      if deletedPageToast?.id == toast.id {
+        deletedPageToast = nil
+      }
+    }
+  }
+
+  private func undoDeletedPage(_ toast: DeletedPageToast) {
+    deletedPageToast = nil
+    guard openNotes.opened.contains(where: { $0.id == toast.session.id }) else { return }
+    do {
+      guard let step = try toast.session.document.undo() else { return }
+      let count = try toast.session.document.pageCount()
+      toast.viewState.currentPage = min(max(step.page, 0), max(0, count - 1))
+      toast.session.documentRevision &+= 1
+      toast.viewState.pageNavigationRevision &+= 1
+      saveNotebook(toast.session)
+    } catch {
+      errorMessage = error.localizedDescription
+    }
   }
   private func editPages(
     _ session: OpenNotebookSession,
