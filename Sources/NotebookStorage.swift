@@ -15,6 +15,13 @@ enum LibrarySort: String, CaseIterable, Identifiable {
   var id: Self { self }
 }
 
+enum LibrarySortDirection: String, CaseIterable, Identifiable {
+  case ascending
+  case descending
+
+  var id: Self { self }
+}
+
 struct LibraryFolderItem: Identifiable {
   let reference: FolderReference
   let modified: Date?
@@ -444,7 +451,11 @@ final class NotesRootAccess {
     }
   }
 
-  func library(in parent: FolderReference, sort: LibrarySort) throws -> LibraryListing {
+  func library(
+    in parent: FolderReference,
+    sort: LibrarySort,
+    direction: LibrarySortDirection
+  ) throws -> LibraryListing {
     try coordinatedRead(at: url) { root in
       let directory = parent.path.reduce(root) { partial, component in
         partial.appendingPathComponent(component, isDirectory: true)
@@ -484,32 +495,54 @@ final class NotesRootAccess {
       let nameOrder: (String, String) -> Bool = {
         $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
       }
+      let ascending = direction == .ascending
       switch sort {
       case .name:
-        folders.sort { nameOrder($0.reference.name, $1.reference.name) }
-        notebooks.sort { nameOrder($0.reference.name, $1.reference.name) }
+        folders.sort {
+          ascending
+            ? nameOrder($0.reference.name, $1.reference.name)
+            : nameOrder($1.reference.name, $0.reference.name)
+        }
+        notebooks.sort {
+          ascending
+            ? nameOrder($0.reference.name, $1.reference.name)
+            : nameOrder($1.reference.name, $0.reference.name)
+        }
       case .modified:
         folders.sort {
           switch ($0.modified, $1.modified) {
           case let (left?, right?) where left != right:
-            return left > right
+            return ascending ? left < right : left > right
           default:
-            return nameOrder($0.reference.name, $1.reference.name)
+            return ascending
+              ? nameOrder($0.reference.name, $1.reference.name)
+              : nameOrder($1.reference.name, $0.reference.name)
           }
         }
         notebooks.sort {
-          if $0.modified != $1.modified { return $0.modified > $1.modified }
-          return nameOrder($0.reference.name, $1.reference.name)
+          if $0.modified != $1.modified {
+            return ascending ? $0.modified < $1.modified : $0.modified > $1.modified
+          }
+          return ascending
+            ? nameOrder($0.reference.name, $1.reference.name)
+            : nameOrder($1.reference.name, $0.reference.name)
         }
       }
       return LibraryListing(folders: folders, notebooks: notebooks)
     }
   }
 
-  func searchLibrary(query: String, sort: LibrarySort) throws -> LibraryListing {
+  func searchLibrary(
+    query: String,
+    sort: LibrarySort,
+    direction: LibrarySortDirection
+  ) throws -> LibraryListing {
     let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !needle.isEmpty else {
-      return try library(in: FolderReference(path: []), sort: sort)
+      return try library(
+        in: FolderReference(path: []),
+        sort: sort,
+        direction: direction)
     }
 
     return try coordinatedRead(at: url) { root in
@@ -558,29 +591,47 @@ final class NotesRootAccess {
       let nameOrder: (String, String) -> Bool = {
         $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
       }
+      let ascending = direction == .ascending
       switch sort {
       case .name:
-        folders.sort { nameOrder($0.reference.name, $1.reference.name) }
-        notebooks.sort { nameOrder($0.reference.name, $1.reference.name) }
+        folders.sort {
+          ascending
+            ? nameOrder($0.reference.name, $1.reference.name)
+            : nameOrder($1.reference.name, $0.reference.name)
+        }
+        notebooks.sort {
+          ascending
+            ? nameOrder($0.reference.name, $1.reference.name)
+            : nameOrder($1.reference.name, $0.reference.name)
+        }
       case .modified:
         folders.sort {
           switch ($0.modified, $1.modified) {
           case let (left?, right?) where left != right:
-            return left > right
+            return ascending ? left < right : left > right
           default:
-            return nameOrder($0.reference.name, $1.reference.name)
+            return ascending
+              ? nameOrder($0.reference.name, $1.reference.name)
+              : nameOrder($1.reference.name, $0.reference.name)
           }
         }
         notebooks.sort {
-          if $0.modified != $1.modified { return $0.modified > $1.modified }
-          return nameOrder($0.reference.name, $1.reference.name)
+          if $0.modified != $1.modified {
+            return ascending ? $0.modified < $1.modified : $0.modified > $1.modified
+          }
+          return ascending
+            ? nameOrder($0.reference.name, $1.reference.name)
+            : nameOrder($1.reference.name, $0.reference.name)
         }
       }
       return LibraryListing(folders: folders, notebooks: notebooks)
     }
   }
 
-  func allNotes(sort: LibrarySort) throws -> LibraryListing {
+  func allNotes(
+    sort: LibrarySort,
+    direction: LibrarySortDirection
+  ) throws -> LibraryListing {
     try coordinatedRead(at: url) { root in
       let fileManager = FileManager.default
       let favoritePaths = try LibraryMetadataFile.favoritePaths(
@@ -618,27 +669,42 @@ final class NotesRootAccess {
       let nameOrder: (String, String) -> Bool = {
         $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
       }
+      let ascending = direction == .ascending
       switch sort {
       case .name:
-        notebooks.sort { nameOrder($0.reference.name, $1.reference.name) }
+        notebooks.sort {
+          ascending
+            ? nameOrder($0.reference.name, $1.reference.name)
+            : nameOrder($1.reference.name, $0.reference.name)
+        }
       case .modified:
         notebooks.sort {
-          if $0.modified != $1.modified { return $0.modified > $1.modified }
-          return nameOrder($0.reference.name, $1.reference.name)
+          if $0.modified != $1.modified {
+            return ascending ? $0.modified < $1.modified : $0.modified > $1.modified
+          }
+          return ascending
+            ? nameOrder($0.reference.name, $1.reference.name)
+            : nameOrder($1.reference.name, $0.reference.name)
         }
       }
       return LibraryListing(folders: [], notebooks: notebooks)
     }
   }
 
-  func favoriteNotes(sort: LibrarySort) throws -> LibraryListing {
-    let listing = try allNotes(sort: sort)
+  func favoriteNotes(
+    sort: LibrarySort,
+    direction: LibrarySortDirection
+  ) throws -> LibraryListing {
+    let listing = try allNotes(sort: sort, direction: direction)
     return LibraryListing(
       folders: [],
       notebooks: listing.notebooks.filter(\.favorite))
   }
 
-  func trashNotes(sort: LibrarySort) throws -> LibraryListing {
+  func trashNotes(
+    sort: LibrarySort,
+    direction: LibrarySortDirection
+  ) throws -> LibraryListing {
     try coordinatedRead(at: url) { root in
       let trash = root.appendingPathComponent(".trash", isDirectory: true)
       guard FileManager.default.fileExists(atPath: trash.path) else {
@@ -678,13 +744,22 @@ final class NotesRootAccess {
       let nameOrder: (String, String) -> Bool = {
         $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
       }
+      let ascending = direction == .ascending
       switch sort {
       case .name:
-        notebooks.sort { nameOrder($0.reference.name, $1.reference.name) }
+        notebooks.sort {
+          ascending
+            ? nameOrder($0.reference.name, $1.reference.name)
+            : nameOrder($1.reference.name, $0.reference.name)
+        }
       case .modified:
         notebooks.sort {
-          if $0.modified != $1.modified { return $0.modified > $1.modified }
-          return nameOrder($0.reference.name, $1.reference.name)
+          if $0.modified != $1.modified {
+            return ascending ? $0.modified < $1.modified : $0.modified > $1.modified
+          }
+          return ascending
+            ? nameOrder($0.reference.name, $1.reference.name)
+            : nameOrder($1.reference.name, $0.reference.name)
         }
       }
       return LibraryListing(folders: [], notebooks: notebooks)

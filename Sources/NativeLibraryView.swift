@@ -16,11 +16,13 @@ struct NativeLibraryView: View {
   @Binding var query: String
   @Binding var scope: LibraryScope
   let sort: LibrarySort
+  let sortDirection: LibrarySortDirection
   let grid: Bool
   let openFolder: (FolderReference) -> Void
   let openNotebook: (NotebookReference) -> Void
   let goUp: () -> Void
   let setSort: (LibrarySort) -> Void
+  let setSortDirection: (LibrarySortDirection) -> Void
   let toggleLayout: () -> Void
   let createNote: () -> Void
   let importPDF: () -> Void
@@ -152,6 +154,7 @@ struct NativeLibraryView: View {
 
           Button {
             setSort(.modified)
+            setSortDirection(.descending)
             scope = .recent
           } label: {
             if scope == .recent {
@@ -212,6 +215,50 @@ struct NativeLibraryView: View {
               Label("Date Modified", systemImage: "checkmark")
             } else {
               Text("Date Modified")
+            }
+          }
+
+          Divider()
+
+          if sort == .name {
+            Button {
+              setSortDirection(.ascending)
+            } label: {
+              if sortDirection == .ascending {
+                Label("A to Z", systemImage: "checkmark")
+              } else {
+                Text("A to Z")
+              }
+            }
+
+            Button {
+              setSortDirection(.descending)
+            } label: {
+              if sortDirection == .descending {
+                Label("Z to A", systemImage: "checkmark")
+              } else {
+                Text("Z to A")
+              }
+            }
+          } else {
+            Button {
+              setSortDirection(.descending)
+            } label: {
+              if sortDirection == .descending {
+                Label("Newest First", systemImage: "checkmark")
+              } else {
+                Text("Newest First")
+              }
+            }
+
+            Button {
+              setSortDirection(.ascending)
+            } label: {
+              if sortDirection == .ascending {
+                Label("Oldest First", systemImage: "checkmark")
+              } else {
+                Text("Oldest First")
+              }
             }
           }
 

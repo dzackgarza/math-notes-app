@@ -16,6 +16,7 @@ struct ContentView: View {
   @State private var libraryQuery = ""
   @State private var libraryScope: LibraryScope = .folder
   @State private var librarySort: LibrarySort = .name
+  @State private var librarySortDirection: LibrarySortDirection = .ascending
   @State private var libraryGrid = true
   @AppStorage("pageArrangement") private var pageArrangementRaw = EditorPageArrangement.vertical.rawValue
   @State private var session: NotebookSession?
@@ -284,6 +285,7 @@ struct ContentView: View {
       query: $libraryQuery,
       scope: $libraryScope,
       sort: librarySort,
+      sortDirection: librarySortDirection,
       grid: libraryGrid,
       openFolder: { folder in
         libraryQuery = ""
@@ -299,6 +301,10 @@ struct ContentView: View {
       },
       setSort: { sort in
         librarySort = sort
+        refreshLibrary()
+      },
+      setSortDirection: { direction in
+        librarySortDirection = direction
         refreshLibrary()
       },
       toggleLayout: { libraryGrid.toggle() },
@@ -378,14 +384,19 @@ struct ContentView: View {
       if !libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
         if libraryScope == .trash {
           let needle = libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-          let listing = try root.trashNotes(sort: librarySort)
+          let listing = try root.trashNotes(
+            sort: librarySort,
+            direction: librarySortDirection)
           libraryListing = LibraryListing(
             folders: [],
             notebooks: listing.notebooks.filter {
               $0.reference.name.localizedCaseInsensitiveContains(needle)
             })
         } else {
-          let listing = try root.searchLibrary(query: libraryQuery, sort: librarySort)
+          let listing = try root.searchLibrary(
+            query: libraryQuery,
+            sort: librarySort,
+            direction: librarySortDirection)
           libraryListing = libraryScope == .favorites
             ? LibraryListing(
               folders: [],
@@ -393,13 +404,22 @@ struct ContentView: View {
             : listing
         }
       } else if libraryScope == .recent {
-        libraryListing = try root.allNotes(sort: librarySort)
+        libraryListing = try root.allNotes(
+          sort: librarySort,
+          direction: librarySortDirection)
       } else if libraryScope == .favorites {
-        libraryListing = try root.favoriteNotes(sort: librarySort)
+        libraryListing = try root.favoriteNotes(
+          sort: librarySort,
+          direction: librarySortDirection)
       } else if libraryScope == .trash {
-        libraryListing = try root.trashNotes(sort: librarySort)
+        libraryListing = try root.trashNotes(
+          sort: librarySort,
+          direction: librarySortDirection)
       } else {
-        libraryListing = try root.library(in: libraryFolder, sort: librarySort)
+        libraryListing = try root.library(
+          in: libraryFolder,
+          sort: librarySort,
+          direction: librarySortDirection)
       }
     } catch {
       if libraryScope == .folder,
@@ -408,7 +428,10 @@ struct ContentView: View {
       {
         libraryFolder = FolderReference(path: [])
         do {
-          libraryListing = try root.library(in: libraryFolder, sort: librarySort)
+          libraryListing = try root.library(
+            in: libraryFolder,
+            sort: librarySort,
+            direction: librarySortDirection)
           return
         } catch {
           errorMessage = error.localizedDescription
