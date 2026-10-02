@@ -708,12 +708,16 @@ class _LibraryScreenState extends State<LibraryScreen> {
               ],
             ];
           },
-          buttonBuilder: (context, showMenu) => CupertinoButton(
-            onPressed: showMenu,
+          buttonBuilder: (context, showMenu) => MergeSemantics(
             child: Semantics(
               label: 'Create options',
               button: true,
-              child: const Icon(CupertinoIcons.chevron_down),
+              child: CupertinoButton(
+                onPressed: showMenu,
+                child: const ExcludeSemantics(
+                  child: Icon(CupertinoIcons.chevron_down),
+                ),
+              ),
             ),
           ),
         ),
@@ -896,7 +900,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
       (
         label: 'Library',
         icon: CupertinoIcons.book,
-        selected: vm.filter == 'all' && vm.query.isEmpty,
+        selected: vm.filter == 'all' &&
+            vm.query.isEmpty &&
+            vm.notebookPath == null,
         action: () {
           vm.showNotebook(null);
           vm.setFilter('all');
