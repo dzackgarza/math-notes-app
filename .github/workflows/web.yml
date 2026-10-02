@@ -15,15 +15,23 @@ jobs:
         with:
           name: engine-module
           path: hosts/web/src/engine/wasm
+      - name: Restore the Flutter web build
+        id: flutter-cache
+        uses: actions/cache@v6
+        with:
+          path: hosts/web/flutter/build/web
+          key: flutter-web-${{ hashFiles('hosts/web/flutter/**', 'hosts/web/src/**', 'hosts/web/bun.lock', 'hosts/web/package.json', 'hosts/web/vite.flutter.config.ts', 'hosts/web/tsconfig*.json', 'hosts/web/tikz-embed.html', 'hosts/web/build-tikz.mjs', 'hosts/web/flutter-cache.mjs', 'core/cmake/TextFonts.cmake', 'justfile') }}
       - uses: oven-sh/setup-bun@v2
       - name: Install
         run: |
           bun install --frozen-lockfile
           bunx playwright install --with-deps chromium
       - uses: extractions/setup-just@v4
+        if: steps.flutter-cache.outputs.cache-hit != 'true'
       - name: Build Flutter host
         working-directory: .
         run: just _flutter-host
+        if: steps.flutter-cache.outputs.cache-hit != 'true'
       # The deployment: `just web-fetch` copies it to this machine's nginx.
       - uses: actions/upload-artifact@v7
         with:
