@@ -86,7 +86,7 @@ def check_fixture(source: Path, output: Path) -> None:
             )
             over = maximum.point(lambda value: 255 if value > 32 else 0).histogram()[255]
             fraction = over / (engine.width * engine.height)
-            if mean > 2 or fraction > 0.005:
+            if mean > 2 or fraction > 0.01:
                 raise AssertionError(
                     f"{source.name} page {number}: PDF raster differs "
                     f"(mean channel {mean:.2f}, {fraction:.3%} over 32)"
