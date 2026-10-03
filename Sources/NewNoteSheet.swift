@@ -140,9 +140,11 @@ struct NewNoteSheet: View {
   let onCancel: () -> Void
 
   @State private var form: NewNoteFormState
+  private let openedForm: NewNoteFormState
   @State private var newTag = ""
   @State private var namingTemplate = false
   @State private var templateName = ""
+  @State private var showingDiscardConfirmation = false
 
   init(
     folders: [FolderReference],
@@ -167,13 +169,14 @@ struct NewNoteSheet: View {
     self.onSaveTemplate = onSaveTemplate
     self.renderPreview = renderPreview
     self.onCancel = onCancel
-    _form = State(
-      initialValue: NewNoteFormState(
-        folders: folders,
-        templates: templates,
-        initialParent: initialParent,
-        folderDefaults: folderDefaults,
-        draft: draft))
+    let initialForm = NewNoteFormState(
+      folders: folders,
+      templates: templates,
+      initialParent: initialParent,
+      folderDefaults: folderDefaults,
+      draft: draft)
+    openedForm = initialForm
+    _form = State(initialValue: initialForm)
   }
 
   var body: some View {
@@ -274,10 +277,21 @@ struct NewNoteSheet: View {
         }
       }
       .navigationTitle("New Note")
+      .interactiveDismissDisabled(isDirty) {
+        showingDiscardConfirmation = true
+      }
+      .confirmationDialog(
+        "Discard new note?",
+        isPresented: $showingDiscardConfirmation,
+        titleVisibility: .visible
+      ) {
+        Button("Discard", role: .destructive, action: onCancel)
+        Button("Keep Editing", role: .cancel) {}
+      }
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
-          Button("Cancel", action: onCancel)
+          Button("Cancel", action: requestCancel)
         }
         ToolbarItem(placement: .confirmationAction) {
           Button("Create") {
@@ -286,6 +300,18 @@ struct NewNoteSheet: View {
           .disabled(form.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
       }
+    }
+  }
+
+  var isDirty: Bool {
+    form != openedForm || !newTag.isEmpty || namingTemplate || !templateName.isEmpty
+  }
+
+  private func requestCancel() {
+    if isDirty {
+      showingDiscardConfirmation = true
+    } else {
+      onCancel()
     }
   }
 

@@ -61,7 +61,9 @@ struct NewNotebookSheet: View {
   let onCancel: () -> Void
 
   @State private var form: NewNotebookFormState
+  private let openedForm: NewNotebookFormState
   @State private var newTag = ""
+  @State private var showingDiscardConfirmation = false
 
   init(
     folders: [FolderReference],
@@ -77,11 +79,12 @@ struct NewNotebookSheet: View {
     self.renderPreview = renderPreview
     self.onCreate = onCreate
     self.onCancel = onCancel
-    _form = State(
-      initialValue: NewNotebookFormState(
-        folders: folders,
-        initialParent: initialParent,
-        defaults: defaults))
+    let initialForm = NewNotebookFormState(
+      folders: folders,
+      initialParent: initialParent,
+      defaults: defaults)
+    openedForm = initialForm
+    _form = State(initialValue: initialForm)
   }
 
   var body: some View {
@@ -178,10 +181,21 @@ struct NewNotebookSheet: View {
         }
       }
       .navigationTitle("New Notebook")
+      .interactiveDismissDisabled(isDirty) {
+        showingDiscardConfirmation = true
+      }
+      .confirmationDialog(
+        "Discard new notebook?",
+        isPresented: $showingDiscardConfirmation,
+        titleVisibility: .visible
+      ) {
+        Button("Discard", role: .destructive, action: onCancel)
+        Button("Keep Editing", role: .cancel) {}
+      }
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
-          Button("Cancel", action: onCancel)
+          Button("Cancel", action: requestCancel)
         }
         ToolbarItem(placement: .confirmationAction) {
           Button("Create") {
@@ -190,6 +204,18 @@ struct NewNotebookSheet: View {
           .disabled(form.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
       }
+    }
+  }
+
+  var isDirty: Bool {
+    form != openedForm || !newTag.isEmpty
+  }
+
+  private func requestCancel() {
+    if isDirty {
+      showingDiscardConfirmation = true
+    } else {
+      onCancel()
     }
   }
 
