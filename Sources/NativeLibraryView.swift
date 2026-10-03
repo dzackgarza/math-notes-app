@@ -381,22 +381,49 @@ struct NativeLibraryView: View {
     entryActions(LibraryEntryTarget(path: item.reference.path, kind: .folder))
   }
 
-  private func folderCard(_ item: LibraryFolderItem) -> some View {
-    Button {
-      openFolder(item.reference)
+  private func folderActionsButton(_ item: LibraryFolderItem) -> some View {
+    Menu {
+      folderActions(item)
     } label: {
-      VStack(alignment: .leading, spacing: 10) {
-        LibraryNotebookCover(root: root, item: item, titled: true)
-          .aspectRatio(0.72, contentMode: .fit)
-          .frame(maxWidth: .infinity)
-
-        notebookSummary(item)
-        LibraryTagChips(tags: item.details.tags)
-      }
-      .frame(maxWidth: .infinity, alignment: .leading)
+      Image(systemName: "ellipsis.circle")
+        .frame(width: 32, height: 32)
     }
-    .buttonStyle(.plain)
-    .accessibilityLabel("Open \(item.reference.name)")
+    .accessibilityLabel("\(item.reference.name) notebook actions")
+  }
+
+  private func noteActionsButton(_ item: LibraryNotebookItem) -> some View {
+    Menu {
+      noteActions(item)
+    } label: {
+      Image(systemName: "ellipsis.circle")
+        .frame(width: 32, height: 32)
+    }
+    .accessibilityLabel("\(item.reference.name) actions")
+  }
+
+  private func folderCard(_ item: LibraryFolderItem) -> some View {
+    ZStack(alignment: .bottomTrailing) {
+      Button {
+        openFolder(item.reference)
+      } label: {
+        VStack(alignment: .leading, spacing: 10) {
+          LibraryNotebookCover(root: root, item: item, titled: true)
+            .aspectRatio(0.72, contentMode: .fit)
+            .frame(maxWidth: .infinity)
+
+          VStack(alignment: .leading, spacing: 4) {
+            notebookSummary(item)
+            LibraryTagChips(tags: item.details.tags)
+          }
+          .padding(.trailing, 36)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel("Open \(item.reference.name)")
+
+      folderActionsButton(item)
+    }
     .contextMenu {
       folderActions(item)
     }
@@ -417,109 +444,126 @@ struct NativeLibraryView: View {
   }
 
   private func notebookCard(_ item: LibraryNotebookItem) -> some View {
-    Button {
-      openNotebook(item.reference)
-    } label: {
-      VStack(alignment: .leading, spacing: 8) {
-        LibraryThumbnail(root: root, item: item)
-          .aspectRatio(0.72, contentMode: .fit)
-          .frame(maxWidth: .infinity)
-          .background(.background)
-          .clipShape(RoundedRectangle(cornerRadius: 8))
-          .shadow(radius: 2, y: 1)
+    ZStack(alignment: .bottomTrailing) {
+      Button {
+        openNotebook(item.reference)
+      } label: {
+        VStack(alignment: .leading, spacing: 8) {
+          LibraryThumbnail(root: root, item: item)
+            .aspectRatio(0.72, contentMode: .fit)
+            .frame(maxWidth: .infinity)
+            .background(.background)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .shadow(radius: 2, y: 1)
 
-        HStack(spacing: 6) {
-          if item.conflicts > 0 {
-            Image(systemName: "exclamationmark.triangle.fill")
-              .foregroundStyle(.orange)
-              .accessibilityLabel("Conflicting versions")
-          }
-          Text(item.reference.name)
-            .font(.headline)
-            .lineLimit(2)
-        }
+          VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+              if item.conflicts > 0 {
+                Image(systemName: "exclamationmark.triangle.fill")
+                  .foregroundStyle(.orange)
+                  .accessibilityLabel("Conflicting versions")
+              }
+              Text(item.reference.name)
+                .font(.headline)
+                .lineLimit(2)
+            }
 
-        if !query.isEmpty || scope != .folder {
-          let parent = item.reference.path.dropLast().joined(separator: " / ")
-          if !parent.isEmpty {
-            Text(parent)
+            if !query.isEmpty || scope != .folder {
+              let parent = item.reference.path.dropLast().joined(separator: " / ")
+              if !parent.isEmpty {
+                Text(parent)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+            }
+
+            Text(item.modified, format: .dateTime.month(.abbreviated).day().year())
               .font(.caption)
               .foregroundStyle(.secondary)
+            LibraryTagChips(tags: item.details.tags)
           }
+          .padding(.trailing, 36)
         }
-
-        Text(item.modified, format: .dateTime.month(.abbreviated).day().year())
-          .font(.caption)
-          .foregroundStyle(.secondary)
-        LibraryTagChips(tags: item.details.tags)
+        .frame(maxWidth: .infinity, alignment: .leading)
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
+      .buttonStyle(.plain)
+      .accessibilityLabel("Open \(item.reference.name)")
+
+      noteActionsButton(item)
     }
-    .buttonStyle(.plain)
-    .accessibilityLabel("Open \(item.reference.name)")
     .contextMenu {
       noteActions(item)
     }
   }
 
   private func folderRow(_ item: LibraryFolderItem) -> some View {
-    Button {
-      openFolder(item.reference)
-    } label: {
-      HStack(spacing: 14) {
-        LibraryNotebookCover(root: root, item: item, titled: false)
-          .frame(width: 44, height: 58)
+    HStack(spacing: 8) {
+      Button {
+        openFolder(item.reference)
+      } label: {
+        HStack(spacing: 14) {
+          LibraryNotebookCover(root: root, item: item, titled: false)
+            .frame(width: 44, height: 58)
 
-        VStack(alignment: .leading, spacing: 4) {
-          Text(item.reference.path.last ?? item.reference.name)
-            .font(.headline)
-          notebookSummary(item)
-          LibraryTagChips(tags: item.details.tags)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(item.reference.path.last ?? item.reference.name)
+              .font(.headline)
+            notebookSummary(item)
+            LibraryTagChips(tags: item.details.tags)
+          }
         }
       }
+      .buttonStyle(.plain)
+      .frame(maxWidth: .infinity, alignment: .leading)
+
+      folderActionsButton(item)
     }
-    .buttonStyle(.plain)
     .contextMenu {
       folderActions(item)
     }
   }
 
   private func notebookRow(_ item: LibraryNotebookItem) -> some View {
-    Button {
-      openNotebook(item.reference)
-    } label: {
-      HStack(spacing: 14) {
-        LibraryThumbnail(root: root, item: item)
-          .frame(width: 48, height: 64)
-          .background(.background)
-          .clipShape(RoundedRectangle(cornerRadius: 4))
+    HStack(spacing: 8) {
+      Button {
+        openNotebook(item.reference)
+      } label: {
+        HStack(spacing: 14) {
+          LibraryThumbnail(root: root, item: item)
+            .frame(width: 48, height: 64)
+            .background(.background)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
 
-        VStack(alignment: .leading, spacing: 4) {
-          HStack(spacing: 6) {
-            if item.conflicts > 0 {
-              Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
-                .accessibilityLabel("Conflicting versions")
+          VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+              if item.conflicts > 0 {
+                Image(systemName: "exclamationmark.triangle.fill")
+                  .foregroundStyle(.orange)
+                  .accessibilityLabel("Conflicting versions")
+              }
+              Text(item.reference.name)
+                .font(.headline)
             }
-            Text(item.reference.name)
-              .font(.headline)
-          }
-          if !query.isEmpty || scope != .folder {
-            let parent = item.reference.path.dropLast().joined(separator: " / ")
-            if !parent.isEmpty {
-              Text(parent)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if !query.isEmpty || scope != .folder {
+              let parent = item.reference.path.dropLast().joined(separator: " / ")
+              if !parent.isEmpty {
+                Text(parent)
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
             }
+            Text(item.modified, format: .dateTime.month(.abbreviated).day().year())
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            LibraryTagChips(tags: item.details.tags)
           }
-          Text(item.modified, format: .dateTime.month(.abbreviated).day().year())
-            .font(.caption)
-            .foregroundStyle(.secondary)
-          LibraryTagChips(tags: item.details.tags)
         }
       }
+      .buttonStyle(.plain)
+      .frame(maxWidth: .infinity, alignment: .leading)
+
+      noteActionsButton(item)
     }
-    .buttonStyle(.plain)
     .contextMenu {
       noteActions(item)
     }
