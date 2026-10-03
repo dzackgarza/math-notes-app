@@ -79,7 +79,7 @@ test("Editor preferences: the last note reopens and the undo dial uses its chose
     .toEqual(["threeFingerSwipeLeft", "threeFingerSwipeRight"]);
   await penStroke(cdp, line(box.x + 200, box.x + 300, box.y + 480), 0.6);
   expect((await savedPages(page, "Recall")).map((item) => item.strokes)).toEqual([4]);
-  const inkRegion = { x: 90, y: 80, width: 600, height: 480 };
+  const inkRegion = { x: 90, y: 140, width: 600, height: 400 };
   const beforeSwipes = await pixelBounds(page, inkRegion, isInk);
   const swipe = async (direction: -1 | 1) => {
     const origin = Array.from({ length: 3 }, (_, id) => ({ id, x: box.x + 440 + id * 42, y: box.y + 240 }));
