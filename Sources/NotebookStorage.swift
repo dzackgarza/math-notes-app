@@ -36,6 +36,7 @@ struct LibraryNotebookItem: Identifiable {
   let modified: Date
   let favorite: Bool
   let conflicts: Int
+  let details: LibraryNoteDetails
 
   var id: String { reference.id }
 }
@@ -877,7 +878,9 @@ final class NotesRootAccess {
               favorite: favoritePaths.contains(path.joined(separator: "/")),
               conflicts: try combinedConflictCount(
                 NotebookReference(path: path),
-                at: child)))
+                at: child),
+              details: try LibraryMetadataFile.noteDetails(
+                in: LibraryMetadataFile.read(at: root), path: path)))
         } else {
           folders.append(
             LibraryFolderItem(
@@ -973,7 +976,9 @@ final class NotesRootAccess {
                   favorite: favoritePaths.contains(childPath.joined(separator: "/")),
                   conflicts: try combinedConflictCount(
                     NotebookReference(path: childPath),
-                    at: child)))
+                    at: child),
+                  details: try LibraryMetadataFile.noteDetails(
+                    in: LibraryMetadataFile.read(at: root), path: childPath)))
             }
           } else {
             if name.localizedCaseInsensitiveContains(needle) {
@@ -1064,7 +1069,9 @@ final class NotesRootAccess {
               favorite: favoritePaths.contains(childPath.joined(separator: "/")),
               conflicts: try combinedConflictCount(
                 NotebookReference(path: childPath),
-                at: child)))
+                at: child),
+              details: try LibraryMetadataFile.noteDetails(
+                in: LibraryMetadataFile.read(at: root), path: childPath)))
           } else {
             try visit(child, path: childPath)
           }
@@ -1219,7 +1226,9 @@ final class NotesRootAccess {
                 favorite: favoritePaths.contains(childPath.joined(separator: "/")),
                 conflicts: try combinedConflictCount(
                   NotebookReference(path: childPath),
-                  at: child)))
+                  at: child),
+                details: try LibraryMetadataFile.noteDetails(
+                  in: LibraryMetadataFile.read(at: root), path: childPath)))
           } else {
             try visit(child, path: childPath)
           }

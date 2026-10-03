@@ -451,6 +451,7 @@ struct NativeLibraryView: View {
         Text(item.modified, format: .dateTime.month(.abbreviated).day().year())
           .font(.caption)
           .foregroundStyle(.secondary)
+        LibraryTagChips(tags: item.details.tags)
       }
       .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -514,6 +515,7 @@ struct NativeLibraryView: View {
           Text(item.modified, format: .dateTime.month(.abbreviated).day().year())
             .font(.caption)
             .foregroundStyle(.secondary)
+          LibraryTagChips(tags: item.details.tags)
         }
       }
     }
