@@ -5,6 +5,7 @@ type SavedStroke = { modes: string | null; smoothing: string | null; traces: str
 
 async function strokes(page: import("@playwright/test").Page): Promise<SavedStroke[]> {
   await save(page);
+  await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
   return page.evaluate(async () => {
     const root = await navigator.storage.getDirectory();
     const dir = await (await root.getDirectoryHandle("Test Notebook")).getDirectoryHandle("Modes");
@@ -80,10 +81,15 @@ test("Pen modes: snapped lines, temporary ink, smoothing, history, and reload", 
   await test.step("smoothing is saved with the next permanent stroke and survives reload", async () => {
     await advanced();
     await toggle("Temporary ink");
-    const slider = page.getByRole("slider", { name: "Smoothing" });
-    const sliderBox = await slider.boundingBox();
-    if (!sliderBox) throw new Error("Smoothing slider has no bounds");
-    await slider.click({ position: { x: sliderBox.width * 0.8, y: sliderBox.height / 2 } });
+    const slider = page.locator('[aria-label="Smoothing"] [role="slider"]');
+    const thumb = await slider.boundingBox();
+    if (!thumb) throw new Error("Smoothing slider has no bounds");
+    const start = thumb.x + thumb.width * 0.28;
+    await page.mouse.move(start, thumb.y + thumb.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(start + 120, thumb.y + thumb.height / 2, { steps: 8 });
+    await page.mouse.up();
+    await expect(page.getByText(/^[3-8]0 ms$/)).toBeVisible();
     await closePopover(page);
     await draw(390);
     const before = await strokes(page);
