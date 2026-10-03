@@ -80,7 +80,8 @@ test("A straight ruler and French curve guide constrain ink without entering the
   ], 0.6);
   const third = await traces(page);
   expect(third).toHaveLength(3);
-  expect(Math.max(...third[2].geometry.map((point) => point[1])) - Math.min(...third[2].geometry.map((point) => point[1]))).toBeGreaterThan(12);
+  const curveHeight = Math.max(...third[2].geometry.map((point) => point[1])) - Math.min(...third[2].geometry.map((point) => point[1]));
+  expect(curveHeight).toBeGreaterThan(guidedHeight + 5);
   expect(third[2].geometry).not.toEqual(third[2].raw);
   await button("Ruler").click();
   await button("Hide ruler").click();
