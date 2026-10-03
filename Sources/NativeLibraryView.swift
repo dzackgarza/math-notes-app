@@ -14,6 +14,7 @@ struct NativeLibraryView: View {
   let root: NotesRootAccess
   let folder: FolderReference
   let listing: LibraryListing
+  let folderDetails: LibraryFolderDetails?
   @Binding var query: String
   @Binding var scope: LibraryScope
   let tags: [LibraryTag]
@@ -76,26 +77,37 @@ struct NativeLibraryView: View {
           Text("Nothing has the tag \(selectedTag ?? "").")
         }
       } else if listing.folders.isEmpty && listing.notebooks.isEmpty {
-        ContentUnavailableView {
-          if folder.path.isEmpty {
-            Label("No Notebooks", systemImage: "books.vertical")
-          } else {
-            Label("No Notes", systemImage: "pencil")
+        VStack(alignment: .leading, spacing: 0) {
+          if let details = visibleFolderDetails {
+            folderMetadataHeader(details)
+              .padding(20)
           }
-        } description: {
-          Text(folder.path.isEmpty ? "Your notebooks appear here." : "This notebook has no notes yet.")
-        } actions: {
-          if folder.path.isEmpty {
-            Button("Create Notebook", action: createNotebook)
-              .buttonStyle(.borderedProminent)
-          } else {
-            Button("Create Note", action: createNote)
-              .buttonStyle(.borderedProminent)
+          ContentUnavailableView {
+            if folder.path.isEmpty {
+              Label("No Notebooks", systemImage: "books.vertical")
+            } else {
+              Label("No Notes", systemImage: "pencil")
+            }
+          } description: {
+            Text(folder.path.isEmpty ? "Your notebooks appear here." : "This notebook has no notes yet.")
+          } actions: {
+            if folder.path.isEmpty {
+              Button("Create Notebook", action: createNotebook)
+                .buttonStyle(.borderedProminent)
+            } else {
+              Button("Create Note", action: createNote)
+                .buttonStyle(.borderedProminent)
+            }
+            Button("Rescan", action: refresh)
           }
-          Button("Rescan", action: refresh)
         }
       } else if grid {
         ScrollView {
+          if let details = visibleFolderDetails {
+            folderMetadataHeader(details)
+              .padding(.horizontal, 20)
+              .padding(.top, 20)
+          }
           LazyVGrid(
             columns: [GridItem(.adaptive(minimum: 170, maximum: 240), spacing: 20)],
             spacing: 24
@@ -111,6 +123,9 @@ struct NativeLibraryView: View {
         }
       } else {
         List {
+          if let details = visibleFolderDetails {
+            folderMetadataHeader(details)
+          }
           if !listing.folders.isEmpty {
             Section("Folders") {
               ForEach(listing.folders) { item in
@@ -330,6 +345,27 @@ struct NativeLibraryView: View {
         }
       }
     }
+  }
+
+  private var visibleFolderDetails: LibraryFolderDetails? {
+    guard scope == .folder,
+      query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+      !folder.path.isEmpty,
+      let folderDetails,
+      !folderDetails.description.isEmpty || !folderDetails.tags.isEmpty
+    else { return nil }
+    return folderDetails
+  }
+
+  @ViewBuilder
+  private func folderMetadataHeader(_ details: LibraryFolderDetails) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      if !details.description.isEmpty {
+        Text(details.description)
+      }
+      LibraryTagChips(tags: details.tags)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   @ViewBuilder

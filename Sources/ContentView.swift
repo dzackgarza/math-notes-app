@@ -110,6 +110,7 @@ struct ContentView: View {
   @State private var root: NotesRootAccess?
   @State private var libraryFolder = FolderReference(path: [])
   @State private var libraryListing = LibraryListing(folders: [], notebooks: [])
+  @State private var libraryFolderDetails: LibraryFolderDetails?
   @State private var libraryQuery = ""
   @State private var libraryScope: LibraryScope = .folder
   @State private var libraryTags: [LibraryTag] = []
@@ -930,6 +931,7 @@ struct ContentView: View {
       root: root,
       folder: libraryFolder,
       listing: libraryListing,
+      folderDetails: libraryFolderDetails,
       query: $libraryQuery,
       scope: $libraryScope,
       tags: libraryTags,
@@ -1135,6 +1137,7 @@ struct ContentView: View {
     libraryTags = []
     libraryTag = nil
     libraryListing = LibraryListing(folders: [], notebooks: [])
+    libraryFolderDetails = nil
     root = newRoot
     reloadPenLibrary()
     newRoot.onChange = {
@@ -1171,11 +1174,17 @@ struct ContentView: View {
   private func refreshLibrary() {
     guard let root else {
       libraryListing = LibraryListing(folders: [], notebooks: [])
+      libraryFolderDetails = nil
       return
     }
 
     do {
       libraryTags = try root.libraryTags()
+      let queryIsEmpty = libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      libraryFolderDetails =
+        libraryScope == .folder && queryIsEmpty && !libraryFolder.path.isEmpty
+        ? try root.folderDetails(for: libraryFolder)
+        : nil
       if libraryScope == .tag, let libraryTag {
         libraryListing = try root.taggedLibrary(
           tag: libraryTag,
@@ -1226,6 +1235,7 @@ struct ContentView: View {
         openConflictCount = (try? root.conflictCount(session.reference)) ?? 0
       }
     } catch {
+      libraryFolderDetails = nil
       if libraryScope == .folder,
         libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
         !libraryFolder.path.isEmpty
