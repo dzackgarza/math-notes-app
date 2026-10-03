@@ -67,7 +67,7 @@ def check_fixture(source: Path, output: Path) -> None:
                 [
                     "pdftoppm", "-f", str(number), "-l", str(number),
                     "-singlefile", "-scale-to-x", str(engine.width),
-                    "-scale-to-y", "-1", "-png", str(pdf), str(prefix),
+                    "-scale-to-y", str(engine.height), "-png", str(pdf), str(prefix),
                 ],
                 check=True,
                 capture_output=True,
