@@ -511,7 +511,7 @@ struct NativeLibraryView: View {
       if !details.description.isEmpty {
         Text(details.description)
       }
-      LibraryTagChips(tags: details.tags)
+      LibraryTagChips(tags: details.tags, knownTags: tags)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
   }
@@ -603,7 +603,7 @@ struct NativeLibraryView: View {
 
           VStack(alignment: .leading, spacing: 4) {
             notebookSummary(item)
-            LibraryTagChips(tags: item.details.tags)
+            LibraryTagChips(tags: item.details.tags, knownTags: tags)
           }
           .padding(.trailing, 36)
         }
@@ -693,7 +693,7 @@ struct NativeLibraryView: View {
         Text(item.modified, format: .dateTime.month(.abbreviated).day().year())
           .font(.caption)
           .foregroundStyle(.secondary)
-        LibraryTagChips(tags: item.details.tags)
+        LibraryTagChips(tags: item.details.tags, knownTags: tags)
       }
       .padding(.trailing, 36)
     }
@@ -714,7 +714,7 @@ struct NativeLibraryView: View {
             Text(item.reference.path.last ?? item.reference.name)
               .font(.headline)
             notebookSummary(item)
-            LibraryTagChips(tags: item.details.tags)
+            LibraryTagChips(tags: item.details.tags, knownTags: tags)
           }
         }
       }
@@ -784,7 +784,7 @@ struct NativeLibraryView: View {
         Text(item.modified, format: .dateTime.month(.abbreviated).day().year())
           .font(.caption)
           .foregroundStyle(.secondary)
-        LibraryTagChips(tags: item.details.tags)
+        LibraryTagChips(tags: item.details.tags, knownTags: tags)
       }
     }
   }
@@ -899,21 +899,30 @@ struct LibraryNotebookCover: View {
 
 struct LibraryTagChips: View {
   let tags: [String]
+  let knownTags: [LibraryTag]
 
   var body: some View {
     if !tags.isEmpty {
       ScrollView(.horizontal) {
-        HStack(spacing: 4) {
+        HStack(spacing: 8) {
           ForEach(tags, id: \.self) { tag in
-            Text(tag)
-              .font(.caption2)
-              .padding(.horizontal, 6)
-              .padding(.vertical, 2)
-              .background(.quaternary, in: Capsule())
+            HStack(spacing: 4) {
+              Circle()
+                .fill(tagColor(tag))
+                .frame(width: 8, height: 8)
+              Text(tag)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
           }
         }
       }
       .scrollIndicators(.hidden)
     }
+  }
+
+  private func tagColor(_ name: String) -> Color {
+    guard let tag = knownTags.first(where: { $0.name == name }) else { return .secondary }
+    return libraryColor(tag.color)
   }
 }
