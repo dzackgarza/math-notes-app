@@ -337,18 +337,19 @@ struct EditorToolRail: View {
                 .font(.system(size: 24))
                 .frame(width: 44, height: 44)
                 .background(
-                  eraserMode == mode ? Color.accentColor.opacity(0.14) : Color.clear,
+                  eraserMode == mode ? NativeTheme.ribbon.opacity(0.12) : Color.clear,
                   in: RoundedRectangle(cornerRadius: 10))
               Text(mode.rawValue)
-                .font(.caption)
+                .font(NativeTheme.footnote)
             }
           }
           .buttonStyle(.plain)
-          .foregroundStyle(eraserMode == mode ? Color.accentColor : Color.primary)
+          .foregroundStyle(eraserMode == mode ? NativeTheme.ribbon : NativeTheme.ink)
           .accessibilityValue(eraserMode == mode ? "Selected" : "")
         }
       }
       .padding(16)
+      .nativePopoverSurface()
       .presentationCompactAdaptation(.popover)
     }
   }
@@ -378,18 +379,19 @@ struct EditorToolRail: View {
                 .font(.system(size: 24))
                 .frame(width: 44, height: 44)
                 .background(
-                  selectorMode == mode ? Color.accentColor.opacity(0.14) : Color.clear,
+                  selectorMode == mode ? NativeTheme.ribbon.opacity(0.12) : Color.clear,
                   in: RoundedRectangle(cornerRadius: 10))
               Text(mode.rawValue)
-                .font(.caption)
+                .font(NativeTheme.footnote)
             }
           }
           .buttonStyle(.plain)
-          .foregroundStyle(selectorMode == mode ? Color.accentColor : Color.primary)
+          .foregroundStyle(selectorMode == mode ? NativeTheme.ribbon : NativeTheme.ink)
           .accessibilityValue(selectorMode == mode ? "Selected" : "")
         }
       }
       .padding(16)
+      .nativePopoverSurface()
       .presentationCompactAdaptation(.popover)
     }
   }
@@ -419,18 +421,19 @@ struct EditorToolRail: View {
                 .font(.system(size: 24))
                 .frame(width: 44, height: 44)
                 .background(
-                  spaceMode == mode ? Color.accentColor.opacity(0.14) : Color.clear,
+                  spaceMode == mode ? NativeTheme.ribbon.opacity(0.12) : Color.clear,
                   in: RoundedRectangle(cornerRadius: 10))
               Text(mode.rawValue)
-                .font(.caption)
+                .font(NativeTheme.footnote)
             }
           }
           .buttonStyle(.plain)
-          .foregroundStyle(spaceMode == mode ? Color.accentColor : Color.primary)
+          .foregroundStyle(spaceMode == mode ? NativeTheme.ribbon : NativeTheme.ink)
           .accessibilityValue(spaceMode == mode ? "Selected" : "")
         }
       }
       .padding(16)
+      .nativePopoverSurface()
       .presentationCompactAdaptation(.popover)
     }
   }

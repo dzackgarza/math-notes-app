@@ -38,15 +38,19 @@ struct PenEditorPopover: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
       Text(tool.label)
-        .font(.headline)
+        .font(NativeTheme.headline)
 
       PenPreview(settings: settings)
         .frame(width: 288, height: 64)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 8))
+        .background(NativeTheme.paper, in: RoundedRectangle(cornerRadius: 8))
+        .overlay {
+          RoundedRectangle(cornerRadius: 8)
+            .stroke(NativeTheme.separator, lineWidth: 1)
+        }
 
       Text("Color")
-        .font(.caption)
-        .foregroundStyle(.secondary)
+        .font(NativeTheme.footnote)
+        .foregroundStyle(NativeTheme.graphite)
 
       HStack(spacing: 8) {
         ForEach(Array(library.palette.enumerated()), id: \.offset) { _, color in
@@ -59,7 +63,7 @@ struct PenEditorPopover: View {
               .overlay {
                 Circle()
                   .stroke(
-                    rgb == color ? Color.accentColor : Color.secondary.opacity(0.35),
+                    rgb == color ? NativeTheme.ribbon : NativeTheme.separator,
                     lineWidth: rgb == color ? 3 : 1)
               }
           }
@@ -73,11 +77,12 @@ struct PenEditorPopover: View {
         .textInputAutocapitalization(.characters)
         .autocorrectionDisabled()
         .font(.system(.body, design: .monospaced))
+        .nativeFieldSurface()
         .onSubmit(applyHex)
 
       Text("Size")
-        .font(.caption)
-        .foregroundStyle(.secondary)
+        .font(NativeTheme.footnote)
+        .foregroundStyle(NativeTheme.graphite)
 
       HStack(spacing: 6) {
         ForEach(sizePresets, id: \.self) { value in
@@ -85,7 +90,7 @@ struct PenEditorPopover: View {
             size = value
           }
           .buttonStyle(.bordered)
-          .tint(abs(size - value) < 0.05 ? Color.accentColor : Color.secondary)
+          .tint(abs(size - value) < 0.05 ? NativeTheme.ribbon : NativeTheme.graphite)
         }
       }
 
@@ -98,8 +103,8 @@ struct PenEditorPopover: View {
       }
 
       Text("Opacity")
-        .font(.caption)
-        .foregroundStyle(.secondary)
+        .font(NativeTheme.footnote)
+        .foregroundStyle(NativeTheme.graphite)
 
       HStack {
         Slider(value: $opacity, in: 0.1...1, step: 0.1)
@@ -112,8 +117,8 @@ struct PenEditorPopover: View {
       let compatibleSaved = saved.filter { $0.brush == brush }
       if !compatibleSaved.isEmpty {
         Text("Saved Pens")
-          .font(.caption)
-          .foregroundStyle(.secondary)
+          .font(NativeTheme.footnote)
+          .foregroundStyle(NativeTheme.graphite)
 
         HStack(spacing: 8) {
           ForEach(Array(compatibleSaved.enumerated()), id: \.offset) { _, preset in
@@ -125,7 +130,7 @@ struct PenEditorPopover: View {
                   .fill(swiftUIColor(preset.rgb))
                   .frame(width: 26, height: 26)
                 Text("\(Double(preset.size), specifier: "%.1f")")
-                  .font(.caption2)
+                  .font(NativeTheme.footnote)
               }
             }
             .buttonStyle(.plain)
@@ -144,6 +149,7 @@ struct PenEditorPopover: View {
     }
     .padding(16)
     .frame(width: 340)
+    .nativePopoverSurface()
     .onDisappear(perform: commit)
   }
 

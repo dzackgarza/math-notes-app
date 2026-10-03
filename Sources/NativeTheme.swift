@@ -71,3 +71,12 @@ extension View {
     modifier(NativeFieldSurface())
   }
 }
+
+extension View {
+  func nativePopoverSurface() -> some View {
+    foregroundStyle(NativeTheme.ink)
+      .font(NativeTheme.body)
+      .tint(NativeTheme.ink)
+      .presentationBackground(NativeTheme.leaf)
+  }
+}

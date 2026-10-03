@@ -16,7 +16,7 @@ struct ColorPalettePopover: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
       Text("Colors")
-        .font(.headline)
+        .font(NativeTheme.headline)
 
       LazyVGrid(
         columns: [GridItem(.adaptive(minimum: 44), spacing: 4)],
@@ -57,8 +57,8 @@ struct ColorPalettePopover: View {
 
       if !library.saved.isEmpty {
         Text("Saved pens")
-          .font(.caption)
-          .foregroundStyle(.secondary)
+          .font(NativeTheme.footnote)
+          .foregroundStyle(NativeTheme.graphite)
 
         LazyVGrid(
           columns: [GridItem(.adaptive(minimum: 44), spacing: 4)],
@@ -88,6 +88,7 @@ struct ColorPalettePopover: View {
     }
     .padding(16)
     .frame(width: 300)
+    .nativePopoverSurface()
     .popover(isPresented: $showingPaletteEditor, arrowEdge: .leading) {
       PaletteEditorPopover(
         library: $library,
@@ -156,7 +157,7 @@ struct ColorPalettePopover: View {
       .overlay {
         Circle()
           .stroke(
-            selected ? Color.accentColor : Color.secondary.opacity(0.35),
+            selected ? NativeTheme.ribbon : NativeTheme.separator,
             lineWidth: selected ? 3 : 1)
       }
   }
@@ -182,7 +183,7 @@ private struct PaletteEditorPopover: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
       Text("Colors")
-        .font(.headline)
+        .font(NativeTheme.headline)
 
       if !library.palette.isEmpty {
         LazyVGrid(
@@ -221,6 +222,7 @@ private struct PaletteEditorPopover: View {
     }
     .padding(16)
     .frame(width: 280)
+    .nativePopoverSurface()
   }
 
   private func removeColor(_ index: Int) {
