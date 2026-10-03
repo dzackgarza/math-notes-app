@@ -1,4 +1,9 @@
 import { expect, type Page } from "@playwright/test";
+declare global {
+  interface Window {
+    mathNotes: { unmatchedPointerDowns: number };
+  }
+}
 import { test, save, whenSaved, enterText, createTestNotebook, openTestNotebook, penStroke, line, capture, brightness, textIn, boxOf, darkestPixel, centerPixel, inkThickness, closePopover, openColors, backToColors, pickColor, pageIn, BOARD, COLORS, type Box, type Rgb } from "./support.ts";
 
 // A new note in the open notebook; its canvas's screen rectangle.
