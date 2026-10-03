@@ -5,6 +5,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 
 import '../data/open_notes.dart';
+import '../data/app_preferences.dart';
 import 'editor/tools_view_model.dart';
 import 'modal.dart';
 import 'theme.dart';
@@ -20,6 +21,7 @@ Future<void> showSettings(
 }) {
   final tools = context.read<ToolsViewModel>();
   final session = context.read<OpenNotes>();
+  final preferences = context.read<AppPreferences>();
   return showModalDialog<void>(
     context: context,
     builder: (context) => StatefulBuilder(
@@ -29,6 +31,7 @@ Future<void> showSettings(
               child: CupertinoListTile(
                 title: Text(title, style: body),
                 trailing: CupertinoSwitch(
+                  activeColor: accent,
                   value: value,
                   onChanged: (next) => update(() => onChanged(next)),
                 ),
@@ -82,6 +85,31 @@ Future<void> showSettings(
                               children: [
                                 CupertinoListSection.insetGrouped(
                                   backgroundColor: surface2,
+                                  header: Text(
+                                    'Appearance',
+                                    style: footnote.copyWith(color: secondaryLabel),
+                                  ),
+                                  children: [
+                                    CupertinoListTile(
+                                      title: Text('Theme', style: body),
+                                      trailing: SizedBox(
+                                        width: 190,
+                                        child: CupertinoSlidingSegmentedControl<bool>(
+                                          groupValue: preferences.darkAppearance,
+                                          children: const {
+                                            false: Text('Light'),
+                                            true: Text('Dark'),
+                                          },
+                                          onValueChanged: (dark) => update(
+                                            () => preferences.darkAppearance = dark!,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                CupertinoListSection.insetGrouped(
+                                  backgroundColor: surface2,
                                   children: [
                                     toggle(
                                       'Draw with finger',
@@ -99,6 +127,84 @@ Future<void> showSettings(
                                       !session.tabsHidden,
                                       (value) => session.hideTabs(!value),
                                     ),
+                                  ],
+                                ),
+                                CupertinoListSection.insetGrouped(
+                                  backgroundColor: surface2,
+                                  header: Text(
+                                    'History and startup',
+                                    style: footnote.copyWith(color: secondaryLabel),
+                                  ),
+                                  children: [
+                                    CupertinoListTile(
+                                      title: Text('Undo dial steps', style: body),
+                                      trailing: SizedBox(
+                                        width: 220,
+                                        child: CupertinoSlidingSegmentedControl<int>(
+                                          groupValue: preferences.undoDialSteps,
+                                          children: {
+                                            for (final count in AppPreferences.dialChoices)
+                                              count: Text('$count'),
+                                          },
+                                          onValueChanged: (count) => update(
+                                            () => preferences.undoDialSteps = count!,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    toggle(
+                                      'Open last note on launch',
+                                      preferences.reopenLastNote,
+                                      (value) => preferences.reopenLastNote = value,
+                                    ),
+                                  ],
+                                ),
+                                CupertinoListSection.insetGrouped(
+                                  backgroundColor: surface2,
+                                  header: Text('Gestures', style: footnote.copyWith(color: secondaryLabel)),
+                                  footer: Text(
+                                    'Touch gestures pause while Draw with finger is on.',
+                                    style: footnote.copyWith(color: secondaryLabel),
+                                  ),
+                                  children: [
+                                    CupertinoListTile(
+                                      title: Text('Double tap', style: body),
+                                      additionalInfo: Text('Fit page width', style: subhead),
+                                    ),
+                                    for (final undo in [true, false])
+                                      CupertinoListTile(
+                                        title: Text(undo ? 'Undo' : 'Redo', style: body),
+                                        subtitle: Text('Use two or three fingers on the page', style: footnote),
+                                        trailing: IgnorePointer(
+                                          ignoring: tools.fingerDraws,
+                                          child: Opacity(
+                                            opacity: tools.fingerDraws ? 0.5 : 1.0,
+                                            child: SizedBox(
+                                              width: 280,
+                                              child: CupertinoSlidingSegmentedControl<HistoryGesture>(
+                                                groupValue: undo ? preferences.undoGesture : preferences.redoGesture,
+                                                children: {
+                                                  for (final (gesture, title) in [
+                                                    (HistoryGesture.twoFingerTap, '2 tap'),
+                                                    (HistoryGesture.threeFingerTap, '3 tap'),
+                                                    (HistoryGesture.threeFingerSwipeLeft, '3 ←'),
+                                                    (HistoryGesture.threeFingerSwipeRight, '3 →'),
+                                                  ])
+                                                    if (gesture != (undo ? preferences.redoGesture : preferences.undoGesture))
+                                                      gesture: Text(title),
+                                                },
+                                                onValueChanged: (gesture) => update(() {
+                                                  if (undo) {
+                                                    preferences.undoGesture = gesture!;
+                                                  } else {
+                                                    preferences.redoGesture = gesture!;
+                                                  }
+                                                }),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                                   ],
                                 ),
                                 CupertinoListSection.insetGrouped(

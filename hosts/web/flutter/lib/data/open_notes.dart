@@ -68,6 +68,7 @@ class OpenNotes extends ChangeNotifier {
       tab = index;
     }
     inLibrary = false;
+    web.window.localStorage.setItem('lastNote', native.pathKey(note.path));
     notifyListeners();
   }
 

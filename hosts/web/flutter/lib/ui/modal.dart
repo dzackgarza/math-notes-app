@@ -74,8 +74,8 @@ const _sheetActionHeight = 57.0;
 const _sheetMargin = 8.0;
 
 Widget _divider({bool vertical = false}) => vertical
-    ? const SizedBox(width: 0.5, child: ColoredBox(color: separator))
-    : const SizedBox(height: 0.5, child: ColoredBox(color: separator));
+    ? SizedBox(width: 0.5, child: ColoredBox(color: separator))
+    : SizedBox(height: 0.5, child: ColoredBox(color: separator));
 
 class Alert extends StatelessWidget {
   const Alert({super.key, this.title, this.content, required this.actions});
@@ -112,7 +112,7 @@ class Alert extends StatelessWidget {
         child: SizedBox(
           width: _alertWidth,
           child: DecoratedBox(
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: surface2,
               borderRadius: _cornerRadius,
               boxShadow: modalShadow,
@@ -270,7 +270,7 @@ class ActionSheet extends StatelessWidget {
   final Widget? cancelButton;
 
   Widget group(List<Widget> children) => DecoratedBox(
-    decoration: const BoxDecoration(
+    decoration: BoxDecoration(
       color: surface2,
       borderRadius: _cornerRadius,
       boxShadow: modalShadow,

@@ -96,9 +96,12 @@ toolbar and the tool popovers:
 - **Tabs**: a tab strip under the top bar while two or more notes are open,
   one tab per note with a close button. The active tab is marked by label
   color and selected semantics.
-- **Settings sheet**, from ⋯ and from the library's Settings: draw with
-  finger; follow links; show the tab strip; one switch per toolbar tool; in
-  the library, the notes folder.
+- **Settings sheet**, from ⋯ and from the library's Settings: light or dark
+  appearance; draw with finger; follow links; show the tab strip; the undo
+  dial step count; reopen the last note; independent undo and redo touch
+  gestures; one switch per toolbar tool; in the library, the notes folder.
+  A one-finger double tap fits the page width. Touch gestures pause while
+  draw with finger is on.
 - **Page context menu** (long press or secondary click on the page): paste
   at that page; save to clippings.
 - **Delete page** shows a toast with **Undo**.

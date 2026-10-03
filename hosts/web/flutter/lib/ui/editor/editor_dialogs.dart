@@ -69,6 +69,7 @@ extension _EditorDialogs on _EditorScreenState {
                   children: [
                     const Expanded(child: Text('Right to left')),
                     CupertinoSwitch(
+                      activeColor: accent,
                       value: rtl,
                       onChanged: (value) => update(() => rtl = value),
                     ),
@@ -448,6 +449,7 @@ extension _EditorDialogs on _EditorScreenState {
                               child: CupertinoListTile(
                                 title: Text(layer.name),
                                 trailing: CupertinoSwitch(
+                                  activeColor: accent,
                                   value: included.contains(layer.id),
                                   onChanged: (value) => update(() {
                                     if (value)

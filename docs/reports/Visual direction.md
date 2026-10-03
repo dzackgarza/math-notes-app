@@ -114,6 +114,31 @@ Type: IBM Plex Sans with Plex Mono for page numbers.
 A is the one direction grounded in the subject's own objects (the volume,
 the spine label, the ribbon) with no tell at risk.
 
+## Dark appearance of bound volumes
+
+Dark mode keeps the same volume, page, ribbon, and type roles. It changes the
+reading desk and controls to dark slate, as in direction B. The page stays
+`#FBFAF6` so handwritten ink, ruled paper, imports, and exports keep their
+colors. Notebook cover colors and the printed spine label also stay fixed.
+
+| Role | Dark color | Use |
+| --- | --- | --- |
+| Desk and top bar | `#26302C` | Quiet surround for the page |
+| Menus and sheets | `#323D38` | Raised controls |
+| Fields and selected surfaces | `#3D4842` | One further level |
+| Main text | `#E9E6DA` | Chalk on slate |
+| Secondary text | `#C0C8BD` | Details and hints |
+| Disabled text | `#8E9A90` | Disabled controls only |
+| Ribbon | `#F1A0A1` | Current selection and focus |
+| Warning | `#F1CB80` | Warning text and icons |
+
+Main text has at least 7.6:1 contrast across the three slate surfaces.
+Secondary text has at least 5.5:1; ribbon text and focus have at least
+4.6:1. The page remains the brightest surface, so dark mode never makes the
+chrome compete with the work. Menus keep hairline group rules and the same
+spacing. The dark palette is an appearance of direction A, not a second
+visual identity.
+
 ## After the choice
 
 1. Replace the theme in `lib/ui/theme.dart` and the typography roles with the

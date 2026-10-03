@@ -10,6 +10,7 @@ import 'package:toastification/toastification.dart';
 import 'package:web/web.dart' as web;
 
 import 'activity.dart';
+import 'data/app_preferences.dart';
 import 'data/notes_folder.dart';
 import 'data/open_notes.dart';
 import 'errors.dart';
@@ -50,6 +51,7 @@ class MathNotes extends StatelessWidget {
   Widget build(BuildContext context) => MultiProvider(
     providers: [
       ChangeNotifierProvider(create: (_) => Activity()),
+      ChangeNotifierProvider(create: (_) => AppPreferences()),
       ChangeNotifierProvider(create: (_) => NotesFolder()),
       ChangeNotifierProvider(create: (_) => ToolsViewModel()),
       ChangeNotifierProvider(
@@ -62,14 +64,19 @@ class MathNotes extends StatelessWidget {
         ),
       ),
     ],
-    child: ToastificationWrapper(
-      child: CupertinoApp(
-        title: 'Math Notes',
-        theme: cupertinoTheme,
-        builder: (context, child) =>
-            PullDownButtonInheritedTheme(data: pullDownTheme, child: child!),
-        home: const Shell(),
-      ),
+    child: Consumer<AppPreferences>(
+      builder: (context, preferences, child) {
+        setAppearance(preferences.darkAppearance);
+        return ToastificationWrapper(
+          child: CupertinoApp(
+            title: 'Math Notes',
+            theme: cupertinoTheme,
+            builder: (context, child) =>
+                PullDownButtonInheritedTheme(data: pullDownTheme, child: child!),
+            home: const Shell(),
+          ),
+        );
+      },
     ),
   );
 }
@@ -101,21 +108,37 @@ class _ShellState extends State<Shell> {
           ).then((_) {}, onError: showError),
         );
         await folder.start();
+        if (!mounted) return;
+        final preferences = context.read<AppPreferences>();
+        final last = web.window.localStorage.getItem('lastNote');
+        if (preferences.reopenLastNote && folder.connected && last != null) {
+          final exists = folder.library!.folders.toDart
+              .expand((item) => item.notes.toDart)
+              .any((note) => native.pathKey(note.path) == last);
+          if (exists) {
+            await context.read<OpenNotes>().open(
+              last.split('/').map((part) => part.toJS).toList().toJS,
+            );
+          } else {
+            showError('The last note is unavailable. Open it from the library.');
+          }
+        }
       }),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    context.watch<AppPreferences>();
     final session = context.watch<OpenNotes>();
     return IndexedStack(
       index: session.active == null ? 0 : 1,
       children: [
         ExcludeFocus(
           excluding: !session.inLibrary,
-          child: const LibraryScreen(),
+          child: LibraryScreen(),
         ),
-        const WorkspaceScreen(),
+        WorkspaceScreen(),
       ],
     );
   }

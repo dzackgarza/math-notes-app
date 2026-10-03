@@ -22,6 +22,7 @@ import '../../pages_sheet.dart';
 import '../../bookmarks_sheet.dart';
 import '../../figure_editor.dart';
 import '../../undo_dial.dart';
+import '../../data/app_preferences.dart';
 import '../../data/open_notes.dart';
 import '../library/library_dialogs.dart' show paperLabels;
 import '../modal.dart';
@@ -163,6 +164,10 @@ class _EditorScreenState extends State<EditorScreen> {
   final strokes = <int>{};
   final palms = <int>{};
   final taps = FingerTap();
+  Timer? pendingTouchTap;
+  bool ignoreTouchTapUp = false;
+  Matrix4? gestureTransform;
+  double? gestureScroll;
   bool get fingerDraws => tools.fingerDraws;
   set fingerDraws(bool value) => tools.fingerDraws = value;
   Set<String> get hiddenTools => tools.hiddenTools;
@@ -419,6 +424,11 @@ class _EditorScreenState extends State<EditorScreen> {
       if (ended) strokes.remove(event.pointer);
     }
     if (event.kind == PointerDeviceKind.touch) {
+      if (event is PointerDownEvent && touches.isEmpty) {
+        ignoreTouchTapUp = false;
+        gestureTransform = transform.value.clone();
+        gestureScroll = scroll.hasClients ? scroll.offset : null;
+      }
       if (event is PointerDownEvent && strokes.isNotEmpty)
         palms.add(event.pointer);
       if (fingerDraws &&
@@ -432,11 +442,29 @@ class _EditorScreenState extends State<EditorScreen> {
         if (ended) palms.remove(event.pointer);
         return;
       }
-      switch (taps.add(event)) {
-        case 2:
-          history(false);
-        case 3:
-          history(true);
+      if (fingerDraws) taps.cancel();
+      final gesture = fingerDraws ? null : taps.add(event);
+      if (gesture == PageGesture.doubleTap) {
+        pendingTouchTap?.cancel();
+        ignoreTouchTapUp = true;
+        fitWidth();
+      }
+      final historyGesture = switch (gesture) {
+        PageGesture.twoFingerTap => HistoryGesture.twoFingerTap,
+        PageGesture.threeFingerTap => HistoryGesture.threeFingerTap,
+        PageGesture.threeFingerSwipeLeft => HistoryGesture.threeFingerSwipeLeft,
+        PageGesture.threeFingerSwipeRight => HistoryGesture.threeFingerSwipeRight,
+        _ => null,
+      };
+      if (historyGesture != null) {
+        final preferences = context.read<AppPreferences>();
+        if (gesture == PageGesture.threeFingerSwipeLeft ||
+            gesture == PageGesture.threeFingerSwipeRight) {
+          transform.value = gestureTransform ?? transform.value;
+          if (gestureScroll != null && scroll.hasClients) scroll.jumpTo(gestureScroll!);
+        }
+        if (historyGesture == preferences.undoGesture) history(false);
+        if (historyGesture == preferences.redoGesture) history(true);
       }
       if (event is PointerDownEvent) touches.add(event.pointer);
       if (ended) {
@@ -474,6 +502,29 @@ class _EditorScreenState extends State<EditorScreen> {
       else
         widget.note.saver.schedule();
     }
+  }
+
+  void pageTap(TapUpDetails details) {
+    final selectedTool = tool;
+    final position = details.localPosition;
+    void activate() {
+      if (!mounted || canvas == null || tool != selectedTool) return;
+      if (selectedTool == 'navigate') run(() => followAt(position));
+      if (selectedTool == 'bookmark')
+        edit(() => canvas!.addBookmark(position.dx, position.dy));
+      if (selectedTool == 'text') run(() => textAt(position));
+    }
+
+    if (details.kind != PointerDeviceKind.touch) {
+      activate();
+      return;
+    }
+    if (ignoreTouchTapUp) {
+      ignoreTouchTapUp = false;
+      return;
+    }
+    pendingTouchTap?.cancel();
+    pendingTouchTap = Timer(kDoubleTapTimeout, activate);
   }
 
   void cancelPull() {
@@ -701,7 +752,7 @@ class _EditorScreenState extends State<EditorScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           minimumSize: const Size(36, 36),
                           onPressed: () => chooseTool(pen),
-                          child: const Icon(
+                          child: Icon(
                             LucideIcons.x,
                             color: label,
                             size: 18,
@@ -761,7 +812,7 @@ class _EditorScreenState extends State<EditorScreen> {
         children: [
           LongPressDraggable<SelectionTransfer>(
             data: SelectionTransfer(() => canvas!.copySelection(false)),
-            feedback: const DecoratedBox(
+            feedback: DecoratedBox(
               decoration: BoxDecoration(
                 color: surface3,
                 boxShadow: floatingShadow,
@@ -776,7 +827,7 @@ class _EditorScreenState extends State<EditorScreen> {
               container: true,
               label: 'Drag a copy',
               excludeSemantics: true,
-              child: const SizedBox(
+              child: SizedBox(
                 width: 44,
                 height: 44,
                 child: Icon(LucideIcons.grab, color: label),
@@ -1109,6 +1160,7 @@ class _EditorScreenState extends State<EditorScreen> {
     widget.viewport.removeListener(receiveViewport);
     arrangement.removeListener(arrange);
     pullTimer?.cancel();
+    pendingTouchTap?.cancel();
     focus.dispose();
     if (frameRequest != null) web.window.cancelAnimationFrame(frameRequest!);
     still?.dispose();
@@ -1156,7 +1208,7 @@ class _EditorScreenState extends State<EditorScreen> {
     final tabs = ['Pages', 'Bookmarks', 'Outlines', 'Layers'];
     return Container(
       width: 296,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: surface2,
         border: Border(right: BorderSide(color: separator)),
       ),
@@ -1247,7 +1299,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                 child: Row(
                                   children: [
                                     DecoratedBox(
-                                      decoration: const BoxDecoration(
+                                      decoration: BoxDecoration(
                                         border: Border.fromBorderSide(
                                           BorderSide(color: paperEdge),
                                         ),
@@ -1309,7 +1361,7 @@ class _EditorScreenState extends State<EditorScreen> {
                         style: canvas?.activeLayer() == index ? subhead : callout,
                       ),
                       leading: DecoratedBox(
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           border: Border.fromBorderSide(
                             BorderSide(color: paperEdge),
                           ),
@@ -1613,25 +1665,10 @@ class _EditorScreenState extends State<EditorScreen> {
                                               details.globalPosition,
                                             ),
                                           ),
-                                          onTapUp: tool == 'navigate'
-                                              ? (details) => run(
-                                                  () => followAt(
-                                                    details.localPosition,
-                                                  ),
-                                                )
-                                              : tool == 'bookmark'
-                                              ? (details) => edit(
-                                                  () => canvas!.addBookmark(
-                                                    details.localPosition.dx,
-                                                    details.localPosition.dy,
-                                                  ),
-                                                )
-                                              : tool == 'text'
-                                              ? (details) => run(
-                                                  () => textAt(
-                                                    details.localPosition,
-                                                  ),
-                                                )
+                                          onTapUp: tool == 'navigate' ||
+                                                  tool == 'bookmark' ||
+                                                  tool == 'text'
+                                              ? pageTap
                                               : null,
                                           child: InteractiveViewer(
                                             transformationController: transform,

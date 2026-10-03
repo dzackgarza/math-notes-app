@@ -76,7 +76,7 @@ class _NoteThumbnailState extends State<NoteThumbnail> {
               label: 'Conflicting versions',
               // The badge sits on the page image; the surface keeps the
               // warning color legible on paper.
-              child: const DecoratedBox(
+              child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: surface1,
                   shape: BoxShape.circle,
