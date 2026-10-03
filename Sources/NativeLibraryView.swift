@@ -153,6 +153,7 @@ struct NativeLibraryView: View {
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
       }
+      }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .safeAreaInset(edge: .top, spacing: 0) {
         if folder.path.isEmpty {
