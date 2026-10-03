@@ -112,11 +112,14 @@ class _ShellState extends State<Shell> {
         final preferences = context.read<AppPreferences>();
         final last = web.window.localStorage.getItem('lastNote');
         if (preferences.reopenLastNote && folder.connected && last != null) {
-          try {
+          final exists = folder.library!.folders.toDart
+              .expand((item) => item.notes.toDart)
+              .any((note) => native.pathKey(note.path) == last);
+          if (exists) {
             await context.read<OpenNotes>().open(
               last.split('/').map((part) => part.toJS).toList().toJS,
             );
-          } catch (_) {
+          } else {
             showError('The last note is unavailable. Open it from the library.');
           }
         }

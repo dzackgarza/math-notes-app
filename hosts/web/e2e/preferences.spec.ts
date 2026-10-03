@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test, createTestNotebook, enterText, penStroke, line, savedPages } from "./support.ts";
+import { test, centerPixel, createTestNotebook, enterText, openTestNotebook, penStroke, line, savedPages, brightness } from "./support.ts";
 
 test("Editor preferences: the last note reopens and the undo dial uses its chosen steps", async ({ page, context }, info) => {
   test.setTimeout(120_000);
@@ -24,10 +24,16 @@ test("Editor preferences: the last note reopens and the undo dial uses its chose
   await page.getByRole("switch", { name: "Open last note on launch" }).click();
   await page.getByRole("button", { name: "8", exact: true }).click();
   expect(await page.evaluate(() => localStorage.getItem("undoDialSteps"))).toBe("8");
+  await page.getByRole("button", { name: "Dark", exact: true }).click();
   await button("Done").click();
+  await expect(page.getByRole("dialog", { name: "Settings" })).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("dark-editor.png") });
+  expect(await centerPixel(page, { x: 300, y: 24 })).toEqual([0x26, 0x30, 0x2c]);
+  expect(brightness(await centerPixel(page, { x: 500, y: 400 }))).toBeGreaterThan(730);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Recall", exact: true })).toBeVisible();
   await canvas.waitFor();
+  expect(await centerPixel(page, { x: 300, y: 24 })).toEqual([0x26, 0x30, 0x2c]);
   expect((await savedPages(page, "Recall")).map((item) => item.strokes)).toEqual([3]);
   expect(await page.evaluate(() => localStorage.getItem("undoDialSteps"))).toBe("8");
   for (const dy of [360, 420]) {
@@ -50,4 +56,18 @@ test("Editor preferences: the last note reopens and the undo dial uses its chose
   await page.screenshot({ path: info.outputPath("dial.png") });
   await page.mouse.up();
   expect((await savedPages(page, "Recall")).map((item) => item.strokes)).toEqual([3]);
+  await button("Library").click();
+  await page.screenshot({ path: info.outputPath("dark-library.png") });
+  await openTestNotebook(page);
+  await button("Recall actions").click();
+  await button("Move to trash").click();
+  await expect(button("Recall actions")).toHaveCount(0);
+  await expect.poll(() => page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    const notebook = await root.getDirectoryHandle("Test Notebook");
+    for await (const name of notebook.keys()) if (name === "Recall") return true;
+    return false;
+  })).toBe(false);
+  await page.reload();
+  await expect(page.getByRole("group", { name: /The last note is unavailable/ })).toBeVisible();
 });
