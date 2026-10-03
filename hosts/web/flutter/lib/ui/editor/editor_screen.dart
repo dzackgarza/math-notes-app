@@ -507,7 +507,7 @@ class _EditorScreenState extends State<EditorScreen> {
     final selectedTool = tool;
     final position = details.localPosition;
     void activate() {
-      if (!mounted || canvas == null) return;
+      if (!mounted || canvas == null || tool != selectedTool) return;
       if (selectedTool == 'navigate') run(() => followAt(position));
       if (selectedTool == 'bookmark')
         edit(() => canvas!.addBookmark(position.dx, position.dy));

@@ -44,6 +44,7 @@ class PalmRejection extends EagerGestureRecognizer {
 /// Recognizes a tap of several fingers with UIKit-style tap limits.
 class FingerTap {
   final origins = <int, Offset>{};
+  final positions = <int, Offset>{};
   final displacements = <Offset>[];
   int fingers = 0;
   Duration start = Duration.zero;
@@ -66,18 +67,21 @@ class FingerTap {
         displacements.clear();
       }
       origins[event.pointer] = event.position;
+      positions[event.pointer] = event.position;
       if (origins.length > fingers) fingers = origins.length;
       return null;
     }
     final origin = origins[event.pointer];
     if (origin == null) return null;
-    if (event is PointerUpEvent) displacements.add(event.position - origin);
+    if (event is PointerMoveEvent) positions[event.pointer] = event.position;
     if ((event.position - origin).distance > kTouchSlop ||
         event is PointerCancelEvent) {
       valid = false;
     }
     if (event is! PointerUpEvent && event is! PointerCancelEvent) return null;
+    displacements.add((event is PointerUpEvent ? event.position : positions[event.pointer]!) - origin);
     origins.remove(event.pointer);
+    positions.remove(event.pointer);
     if (origins.isNotEmpty) return null;
     final elapsed = event.timeStamp - start;
     if (fingers == 3 && elapsed < const Duration(milliseconds: 600) &&
