@@ -9,15 +9,6 @@ enum LibraryScope: String {
   case tag
 }
 
-private func libraryColor(_ value: String) -> Color {
-  let hex = value.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-  guard hex.count == 6, let rgb = UInt64(hex, radix: 16) else { return .secondary }
-  return Color(
-    red: Double((rgb >> 16) & 0xFF) / 255,
-    green: Double((rgb >> 8) & 0xFF) / 255,
-    blue: Double(rgb & 0xFF) / 255)
-}
-
 @MainActor
 struct NativeLibraryView: View {
   let root: NotesRootAccess
@@ -62,6 +53,7 @@ struct NativeLibraryView: View {
     HStack(spacing: 0) {
       librarySidebar
       Divider()
+        .overlay(NativeTheme.separator)
       Group {
       if !query.isEmpty && listing.folders.isEmpty && listing.notebooks.isEmpty {
         ContentUnavailableView {
@@ -159,22 +151,30 @@ struct NativeLibraryView: View {
           }
         }
         .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .safeAreaInset(edge: .top, spacing: 0) {
+        if folder.path.isEmpty {
+          Text(libraryHeading)
+            .font(NativeTheme.volumeTitle)
+            .foregroundStyle(NativeTheme.ink)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 24)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
+            .background(NativeTheme.board)
+        }
+      }
     }
-    .navigationTitle(
-      !query.isEmpty
-        ? "Search"
-        : scope == .recent
-        ? "Recent"
-        : scope == .favorites
-        ? "Favorites"
-        : scope == .trash
-        ? "Trash"
-        : scope == .tag
-        ? selectedTag ?? "Tags"
-        : folder.path.isEmpty ? "Library" : folder.name)
-    .navigationBarTitleDisplayMode(.large)
+    .background(NativeTheme.board)
+    .foregroundStyle(NativeTheme.ink)
+    .tint(NativeTheme.ink)
+    .font(NativeTheme.body)
+    .toolbarBackground(NativeTheme.board, for: .navigationBar)
+    .toolbarBackground(.visible, for: .navigationBar)
+    .navigationTitle(folder.path.isEmpty ? "" : folder.name)
+    .navigationBarTitleDisplayMode(.inline)
     .searchable(
       text: $query,
       isPresented: $searchPresented,
@@ -224,6 +224,17 @@ struct NativeLibraryView: View {
           Label("Rescan", systemImage: "arrow.clockwise")
         }
       }
+    }
+  }
+
+  private var libraryHeading: String {
+    if !query.isEmpty { return "Search" }
+    switch scope {
+    case .recent: return "Recent"
+    case .favorites: return "Favorites"
+    case .trash: return "Trash"
+    case .tag: return selectedTag ?? "Tags"
+    case .folder: return "Library"
     }
   }
 
@@ -398,7 +409,8 @@ struct NativeLibraryView: View {
   private var librarySidebar: some View {
     VStack(alignment: .leading, spacing: 4) {
       Text("Math Notes")
-        .font(.headline)
+        .font(NativeTheme.title)
+        .foregroundStyle(NativeTheme.ink)
         .padding(.horizontal, 10)
         .padding(.bottom, 8)
 
@@ -433,8 +445,8 @@ struct NativeLibraryView: View {
 
       if !tags.isEmpty {
         Text("Tags")
-          .font(.caption)
-          .foregroundStyle(.secondary)
+          .font(NativeTheme.footnote)
+          .foregroundStyle(NativeTheme.graphite)
           .padding(.horizontal, 10)
           .padding(.top, 12)
       }
@@ -458,7 +470,7 @@ struct NativeLibraryView: View {
     .padding(.horizontal, 12)
     .padding(.vertical, 16)
     .frame(width: 220, maxHeight: .infinity, alignment: .topLeading)
-    .background(Color(uiColor: .secondarySystemGroupedBackground))
+    .background(NativeTheme.board)
   }
 
   private func sidebarRow(
@@ -472,12 +484,16 @@ struct NativeLibraryView: View {
       HStack(spacing: 10) {
         Image(systemName: systemImage)
           .frame(width: 20)
+          .foregroundStyle(selected ? NativeTheme.ribbon : NativeTheme.ink)
         Text(title)
+          .font(selected ? NativeTheme.headline : NativeTheme.body)
+          .foregroundStyle(NativeTheme.ink)
           .lineLimit(1)
         Spacer(minLength: 8)
         if let count {
           Text("\(count)")
-            .foregroundStyle(.secondary)
+            .font(NativeTheme.callout)
+            .foregroundStyle(NativeTheme.graphite)
         }
       }
       .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
@@ -486,7 +502,7 @@ struct NativeLibraryView: View {
     }
     .buttonStyle(.plain)
     .background(
-      selected ? Color.accentColor.opacity(0.14) : Color.clear,
+      selected ? NativeTheme.leaf : Color.clear,
       in: RoundedRectangle(cornerRadius: 8))
   }
 
@@ -497,14 +513,17 @@ struct NativeLibraryView: View {
     } label: {
       HStack(spacing: 10) {
         Circle()
-          .fill(libraryColor(tag.color))
+          .fill(NativeTheme.color(tag.color))
           .frame(width: 10, height: 10)
           .frame(width: 20)
         Text(tag.name)
+          .font(NativeTheme.body)
+          .foregroundStyle(NativeTheme.ink)
           .lineLimit(1)
         Spacer(minLength: 8)
         Text("\(tagCounts[tag.name] ?? 0)")
-          .foregroundStyle(.secondary)
+          .font(NativeTheme.callout)
+          .foregroundStyle(NativeTheme.graphite)
       }
       .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
       .padding(.horizontal, 10)
@@ -513,7 +532,7 @@ struct NativeLibraryView: View {
     .buttonStyle(.plain)
     .background(
       scope == .tag && selectedTag == tag.name
-        ? Color.accentColor.opacity(0.14) : Color.clear,
+        ? NativeTheme.leaf : Color.clear,
       in: RoundedRectangle(cornerRadius: 8))
   }
 
@@ -532,6 +551,8 @@ struct NativeLibraryView: View {
     VStack(alignment: .leading, spacing: 8) {
       if !details.description.isEmpty {
         Text(details.description)
+          .font(NativeTheme.body)
+          .foregroundStyle(NativeTheme.ink)
       }
       LibraryTagChips(tags: details.tags, knownTags: tags)
     }
@@ -645,12 +666,12 @@ struct NativeLibraryView: View {
   private func notebookSummary(_ item: LibraryFolderItem) -> some View {
     if item.noteCount == 0 {
       Text("No notes")
-        .font(.caption)
-        .foregroundStyle(.secondary)
+        .font(NativeTheme.footnote)
+        .foregroundStyle(NativeTheme.graphite)
     } else if let modified = item.modified {
       Text("\(item.noteCount) note\(item.noteCount == 1 ? "" : "s") · \(modified.formatted(.dateTime.month(.abbreviated).day().year()))")
-        .font(.caption)
-        .foregroundStyle(.secondary)
+        .font(NativeTheme.footnote)
+        .foregroundStyle(NativeTheme.graphite)
         .lineLimit(1)
     }
   }
@@ -687,19 +708,19 @@ struct NativeLibraryView: View {
       LibraryThumbnail(root: root, item: item)
         .aspectRatio(0.72, contentMode: .fit)
         .frame(maxWidth: .infinity)
-        .background(.background)
+        .background(NativeTheme.paper)
         .clipShape(RoundedRectangle(cornerRadius: 8))
-        .shadow(radius: 2, y: 1)
+        .shadow(color: NativeTheme.ink.opacity(0.18), radius: 9, y: 3)
 
       VStack(alignment: .leading, spacing: 8) {
         HStack(spacing: 6) {
           if item.conflicts > 0 {
             Image(systemName: "exclamationmark.triangle.fill")
-              .foregroundStyle(.orange)
+              .foregroundStyle(NativeTheme.warning)
               .accessibilityLabel("Conflicting versions")
           }
           Text(item.reference.name)
-            .font(.headline)
+            .font(NativeTheme.headline)
             .lineLimit(2)
         }
 
@@ -707,14 +728,14 @@ struct NativeLibraryView: View {
           let parent = item.reference.path.dropLast().joined(separator: " / ")
           if !parent.isEmpty {
             Text(parent)
-              .font(.caption)
-              .foregroundStyle(.secondary)
+              .font(NativeTheme.footnote)
+              .foregroundStyle(NativeTheme.graphite)
           }
         }
 
         Text(item.modified, format: .dateTime.month(.abbreviated).day().year())
-          .font(.caption)
-          .foregroundStyle(.secondary)
+          .font(NativeTheme.footnote)
+          .foregroundStyle(NativeTheme.graphite)
         LibraryTagChips(tags: item.details.tags, knownTags: tags)
       }
       .padding(.trailing, 36)
@@ -734,7 +755,7 @@ struct NativeLibraryView: View {
 
           VStack(alignment: .leading, spacing: 4) {
             Text(item.reference.path.last ?? item.reference.name)
-              .font(.headline)
+              .font(NativeTheme.headline)
             notebookSummary(item)
             LibraryTagChips(tags: item.details.tags, knownTags: tags)
           }
@@ -782,30 +803,30 @@ struct NativeLibraryView: View {
     HStack(spacing: 14) {
       LibraryThumbnail(root: root, item: item)
         .frame(width: 48, height: 64)
-        .background(.background)
+        .background(NativeTheme.paper)
         .clipShape(RoundedRectangle(cornerRadius: 4))
 
       VStack(alignment: .leading, spacing: 4) {
         HStack(spacing: 6) {
           if item.conflicts > 0 {
             Image(systemName: "exclamationmark.triangle.fill")
-              .foregroundStyle(.orange)
+              .foregroundStyle(NativeTheme.warning)
               .accessibilityLabel("Conflicting versions")
           }
           Text(item.reference.name)
-            .font(.headline)
+            .font(NativeTheme.headline)
         }
         if !query.isEmpty || scope != .folder {
           let parent = item.reference.path.dropLast().joined(separator: " / ")
           if !parent.isEmpty {
             Text(parent)
-              .font(.caption)
-              .foregroundStyle(.secondary)
+              .font(NativeTheme.footnote)
+              .foregroundStyle(NativeTheme.graphite)
           }
         }
         Text(item.modified, format: .dateTime.month(.abbreviated).day().year())
-          .font(.caption)
-          .foregroundStyle(.secondary)
+          .font(NativeTheme.footnote)
+          .foregroundStyle(NativeTheme.graphite)
         LibraryTagChips(tags: item.details.tags, knownTags: tags)
       }
     }
@@ -823,7 +844,7 @@ struct LibraryThumbnail: View {
   var body: some View {
     ZStack {
       Rectangle()
-        .fill(.background)
+        .fill(NativeTheme.paper)
 
       if let image {
         Image(uiImage: image)
@@ -832,7 +853,7 @@ struct LibraryThumbnail: View {
           .accessibilityLabel("\(item.reference.name) first page")
       } else if failed {
         Image(systemName: "exclamationmark.triangle")
-          .foregroundStyle(.secondary)
+          .foregroundStyle(NativeTheme.graphite)
           .accessibilityLabel("Thumbnail failed")
       } else {
         ProgressView()
@@ -878,7 +899,7 @@ struct LibraryNotebookCover: View {
             Image(uiImage: thumbnail)
               .resizable()
               .scaledToFit()
-              .background(.white)
+              .background(NativeTheme.paper)
           } else {
             Color.clear
           }
@@ -886,19 +907,22 @@ struct LibraryNotebookCover: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         if titled {
           Text(item.reference.path.last ?? item.reference.name)
-            .font(.headline)
-            .foregroundStyle(.black.opacity(0.8))
+            .font(NativeTheme.spineTitle)
+            .foregroundStyle(NativeTheme.ink)
             .lineLimit(2)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
-            .background(.white)
+            .background(NativeTheme.paper)
         }
       }
       .padding(titled ? 10 : 6)
     }
     .clipShape(RoundedRectangle(cornerRadius: 6))
-    .shadow(radius: titled ? 2 : 1, y: 1)
+    .shadow(
+      color: NativeTheme.ink.opacity(titled ? 0.18 : 0.12),
+      radius: titled ? 9 : 4,
+      y: titled ? 3 : 1)
     .task(id: item.modified) {
       do {
         let listing = try root.library(in: item.reference, sort: .modified, direction: .descending)
@@ -915,7 +939,7 @@ struct LibraryNotebookCover: View {
   }
 
   private var coverColor: Color {
-    libraryColor(item.details.coverColor)
+    NativeTheme.color(item.details.coverColor)
   }
 }
 
@@ -933,8 +957,8 @@ struct LibraryTagChips: View {
                 .fill(tagColor(tag))
                 .frame(width: 8, height: 8)
               Text(tag)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(NativeTheme.footnote)
+                .foregroundStyle(NativeTheme.graphite)
             }
           }
         }
@@ -944,7 +968,7 @@ struct LibraryTagChips: View {
   }
 
   private func tagColor(_ name: String) -> Color {
-    guard let tag = knownTags.first(where: { $0.name == name }) else { return .secondary }
-    return libraryColor(tag.color)
+    guard let tag = knownTags.first(where: { $0.name == name }) else { return NativeTheme.graphite }
+    return NativeTheme.color(tag.color)
   }
 }

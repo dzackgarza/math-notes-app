@@ -12,6 +12,7 @@ on:
       - hosts/web/ipad-figure-generator.js
       - hosts/web/tikz-embed.html
       - Resources/TikZRuntime/**
+      - Resources/Fonts/**
       - tests/documents/**
       - project.yml
       - sidestore-source.jq

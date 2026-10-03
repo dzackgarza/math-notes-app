@@ -252,7 +252,7 @@ struct ContentView: View {
 
             if openNotes.inLibrary {
               libraryView(root: root)
-                .background(Color(uiColor: .systemGroupedBackground))
+                .background(NativeTheme.board)
             }
           }
         } else {
