@@ -1,5 +1,7 @@
 import { expect, type CDPSession, type Page } from "@playwright/test";
-import { test, createTestNotebook, enterText, save } from "./support.ts";
+import { execFileSync } from "node:child_process";
+import { readFile } from "node:fs/promises";
+import { test, createTestNotebook, enterText, save, pngPixels, isInk } from "./support.ts";
 
 type Point = { x: number; y: number };
 
@@ -34,7 +36,7 @@ async function paths(page: Page): Promise<{ raw: number[][]; geometry: number[][
   });
 }
 
-test("A held stroke resolves only fitting shapes; a scribble erases crossed ink in one step", async ({ page, context }) => {
+test("A held stroke resolves only fitting shapes; a scribble erases crossed ink in one step", async ({ page, context }, info) => {
   test.setTimeout(120_000);
   const button = (name: string) => page.getByRole("button", { name, exact: true });
   await page.goto("?root=opfs");
@@ -70,6 +72,17 @@ test("A held stroke resolves only fitting shapes; a scribble erases crossed ink 
   expect(unmatched).toHaveLength(3);
   expect(unmatched[2].raw).toEqual([]);
 
+  await button("Lasso").click();
+  await draw(cdp, [at(260, 215), at(360, 215), at(360, 325), at(260, 325), at(260, 215)], false);
+  await expect(button("Delete selection")).toBeAttached();
+  await button("Clear selection").click();
+  await button("Eraser").click();
+  await draw(cdp, [at(340, 270), at(355, 270)], false);
+  expect(await paths(page)).not.toEqual(unmatched);
+  await button("Undo").click();
+  expect(await paths(page)).toEqual(unmatched);
+  await button("Pen").click();
+
   await draw(cdp, [at(170, 130), at(230, 130), at(170, 135), at(230, 135), at(170, 130), at(230, 130)], false);
   const erased = await paths(page);
   expect(erased).not.toEqual(unmatched);
@@ -80,4 +93,15 @@ test("A held stroke resolves only fitting shapes; a scribble erases crossed ink 
   await page.getByRole("button", { name: "Open Test Notebook", exact: false }).click();
   await page.getByRole("button", { name: "Open Shapes", exact: false }).click();
   expect(await paths(page)).toEqual(unmatched);
+
+  await button("More").click();
+  await button("Share").click();
+  const download = page.waitForEvent("download");
+  await button("Download PDF").click();
+  const pdf = info.outputPath("recognized-shapes.pdf");
+  await (await download).saveAs(pdf);
+  expect(execFileSync("pdfinfo", [pdf], { encoding: "utf8" })).toMatch(/Pages:\s+1/);
+  const rendered = info.outputPath("recognized-shapes");
+  execFileSync("pdftoppm", ["-r", "72", "-png", "-f", "1", "-l", "1", "-singlefile", pdf, rendered]);
+  expect((await pngPixels(page, await readFile(`${rendered}.png`))).filter(isInk).length).toBeGreaterThan(100);
 });
