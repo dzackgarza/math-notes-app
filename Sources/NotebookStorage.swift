@@ -187,6 +187,26 @@ struct LibraryFolderDetails: Equatable {
   var tags: [String]
 }
 
+struct NewNoteDraft: Equatable {
+  let folder: [String]
+  let title: String
+  let template: String
+  let tags: [String]
+  let pageSize: String?
+  let orientation: String?
+}
+
+struct NewNoteStartingTemplate: Equatable, Identifiable {
+  let name: String
+  let folder: [String]
+  let paper: String
+  let pageSize: String
+  let orientation: String?
+  let tags: [String]
+
+  var id: String { name }
+}
+
 enum LibraryMetadataFile {
   static let name = ".library.json"
   static let tagColors = [
@@ -242,6 +262,102 @@ enum LibraryMetadataFile {
       coverColor: folder["coverColor"] as? String ?? "#24324A",
       coverStyle: folder["coverStyle"] as? String ?? "classic",
       tags: folder["tags"] as? [String] ?? [])
+  }
+
+  static func newNoteDraft(in data: Data?) throws -> NewNoteDraft? {
+    let root = try object(from: data)
+    guard let value = root["draft"] as? [String: Any],
+      let folder = value["folder"] as? [String],
+      let title = value["title"] as? String,
+      let template = value["template"] as? String
+    else { return nil }
+    return NewNoteDraft(
+      folder: folder,
+      title: title,
+      template: template,
+      tags: value["tags"] as? [String] ?? [],
+      pageSize: value["pageSize"] as? String,
+      orientation: value["orientation"] as? String)
+  }
+
+  static func newNoteStartingTemplates(in data: Data?) throws -> [NewNoteStartingTemplate] {
+    let root = try object(from: data)
+    let values = root["startingTemplates"] as? [[String: Any]] ?? []
+    return values.compactMap { value in
+      guard let name = value["name"] as? String,
+        let folder = value["folder"] as? [String],
+        let paper = value["paper"] as? String,
+        let pageSize = value["pageSize"] as? String
+      else { return nil }
+      return NewNoteStartingTemplate(
+        name: name,
+        folder: folder,
+        paper: paper,
+        pageSize: pageSize,
+        orientation: value["orientation"] as? String,
+        tags: value["tags"] as? [String] ?? [])
+    }
+  }
+
+  static func settingNewNoteDraft(
+    in data: Data?,
+    draft: NewNoteDraft?
+  ) throws -> Data {
+    var root = try object(from: data)
+    guard let draft else {
+      root.removeValue(forKey: "draft")
+      return try encoded(root)
+    }
+    registerTags(draft.tags, in: &root)
+    var value: [String: Any] = [
+      "folder": draft.folder,
+      "title": draft.title,
+      "template": draft.template,
+      "tags": normalizedTags(draft.tags),
+    ]
+    if let pageSize = draft.pageSize { value["pageSize"] = pageSize }
+    if let orientation = draft.orientation { value["orientation"] = orientation }
+    root["draft"] = value
+    return try encoded(root)
+  }
+
+  static func settingNewNoteStartingTemplate(
+    in data: Data?,
+    template: NewNoteStartingTemplate
+  ) throws -> Data {
+    var root = try object(from: data)
+    registerTags(template.tags, in: &root)
+    var templates = root["startingTemplates"] as? [[String: Any]] ?? []
+    templates.removeAll { $0["name"] as? String == template.name }
+    var value: [String: Any] = [
+      "name": template.name,
+      "folder": template.folder,
+      "paper": template.paper,
+      "pageSize": template.pageSize,
+      "tags": normalizedTags(template.tags),
+    ]
+    if let orientation = template.orientation { value["orientation"] = orientation }
+    templates.append(value)
+    root["startingTemplates"] = templates
+    return try encoded(root)
+  }
+
+  static func completingNewNoteCreation(
+    in data: Data?,
+    path: [String],
+    tags: [String]
+  ) throws -> Data {
+    var root = try object(from: data)
+    registerTags(tags, in: &root)
+    var notes = root["notes"] as? [String: Any] ?? [:]
+    notes[path.joined(separator: "/")] = [
+      "favorite": false,
+      "tags": normalizedTags(tags),
+      "description": "",
+    ]
+    root["notes"] = notes
+    root.removeValue(forKey: "draft")
+    return try encoded(root)
   }
 
   static func settingFavorite(
@@ -1139,6 +1255,56 @@ final class NotesRootAccess {
   func libraryTags() throws -> [LibraryTag] {
     try coordinatedRead(at: url) { root in
       try LibraryMetadataFile.tags(in: LibraryMetadataFile.read(at: root))
+    }
+  }
+
+  func newNoteDraft() throws -> NewNoteDraft? {
+    try coordinatedRead(at: url) { root in
+      try LibraryMetadataFile.newNoteDraft(in: LibraryMetadataFile.read(at: root))
+    }
+  }
+
+  func newNoteStartingTemplates() throws -> [NewNoteStartingTemplate] {
+    try coordinatedRead(at: url) { root in
+      try LibraryMetadataFile.newNoteStartingTemplates(
+        in: LibraryMetadataFile.read(at: root))
+    }
+  }
+
+  func saveNewNoteDraft(_ draft: NewNoteDraft) throws {
+    try coordinatedWrite(at: url, options: .forMerging) { root in
+      let updated = try LibraryMetadataFile.settingNewNoteDraft(
+        in: LibraryMetadataFile.read(at: root),
+        draft: draft)
+      try updated.write(
+        to: root.appendingPathComponent(LibraryMetadataFile.name),
+        options: .atomic)
+    }
+  }
+
+  func saveNewNoteStartingTemplate(_ template: NewNoteStartingTemplate) throws {
+    try coordinatedWrite(at: url, options: .forMerging) { root in
+      let updated = try LibraryMetadataFile.settingNewNoteStartingTemplate(
+        in: LibraryMetadataFile.read(at: root),
+        template: template)
+      try updated.write(
+        to: root.appendingPathComponent(LibraryMetadataFile.name),
+        options: .atomic)
+    }
+  }
+
+  func completeNewNoteCreation(
+    _ reference: NotebookReference,
+    tags: [String]
+  ) throws {
+    try coordinatedWrite(at: url, options: .forMerging) { root in
+      let updated = try LibraryMetadataFile.completingNewNoteCreation(
+        in: LibraryMetadataFile.read(at: root),
+        path: reference.path,
+        tags: tags)
+      try updated.write(
+        to: root.appendingPathComponent(LibraryMetadataFile.name),
+        options: .atomic)
     }
   }
 

@@ -828,6 +828,92 @@ final class NotebookStorageTests: XCTestCase {
     XCTAssertNil(notes[".trash/Movable"])
   }
 
+  func testNewNoteDraftAndStartingTemplatesRoundTripAndRegisterTags() throws {
+    let draft = NewNoteDraft(
+      folder: ["Analysis"],
+      title: "Derived categories",
+      template: "grid-medium",
+      tags: ["Research", "Seminar"],
+      pageSize: "letter",
+      orientation: "landscape")
+    let draftData = try LibraryMetadataFile.settingNewNoteDraft(in: nil, draft: draft)
+    XCTAssertEqual(try LibraryMetadataFile.newNoteDraft(in: draftData), draft)
+    XCTAssertEqual(
+      try LibraryMetadataFile.tags(in: draftData).map(\.name),
+      ["Research", "Seminar"])
+
+    let first = NewNoteStartingTemplate(
+      name: "Lecture",
+      folder: ["Analysis"],
+      paper: "dotted",
+      pageSize: "a4",
+      orientation: nil,
+      tags: ["Research"])
+    let templateData = try LibraryMetadataFile.settingNewNoteStartingTemplate(
+      in: draftData,
+      template: first)
+    XCTAssertEqual(try LibraryMetadataFile.newNoteDraft(in: templateData), draft)
+    XCTAssertEqual(try LibraryMetadataFile.newNoteStartingTemplates(in: templateData), [first])
+
+    let replacement = NewNoteStartingTemplate(
+      name: "Lecture",
+      folder: ["Courses"],
+      paper: "lined-medium",
+      pageSize: "letter",
+      orientation: "portrait",
+      tags: ["Reading"])
+    let replaced = try LibraryMetadataFile.settingNewNoteStartingTemplate(
+      in: templateData,
+      template: replacement)
+    XCTAssertEqual(try LibraryMetadataFile.newNoteStartingTemplates(in: replaced), [replacement])
+    XCTAssertEqual(try LibraryMetadataFile.newNoteDraft(in: replaced), draft)
+    XCTAssertEqual(
+      try LibraryMetadataFile.tags(in: replaced).map(\.name),
+      ["Research", "Seminar", "Reading"])
+
+    let root = try XCTUnwrap(JSONSerialization.jsonObject(with: replaced) as? [String: Any])
+    let storedDraft = try XCTUnwrap(root["draft"] as? [String: Any])
+    XCTAssertEqual(
+      Set(storedDraft.keys),
+      Set(["folder", "title", "template", "tags", "pageSize", "orientation"]))
+    let templates = try XCTUnwrap(root["startingTemplates"] as? [[String: Any]])
+    XCTAssertEqual(
+      Set(try XCTUnwrap(templates.first).keys),
+      Set(["name", "folder", "paper", "pageSize", "orientation", "tags"]))
+  }
+
+  func testCompletingNewNoteCreationClearsDraftAndPreservesStartingTemplates() throws {
+    let draft = NewNoteDraft(
+      folder: [],
+      title: "Draft",
+      template: "blank",
+      tags: ["Draft tag"],
+      pageSize: "a4",
+      orientation: "portrait")
+    let template = NewNoteStartingTemplate(
+      name: "Seminar",
+      folder: [],
+      paper: "dotted",
+      pageSize: "a4",
+      orientation: nil,
+      tags: ["Template tag"])
+    var data = try LibraryMetadataFile.settingNewNoteDraft(in: nil, draft: draft)
+    data = try LibraryMetadataFile.settingNewNoteStartingTemplate(in: data, template: template)
+    data = try LibraryMetadataFile.completingNewNoteCreation(
+      in: data,
+      path: ["Created"],
+      tags: ["Created tag"])
+
+    XCTAssertNil(try LibraryMetadataFile.newNoteDraft(in: data))
+    XCTAssertEqual(try LibraryMetadataFile.newNoteStartingTemplates(in: data), [template])
+    XCTAssertEqual(
+      try LibraryMetadataFile.noteDetails(in: data, path: ["Created"]),
+      LibraryNoteDetails(favorite: false, tags: ["Created tag"], description: ""))
+    XCTAssertEqual(
+      try LibraryMetadataFile.tags(in: data).map(\.name),
+      ["Draft tag", "Template tag", "Created tag"])
+  }
+
   func testLibraryMetadataUsesCanonicalFormatOrder() throws {
     let data = try LibraryMetadataFile.settingFavorite(
       in: nil,

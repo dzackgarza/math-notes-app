@@ -126,6 +126,7 @@ struct ContentView: View {
   @State private var showingFolderPicker = false
   @State private var restoredRoot = false
   @State private var errorMessage: String?
+  @State private var libraryNotice: String?
   @State private var selectedTool: EditorTool = .pen
   @State private var selectedDrawingTool: EditorTool = .pen
   @State private var penLibrary = EditorPenLibrary.defaults
@@ -137,6 +138,15 @@ struct ContentView: View {
   @State private var showingNewNote = false
   @State private var newNoteFolders: [FolderReference] = []
   @State private var newNoteTemplates: [String] = []
+  @State private var newNoteKnownTags: [LibraryTag] = []
+  @State private var newNoteFolderDefaults = LibraryFolderDetails(
+    description: "",
+    paper: "dotted",
+    coverColor: "#24324A",
+    coverStyle: "classic",
+    tags: [])
+  @State private var newNoteDraft: NewNoteDraft?
+  @State private var newNoteStartingTemplates: [NewNoteStartingTemplate] = []
   @State private var libraryMutation: LibraryMutationRequest?
   @State private var libraryDetails: LibraryDetailsRequest?
   @State private var showingNewTag = false
@@ -353,8 +363,14 @@ struct ContentView: View {
       NewNoteSheet(
         folders: newNoteFolders,
         templates: newNoteTemplates,
+        knownTags: newNoteKnownTags,
         initialParent: libraryFolder,
+        folderDefaults: newNoteFolderDefaults,
+        draft: newNoteDraft,
+        startingTemplates: newNoteStartingTemplates,
         onCreate: createNewNote,
+        onSaveDraft: saveNewNoteDraft,
+        onSaveTemplate: saveNewNoteStartingTemplate,
         onCancel: { showingNewNote = false })
     }
     .sheet(item: $libraryMutation) { request in
@@ -502,6 +518,14 @@ struct ContentView: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
         .shadow(radius: 8, y: 3)
         .padding(16)
+      }
+      if let libraryNotice, openNotes.inLibrary {
+        Text(libraryNotice)
+          .padding(.horizontal, 16)
+          .padding(.vertical, 8)
+          .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+          .shadow(radius: 8, y: 3)
+          .padding(16)
       }
     }
     .overlay {
@@ -1374,9 +1398,48 @@ struct ContentView: View {
       guard !newNoteTemplates.isEmpty else {
         throw NotebookStorageError.missingTemplate("blank")
       }
+      newNoteKnownTags = try root.libraryTags()
+      newNoteFolderDefaults = try root.folderDetails(for: libraryFolder)
+      newNoteDraft = try root.newNoteDraft()
+      newNoteStartingTemplates = try root.newNoteStartingTemplates()
       showingNewNote = true
     } catch {
       errorMessage = error.localizedDescription
+    }
+  }
+
+  private func saveNewNoteDraft(_ draft: NewNoteDraft) {
+    guard let root else { return }
+    do {
+      try root.saveNewNoteDraft(draft)
+      showingNewNote = false
+      refreshLibrary()
+      showLibraryNotice("Draft saved")
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func saveNewNoteStartingTemplate(_ template: NewNoteStartingTemplate) {
+    guard let root else { return }
+    do {
+      try root.saveNewNoteStartingTemplate(template)
+      showingNewNote = false
+      refreshLibrary()
+      showLibraryNotice("Template saved")
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func showLibraryNotice(_ message: String) {
+    libraryNotice = message
+    UIAccessibility.post(notification: .announcement, argument: message)
+    Task { @MainActor in
+      try? await Task.sleep(for: .seconds(4))
+      if libraryNotice == message {
+        libraryNotice = nil
+      }
     }
   }
 
@@ -1483,6 +1546,7 @@ struct ContentView: View {
         template: request.template,
         pageSize: request.pageSize,
         orientation: request.orientation)
+      try root.completeNewNoteCreation(reference, tags: request.tags)
       showingNewNote = false
       selectedTool = .pen
       selectedDrawingTool = .pen
