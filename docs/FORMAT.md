@@ -137,7 +137,10 @@ conflict. Assets are separate files, not base64 inside SVG.
   in `assets/mn-font-*.ttf`, shared with the host text input. The font license
   is distributed with the application in `core/assets/fonts/`.
 - The stroke's input samples are an [InkML](https://www.w3.org/TR/InkML/)
-  `trace` in the path's `metadata`. The page's root `metadata` declares one
+  `trace` in the path's `metadata`. When a pen mode changes the input positions,
+  this first trace keeps the original sensor samples and a second trace with
+  `mn:role="geometry"` keeps the positions used to draw and edit the stroke.
+  Both traces use the same channel set and point order. The page's root `metadata` declares one
   `inkml:traceFormat` per channel set that its strokes use. Channels, in
   this order when present: `X`, `Y` (pt), `T` (ms from `mn:time`), `F`
   (force 0..1), `OE` (altitude, rad), `OA` (azimuth, rad), `OR` (roll, rad).
@@ -147,8 +150,11 @@ conflict. Assets are separate files, not base64 inside SVG.
   handwritten-math tools, so external scripts can read the samples of any
   page.
 - Stroke attributes, in this order: `id`, `transform`, `fill`, `fill-opacity`,
-  `mn:brush`, `mn:brush-version`,
-  `mn:size`, `mn:time`, `d`. `mn:brush` names the ink owner's brush
+  `mn:brush`, `mn:brush-version`, `mn:size`, optional `mn:modes` and
+  `mn:smoothing-ms`, `mn:time`, `d`. The mode bits mean grid snapping (1) and
+  straight lines (2); temporary ink is never saved. Smoothing uses Google Ink's
+  sliding-window input model in milliseconds, with 0 selecting passthrough.
+  `mn:brush` names the ink owner's brush
   family and `mn:brush-version` its pinned encoding version. The owner and
   source-fidelity extension are fixed in [ARCHITECTURE.md](ARCHITECTURE.md).
   A library update must preserve the stored outline. `mn:time` is the UTC
@@ -254,7 +260,9 @@ a notebook directory (send, archive, download).
   order, two-space indent and one trailing newline:
   - `pen`, `marker` and `highlighter`: the current settings of the three
     drawing tools, each `{ "brush", "brushVersion", "color", "opacity",
-    "size" }` with the keys in this order. `brush` and `brushVersion` are as
+    "size", "modes", "smoothingMs" }` with the keys in this order.
+    `modes` also allows temporary ink (4); `smoothingMs` is in [0, 100].
+    `brush` and `brushVersion` are as
     `mn:brush` and `mn:brush-version`; the pen's brush is `pressure-pen`, the
     marker's is `marker`, the highlighter's is `highlighter`. `color` is `#RRGGBB`; `opacity` (0 to 1,
     3 decimals) becomes the strokes' `fill-opacity`; `size` is in points

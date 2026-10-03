@@ -88,21 +88,27 @@ TEST_CASE("The default tool settings file has the FORMAT.md form") {
     "brushVersion": 1,
     "color": "#1A1A1A",
     "opacity": 1,
-    "size": 1.2
+    "size": 1.2,
+    "modes": 0,
+    "smoothingMs": 20
   },
   "marker": {
     "brush": "marker",
     "brushVersion": 1,
     "color": "#1A1A1A",
     "opacity": 1,
-    "size": 1.2
+    "size": 1.2,
+    "modes": 0,
+    "smoothingMs": 20
   },
   "highlighter": {
     "brush": "highlighter",
     "brushVersion": 1,
     "color": "#FFE066",
     "opacity": 0.35,
-    "size": 9.6
+    "size": 9.6,
+    "modes": 0,
+    "smoothingMs": 20
   },
   "palette": [
     "#1A1A1A",
@@ -119,12 +125,12 @@ TEST_CASE("The default tool settings file has the FORMAT.md form") {
 
 TEST_CASE("Edited settings, palette and saved pens read back unchanged") {
   Pens pens = Read(Default());
-  pens.pen = {INK_BRUSH_PRESSURE_PEN, 0x2F6FEB, 0.6f, 1};
-  pens.marker = {INK_BRUSH_MARKER, 0xD92D39, 3.25f, 1};
+  pens.pen = {INK_BRUSH_PRESSURE_PEN, 0x2F6FEB, 0.6f, 1, 0, 20};
+  pens.marker = {INK_BRUSH_MARKER, 0xD92D39, 3.25f, 1, 0, 20};
   pens.highlighter.opacity = 0.5f;
   pens.palette = {0x2F6FEB, 0xFFFFFF};
-  pens.saved = {{INK_BRUSH_PRESSURE_PEN, 0xD92D39, 0.6f, 1}, {INK_BRUSH_HIGHLIGHTER, 0x3CBFAE, 12, 0.35f},
-                {INK_BRUSH_MARKER, 0x29955B, 2, 1}};
+  pens.saved = {{INK_BRUSH_PRESSURE_PEN, 0xD92D39, 0.6f, 1, 0, 20}, {INK_BRUSH_HIGHLIGHTER, 0x3CBFAE, 12, 0.35f, 0, 20},
+                {INK_BRUSH_MARKER, 0x29955B, 2, 1, 0, 20}};
 
   Pens back = Read(Write(pens));
   CHECK(back.pen.rgb == 0x2F6FEB);
@@ -142,7 +148,7 @@ TEST_CASE("Edited settings, palette and saved pens read back unchanged") {
 
 TEST_CASE("A file without the FORMAT.md form gives a parse error") {
   auto tool = [](const std::string &name, const std::string &brush) {
-    return R"(")" + name + R"(": {"brush": ")" + brush + R"(", "brushVersion": 1, "color": "#1A1A1A", "opacity": 1, "size": 1})";
+    return R"(")" + name + R"(": {"brush": ")" + brush + R"(", "brushVersion": 1, "color": "#1A1A1A", "opacity": 1, "size": 1, "modes": 0, "smoothingMs": 20})";
   };
   auto file = [&](const std::string &pen, const std::string &marker) {
     return "{" + tool("pen", pen) + ", " + tool("marker", marker) + ", " + tool("highlighter", "highlighter") +

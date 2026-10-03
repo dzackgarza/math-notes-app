@@ -474,7 +474,9 @@ static_assert(offsetof(InkToolSettings, brush) == 0);
 static_assert(offsetof(InkToolSettings, rgb) == 4);
 static_assert(offsetof(InkToolSettings, size) == 8);
 static_assert(offsetof(InkToolSettings, opacity) == 12);
-static_assert(sizeof(InkToolSettings) == 16);
+static_assert(offsetof(InkToolSettings, modes) == 16);
+static_assert(offsetof(InkToolSettings, smoothing_ms) == 20);
+static_assert(sizeof(InkToolSettings) == 24);
 
 /* Pointer-sized fields: 4 bytes on wasm32, 8 on arm64. */
 static_assert(offsetof(InkFile, path) == 0);
@@ -484,13 +486,13 @@ static_assert(offsetof(InkFile, kind) == 3 * sizeof(void *));
 static_assert(sizeof(InkFile) == 4 * sizeof(void *));
 
 static_assert(offsetof(InkPenFile, pen) == 0);
-static_assert(offsetof(InkPenFile, marker) == 16);
-static_assert(offsetof(InkPenFile, highlighter) == 32);
-static_assert(offsetof(InkPenFile, palette) == 48);
-static_assert(offsetof(InkPenFile, palette_count) == 48 + sizeof(void *));
-static_assert(offsetof(InkPenFile, saved) == 48 + 2 * sizeof(void *));
-static_assert(offsetof(InkPenFile, saved_count) == 48 + 3 * sizeof(void *));
-static_assert(sizeof(InkPenFile) == 48 + 4 * sizeof(void *));
+static_assert(offsetof(InkPenFile, marker) == 24);
+static_assert(offsetof(InkPenFile, highlighter) == 48);
+static_assert(offsetof(InkPenFile, palette) == 72);
+static_assert(offsetof(InkPenFile, palette_count) == 72 + sizeof(void *));
+static_assert(offsetof(InkPenFile, saved) == 72 + 2 * sizeof(void *));
+static_assert(offsetof(InkPenFile, saved_count) == 72 + 3 * sizeof(void *));
+static_assert(sizeof(InkPenFile) == 72 + 4 * sizeof(void *));
 
 static_assert(offsetof(InkSelectionInfo, count) == 0);
 static_assert(offsetof(InkSelectionInfo, page) == 4);
