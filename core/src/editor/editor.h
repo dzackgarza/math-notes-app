@@ -99,6 +99,11 @@ class Editor {
   // are those of the page layout (layout/layout.h).
   void SetView(const Transform &content_to_view) { view_ = content_to_view; }
   void SetPen(const Pen &pen) { pen_ = pen; }
+  void SetGuide(int kind, double x, double y, double angle) {
+    guide_kind_ = kind;
+    guide_center_ = {x, y};
+    guide_angle_ = angle;
+  }
   bool SetActiveLayer(size_t index);
   void SetTemplate(const std::optional<Page> &page) { template_page_ = page; }
   int ActiveLayer() const;
@@ -212,6 +217,7 @@ class Editor {
     std::vector<InkPenSample> real;  // page coordinates in x, y
     std::vector<InkPenSample> sensor;  // original page-coordinate samples
     SnapGrid grid;
+    std::vector<Point> guide;       // transient guide captured in page coordinates
     bool updated = false;            // ink_input_update changed a real sample
   };
   struct CommittedStroke {
@@ -223,6 +229,8 @@ class Editor {
     std::vector<InkPenSample> real;
     std::vector<InkPenSample> sensor;
     SnapGrid grid;
+    bool recognized = false;
+    std::vector<Point> guide;
   };
   struct FigureCapture {
     size_t page = 0, layer = 0, previous_layer = 0;
@@ -318,12 +326,16 @@ class Editor {
                      const std::vector<InkPenSample> &sensor = {}) const;
   static SnapGrid GridFor(const Background &background);
   static std::vector<InkPenSample> ProcessedSamples(
-      const std::vector<InkPenSample> &sensor, const Pen &pen, SnapGrid grid);
+      const std::vector<InkPenSample> &sensor, const Pen &pen, SnapGrid grid,
+      const std::vector<Point> &guide = {});
 
   DocumentHistory *history_;
   const PageArrangement *arrangement_;
   Transform view_;
   Pen pen_;
+  int guide_kind_ = 0;
+  Point guide_center_;
+  double guide_angle_ = 0;
   double utc_offset_ms_ = 0;
   size_t page_ = 0, layer_ = 0;
   std::string active_layer_id_;

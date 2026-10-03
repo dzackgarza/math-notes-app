@@ -108,8 +108,8 @@ test("Flutter keeps a library in order: keyboard, tags, tabs, moves, trash, rena
     await expect(page.getByRole("heading", { name: "Test Notebook", exact: true })).toBeVisible();
     await newNote("First");
     await button("Create").click();
-    await expect(page.getByRole("heading", { name: "First", exact: true })).toBeVisible();
     await canvas.waitFor({ timeout: 30_000 });
+    await expect(page.getByRole("heading", { name: "First", exact: true })).toBeVisible();
     let box = await boxOf(canvas);
     await penDiagonal(cdp, { x: box.x + 160, y: box.y + 150 }, { x: box.x + 240, y: box.y + 190 });
     await button("Add page").click();

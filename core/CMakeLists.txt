@@ -23,7 +23,19 @@ find_package(Immer CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(boost_icl CONFIG REQUIRED)
 find_package(boost_geometry CONFIG REQUIRED)
+find_package(Eigen3 CONFIG REQUIRED)
+find_package(OpenCV CONFIG REQUIRED COMPONENTS core imgproc)
 include(third_party/ink.cmake)
+include(FetchContent)
+FetchContent_Declare(dollar
+  URL https://github.com/htfy96/dollar/archive/a836fc22cd59633727afc3b3e4ede546e34940e2.tar.gz
+  URL_HASH SHA256=db26e6c59453adc28b3a0bc716d91be93913cd8a0fbbe586fc168cf58b1389ec
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+FetchContent_Declare(bezier
+  URL https://github.com/romb-technologies/Bezier/archive/7826021f87511b440ce9c492ca7ae2cb4227e360.tar.gz
+  URL_HASH SHA256=fc80016c4f7d3a9052ba068b2d78b46d4c42b6d9471bb7846a5c7f8df58c6666
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+FetchContent_MakeAvailable(dollar bezier)
 
 # Skia's WASM build has no platform font manager. Embed the same typeface in
 # both engine targets so text geometry and rendering use one font.
@@ -66,6 +78,7 @@ add_library(ink STATIC
   src/strokes/clip.cpp
   src/strokes/outline.cpp
   src/editor/editor.cpp
+  src/editor/shape_recognizer.cpp
   src/editor/erase.cpp
   src/editor/select.cpp
   src/editor/history.cpp
@@ -79,7 +92,8 @@ add_library(ink STATIC
 target_include_directories(ink PUBLIC include src PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(ink PRIVATE INK_VERSION="${PROJECT_VERSION}")
 target_link_libraries(ink PUBLIC Skia::skia inkcore pugixml::pugixml FastFloat::fast_float immer
-  nlohmann_json::nlohmann_json Boost::icl Boost::geometry)
+  nlohmann_json::nlohmann_json Boost::icl Boost::geometry dollar Bezier::Bezier
+  opencv_core opencv_imgproc)
 
 if(EMSCRIPTEN)
   target_sources(ink PRIVATE src/render/webgl_surface.cpp)
@@ -116,7 +130,7 @@ if(EMSCRIPTEN)
     _ink_clipping_add _ink_clipping_svg
     _ink_builtin_template_count _ink_builtin_template_name _ink_builtin_template_create
     _ink_document_create_from_template _ink_export_pdf _ink_export_pdf_layers
-    _ink_canvas_create_webgl _ink_canvas_set_view _ink_canvas_set_surface_size
+    _ink_canvas_create_webgl _ink_canvas_set_view _ink_canvas_set_guide _ink_canvas_set_surface_size
     _ink_pens_default _ink_pens_read _ink_pens_write _ink_pens_preview_png
     _ink_canvas_set_tool _ink_canvas_figure_begin _ink_canvas_figure_scene _ink_canvas_figure_complete _ink_canvas_selected_figure
     _ink_canvas_set_eraser _ink_canvas_set_utc_offset _ink_canvas_free _ink_canvas_page_at

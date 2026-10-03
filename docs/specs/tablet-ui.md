@@ -80,6 +80,7 @@ toolbar and the tool popovers:
     at the end. Each choice names its position before it runs.
   - **View** (the layout of the pages): fit width or height; vertical
     scroll, horizontal scroll, or two-page layout; split view.
+  - **Ruler**: show a straight or French curve guide, or hide the guide.
   - **⋯** (the document): save; share and export PDF; compare conflicting versions, shown only
     when a sync client left a conflict copy of the note;
     close the note; Settings.
