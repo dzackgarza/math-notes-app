@@ -114,6 +114,7 @@ struct ContentView: View {
   @State private var libraryQuery = ""
   @State private var libraryScope: LibraryScope = .folder
   @State private var libraryTags: [LibraryTag] = []
+  @State private var libraryTagCounts: [String: Int] = [:]
   @State private var libraryTag: String?
   @State private var librarySort: LibrarySort = .name
   @State private var librarySortDirection: LibrarySortDirection = .ascending
@@ -933,8 +934,9 @@ struct ContentView: View {
       listing: libraryListing,
       folderDetails: libraryFolderDetails,
       query: $libraryQuery,
-      scope: $libraryScope,
+      scope: libraryScope,
       tags: libraryTags,
+      tagCounts: libraryTagCounts,
       selectedTag: libraryTag,
       sort: librarySort,
       sortDirection: librarySortDirection,
@@ -951,6 +953,17 @@ struct ContentView: View {
         libraryFolder = FolderReference(path: Array(libraryFolder.path.dropLast()))
         refreshLibrary()
       },
+      selectScope: { next in
+        libraryQuery = ""
+        libraryTag = nil
+        libraryFolder = FolderReference(path: [])
+        if next == .recent {
+          librarySort = .modified
+          librarySortDirection = .descending
+        }
+        libraryScope = next
+        refreshLibrary()
+      },
       setSort: { sort in
         librarySort = sort
         refreshLibrary()
@@ -962,6 +975,7 @@ struct ContentView: View {
       selectTag: { tag in
         libraryTag = tag
         libraryQuery = ""
+        libraryFolder = FolderReference(path: [])
         libraryScope = .tag
         refreshLibrary()
       },
@@ -979,6 +993,7 @@ struct ContentView: View {
       editFolderDetails: prepareFolderDetails,
       reviewConflicts: { prepareConflicts($0) },
       refresh: refreshLibrary,
+      refreshSearch: { refreshLibrary(recountTags: false) },
       showSettings: {
         settingsFromLibrary = true
         showingEditorSettings = true
@@ -1135,6 +1150,7 @@ struct ContentView: View {
     libraryQuery = ""
     libraryScope = .folder
     libraryTags = []
+    libraryTagCounts = [:]
     libraryTag = nil
     libraryListing = LibraryListing(folders: [], notebooks: [])
     libraryFolderDetails = nil
@@ -1171,15 +1187,24 @@ struct ContentView: View {
     }
   }
 
-  private func refreshLibrary() {
+  private func refreshLibrary(recountTags: Bool = true) {
     guard let root else {
       libraryListing = LibraryListing(folders: [], notebooks: [])
       libraryFolderDetails = nil
+      libraryTagCounts = [:]
       return
     }
 
     do {
       libraryTags = try root.libraryTags()
+      if recountTags {
+        let allNotesForTags = try root.allNotes(sort: .name, direction: .ascending)
+        libraryTagCounts = allNotesForTags.notebooks.reduce(into: [:]) { counts, note in
+          for tag in Set(note.details.tags) {
+            counts[tag, default: 0] += 1
+          }
+        }
+      }
       let queryIsEmpty = libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       libraryFolderDetails =
         libraryScope == .folder && queryIsEmpty && !libraryFolder.path.isEmpty
@@ -1236,6 +1261,7 @@ struct ContentView: View {
       }
     } catch {
       libraryFolderDetails = nil
+      if recountTags { libraryTagCounts = [:] }
       if libraryScope == .folder,
         libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
         !libraryFolder.path.isEmpty

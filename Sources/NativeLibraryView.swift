@@ -9,6 +9,15 @@ enum LibraryScope: String {
   case tag
 }
 
+private func libraryColor(_ value: String) -> Color {
+  let hex = value.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+  guard hex.count == 6, let rgb = UInt64(hex, radix: 16) else { return .secondary }
+  return Color(
+    red: Double((rgb >> 16) & 0xFF) / 255,
+    green: Double((rgb >> 8) & 0xFF) / 255,
+    blue: Double(rgb & 0xFF) / 255)
+}
+
 @MainActor
 struct NativeLibraryView: View {
   let root: NotesRootAccess
@@ -16,8 +25,9 @@ struct NativeLibraryView: View {
   let listing: LibraryListing
   let folderDetails: LibraryFolderDetails?
   @Binding var query: String
-  @Binding var scope: LibraryScope
+  let scope: LibraryScope
   let tags: [LibraryTag]
+  let tagCounts: [String: Int]
   let selectedTag: String?
   let sort: LibrarySort
   let sortDirection: LibrarySortDirection
@@ -25,6 +35,7 @@ struct NativeLibraryView: View {
   let openFolder: (FolderReference) -> Void
   let openNotebook: (NotebookReference) -> Void
   let goUp: () -> Void
+  let selectScope: (LibraryScope) -> Void
   let setSort: (LibrarySort) -> Void
   let setSortDirection: (LibrarySortDirection) -> Void
   let selectTag: (String) -> Void
@@ -42,10 +53,16 @@ struct NativeLibraryView: View {
   let editFolderDetails: (FolderReference) -> Void
   let reviewConflicts: (NotebookReference) -> Void
   let refresh: () -> Void
+  let refreshSearch: () -> Void
   let showSettings: () -> Void
 
+  @State private var searchPresented = false
+
   var body: some View {
-    Group {
+    HStack(spacing: 0) {
+      librarySidebar
+      Divider()
+      Group {
       if !query.isEmpty && listing.folders.isEmpty && listing.notebooks.isEmpty {
         ContentUnavailableView {
           Label("No Results", systemImage: "magnifyingglass")
@@ -143,6 +160,7 @@ struct NativeLibraryView: View {
         }
         .listStyle(.insetGrouped)
       }
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     .navigationTitle(
       !query.isEmpty
@@ -155,17 +173,15 @@ struct NativeLibraryView: View {
         ? "Trash"
         : scope == .tag
         ? selectedTag ?? "Tags"
-        : folder.name)
+        : folder.path.isEmpty ? "Library" : folder.name)
     .navigationBarTitleDisplayMode(.large)
     .searchable(
       text: $query,
+      isPresented: $searchPresented,
       placement: .navigationBarDrawer(displayMode: .always),
       prompt: "Search notebooks and notes")
     .onChange(of: query) {
-      refresh()
-    }
-    .onChange(of: scope) {
-      refresh()
+      refreshSearch()
     }
     .toolbar {
       if scope == .folder && !folder.path.isEmpty {
@@ -189,7 +205,8 @@ struct NativeLibraryView: View {
 
         Menu {
           Button {
-            scope = .folder
+            searchPresented = false
+            selectScope(.folder)
           } label: {
             if scope == .folder {
               Label("Library", systemImage: "checkmark")
@@ -199,9 +216,8 @@ struct NativeLibraryView: View {
           }
 
           Button {
-            setSort(.modified)
-            setSortDirection(.descending)
-            scope = .recent
+            searchPresented = false
+            selectScope(.recent)
           } label: {
             if scope == .recent {
               Label("Recent", systemImage: "checkmark")
@@ -211,7 +227,8 @@ struct NativeLibraryView: View {
           }
 
           Button {
-            scope = .favorites
+            searchPresented = false
+            selectScope(.favorites)
           } label: {
             if scope == .favorites {
               Label("Favorites", systemImage: "checkmark")
@@ -221,7 +238,8 @@ struct NativeLibraryView: View {
           }
 
           Button {
-            scope = .trash
+            searchPresented = false
+            selectScope(.trash)
           } label: {
             if scope == .trash {
               Label("Trash", systemImage: "checkmark")
@@ -234,6 +252,7 @@ struct NativeLibraryView: View {
             Divider()
             ForEach(tags) { tag in
               Button {
+                searchPresented = false
                 selectTag(tag.name)
               } label: {
                 if scope == .tag && selectedTag == tag.name {
@@ -347,6 +366,128 @@ struct NativeLibraryView: View {
     }
   }
 
+  private var librarySidebar: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Text("Math Notes")
+        .font(.headline)
+        .padding(.horizontal, 10)
+        .padding(.bottom, 8)
+
+      sidebarRow(
+        "Library",
+        systemImage: "books.vertical",
+        selected: scope == .folder && query.isEmpty && !searchPresented
+      ) {
+        searchPresented = false
+        selectScope(.folder)
+      }
+      sidebarRow(
+        "Search",
+        systemImage: "magnifyingglass",
+        selected: searchPresented || !query.isEmpty
+      ) {
+        selectScope(.folder)
+        searchPresented = true
+      }
+      sidebarRow("Recent", systemImage: "clock", selected: scope == .recent) {
+        searchPresented = false
+        selectScope(.recent)
+      }
+      sidebarRow("Favorites", systemImage: "star", selected: scope == .favorites) {
+        searchPresented = false
+        selectScope(.favorites)
+      }
+      sidebarRow("Trash", systemImage: "trash", selected: scope == .trash) {
+        searchPresented = false
+        selectScope(.trash)
+      }
+
+      if !tags.isEmpty {
+        Text("Tags")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .padding(.horizontal, 10)
+          .padding(.top, 12)
+      }
+
+      ScrollView {
+        VStack(alignment: .leading, spacing: 4) {
+          ForEach(tags) { tag in
+            sidebarTagRow(tag)
+          }
+          sidebarRow("New tag", systemImage: "plus", selected: false) {
+            createTag()
+          }
+        }
+      }
+
+      Spacer(minLength: 8)
+      sidebarRow("Settings", systemImage: "gearshape", selected: false) {
+        showSettings()
+      }
+    }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 16)
+    .frame(width: 220, maxHeight: .infinity, alignment: .topLeading)
+    .background(Color(uiColor: .secondarySystemGroupedBackground))
+  }
+
+  private func sidebarRow(
+    _ title: String,
+    systemImage: String,
+    selected: Bool,
+    count: Int? = nil,
+    action: @escaping () -> Void
+  ) -> some View {
+    Button(action: action) {
+      HStack(spacing: 10) {
+        Image(systemName: systemImage)
+          .frame(width: 20)
+        Text(title)
+          .lineLimit(1)
+        Spacer(minLength: 8)
+        if let count {
+          Text("\(count)")
+            .foregroundStyle(.secondary)
+        }
+      }
+      .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+      .padding(.horizontal, 10)
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .background(
+      selected ? Color.accentColor.opacity(0.14) : Color.clear,
+      in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func sidebarTagRow(_ tag: LibraryTag) -> some View {
+    Button {
+      searchPresented = false
+      selectTag(tag.name)
+    } label: {
+      HStack(spacing: 10) {
+        Circle()
+          .fill(libraryColor(tag.color))
+          .frame(width: 10, height: 10)
+          .frame(width: 20)
+        Text(tag.name)
+          .lineLimit(1)
+        Spacer(minLength: 8)
+        Text("\(tagCounts[tag.name] ?? 0)")
+          .foregroundStyle(.secondary)
+      }
+      .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+      .padding(.horizontal, 10)
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .background(
+      scope == .tag && selectedTag == tag.name
+        ? Color.accentColor.opacity(0.14) : Color.clear,
+      in: RoundedRectangle(cornerRadius: 8))
+  }
+
   private var visibleFolderDetails: LibraryFolderDetails? {
     guard scope == .folder,
       query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -440,6 +581,7 @@ struct NativeLibraryView: View {
   private func folderCard(_ item: LibraryFolderItem) -> some View {
     ZStack(alignment: .bottomTrailing) {
       Button {
+        searchPresented = false
         openFolder(item.reference)
       } label: {
         VStack(alignment: .leading, spacing: 10) {
@@ -549,6 +691,7 @@ struct NativeLibraryView: View {
   private func folderRow(_ item: LibraryFolderItem) -> some View {
     HStack(spacing: 8) {
       Button {
+        searchPresented = false
         openFolder(item.reference)
       } label: {
         HStack(spacing: 14) {
@@ -738,12 +881,7 @@ struct LibraryNotebookCover: View {
   }
 
   private var coverColor: Color {
-    let hex = item.details.coverColor.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-    guard hex.count == 6, let rgb = UInt64(hex, radix: 16) else { return .secondary }
-    return Color(
-      red: Double((rgb >> 16) & 0xFF) / 255,
-      green: Double((rgb >> 8) & 0xFF) / 255,
-      blue: Double(rgb & 0xFF) / 255)
+    libraryColor(item.details.coverColor)
   }
 }
 
