@@ -162,6 +162,10 @@ Future<void> showSettings(
                                 CupertinoListSection.insetGrouped(
                                   backgroundColor: surface2,
                                   header: Text('Gestures', style: footnote.copyWith(color: secondaryLabel)),
+                                  footer: Text(
+                                    'Touch gestures pause while Draw with finger is on.',
+                                    style: footnote.copyWith(color: secondaryLabel),
+                                  ),
                                   children: [
                                     CupertinoListTile(
                                       title: Text('Double tap', style: body),
@@ -185,7 +189,7 @@ Future<void> showSettings(
                                                 if (gesture != (undo ? preferences.redoGesture : preferences.undoGesture))
                                                   gesture: Text(title),
                                             },
-                                            onValueChanged: (gesture) => update(() {
+                                            onValueChanged: tools.fingerDraws ? null : (gesture) => update(() {
                                               if (undo) {
                                                 preferences.undoGesture = gesture!;
                                               } else {

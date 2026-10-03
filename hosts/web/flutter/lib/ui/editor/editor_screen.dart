@@ -442,7 +442,8 @@ class _EditorScreenState extends State<EditorScreen> {
         if (ended) palms.remove(event.pointer);
         return;
       }
-      final gesture = taps.add(event);
+      if (fingerDraws) taps.cancel();
+      final gesture = fingerDraws ? null : taps.add(event);
       if (gesture == PageGesture.doubleTap) {
         pendingTouchTap?.cancel();
         ignoreTouchTapUp = true;
