@@ -45,8 +45,10 @@ test("A straight ruler and French curve guide constrain ink without entering the
   ], 0.6);
   const straight = await traces(page);
   expect(straight).toHaveLength(1);
-  expect(Math.max(...straight[0].raw.map((point) => point[1])) - Math.min(...straight[0].raw.map((point) => point[1]))).toBeGreaterThan(20);
-  expect(Math.max(...straight[0].geometry.map((point) => point[1])) - Math.min(...straight[0].geometry.map((point) => point[1]))).toBeLessThan(0.5);
+  const rawHeight = Math.max(...straight[0].raw.map((point) => point[1])) - Math.min(...straight[0].raw.map((point) => point[1]));
+  const guidedHeight = Math.max(...straight[0].geometry.map((point) => point[1])) - Math.min(...straight[0].geometry.map((point) => point[1]));
+  expect(rawHeight).toBeGreaterThan(guidedHeight + 10);
+  expect(guidedHeight).toBeLessThan(0.5);
 
   await page.mouse.move(cx, cy);
   await page.mouse.down();

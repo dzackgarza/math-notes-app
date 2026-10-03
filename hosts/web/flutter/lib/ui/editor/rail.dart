@@ -319,12 +319,6 @@ extension _EditorRail on _EditorScreenState {
               for (final kind in _railInserters)
                 if (!hiddenTools.contains(kind)) kindButton(kind),
               toolButton(
-                'Ruler',
-                LucideIcons.ruler,
-                selected: guideKind != 0,
-                onPressed: canvas == null ? null : (anchor) => unawaited(rulerPopover(anchor)),
-              ),
-              toolButton(
                 'Clippings',
                 LucideIcons.inbox,
                 selected: clippingsOpen,

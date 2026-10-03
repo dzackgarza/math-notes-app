@@ -1565,6 +1565,14 @@ class _EditorScreenState extends State<EditorScreen> {
                   menuButton('Pages', LucideIcons.layoutGrid, pagesMenu),
                   menuButton('Add page', LucideIcons.plus, addPageMenu),
                   menuButton('View', LucideIcons.layoutPanelLeft, viewMenu),
+                  toolButton(
+                    'Ruler',
+                    LucideIcons.ruler,
+                    selected: guideKind != 0,
+                    onPressed: canvas == null
+                        ? null
+                        : (anchor) => unawaited(rulerPopover(anchor)),
+                  ),
                   menuButton(
                     'More',
                     LucideIcons.circleEllipsis,
