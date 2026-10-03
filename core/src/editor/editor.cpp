@@ -801,6 +801,9 @@ void Editor::InputUpdate(const InkPenSample *samples, size_t count) {
           if (auto fit = RecognizeHeldStroke(stroke.sensor, ViewScale())) {
             fit->back().time = stroke.sensor.back().time;
             stroke.real = std::move(*fit);
+          } else {
+            stroke.real = ProcessedSamples(stroke.sensor, stroke.pen, stroke.grid);
+            stroke.recognized = false;
           }
         } else if (transformed) {
           stroke.real = ProcessedSamples(stroke.sensor, stroke.pen, stroke.grid, stroke.guide);
