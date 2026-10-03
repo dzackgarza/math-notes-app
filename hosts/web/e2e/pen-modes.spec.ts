@@ -1,7 +1,12 @@
 import { expect } from "@playwright/test";
 import { test, closePopover, createTestNotebook, enterText, openTestNotebook, penStroke, save } from "./support.ts";
 
-type SavedStroke = { modes: string | null; smoothing: string | null; traces: string[] };
+type SavedStroke = {
+  modes: string | null;
+  smoothing: string | null;
+  traces: string[];
+  grid: { x: number; y: number; offset: number };
+};
 
 async function strokes(page: import("@playwright/test").Page): Promise<SavedStroke[]> {
   await save(page);
@@ -11,10 +16,17 @@ async function strokes(page: import("@playwright/test").Page): Promise<SavedStro
     const dir = await (await root.getDirectoryHandle("Test Notebook")).getDirectoryHandle("Modes");
     const svg = await (await (await (await dir.getDirectoryHandle("pages")).getFileHandle("0001.svg")).getFile()).text();
     const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
+    const background = parsed.getElementById("background");
+    const grid = {
+      x: Number(background?.getAttribute("mn:x-ruling")),
+      y: Number(background?.getAttribute("mn:y-ruling")),
+      offset: Number(background?.getAttribute("mn:y-offset")),
+    };
     return Array.from(parsed.querySelectorAll('path[id^="s-"]'), (path) => ({
       modes: path.getAttribute("mn:modes"),
       smoothing: path.getAttribute("mn:smoothing-ms"),
       traces: Array.from(path.getElementsByTagName("inkml:trace"), (trace) => trace.textContent ?? ""),
+      grid,
     }));
   });
 }
@@ -59,6 +71,11 @@ test("Pen modes: snapped lines, temporary ink, smoothing, history, and reload", 
     const points = saved[0].traces[1].split(",").map((sample) => sample.trim().split(/\s+/).slice(0, 2).map(Number));
     expect(points.length).toBeGreaterThan(2);
     const [start, end] = [points[0], points.at(-1)!];
+    for (const endpoint of [start, end]) {
+      expect(Math.abs(endpoint[0] / saved[0].grid.x - Math.round(endpoint[0] / saved[0].grid.x))).toBeLessThan(0.001);
+      const row = (endpoint[1] - saved[0].grid.offset) / saved[0].grid.y;
+      expect(Math.abs(row - Math.round(row))).toBeLessThan(0.001);
+    }
     for (const point of points) {
       const area = (point[0] - start[0]) * (end[1] - start[1]) -
         (point[1] - start[1]) * (end[0] - start[0]);
