@@ -37,7 +37,7 @@ async function paths(page: Page): Promise<{ raw: number[][]; geometry: number[][
 }
 
 test("A held stroke resolves only fitting shapes; a scribble erases crossed ink in one step", async ({ page, context }, info) => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
   const button = (name: string) => page.getByRole("button", { name, exact: true });
   await page.goto("?root=opfs");
   await createTestNotebook(page);
@@ -67,10 +67,34 @@ test("A held stroke resolves only fitting shapes; a scribble erases crossed ink 
   expect(afterCircle[1].raw.length).toBeGreaterThan(10);
   expect(afterCircle[1].geometry.length).toBeGreaterThan(32);
 
+  const ellipse = Array.from({ length: 17 }, (_, i) => {
+    const angle = 2 * Math.PI * i / 16;
+    return at(180 + 55 * Math.cos(angle), 420 + 25 * Math.sin(angle));
+  });
+  await draw(cdp, ellipse, true);
+  const afterEllipse = await paths(page);
+  expect(afterEllipse).toHaveLength(3);
+  expect(afterEllipse[2].geometry.length).toBeGreaterThan(32);
+
+  await draw(cdp, [at(300, 395), at(345, 400), at(350, 445), at(305, 440), at(300, 395)], true);
+  const afterPolygon = await paths(page);
+  expect(afterPolygon).toHaveLength(4);
+  expect(afterPolygon[3].raw).toHaveLength(6);
+  expect(afterPolygon[3].geometry).toHaveLength(5);
+
+  const arc = Array.from({ length: 9 }, (_, i) => {
+    const t = i / 8;
+    return at(135 + 140 * t, 550 - 200 * t * (1 - t));
+  });
+  await draw(cdp, arc, true);
+  const afterArc = await paths(page);
+  expect(afterArc).toHaveLength(5);
+  expect(afterArc[4].geometry.length).toBeGreaterThan(16);
+
   await draw(cdp, [at(155, 320), at(195, 305), at(230, 330), at(255, 292)], true);
   const unmatched = await paths(page);
-  expect(unmatched).toHaveLength(3);
-  expect(unmatched[2].raw).toEqual([]);
+  expect(unmatched).toHaveLength(6);
+  expect(unmatched[5].raw).toEqual([]);
 
   await button("Lasso").click();
   await draw(cdp, [at(260, 215), at(360, 215), at(360, 325), at(260, 325), at(260, 215)], false);
