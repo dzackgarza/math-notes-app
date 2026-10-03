@@ -56,6 +56,29 @@ test("Editor preferences: the last note reopens and the undo dial uses its chose
   await page.screenshot({ path: info.outputPath("dial.png") });
   await page.mouse.up();
   expect((await savedPages(page, "Recall")).map((item) => item.strokes)).toEqual([3]);
+  await button("More").click();
+  await button("Settings").click();
+  await button("3 ←").click();
+  await button("3 →").click();
+  await button("Done").click();
+  expect(await page.evaluate(() => [localStorage.getItem("undoGesture"), localStorage.getItem("redoGesture")]))
+    .toEqual(["threeFingerSwipeLeft", "threeFingerSwipeRight"]);
+  await penStroke(cdp, line(box.x + 200, box.x + 300, box.y + 480), 0.6);
+  expect((await savedPages(page, "Recall")).map((item) => item.strokes)).toEqual([4]);
+  const swipe = async (direction: -1 | 1) => {
+    const origin = Array.from({ length: 3 }, (_, id) => ({ id, x: box.x + 440 + id * 42, y: box.y + 240 }));
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: origin });
+    for (const distance of [20, 40, 60, 80]) {
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchMove", touchPoints: origin.map((point) => ({ ...point, x: point.x + direction * distance })),
+      });
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  };
+  await swipe(-1);
+  expect((await savedPages(page, "Recall")).map((item) => item.strokes)).toEqual([3]);
+  await swipe(1);
+  expect((await savedPages(page, "Recall")).map((item) => item.strokes)).toEqual([4]);
   await button("Library").click();
   await page.screenshot({ path: info.outputPath("dark-library.png") });
   await openTestNotebook(page);
