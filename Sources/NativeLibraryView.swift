@@ -386,18 +386,9 @@ struct NativeLibraryView: View {
       openFolder(item.reference)
     } label: {
       VStack(alignment: .leading, spacing: 10) {
-        RoundedRectangle(cornerRadius: 16)
-          .fill(.quaternary)
-          .aspectRatio(4 / 3, contentMode: .fit)
-          .overlay {
-            Image(systemName: "folder.fill")
-              .font(.system(size: 48))
-              .foregroundStyle(.secondary)
-          }
-
-        Text(item.reference.path.last ?? item.reference.name)
-          .font(.headline)
-          .lineLimit(2)
+        LibraryNotebookCover(root: root, item: item, titled: true)
+          .aspectRatio(0.72, contentMode: .fit)
+          .frame(maxWidth: .infinity)
 
         if let modified = item.modified {
           Text(modified, format: .dateTime.month(.abbreviated).day().year())
@@ -468,9 +459,7 @@ struct NativeLibraryView: View {
       openFolder(item.reference)
     } label: {
       HStack(spacing: 14) {
-        Image(systemName: "folder.fill")
-          .font(.title2)
-          .foregroundStyle(.secondary)
+        LibraryNotebookCover(root: root, item: item, titled: false)
           .frame(width: 44, height: 58)
 
         VStack(alignment: .leading, spacing: 4) {
@@ -577,5 +566,75 @@ struct LibraryThumbnail: View {
         failed = true
       }
     }
+  }
+}
+
+@MainActor
+struct LibraryNotebookCover: View {
+  let root: NotesRootAccess
+  let item: LibraryFolderItem
+  let titled: Bool
+
+  @State private var details = LibraryFolderDetails(
+    description: "", paper: "dotted", coverColor: "#24324A", coverStyle: "classic", tags: [])
+  @State private var thumbnail: UIImage?
+
+  var body: some View {
+    ZStack(alignment: .leading) {
+      RoundedRectangle(cornerRadius: 6)
+        .fill(coverColor)
+      Rectangle()
+        .fill(coverColor.opacity(0.55))
+        .frame(width: details.coverStyle == "spine" ? 12 : 4)
+      VStack(spacing: titled ? 10 : 0) {
+        Group {
+          if let thumbnail {
+            Image(uiImage: thumbnail)
+              .resizable()
+              .scaledToFit()
+              .background(.white)
+          } else {
+            Color.clear
+          }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        if titled {
+          Text(item.reference.path.last ?? item.reference.name)
+            .font(.headline)
+            .foregroundStyle(.black.opacity(0.8))
+            .lineLimit(2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(.white)
+        }
+      }
+      .padding(titled ? 10 : 6)
+    }
+    .clipShape(RoundedRectangle(cornerRadius: 6))
+    .shadow(radius: titled ? 2 : 1, y: 1)
+    .task(id: item.modified) {
+      do {
+        details = try root.folderDetails(for: item.reference)
+        let listing = try root.library(in: item.reference, sort: .modified, direction: .descending)
+        if let first = listing.notebooks.first, let data = try root.thumbnail(first.reference) {
+          thumbnail = UIImage(data: data)
+        } else {
+          thumbnail = nil
+        }
+      } catch {
+        thumbnail = nil
+      }
+    }
+    .accessibilityLabel("\(item.reference.name) notebook cover")
+  }
+
+  private var coverColor: Color {
+    let hex = details.coverColor.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+    guard hex.count == 6, let rgb = UInt64(hex, radix: 16) else { return .secondary }
+    return Color(
+      red: Double((rgb >> 16) & 0xFF) / 255,
+      green: Double((rgb >> 8) & 0xFF) / 255,
+      blue: Double(rgb & 0xFF) / 255)
   }
 }
