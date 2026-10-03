@@ -69,12 +69,23 @@ test("A held stroke resolves only fitting shapes; a scribble erases crossed ink 
 
   const ellipse = Array.from({ length: 17 }, (_, i) => {
     const angle = 2 * Math.PI * i / 16;
-    return at(180 + 55 * Math.cos(angle), 420 + 25 * Math.sin(angle));
+    const along = 55 * Math.cos(angle);
+    const across = 25 * Math.sin(angle);
+    const rotation = Math.PI / 5;
+    return at(180 + along * Math.cos(rotation) - across * Math.sin(rotation),
+      420 + along * Math.sin(rotation) + across * Math.cos(rotation));
   });
   await draw(cdp, ellipse, true);
   const afterEllipse = await paths(page);
   expect(afterEllipse).toHaveLength(3);
   expect(afterEllipse[2].geometry.length).toBeGreaterThan(32);
+  const fitted = afterEllipse[2].geometry;
+  const meanX = fitted.reduce((sum, point) => sum + point[0], 0) / fitted.length;
+  const meanY = fitted.reduce((sum, point) => sum + point[1], 0) / fitted.length;
+  const covariance = fitted.reduce((sum, point) => sum + (point[0] - meanX) * (point[1] - meanY), 0);
+  const varianceX = fitted.reduce((sum, point) => sum + (point[0] - meanX) ** 2, 0);
+  const varianceY = fitted.reduce((sum, point) => sum + (point[1] - meanY) ** 2, 0);
+  expect(covariance / Math.sqrt(varianceX * varianceY), "the fitted ellipse keeps its drawn angle").toBeGreaterThan(0.25);
 
   await draw(cdp, [at(300, 395), at(345, 400), at(350, 445), at(305, 440), at(300, 395)], true);
   const afterPolygon = await paths(page);
