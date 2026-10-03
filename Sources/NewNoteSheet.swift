@@ -1,5 +1,6 @@
 import InkEngine
 import SwiftUI
+import UIKit
 
 struct NewNoteRequest {
   let title: String
@@ -125,6 +126,8 @@ struct NewNoteFormState: Equatable {
   }
 }
 
+
+@MainActor
 struct NewNoteSheet: View {
   let folders: [FolderReference]
   let templates: [String]
@@ -133,6 +136,7 @@ struct NewNoteSheet: View {
   let onCreate: (NewNoteRequest) -> Void
   let onSaveDraft: (NewNoteDraft) -> Void
   let onSaveTemplate: (NewNoteStartingTemplate) -> Void
+  let renderPreview: (String, InkPageSize, InkOrientation) throws -> Data
   let onCancel: () -> Void
 
   @State private var form: NewNoteFormState
@@ -151,6 +155,7 @@ struct NewNoteSheet: View {
     onCreate: @escaping (NewNoteRequest) -> Void,
     onSaveDraft: @escaping (NewNoteDraft) -> Void,
     onSaveTemplate: @escaping (NewNoteStartingTemplate) -> Void,
+    renderPreview: @escaping (String, InkPageSize, InkOrientation) throws -> Data,
     onCancel: @escaping () -> Void
   ) {
     self.folders = folders
@@ -160,6 +165,7 @@ struct NewNoteSheet: View {
     self.onCreate = onCreate
     self.onSaveDraft = onSaveDraft
     self.onSaveTemplate = onSaveTemplate
+    self.renderPreview = renderPreview
     self.onCancel = onCancel
     _form = State(
       initialValue: NewNoteFormState(
@@ -196,6 +202,16 @@ struct NewNoteSheet: View {
               Text(value.label).tag(value)
             }
           }
+        }
+
+        Section("Preview") {
+          NewNotePaperPreview(
+            template: form.template,
+            pageSize: form.pageSize,
+            orientation: form.orientation,
+            render: renderPreview)
+            .frame(maxWidth: .infinity)
+            .frame(height: 280)
         }
 
         Section("Tags") {
@@ -324,5 +340,70 @@ struct NewNoteSheet: View {
     let paper = displayName(settings.paper)
     let tags = "\(settings.tags.count) tag\(settings.tags.count == 1 ? "" : "s")"
     return "\(paper) · \(settings.pageSize.uppercased()) · \(tags)"
+  }
+}
+
+@MainActor
+private struct NewNotePaperPreview: View {
+  let template: String
+  let pageSize: NewNotePageSize
+  let orientation: NewNoteOrientation
+  let render: (String, InkPageSize, InkOrientation) throws -> Data
+
+  @State private var image: UIImage?
+  @State private var errorMessage: String?
+
+  private var key: String {
+    "\(template)|\(pageSize.rawValue)|\(orientation.rawValue)"
+  }
+
+  var body: some View {
+    ZStack {
+      RoundedRectangle(cornerRadius: 6)
+        .fill(Color(uiColor: .secondarySystemBackground))
+
+      if let image {
+        Image(uiImage: image)
+          .resizable()
+          .scaledToFit()
+          .accessibilityLabel("First page preview")
+      } else if let errorMessage {
+        VStack(spacing: 8) {
+          Image(systemName: "exclamationmark.triangle")
+          Text("Preview failed")
+            .font(.headline)
+          Text(errorMessage)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+        }
+        .padding()
+      } else {
+        ProgressView()
+          .accessibilityLabel("Loading first page preview")
+      }
+    }
+    .clipShape(RoundedRectangle(cornerRadius: 6))
+    .overlay {
+      RoundedRectangle(cornerRadius: 6)
+        .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
+    }
+    .task(id: key) {
+      image = nil
+      errorMessage = nil
+      do {
+        let data = try render(
+          template,
+          pageSize.engineValue,
+          orientation.engineValue)
+        guard let rendered = UIImage(data: data) else {
+          errorMessage = "The rendered preview was not a valid image."
+          return
+        }
+        image = rendered
+      } catch {
+        errorMessage = error.localizedDescription
+      }
+    }
   }
 }

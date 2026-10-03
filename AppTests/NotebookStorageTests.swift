@@ -291,6 +291,26 @@ final class NotebookStorageTests: XCTestCase {
   }
 
   @MainActor
+  func testPaperPreviewUsesTemplateAndRequestedGeometryWithoutCreatingANote() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let root = NotesRootAccess(testURL: directory)
+    let png = try root.paperPreview(
+      template: "dotted",
+      pageSize: INK_PAGE_LETTER,
+      orientation: INK_LANDSCAPE,
+      width: 160)
+    XCTAssertEqual(Array(png.prefix(8)), [137, 80, 78, 71, 13, 10, 26, 10])
+    let image = try XCTUnwrap(UIImage(data: png))
+    XCTAssertEqual(image.size.width, 160, accuracy: 0.5)
+    XCTAssertGreaterThan(image.size.width, image.size.height)
+    XCTAssertEqual(try root.notebooks(), [])
+  }
+
+  @MainActor
   func testPageSizeSettingUsesTheSharedDocument() throws {
     let document = EngineDocument(seed: 31)
 

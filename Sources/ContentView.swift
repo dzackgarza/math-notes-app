@@ -371,6 +371,7 @@ struct ContentView: View {
         onCreate: createNewNote,
         onSaveDraft: saveNewNoteDraft,
         onSaveTemplate: saveNewNoteStartingTemplate,
+        renderPreview: renderNewNotePreview,
         onCancel: { showingNewNote = false })
     }
     .sheet(item: $libraryMutation) { request in
@@ -1406,6 +1407,18 @@ struct ContentView: View {
     } catch {
       errorMessage = error.localizedDescription
     }
+  }
+
+  private func renderNewNotePreview(
+    _ template: String,
+    _ pageSize: InkPageSize,
+    _ orientation: InkOrientation
+  ) throws -> Data {
+    guard let root else { throw NotebookStorageError.cannotAccessRoot }
+    return try root.paperPreview(
+      template: template,
+      pageSize: pageSize,
+      orientation: orientation)
   }
 
   private func saveNewNoteDraft(_ draft: NewNoteDraft) {

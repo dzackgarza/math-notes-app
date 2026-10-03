@@ -1500,6 +1500,32 @@ final class NotesRootAccess {
   }
 
   @MainActor
+  func paperPreview(
+    template: String,
+    pageSize: InkPageSize,
+    orientation: InkOrientation,
+    width: Int = 480
+  ) throws -> Data {
+    try ensureBuiltinTemplates()
+    let pageURL = url
+      .appendingPathComponent(".templates", isDirectory: true)
+      .appendingPathComponent(template, isDirectory: true)
+      .appendingPathComponent("pages", isDirectory: true)
+      .appendingPathComponent("0001.svg")
+    guard try itemExists(at: [".templates", template, "pages", "0001.svg"]) else {
+      throw NotebookStorageError.missingTemplate(template)
+    }
+    let page = try coordinatedRead(at: pageURL) { try Data(contentsOf: $0) }
+    let document = try EngineDocument.createFromTemplate(
+      seed: 1,
+      name: template,
+      page: page,
+      pageSize: pageSize,
+      orientation: orientation)
+    return try document.pagePNG(index: 0, width: width)
+  }
+
+  @MainActor
   func applyTemplate(name: String, to document: EngineDocument) throws {
     try ensureBuiltinTemplates()
     let pageURL = url
