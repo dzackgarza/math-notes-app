@@ -220,7 +220,7 @@ they do not claim that every component is installed.
 | Rendered page text layout | [Skia Paragraph](https://skia.org/docs/user/modules/quickstart/) within the pinned Skia build | Shape and lay out stored authored text. |
 | Complete web GUI | [Flutter with Cupertino](reports/Web%20interface%20framework%20selection.md) | Controls, navigation, input, focus, scrolling, and HTML platform views. #56 pins the SDK and packages in the host build. |
 | iPad editor scroll and bottom pull | [UIScrollView](https://developer.apple.com/documentation/uikit/uiscrollview), [MJRefresh 3.7.9](https://github.com/CoderMJLee/MJRefresh/tree/3.7.9) | Native motion and bottom action. |
-| TikZ drawing workbench | [Visual TikZ Editor](https://github.com/dzackgarza/visual-tikz-editor) at `00c9960`, GPL-3.0 | Standalone diagram editor and reusable host contract; its pinned TikZ Editor fork owns supported geometry and source patches. |
+| TikZ drawing workbench | [Visual TikZ Editor](https://github.com/dzackgarza/visual-tikz-editor) at `da508b3`, GPL-3.0 | Standalone diagram editor and reusable host contract; its pinned TikZ Editor fork owns supported geometry and source patches. |
 | Figure editor host bridge | [Visual TikZ Editor host contract](https://github.com/dzackgarza/visual-tikz-editor/blob/main/src/host.ts) | The web host supplies source storage and figure identity to the embedded visual workbench. |
 
 ### Current engine
