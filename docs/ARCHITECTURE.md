@@ -195,8 +195,8 @@ call site already uses them. Source evidence and exact pins are in
 | History | The existing `DocumentHistory` and Immer document values own undo/redo. The notebook model tracks saved-file identity. |
 | Ink editing | Google Ink owns brush and stroke geometry. The current engine owns document edits, selection, erasure, and notebook mapping. #30 and #31 add ruled tools and reflow at this boundary, using the [Write assessment](ink-reflow-owners.md) as reference evidence. |
 | Persistence and offline lifecycle | File System Access, IndexedDB/idb-keyval, and Apple file coordination own storage mechanisms. #56 integrates offline asset caching and updates with the Flutter web build. The notebook-format and save-transaction adapters retain interruption and conflict behavior. |
-| Source syntax and graphics | pugixml 1.16 maps page SVG and InkML/namespaced metadata; nlohmann-json at vcpkg baseline `10541e31` owns notebook JSON syntax. Skia renders the current document. `@tikz-editor/core` owns TikZ syntax and source patches. The adapter maps documented fields and preserves authored source. |
-| Mathematical figures | The [TikZ mode contract](specs/tikz-drawing-mode.md) extracts a geometric TikZ skeleton for external figure refinement. The [permanent product boundary](../AGENTS.md#product-boundary-handwritten-drafts) keeps handwriting as ink and typesetting in external tools. FreeTikZ owns capture, TikZ Editor supplies supported geometry/source operations, and the app owns persistence and Copy TikZ. |
+| Source syntax and graphics | pugixml 1.16 maps page SVG and InkML/namespaced metadata; nlohmann-json at vcpkg baseline `10541e31` owns notebook JSON syntax. Skia renders the current document. Visual TikZ Editor owns diagram interpretation and TikZ source patches. The notebook adapter stores the authored source. |
+| Mathematical figures | The [TikZ mode contract](specs/tikz-drawing-mode.md) extracts a geometric TikZ skeleton for external figure refinement. [Visual TikZ Editor](https://github.com/dzackgarza/visual-tikz-editor) owns the diagram workbench and geometry interpretation. The app owns the selected doodle, figure identity, association with original ink, persistence, selection, and Copy TikZ. |
 
 ### Ink reflow owner survey
 
@@ -220,8 +220,8 @@ they do not claim that every component is installed.
 | Rendered page text layout | [Skia Paragraph](https://skia.org/docs/user/modules/quickstart/) within the pinned Skia build | Shape and lay out stored authored text. |
 | Complete web GUI | [Flutter with Cupertino](reports/Web%20interface%20framework%20selection.md) | Controls, navigation, input, focus, scrolling, and HTML platform views. #56 pins the SDK and packages in the host build. |
 | iPad editor scroll and bottom pull | [UIScrollView](https://developer.apple.com/documentation/uikit/uiscrollview), [MJRefresh 3.7.9](https://github.com/CoderMJLee/MJRefresh/tree/3.7.9) | Native motion and bottom action. |
-| TikZ figure editor and source patching | [TikZ Editor `app-v0.5.2` / `b8b0d001`](https://github.com/DominikPeters/tikz-editor/tree/app-v0.5.2), MIT; [Math Notes FreeTikZ fork `9e5fb05c`](https://github.com/dzackgarza/freetikz/tree/9e5fb05c22dbc5637ff7cebf99f3dbee6f962b68) | Complete React editor, `@tikz-editor/core`, CodeMirror 6; FreeTikZ keeps pen-first capture. |
-| Figure editor host bridge | [TeXlyre embed mirror `b98714d3`](https://github.com/TeXlyre/tikz-editor-embed-mirror/tree/b98714d3584ee849178f19cf44c7768ff9063f6e) protocol, web iframe and bounded iPad `WKWebView` | Host reads/writes notebook files; embedded editor sends source/SVG results. |
+| TikZ drawing workbench | [Visual TikZ Editor](https://github.com/dzackgarza/visual-tikz-editor) at `0fa0183`, GPL-3.0 | Standalone diagram editor and reusable host contract; its pinned TikZ Editor fork owns supported geometry and source patches. |
+| Figure editor host bridge | [Visual TikZ Editor host contract](https://github.com/dzackgarza/visual-tikz-editor/blob/main/src/host.ts) | The web host supplies source storage and figure identity to the embedded visual workbench. |
 
 ### Current engine
 
@@ -306,7 +306,7 @@ the current engine. Other rows identify external contracts at named boundaries.
 | Page ruling and templates | Write `page.cpp` `Page::generateRuleLayer`, `rulingdialog.cpp` presets | AGPL-3.0 |
 | Bookmarks and links | Write `scribblearea.cpp` (`MODE_BOOKMARK`, hyperref groups), `page.cpp` `Page::getHyperRef`, `bookmarkview.cpp` | AGPL-3.0 |
 | Clipping data and insertion semantics | Write `clippingview.cpp`; host components own panel controls and drag-and-drop | AGPL-3.0 |
-| TikZ drawing editor | TikZ Editor `app-v0.5.2` owns canvas/source editing; the FreeTikZ fork owns pen-first capture; see [drawing mode](specs/tikz-drawing-mode.md) | MIT |
+| TikZ drawing editor | [Visual TikZ Editor](https://github.com/dzackgarza/visual-tikz-editor) owns the diagram workbench; see [drawing mode](specs/tikz-drawing-mode.md) | GPL-3.0 |
 | PDF export, link annotations | Skia `docs/examples/PDF.cpp`, `include/core/SkAnnotation.h` | BSD-3 |
 | WebGL surface | Skia `modules/canvaskit/canvaskit_bindings.cpp` (`MakeGrContext`, `MakeOnScreenGLSurface`) | BSD-3 |
 | Metal surface | Skia `tools/window/ios/MetalWindowContext_ios.mm`, `SkSurfaces::WrapCAMetalLayer` | BSD-3 |
