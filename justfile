@@ -116,9 +116,9 @@ web-fetch:
     #!/usr/bin/env bash
     set -euo pipefail
     sha="$(git rev-parse HEAD)"
-    run="$(gh run list --workflow engine.yml --commit "$sha" --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+    run="$(gh run list --workflow engine.yml --commit "$sha" --limit 10 --json databaseId,status,conclusion --jq '[.[] | select(.status == "completed" and .conclusion == "success")][0].databaseId // empty')"
     if [ -z "$run" ]; then
-      echo "No Engine (wasm32) run for $sha: push the commit, or run: gh workflow run engine.yml --ref $(git branch --show-current)" >&2
+      echo "No successful Engine (wasm32) run for $sha: push the commit, or run: gh workflow run engine.yml --ref $(git branch --show-current)" >&2
       exit 1
     fi
     dir="hosts/web/flutter/build/ci/$run"

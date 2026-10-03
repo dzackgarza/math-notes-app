@@ -1,11 +1,15 @@
 // Live strokes follow google/ink in_progress_stroke.h:106-261 (Start,
 // EnqueueInputs(real, predicted), UpdateShape, FinishInputs, CopyToStroke).
 #include "editor/editor.h"
+#include "editor/shape_recognizer.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <limits>
 #include <numbers>
+#include <utility>
 
 #include "ink/brush/stock_brushes.h"
 #include "ink/color/color.h"
@@ -23,6 +27,36 @@ namespace ink_engine {
 namespace {
 
 constexpr float kBrushEpsilon = 0.01f;  // pt
+
+std::vector<Point> GuidePoints(int kind, Point center, double angle) {
+  std::vector<Point> points;
+  if (kind == 0) return points;
+  const double cosine = std::cos(angle), sine = std::sin(angle);
+  for (int x = -190; x <= 190; x += 5) {
+    const double y = kind == 2 ? -55 + 50 * std::pow((x - 30) / 220.0, 2) : 0;
+    points.push_back({center.x + cosine * x - sine * y,
+                      center.y + sine * x + cosine * y});
+  }
+  return points;
+}
+
+// Finite-segment projection follows JTS LineSegment.project/projectionFactor:
+// https://locationtech.github.io/jts/javadoc-1.18.0/org/locationtech/jts/geom/LineSegment.html
+std::pair<Point, double> ProjectToGuide(Point at, const std::vector<Point> &guide) {
+  Point nearest = at;
+  double distance2 = std::numeric_limits<double>::infinity();
+  for (size_t i = 1; i < guide.size(); ++i) {
+    Point a = guide[i - 1], b = guide[i];
+    const double dx = b.x - a.x, dy = b.y - a.y;
+    const double length2 = dx * dx + dy * dy;
+    if (length2 == 0) continue;
+    const double t = std::clamp(((at.x - a.x) * dx + (at.y - a.y) * dy) / length2, 0.0, 1.0);
+    Point candidate{a.x + t * dx, a.y + t * dy};
+    const double error2 = std::pow(at.x - candidate.x, 2) + std::pow(at.y - candidate.y, 2);
+    if (error2 < distance2) { distance2 = error2; nearest = candidate; }
+  }
+  return {nearest, std::sqrt(distance2)};
+}
 
 InkPenSample SensorAtTime(const std::vector<InkPenSample> &sensor, double time) {
   if (time <= sensor.front().time) return sensor.front();
@@ -337,7 +371,8 @@ Editor::SnapGrid Editor::GridFor(const Background &background) {
 }
 
 std::vector<InkPenSample> Editor::ProcessedSamples(
-    const std::vector<InkPenSample> &sensor, const Pen &pen, SnapGrid grid) {
+    const std::vector<InkPenSample> &sensor, const Pen &pen, SnapGrid grid,
+    const std::vector<Point> &guide) {
   std::vector<InkPenSample> result = sensor;
   // Write scribblearea.cpp:1473-1496, 1662-1683: quantize input before
   // constructing connected line segments; line endpoints can share the grid.
@@ -354,6 +389,13 @@ std::vector<InkPenSample> Editor::ProcessedSamples(
       const double fraction = double(i) / double(result.size() - 1);
       result[i].x = x0 + fraction * dx;
       result[i].y = y0 + fraction * dy;
+    }
+  }
+  if (!guide.empty()) {
+    for (InkPenSample &sample : result) {
+      Point projected = ProjectToGuide({sample.x, sample.y}, guide).first;
+      sample.x = projected.x;
+      sample.y = projected.y;
     }
   }
   return result;
@@ -394,6 +436,15 @@ void Editor::Input(const InkPenSample *samples, size_t count) {
       live_.emplace(LiveStroke{.tool = InkTool(s.tool), .t0 = s.time, .pen = pen_,
                                .origin = {placement->x, placement->y},
                                .grid = GridFor(document().pages[page_]->background)});
+      if (guide_kind_) {
+        std::vector<Point> guide = GuidePoints(guide_kind_, guide_center_, guide_angle_);
+        for (Point &point : guide) {
+          Point content = ToContent(view_, point.x, point.y);
+          point = {content.x - live_->origin.x, content.y - live_->origin.y};
+        }
+        if (ProjectToGuide({at.x - live_->origin.x, at.y - live_->origin.y}, guide).second
+            <= 26 / ViewScale()) live_->guide = std::move(guide);
+      }
       live_->stroke.Start(MakeBrush(pen_));
     }
     if (!live_ || s.tool != live_->tool) continue;
@@ -422,11 +473,11 @@ void Editor::Input(const InkPenSample *samples, size_t count) {
   // The pen-up batch carries no prediction: google/ink keeps the smoothing of
   // the last real inputs over predicted ones (TRAPS.md).
   if (ended) predicted.clear();
-  if (live_->pen.modes & 2) {
-    live_->real = ProcessedSamples(live_->sensor, live_->pen, live_->grid);
+  if ((live_->pen.modes & 2) || !live_->guide.empty()) {
+    live_->real = ProcessedSamples(live_->sensor, live_->pen, live_->grid, live_->guide);
     std::vector<InkPenSample> preview = live_->sensor;
     if (!predicted.empty()) preview.push_back(predicted.back());
-    preview = ProcessedSamples(preview, live_->pen, live_->grid);
+    preview = ProcessedSamples(preview, live_->pen, live_->grid, live_->guide);
     if (preview.size() > 2) preview.erase(preview.begin() + 1, preview.end() - 1);
     live_->stroke = ink::InProgressStroke{};
     live_->stroke.Start(MakeBrush(live_->pen));
@@ -450,6 +501,35 @@ void Editor::Commit() {
   LiveStroke live = std::move(*live_);
   live_.reset();
   if (live.pen.modes & 4) return;  // Write scribblearea.cpp:1959: discard temporary ink on pen up.
+  if (!figure_capture_ && IsEraseScribble(live.sensor, ViewScale())) {
+    const double radius = kEraserRadius / ViewScale();
+    erase_.emplace(EraseGesture{.kind = INK_ERASER_FREE,
+                                .tool = live.tool,
+                                .page = page_,
+                                .origin = live.origin,
+                                .last = {live.sensor.front().x, live.sensor.front().y},
+                                .radius = radius,
+                                .time = IsoTime(live.sensor.back().time + utc_offset_ms_),
+                                .shown = document()});
+    EraseAlong(erase_->last, erase_->last);
+    for (size_t i = 1; i < live.sensor.size(); ++i)
+      EraseAlong({live.sensor[i - 1].x, live.sensor[i - 1].y},
+                 {live.sensor[i].x, live.sensor[i].y});
+    if (!erase_->hit.empty() || !erase_->free.empty()) {
+      CommitErase();
+      return;
+    }
+    erase_.reset();
+  }
+  bool recognized = false;
+  if (!figure_capture_ && !(live.pen.modes & 2) && live.guide.empty()) {
+    if (auto fit = RecognizeHeldStroke(live.sensor, ViewScale())) {
+      fit->back().time = live.sensor.back().time;
+      live.real = std::move(*fit);
+      live.updated = true;
+      recognized = true;
+    }
+  }
   live.stroke.FinishInputs();
   (void)live.stroke.UpdateShape(ink::Duration32::Infinite());
   // Samples replaced by ink_input_update after they were enqueued: build the
@@ -473,7 +553,7 @@ void Editor::Commit() {
   for (std::vector<InkPenSample> &piece : pieces) {
     double t0 = whole ? live.t0 : piece.front().time;
     ink::Stroke piece_stroke = whole ? ink_stroke : ink::Stroke(MakeBrush(live.pen), Batch(piece, t0));
-    std::vector<InkPenSample> sensor = (live.pen.modes & 3)
+    std::vector<InkPenSample> sensor = ((live.pen.modes & 3) || recognized || !live.guide.empty())
         ? SensorSpan(live.sensor, piece.front().time, piece.back().time)
         : std::vector<InkPenSample>{};
     std::string id = history_->ids().StrokeId();
@@ -483,7 +563,8 @@ void Editor::Commit() {
     elements = live.pen.brush == INK_BRUSH_HIGHLIGHTER ? std::move(elements).push_front(box)
                                                        : std::move(elements).push_back(box);
     committed_.push_back({id, page_, layer_, t0, live.pen, live.origin,
-                          std::move(piece), std::move(sensor), live.grid});
+                          std::move(piece), std::move(sensor), live.grid, recognized,
+                          live.guide});
     if (figure_capture_) figure_capture_->stroke_ids.insert(id);
   }
   next.pages = next.pages.set(page_, immer::box<Page>(std::move(page)));
@@ -705,20 +786,29 @@ void Editor::InputUpdate(const InkPenSample *samples, size_t count) {
       return false;
     };
     if (live_) {
-      const bool transformed = live_->pen.modes & 3;
+      const bool transformed = (live_->pen.modes & 3) || !live_->guide.empty();
       if (replace(transformed ? live_->sensor : live_->real, live_->origin)) {
         if (transformed)
-          live_->real = ProcessedSamples(live_->sensor, live_->pen, live_->grid);
+          live_->real = ProcessedSamples(live_->sensor, live_->pen, live_->grid, live_->guide);
         live_->updated = true;
         continue;
       }
     }
     for (size_t k = committed_.size(); k-- > 0;) {
       CommittedStroke &stroke = committed_[k];
-      const bool transformed = stroke.pen.modes & 3;
+      const bool transformed = (stroke.pen.modes & 3) || stroke.recognized || !stroke.guide.empty();
       if (replace(transformed ? stroke.sensor : stroke.real, stroke.origin)) {
-        if (transformed)
-          stroke.real = ProcessedSamples(stroke.sensor, stroke.pen, stroke.grid);
+        if (stroke.recognized) {
+          if (auto fit = RecognizeHeldStroke(stroke.sensor, ViewScale())) {
+            fit->back().time = stroke.sensor.back().time;
+            stroke.real = std::move(*fit);
+          } else {
+            stroke.real = ProcessedSamples(stroke.sensor, stroke.pen, stroke.grid);
+            stroke.recognized = false;
+          }
+        } else if (transformed) {
+          stroke.real = ProcessedSamples(stroke.sensor, stroke.pen, stroke.grid, stroke.guide);
+        }
         changed[k] = true;
         break;
       }

@@ -271,6 +271,7 @@ extension type Canvas(JSObject value) implements JSObject {
     double e,
     double f,
   );
+  external void setGuide(int kind, double x, double y, double angle);
   external void setSurfaceSize(double width, double height, double ratio);
   external void setTool(ToolSettings tool);
   external void setEraser(int kind, bool active);

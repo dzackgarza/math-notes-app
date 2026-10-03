@@ -711,6 +711,16 @@ InkStatus ink_canvas_set_view(InkCanvas *canvas, double a, double b, double c, d
   });
 }
 
+InkStatus ink_canvas_set_guide(InkCanvas *canvas, int32_t kind, double x, double y, double angle) {
+  return Call([&] {
+    if (!canvas) return NullArgument("canvas");
+    if (kind < 0 || kind > 2 || !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(angle))
+      return Fail(INK_ERROR_ARGUMENT, "invalid guide");
+    canvas->editor.SetGuide(kind, x, y, angle);
+    return INK_OK;
+  });
+}
+
 InkStatus ink_canvas_set_surface_size(InkCanvas *canvas, int32_t width, int32_t height,
                                       float pixel_ratio) {
   return Call([&] {

@@ -10,12 +10,19 @@
     "immer",
     "libtess2",
     "nlohmann-json",
-    "pugixml"
+    "pugixml",
+    "eigen3",
+    {
+      "name": "opencv4",
+      "default-features": false
+    }
   ],
   "features": {
     "tests": {
       "description": "Catch2 test suite",
-      "dependencies": ["catch2"]
+      "dependencies": [
+        "catch2"
+      ]
     }
   }
 }

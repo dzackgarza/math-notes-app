@@ -254,6 +254,9 @@ InkStatus ink_canvas_create_metal(InkDocument *document, void *device, void *que
    gap, each centered on the widest. */
 InkStatus ink_canvas_set_view(InkCanvas *canvas, double a, double b, double c, double d, double e,
                               double f);
+/* Transient straight (1) or French curve (2) guide in view coordinates;
+   kind 0 hides it. The guide never enters the document. */
+InkStatus ink_canvas_set_guide(InkCanvas *canvas, int32_t kind, double x, double y, double angle);
 /* The surface size in device pixels, and device pixels per view unit (CSS
    devicePixelRatio, UIKit contentScaleFactor). */
 InkStatus ink_canvas_set_surface_size(InkCanvas *canvas, int32_t width, int32_t height,
