@@ -786,6 +786,10 @@ export class Canvas {
     this.engine.check(this.engine.module._ink_canvas_set_view(this.pointer, a, b, c, d, e, f));
   }
 
+  setGuide(kind: number, x: number, y: number, angle: number): void {
+    this.engine.check(this.engine.module._ink_canvas_set_guide(this.pointer, kind, x, y, angle));
+  }
+
   setSurfaceSize(width: number, height: number, pixelRatio: number): void {
     this.engine.check(this.engine.module._ink_canvas_set_surface_size(this.pointer, width, height, pixelRatio));
   }

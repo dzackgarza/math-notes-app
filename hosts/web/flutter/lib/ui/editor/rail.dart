@@ -92,6 +92,40 @@ extension _EditorRail on _EditorScreenState {
     );
   }
 
+  Future<void> rulerPopover(BuildContext anchor) => popover(
+    anchor,
+    'Ruler',
+    210,
+    (context, update) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final (kind, title, icon) in [
+          (1, 'Straight ruler', LucideIcons.ruler),
+          (2, 'French curve', LucideIcons.spline),
+          (0, 'Hide ruler', LucideIcons.eyeOff),
+        ])
+          CupertinoButton(
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            onPressed: () {
+              setState(() {
+                guideKind = kind;
+                guideCenter ??= Offset(width / 2, height / 2);
+              });
+              updateView();
+              Navigator.of(context).pop();
+            },
+            child: Row(
+              children: [
+                Icon(icon, size: 20, color: guideKind == kind ? accent : label),
+                const SizedBox(width: 12),
+                Text(title, style: body.copyWith(color: label)),
+              ],
+            ),
+          ),
+      ],
+    ),
+  );
+
   // The current color of the drawing tool; it opens the color popover.
   Widget colorDot() {
     final rgb = pens == null ? null : penTool.rgb;
@@ -284,6 +318,12 @@ extension _EditorRail on _EditorScreenState {
             [
               for (final kind in _railInserters)
                 if (!hiddenTools.contains(kind)) kindButton(kind),
+              toolButton(
+                'Ruler',
+                LucideIcons.ruler,
+                selected: guideKind != 0,
+                onPressed: canvas == null ? null : (anchor) => unawaited(rulerPopover(anchor)),
+              ),
               toolButton(
                 'Clippings',
                 LucideIcons.inbox,

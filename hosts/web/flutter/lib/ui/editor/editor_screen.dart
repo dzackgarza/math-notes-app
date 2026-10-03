@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:js_interop';
+import 'dart:math' as math;
 import 'dart:ui' show SemanticsRole;
 import 'dart:ui' as ui show Image;
 import 'dart:ui_web' as ui_web;
@@ -40,6 +41,7 @@ part 'editor_popovers.dart';
 part 'editor_dialogs.dart';
 part 'clippings_panel.dart';
 part 'figure_panel.dart';
+part 'guide_overlay.dart';
 
 class EditorScreen extends StatefulWidget {
   const EditorScreen({
@@ -102,6 +104,9 @@ class _EditorScreenState extends State<EditorScreen> {
   int? frameRequest;
   late final String viewType;
   int conflicts = 0;
+  int guideKind = 0;
+  Offset? guideCenter;
+  double guideAngle = 0;
   EditorViewModel get editor => context.read<EditorViewModel>();
   ToolsViewModel get tools => context.read<ToolsViewModel>();
   native.Canvas? get canvas => editor.canvas;
@@ -350,6 +355,8 @@ class _EditorScreenState extends State<EditorScreen> {
   void updateView() {
     final target = canvas;
     if (target == null) return;
+    final center = guideCenter ?? Offset(width / 2, height / 2);
+    target.setGuide(guideKind, center.dx, center.dy, guideAngle);
     final matrix = transform.value;
     final scale = matrix.getMaxScaleOnAxis();
     final offset = scroll.hasClients ? scroll.offset : 0.0;
@@ -1790,6 +1797,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                         ),
                                       ),
                                     ),
+                                    if (guideKind != 0) guideOverlay(),
                                     ...overlays(),
                                   ],
                                 ),

@@ -24,10 +24,12 @@ figure typesetting take place in external authoring tools.
 - Diagram geometry interpretation does not authorize interpretation of
   handwriting. Ink reflow concerns spatial layout, not textual meaning.
 - Ordinary notebook ink stays rough. Explicit pen modes may snap input to a
-  grid or draw straight segments. Holding at the end of a stroke may resolve
-  its geometry to a shape. These actions do not interpret written words or
-  formulas. TikZ mode extracts diagram structure from a selected doodle for
-  external figure work; it does not change notebook ink into TikZ.
+  grid or draw straight segments. A held pen stroke may resolve to a line,
+  circle, ellipse, polygon, or arc when its full path fits that shape. Save
+  its original movement beside the resolved path. An unmatched stroke stays
+  rough. These actions do not interpret written words or formulas. TikZ mode
+  extracts diagram structure from a selected doodle for external figure work;
+  it does not change notebook ink into TikZ.
 
 These are permanent product boundaries, not features deferred beyond v1.
 Dependency capabilities and agent-written surveys cannot expand them. Read
