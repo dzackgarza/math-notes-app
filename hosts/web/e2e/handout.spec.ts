@@ -226,7 +226,7 @@ test("Flutter handout session: a figure, typed text, ten pages, an annotated PDF
     expect(execFileSync("qpdf", ["--check", pdfPath], { encoding: "utf8" })).toContain("No syntax or stream encoding errors found");
     const infoText = execFileSync("pdfinfo", [pdfPath], { encoding: "utf8" });
     expect(infoText).toMatch(/Pages:\s+10/);
-    expect(infoText).toMatch(/Page size:\s+595 x 842 pts \(A4\)/);
+    expect(infoText).toMatch(/Page size:\s+595\.28 x 841\.89 pts \(A4\)/);
   });
 
   // The imported paper, a Letter PDF of two pages.
