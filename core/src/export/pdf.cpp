@@ -24,6 +24,8 @@ bool ExportPdf(const Document &document, const Assets &assets, const char *title
   metadata.fCreator = "Math Notes";
   metadata.fCreation = {0, 2000, 1, 1, 0, 0, 0, 0};
   metadata.fModified = metadata.fCreation;
+  // SkPDFDocument rounds page bounds at fRasterDPI / 72; keep hundredth-point sizes.
+  metadata.fRasterDPI = 7200;
   sk_sp<SkDocument> output = SkPDF::MakeDocument(&stream, metadata);
   if (!output) return false;
   Renderer renderer(nullptr, assets);

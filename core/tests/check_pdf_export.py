@@ -55,7 +55,11 @@ def check_fixture(source: Path, output: Path) -> None:
             width, height = expected_size(source, page["file"])
             x0, y0, x1, y1 = boxes[number]
             if abs((x1 - x0) - width) > 0.02 or abs((y1 - y0) - height) > 0.02:
-                raise AssertionError(f"{source.name} page {number}: PDF size differs from SVG")
+                raise AssertionError(
+                    f"{source.name} page {number}: PDF size "
+                    f"{x1 - x0:g} x {y1 - y0:g} pt differs from SVG "
+                    f"{width:g} x {height:g} pt"
+                )
 
             engine = Image.open(output / f"{source.name}-{number}.png").convert("RGB")
             prefix = Path(temporary) / f"{source.name}-{number}"
