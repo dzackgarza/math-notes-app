@@ -581,10 +581,22 @@ struct ContentView: View {
         primaryEditors
       }
     }
-    .navigationTitle(session?.reference.name ?? "")
+    .background(NativeTheme.board)
+    .foregroundStyle(NativeTheme.ink)
+    .tint(NativeTheme.ink)
+    .font(NativeTheme.body)
+    .navigationTitle("")
     .navigationBarTitleDisplayMode(.inline)
+    .toolbarBackground(NativeTheme.board, for: .navigationBar)
+    .toolbarBackground(.visible, for: .navigationBar)
     .toolbar {
       if let session {
+        ToolbarItem(placement: .principal) {
+          Text(session.reference.name)
+            .font(NativeTheme.headline)
+            .foregroundStyle(NativeTheme.ink)
+            .lineLimit(1)
+        }
         ToolbarItem(placement: .topBarLeading) {
           Button(action: showLibrary) {
             Label("Library", systemImage: "chevron.left")
@@ -645,7 +657,9 @@ struct ContentView: View {
           }
           .padding(.horizontal, 12)
           .frame(minHeight: 36)
-          .background(Color(uiColor: .secondarySystemBackground))
+          .background(NativeTheme.board)
+          .foregroundStyle(NativeTheme.ink)
+          .font(NativeTheme.callout)
 
           editorPane(
             secondary,
@@ -747,7 +761,8 @@ struct ContentView: View {
             } label: {
               Text(note.reference.name)
                 .lineLimit(1)
-                .fontWeight(selected ? .semibold : .regular)
+                .font(selected ? NativeTheme.headline : NativeTheme.callout)
+                .foregroundStyle(selected ? NativeTheme.ink : NativeTheme.graphite)
                 .padding(.leading, 10)
                 .padding(.vertical, 7)
             }
@@ -759,21 +774,27 @@ struct ContentView: View {
               closeOpenNote(note.id)
             } label: {
               Image(systemName: "xmark")
-                .font(.caption)
+                .font(.system(size: 14))
+                .foregroundStyle(NativeTheme.graphite)
                 .padding(7)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Close \(note.reference.name)")
           }
           .background(
-            selected ? Color(uiColor: .tertiarySystemFill) : Color.clear,
+            selected ? NativeTheme.leaf : Color.clear,
             in: RoundedRectangle(cornerRadius: 8))
+          .overlay(alignment: .trailing) {
+            Rectangle()
+              .fill(NativeTheme.separator)
+              .frame(width: 1)
+          }
         }
       }
       .padding(.horizontal, 8)
       .padding(.vertical, 5)
     }
-    .background(Color(uiColor: .secondarySystemBackground))
+    .background(NativeTheme.board)
   }
 
   @ViewBuilder

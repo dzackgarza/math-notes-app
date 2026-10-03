@@ -191,10 +191,11 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   override func viewDidLoad() {
     super.viewDidLoad()
 
-    view.backgroundColor = .systemGroupedBackground
+    view.backgroundColor = NativeTheme.boardUI
     view.addInteraction(UIPencilInteraction(delegate: self))
 
     scrollView.translatesAutoresizingMaskIntoConstraints = false
+    scrollView.backgroundColor = NativeTheme.boardUI
     scrollView.delegate = self
     scrollView.alwaysBounceVertical = true
     scrollView.alwaysBounceHorizontal = true
@@ -567,10 +568,13 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     selectionBar.isLayoutMarginsRelativeArrangement = true
     selectionBar.directionalLayoutMargins = NSDirectionalEdgeInsets(
       top: 2, leading: 2, bottom: 2, trailing: 2)
-    selectionBar.backgroundColor = .secondarySystemBackground
+    selectionBar.backgroundColor = NativeTheme.leafUI
+    selectionBar.tintColor = NativeTheme.inkUI
     selectionBar.layer.cornerRadius = 12
-    selectionBar.layer.shadowColor = UIColor.black.cgColor
-    selectionBar.layer.shadowOpacity = 0.12
+    selectionBar.layer.borderColor = NativeTheme.inkUI.withAlphaComponent(0.16).cgColor
+    selectionBar.layer.borderWidth = 1
+    selectionBar.layer.shadowColor = NativeTheme.inkUI.cgColor
+    selectionBar.layer.shadowOpacity = 0.18
     selectionBar.layer.shadowRadius = 8
     selectionBar.layer.shadowOffset = CGSize(width: 0, height: 3)
     selectionBar.isHidden = true
@@ -597,8 +601,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       label: "Remove bookmark or link", systemImage: "link.badge.minus", action: #selector(ungroupSelection)))
     selectionBar.addArrangedSubview(selectionButton(
       label: "Save to clippings", systemImage: "tray.and.arrow.down", action: #selector(saveClipping)))
-    selectionBar.addArrangedSubview(selectionButton(
-      label: "Delete selection", systemImage: "trash", action: #selector(deleteSelection)))
+    let deleteSelection = selectionButton(
+      label: "Delete selection", systemImage: "trash", action: #selector(deleteSelection))
+    deleteSelection.tintColor = NativeTheme.ribbonUI
+    selectionBar.addArrangedSubview(deleteSelection)
     view.addSubview(selectionBar)
   }
 
@@ -611,6 +617,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private func selectionMenuButton(label: String, systemImage: String) -> UIButton {
     let button = UIButton(type: .system)
     button.setImage(UIImage(systemName: systemImage), for: .normal)
+    button.tintColor = NativeTheme.inkUI
     button.accessibilityLabel = label
     button.addTarget(self, action: #selector(focusEditor), for: .touchDown)
     button.widthAnchor.constraint(equalToConstant: 44).isActive = true
@@ -1536,7 +1543,7 @@ struct InkEditorView: View {
         VStack(alignment: .leading, spacing: 10) {
           HStack {
             Text("TikZ figure")
-              .font(.headline)
+              .font(NativeTheme.headline)
             Spacer()
             Button("Copy", systemImage: "doc.on.doc") {
               UIPasteboard.general.string = figureSource
@@ -1547,7 +1554,7 @@ struct InkEditorView: View {
           ScrollView {
             Text(figureSource.isEmpty ? "Draw on the page to build the figure." : figureSource)
               .font(.system(.caption, design: .monospaced))
-              .foregroundStyle(figureSource.isEmpty ? .secondary : .primary)
+              .foregroundStyle(figureSource.isEmpty ? NativeTheme.graphite : NativeTheme.ink)
               .textSelection(.enabled)
               .frame(maxWidth: .infinity, alignment: .topLeading)
           }
@@ -1559,11 +1566,13 @@ struct InkEditorView: View {
         }
         .padding(16)
         .frame(minWidth: 280, maxWidth: 280, minHeight: 260, maxHeight: 520, alignment: .topLeading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .foregroundStyle(NativeTheme.ink)
+        .background(NativeTheme.leaf, in: RoundedRectangle(cornerRadius: 16))
         .overlay {
           RoundedRectangle(cornerRadius: 16)
-            .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
+            .stroke(NativeTheme.separator, lineWidth: 1)
         }
+        .shadow(color: NativeTheme.ink.opacity(0.18), radius: 9, y: 3)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         .padding(8)
       }
@@ -1572,16 +1581,19 @@ struct InkEditorView: View {
         HStack(spacing: 10) {
           Image(systemName: "bookmark")
           Text("Add Bookmark")
-            .fontWeight(.semibold)
+            .font(NativeTheme.subhead)
           Text("Tap the line to mark.")
-            .foregroundStyle(.secondary)
+            .font(NativeTheme.callout)
+            .foregroundStyle(NativeTheme.graphite)
           Button("Done") {
             bookmarkMode = false
           }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
-        .background(.regularMaterial, in: Capsule())
+        .foregroundStyle(NativeTheme.ink)
+        .background(NativeTheme.leaf, in: Capsule())
+        .shadow(color: NativeTheme.ink.opacity(0.18), radius: 9, y: 3)
         .frame(maxWidth: .infinity, alignment: .top)
         .padding(.top, 8)
         .padding(.horizontal, 80)
@@ -1591,7 +1603,7 @@ struct InkEditorView: View {
         HStack(spacing: 10) {
           Image(systemName: "link")
           Text("Follow links")
-            .fontWeight(.semibold)
+            .font(NativeTheme.subhead)
           Button {
             tool = drawingTool
           } label: {
@@ -1601,7 +1613,9 @@ struct InkEditorView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
-        .background(.regularMaterial, in: Capsule())
+        .foregroundStyle(NativeTheme.ink)
+        .background(NativeTheme.leaf, in: Capsule())
+        .shadow(color: NativeTheme.ink.opacity(0.18), radius: 9, y: 3)
         .frame(maxWidth: .infinity, alignment: .top)
         .padding(.top, 8)
         .padding(.horizontal, 80)

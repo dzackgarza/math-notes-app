@@ -240,6 +240,7 @@ struct EditorToolRail: View {
         railButton(label: "Clippings", systemImage: "tray", action: showClippings)
 
         Divider()
+          .overlay(NativeTheme.separator)
           .frame(width: 28)
 
         UndoDialButton(undo: undo, redo: redo)
@@ -251,11 +252,13 @@ struct EditorToolRail: View {
       colorButton
     }
     .padding(8)
-    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+    .foregroundStyle(NativeTheme.ink)
+    .background(NativeTheme.leaf, in: RoundedRectangle(cornerRadius: 16))
     .overlay {
       RoundedRectangle(cornerRadius: 16)
-        .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
+        .stroke(NativeTheme.separator, lineWidth: 1)
     }
+    .shadow(color: NativeTheme.ink.opacity(0.18), radius: 9, y: 3)
     .padding(.leading, 8)
     .padding(.top, 8)
     .popover(item: $editingPen, arrowEdge: .leading) { item in
@@ -293,7 +296,7 @@ struct EditorToolRail: View {
         .frame(width: 28, height: 28)
         .overlay {
           Circle()
-            .stroke(Color.primary, lineWidth: 2)
+            .stroke(NativeTheme.ink, lineWidth: 2)
         }
         .frame(width: 42, height: 42)
     }
@@ -446,9 +449,9 @@ struct EditorToolRail: View {
         .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
-    .foregroundStyle(selected ? Color.accentColor : Color.primary)
+    .foregroundStyle(selected ? NativeTheme.ribbon : NativeTheme.ink)
     .background(
-      selected ? Color.accentColor.opacity(0.14) : Color.clear,
+      selected ? NativeTheme.ribbon.opacity(0.12) : Color.clear,
       in: RoundedRectangle(cornerRadius: 10))
     .accessibilityLabel(label)
     .accessibilityValue(selected ? "Selected" : "")
