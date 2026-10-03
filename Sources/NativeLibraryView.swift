@@ -470,7 +470,8 @@ struct NativeLibraryView: View {
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 16)
-    .frame(width: 220, maxHeight: .infinity, alignment: .topLeading)
+    .frame(width: 220)
+    .frame(maxHeight: .infinity, alignment: .topLeading)
     .background(NativeTheme.board)
   }
 
