@@ -62,8 +62,8 @@ extension _ClippingsPanel on _EditorScreenState {
                 children: [
                   for (final (i, item) in clippings.indexed)
                     Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Column(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      child: Row(
                         children: [
                           LongPressDraggable<SelectionTransfer>(
                             data: SelectionTransfer(() => clippingSource(item)),
@@ -75,6 +75,8 @@ extension _ClippingsPanel on _EditorScreenState {
                             child: MergeSemantics(
                               child: withEnabledState(
                                 CupertinoButton(
+                                  padding: EdgeInsets.zero,
+                                  minSize: 72,
                                   onPressed: drawing
                                       ? null
                                       : () => run(() async {
@@ -92,45 +94,57 @@ extension _ClippingsPanel on _EditorScreenState {
                                         }),
                                   child: Image.memory(
                                     item.png.toDart,
+                                    width: 72,
+                                    height: 72,
+                                    fit: BoxFit.contain,
                                     semanticLabel: 'Insert clipping ${i + 1}',
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              for (final action in ['up', 'down', 'delete'])
-                                withEnabledState(
-                                  CupertinoButton(
-                                    onPressed:
-                                        (action == 'up' && i == 0) ||
-                                            (action == 'down' &&
-                                                i == clippings.length - 1)
-                                        ? null
-                                        : () => run(() async {
-                                            await native.host
-                                                .changeClipping(
-                                                  widget.engine,
-                                                  widget.note.root,
-                                                  item.id,
-                                                  action,
-                                                )
-                                                .toDart;
-                                            await refreshClippings();
-                                          }),
-                                    child: Semantics(
-                                      label: '$action clipping',
-                                      child: Icon(switch (action) {
-                                        'up' => CupertinoIcons.arrow_up,
-                                        'down' => CupertinoIcons.arrow_down,
-                                        _ => CupertinoIcons.trash,
-                                      }),
-                                    ),
-                                  ),
+                          Expanded(
+                            child: Column(
+                              children: [
+                                Text('Clipping ${i + 1}'),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    for (final action in ['up', 'down', 'delete'])
+                                      withEnabledState(
+                                        CupertinoButton(
+                                          padding: const EdgeInsets.all(6),
+                                          minSize: 32,
+                                          onPressed:
+                                              (action == 'up' && i == 0) ||
+                                                  (action == 'down' &&
+                                                      i == clippings.length - 1)
+                                              ? null
+                                              : () => run(() async {
+                                                  await native.host
+                                                      .changeClipping(
+                                                        widget.engine,
+                                                        widget.note.root,
+                                                        item.id,
+                                                        action,
+                                                      )
+                                                      .toDart;
+                                                  await refreshClippings();
+                                                }),
+                                          child: Semantics(
+                                            label: '$action clipping',
+                                            child: Icon(switch (action) {
+                                              'up' => CupertinoIcons.arrow_up,
+                                              'down' => CupertinoIcons.arrow_down,
+                                              _ => CupertinoIcons.trash,
+                                            }, size: 18),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
-                            ],
+                              ],
+                            ),
                           ),
                         ],
                       ),

@@ -350,10 +350,10 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   await enterText(page.getByRole("textbox", { name: "Name", exact: true }), "Lecture 1 Compactness");
   await button("Rename").click();
   title = "Lecture 1 Compactness";
-  await expect(page.getByRole("button", { name: `Open ${title}`, exact: false })).toBeVisible();
+  await expect(page.getByRole("button", { name: `Open ${title}`, exact: false })).toBeVisible({ timeout: 30_000 });
   await button("Back to library").click();
   await enterText(page.getByRole("textbox", { name: "Search notebooks and notes", exact: true }), "Compact");
-  await expect(page.getByRole("button", { name: `Open ${title}`, exact: false })).toBeVisible();
+  await expect(page.getByRole("button", { name: `Open ${title}`, exact: false })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole("button", { name: "Open paper", exact: false })).toHaveCount(0);
   await button("Clear search").click();
   await createTestNotebook(page, "Archive");

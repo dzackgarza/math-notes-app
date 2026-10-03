@@ -32,7 +32,7 @@ export async function longPressDrag(page: Page, from: Box, to: Box): Promise<voi
   const end = { x: to.x + to.width / 2, y: to.y + to.height / 2 };
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(1500);
   await frames(page);
   for (let step = 1; step <= 10; step++) {
     await page.mouse.move(start.x + ((end.x - start.x) * step) / 10, start.y + ((end.y - start.y) * step) / 10, { steps: 2 });

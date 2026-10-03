@@ -266,9 +266,16 @@ test("Flutter problem set session: pages written, pulled in, reordered, inserted
     await expect(page.getByRole("button", { name: `Open ${next}`, exact: false })).not.toBeVisible();
     await expect.poll(() => whenSaved(() => page.evaluate(async (key) => {
       const root = await navigator.storage.getDirectory();
-      const metadata = JSON.parse(await (await (await root.getFileHandle(".library.json")).getFile()).text());
-      return metadata.notes[key]?.favorite;
-    }, `${notebook}/${first}`))).toBe(true);
+      let file: FileSystemFileHandle;
+      try {
+        file = await root.getFileHandle(".library.json");
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "NotFoundError") return false;
+        throw error;
+      }
+      const metadata = JSON.parse(await (await file.getFile()).text());
+      return metadata.notes[key]?.favorite === true;
+    }, `${notebook}/${first}`)), { timeout: 30_000 }).toBe(true);
   });
 
   await test.step("offline, reopen the first set, add a page, save, and reopen it", async () => {

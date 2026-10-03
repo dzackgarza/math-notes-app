@@ -170,24 +170,8 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   await button("Lasso").click();
   await lasso(box.y + 130, box.y + 390);
   await button("Clippings").click();
-  // The panel lists the clippings in a scroll view; one off screen is hidden
-  // or has no semantics node until the wheel scrolls it in.
   const clipping = async (number: number) => {
-    const target = button(`Insert clipping ${number}`);
-    await expect(async () => {
-      if (!(await target.isVisible())) {
-        // Wheel toward the number: up while it is below the first one shown.
-        // None shows while the panel slides in.
-        let first = 1;
-        while (first < 10 && !(await button(`Insert clipping ${first}`).isVisible())) first++;
-        if (first < 10) {
-          const anchor = await boxOf(button(`Insert clipping ${first}`));
-          await page.mouse.move(anchor.x + anchor.width / 2, anchor.y + anchor.height / 2);
-          await page.mouse.wheel(0, number < first ? -200 : 200);
-        }
-      }
-      await expect(target).toBeVisible({ timeout: 500 });
-    }).toPass({ timeout: 10_000 });
+    await expect(button(`Insert clipping ${number}`)).toBeInViewport();
   };
   for (const number of [1, 2, 3, 4]) await clipping(number);
   await button("Save selected content").click();
