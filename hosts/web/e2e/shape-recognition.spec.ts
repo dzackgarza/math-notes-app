@@ -120,7 +120,8 @@ test("A held stroke resolves only fitting shapes; a scribble erases crossed ink 
 
   await draw(cdp, [at(170, 130), at(230, 130), at(170, 135), at(230, 135), at(170, 130), at(230, 130)], false);
   const erased = await paths(page);
-  expect(erased).not.toEqual(unmatched);
+  expect(erased).not.toContainEqual(unmatched[0]);
+  for (const untouched of unmatched.slice(1)) expect(erased).toContainEqual(untouched);
   await button("Undo").click();
   expect(await paths(page)).toEqual(unmatched);
 
