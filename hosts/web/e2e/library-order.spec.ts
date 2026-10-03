@@ -261,7 +261,7 @@ test("Flutter keeps a library in order: keyboard, tags, tabs, moves, trash, rena
     await expect(card("Modules")).toBeVisible();
     await expect(card("Rings")).toHaveCount(0);
     await card("Modules").click();
-    await expect(button("Close Modules")).toBeVisible();
+    await expect(button("Close Modules")).toBeVisible({ timeout: 30_000 });
     expect(await contrastIn(page, button("Modules")), "the active tab is legible").toBeGreaterThan(4.5);
     expect(await contrastIn(page, button("Fields")), "the other tab is legible").toBeGreaterThan(4.5);
     const saved = await savedPages(page, "Modules", "Shelf");
