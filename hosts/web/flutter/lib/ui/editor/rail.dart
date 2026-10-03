@@ -11,16 +11,16 @@ const _railInserters = ['text', 'image', 'space', 'drawing'];
 
 extension _EditorRail on _EditorScreenState {
   Widget toolButton(
-    String label,
+    String title,
     IconData icon, {
     bool selected = false,
-    Color color = label,
+    Color? color,
     void Function(BuildContext anchor)? onPressed,
     VoidCallback? onLongPress,
   }) => Builder(
     builder: (anchor) => MergeSemantics(
       child: Semantics(
-        label: label,
+        label: title,
         selected: selected,
         button: true,
         enabled: onPressed != null,
@@ -43,7 +43,7 @@ extension _EditorRail on _EditorScreenState {
                     ? tertiaryLabel
                     : selected
                     ? accent
-                    : color,
+                    : color ?? label,
                 size: 24,
               ),
             ),

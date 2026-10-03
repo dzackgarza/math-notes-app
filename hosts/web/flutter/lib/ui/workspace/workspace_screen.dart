@@ -165,7 +165,7 @@ class WorkspaceScreen extends StatelessWidget {
                               onPressed: () => run(() => session.close(i)),
                               child: Semantics(
                                 label: 'Close ${opened[i].name}',
-                                child: const Icon(
+                                child: Icon(
                                   CupertinoIcons.xmark,
                                   size: 16,
                                   color: secondaryLabel,

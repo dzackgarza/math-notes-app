@@ -777,7 +777,7 @@ class _EditorScreenState extends State<EditorScreen> {
               container: true,
               label: 'Drag a copy',
               excludeSemantics: true,
-              child: const SizedBox(
+              child: SizedBox(
                 width: 44,
                 height: 44,
                 child: Icon(LucideIcons.grab, color: label),
