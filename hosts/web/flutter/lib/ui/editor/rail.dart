@@ -298,6 +298,7 @@ extension _EditorRail on _EditorScreenState {
               MergeSemantics(
                 child: UndoDial(
                   enabled: !drawing,
+                  steps: context.watch<AppPreferences>().undoDialSteps,
                   onStep: (direction) => history(direction > 0),
                   child: Semantics(
                     label: 'Undo',

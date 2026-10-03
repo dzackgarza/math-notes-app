@@ -13,10 +13,12 @@ class UndoDial extends StatefulWidget {
   const UndoDial({
     super.key,
     required this.enabled,
+    required this.steps,
     required this.onStep,
     required this.child,
   });
   final bool enabled;
+  final int steps;
   // Undoes (-1) or redoes (1) one step and tells whether a step happened.
   final bool Function(int direction) onStep;
   final Widget child;
@@ -26,7 +28,7 @@ class UndoDial extends StatefulWidget {
 }
 
 class _UndoDialState extends State<UndoDial> {
-  static const stepAngle = 2 * math.pi / 32;
+  double get stepAngle => 2 * math.pi / widget.steps;
   final portal = OverlayPortalController();
   Rect dial = Rect.zero;
   double prevAngle = 0;
@@ -99,7 +101,7 @@ class _UndoDialState extends State<UndoDial> {
       rect: dial,
       child: IgnorePointer(
         child: CustomPaint(
-          painter: _DialPainter(indAngle, indCount, stepAngle),
+          painter: _DialPainter(indAngle, indCount, widget.steps),
         ),
       ),
     ),
@@ -142,12 +144,13 @@ class _UndoDialState extends State<UndoDial> {
 }
 
 // ButtonDragDial::draw: a 100-unit canvas scaled to the dial box, the swept
-// sector, and 32 ticks that turn with the dial.
+// sector, and the configured number of ticks that turn with the dial.
 class _DialPainter extends CustomPainter {
-  _DialPainter(this.angle, this.count, this.stepAngle);
+  _DialPainter(this.angle, this.count, this.steps);
   final double angle;
   final int count;
-  final double stepAngle;
+  final int steps;
+  double get stepAngle => 2 * math.pi / steps;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -173,7 +176,7 @@ class _DialPainter extends CustomPainter {
       ..color = tertiaryLabel
       ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.round;
-    for (var i = 0; i < 32; i++) {
+    for (var i = 0; i < steps; i++) {
       final a = i * stepAngle - angle;
       canvas.drawLine(
         Offset(39 * math.sin(a), 39 * math.cos(a)),
@@ -185,5 +188,5 @@ class _DialPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_DialPainter old) =>
-      old.angle != angle || old.count != count;
+      old.angle != angle || old.count != count || old.steps != steps;
 }

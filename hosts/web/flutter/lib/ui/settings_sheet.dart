@@ -5,6 +5,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:provider/provider.dart';
 
 import '../data/open_notes.dart';
+import '../data/app_preferences.dart';
 import 'editor/tools_view_model.dart';
 import 'modal.dart';
 import 'theme.dart';
@@ -20,6 +21,7 @@ Future<void> showSettings(
 }) {
   final tools = context.read<ToolsViewModel>();
   final session = context.read<OpenNotes>();
+  final preferences = context.read<AppPreferences>();
   return showModalDialog<void>(
     context: context,
     builder: (context) => StatefulBuilder(
@@ -98,6 +100,36 @@ Future<void> showSettings(
                                       'Show tab strip',
                                       !session.tabsHidden,
                                       (value) => session.hideTabs(!value),
+                                    ),
+                                  ],
+                                ),
+                                CupertinoListSection.insetGrouped(
+                                  backgroundColor: surface2,
+                                  header: Text(
+                                    'History and startup',
+                                    style: footnote.copyWith(color: secondaryLabel),
+                                  ),
+                                  children: [
+                                    CupertinoListTile(
+                                      title: Text('Undo dial steps', style: body),
+                                      trailing: SizedBox(
+                                        width: 220,
+                                        child: CupertinoSlidingSegmentedControl<int>(
+                                          groupValue: preferences.undoDialSteps,
+                                          children: {
+                                            for (final count in AppPreferences.dialChoices)
+                                              count: Text('$count'),
+                                          },
+                                          onValueChanged: (count) => update(
+                                            () => preferences.undoDialSteps = count!,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    toggle(
+                                      'Open last note on launch',
+                                      preferences.reopenLastNote,
+                                      (value) => preferences.reopenLastNote = value,
                                     ),
                                   ],
                                 ),

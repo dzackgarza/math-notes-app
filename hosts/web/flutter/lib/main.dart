@@ -10,6 +10,7 @@ import 'package:toastification/toastification.dart';
 import 'package:web/web.dart' as web;
 
 import 'activity.dart';
+import 'data/app_preferences.dart';
 import 'data/notes_folder.dart';
 import 'data/open_notes.dart';
 import 'errors.dart';
@@ -50,6 +51,7 @@ class MathNotes extends StatelessWidget {
   Widget build(BuildContext context) => MultiProvider(
     providers: [
       ChangeNotifierProvider(create: (_) => Activity()),
+      ChangeNotifierProvider(create: (_) => AppPreferences()),
       ChangeNotifierProvider(create: (_) => NotesFolder()),
       ChangeNotifierProvider(create: (_) => ToolsViewModel()),
       ChangeNotifierProvider(
@@ -101,6 +103,18 @@ class _ShellState extends State<Shell> {
           ).then((_) {}, onError: showError),
         );
         await folder.start();
+        if (!mounted) return;
+        final preferences = context.read<AppPreferences>();
+        final last = web.window.localStorage.getItem('lastNote');
+        if (preferences.reopenLastNote && folder.connected && last != null) {
+          try {
+            await context.read<OpenNotes>().open(
+              last.split('/').map((part) => part.toJS).toList().toJS,
+            );
+          } catch (_) {
+            showError('The last note is unavailable. Open it from the library.');
+          }
+        }
       }),
     );
   }

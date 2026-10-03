@@ -22,6 +22,7 @@ import '../../pages_sheet.dart';
 import '../../bookmarks_sheet.dart';
 import '../../figure_editor.dart';
 import '../../undo_dial.dart';
+import '../../data/app_preferences.dart';
 import '../../data/open_notes.dart';
 import '../library/library_dialogs.dart' show paperLabels;
 import '../modal.dart';
