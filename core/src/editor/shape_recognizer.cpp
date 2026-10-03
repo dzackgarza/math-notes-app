@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <numbers>
 
 namespace ink_engine {
@@ -213,18 +214,38 @@ std::optional<std::vector<InkPenSample>> RecognizeHeldStroke(
 
 bool IsEraseScribble(const std::vector<InkPenSample> &samples, double view_scale) {
   if (samples.size() < 7 || !(view_scale > 0)) return false;
-  Bounds bounds = Extent(samples);
-  if (bounds.Width() < 28 / view_scale || bounds.Width() < bounds.Height() * 1.5) return false;
+  Point2 mean{0, 0};
+  for (const auto &sample : samples) { mean.x += sample.x; mean.y += sample.y; }
+  mean.x /= samples.size();
+  mean.y /= samples.size();
+  double xx = 0, xy = 0, yy = 0;
+  for (const auto &sample : samples) {
+    const double x = sample.x - mean.x, y = sample.y - mean.y;
+    xx += x * x; xy += x * y; yy += y * y;
+  }
+  const double angle = 0.5 * std::atan2(2 * xy, xx - yy);
+  Point2 axis{std::cos(angle), std::sin(angle)};
+  Point2 across{-axis.y, axis.x};
+  double minimum = std::numeric_limits<double>::infinity();
+  double maximum = -minimum, cross_min = minimum, cross_max = -minimum;
+  for (const auto &sample : samples) {
+    const double along = Dot(Sub(At(sample), mean), axis);
+    const double across_position = Dot(Sub(At(sample), mean), across);
+    minimum = std::min(minimum, along); maximum = std::max(maximum, along);
+    cross_min = std::min(cross_min, across_position); cross_max = std::max(cross_max, across_position);
+  }
+  const double extent = maximum - minimum;
+  if (extent < 28 / view_scale || extent < (cross_max - cross_min) * 1.3) return false;
   int reversals = 0, direction = 0;
   double travel = 0;
   for (size_t i = 1; i < samples.size(); ++i) {
-    double dx = samples[i].x - samples[i - 1].x;
+    double dx = Dot(Sub(At(samples[i]), At(samples[i - 1])), axis);
     travel += Distance(At(samples[i]), At(samples[i - 1]));
     int next = dx > 3 / view_scale ? 1 : dx < -3 / view_scale ? -1 : 0;
     if (next && direction && next != direction) ++reversals;
     if (next) direction = next;
   }
-  return reversals >= 3 && travel > bounds.Width() * 3.5;
+  return reversals >= 3 && travel > extent * 3.5;
 }
 
 }  // namespace ink_engine

@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <limits>
 #include <numbers>
+#include <utility>
 
 #include "ink/brush/stock_brushes.h"
 #include "ink/color/color.h"
