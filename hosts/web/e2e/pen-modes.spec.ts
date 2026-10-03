@@ -55,6 +55,14 @@ test("Pen modes: snapped lines, temporary ink, smoothing, history, and reload", 
     expect(saved[0].modes).toBe("3");
     expect(saved[0].traces).toHaveLength(2);
     expect(saved[0].traces[0]).not.toBe(saved[0].traces[1]);
+    const points = saved[0].traces[1].split(",").map((sample) => sample.trim().split(/\s+/).slice(0, 2).map(Number));
+    expect(points.length).toBeGreaterThan(2);
+    const [start, end] = [points[0], points.at(-1)!];
+    for (const point of points) {
+      const area = (point[0] - start[0]) * (end[1] - start[1]) -
+        (point[1] - start[1]) * (end[0] - start[0]);
+      expect(Math.abs(area), "the saved geometry is a straight line").toBeLessThan(0.2);
+    }
   });
 
   await test.step("temporary ink leaves the note and history unchanged", async () => {
