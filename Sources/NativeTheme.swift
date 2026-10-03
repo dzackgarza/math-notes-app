@@ -34,3 +34,22 @@ enum NativeTheme {
       blue: Double(rgb & 0xFF) / 255)
   }
 }
+
+private struct NativeFieldSurface: ViewModifier {
+  func body(content: Content) -> some View {
+    content
+      .padding(.horizontal, 10)
+      .padding(.vertical, 8)
+      .background(NativeTheme.paper, in: RoundedRectangle(cornerRadius: 8))
+      .overlay {
+        RoundedRectangle(cornerRadius: 8)
+          .stroke(NativeTheme.separator, lineWidth: 1)
+      }
+  }
+}
+
+extension View {
+  func nativeFieldSurface() -> some View {
+    modifier(NativeFieldSurface())
+  }
+}

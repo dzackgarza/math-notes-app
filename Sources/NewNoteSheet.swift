@@ -188,6 +188,7 @@ struct NewNoteSheet: View {
         Section("Note") {
           TextField("Title", text: $form.title)
             .textInputAutocapitalization(.sentences)
+            .nativeFieldSurface()
         }
 
         Section("Paper") {
@@ -227,6 +228,7 @@ struct NewNoteSheet: View {
           HStack {
             TextField("New tag", text: $newTag)
               .textInputAutocapitalization(.never)
+              .nativeFieldSurface()
               .onSubmit(addTag)
             Button("Add", action: addTag)
               .disabled(newTag.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -253,8 +255,8 @@ struct NewNoteSheet: View {
                 VStack(alignment: .leading, spacing: 2) {
                   Text(settings.name)
                   Text(templateSummary(settings))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(NativeTheme.footnote)
+                    .foregroundStyle(NativeTheme.graphite)
                 }
               }
             }
@@ -262,6 +264,7 @@ struct NewNoteSheet: View {
             if namingTemplate {
               HStack {
                 TextField("Template name", text: $templateName)
+                  .nativeFieldSurface()
                 Button("Save") {
                   saveTemplate()
                 }
@@ -282,6 +285,11 @@ struct NewNoteSheet: View {
           }
         }
       }
+      .scrollContentBackground(.hidden)
+      .background(NativeTheme.leaf)
+      .foregroundStyle(NativeTheme.ink)
+      .font(NativeTheme.body)
+      .tint(NativeTheme.ink)
       .navigationTitle(newNoteTitle)
       .interactiveDismissDisabled(isDirty)
       .background {
@@ -301,6 +309,8 @@ struct NewNoteSheet: View {
         Button("Keep Editing", role: .cancel) {}
       }
       .navigationBarTitleDisplayMode(.inline)
+      .toolbarBackground(NativeTheme.leaf, for: .navigationBar)
+      .toolbarBackground(.visible, for: .navigationBar)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel", action: requestCancel)
@@ -402,7 +412,7 @@ struct CreationPaperPreview: View {
   var body: some View {
     ZStack {
       RoundedRectangle(cornerRadius: 6)
-        .fill(Color(uiColor: .secondarySystemBackground))
+        .fill(NativeTheme.paper)
 
       if let image {
         Image(uiImage: image)
@@ -413,10 +423,10 @@ struct CreationPaperPreview: View {
         VStack(spacing: 8) {
           Image(systemName: "exclamationmark.triangle")
           Text("Preview failed")
-            .font(.headline)
+            .font(NativeTheme.headline)
           Text(errorMessage)
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            .font(NativeTheme.footnote)
+            .foregroundStyle(NativeTheme.graphite)
             .multilineTextAlignment(.center)
         }
         .padding()
@@ -428,7 +438,7 @@ struct CreationPaperPreview: View {
     .clipShape(RoundedRectangle(cornerRadius: 6))
     .overlay {
       RoundedRectangle(cornerRadius: 6)
-        .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
+        .stroke(NativeTheme.separator, lineWidth: 1)
     }
     .task(id: key) {
       image = nil
@@ -461,7 +471,7 @@ struct CreationNotebookPreview: View {
   var body: some View {
     ZStack {
       RoundedRectangle(cornerRadius: 6)
-        .fill(Color(uiColor: .secondarySystemBackground))
+        .fill(NativeTheme.paper)
       if let image {
         Image(uiImage: image)
           .resizable()
@@ -469,12 +479,12 @@ struct CreationNotebookPreview: View {
           .accessibilityLabel("\(folder.name) thumbnail")
       } else if failed {
         Image(systemName: "exclamationmark.triangle")
-          .foregroundStyle(.secondary)
+          .foregroundStyle(NativeTheme.graphite)
           .accessibilityLabel("Notebook thumbnail failed")
       } else {
         Image(systemName: "book.closed")
-          .font(.largeTitle)
-          .foregroundStyle(.secondary)
+          .font(NativeTheme.largeTitle)
+          .foregroundStyle(NativeTheme.graphite)
           .accessibilityLabel("\(folder.name) notebook")
       }
     }

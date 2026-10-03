@@ -93,17 +93,20 @@ struct NewNotebookSheet: View {
         Section("Notebook") {
           TextField("Notebook title", text: $form.title)
             .textInputAutocapitalization(.sentences)
+            .nativeFieldSurface()
 
           TextEditor(text: $form.description)
+            .scrollContentBackground(.hidden)
             .frame(minHeight: 72)
+            .nativeFieldSurface()
             .onChange(of: form.description) { _, value in
               if value.count > 500 {
                 form.description = String(value.prefix(500))
               }
             }
           Text("Description (optional) · \(form.description.count) / 500")
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            .font(NativeTheme.footnote)
+            .foregroundStyle(NativeTheme.graphite)
         }
 
         Section("Cover") {
@@ -124,7 +127,7 @@ struct NewNotebookSheet: View {
                   .overlay {
                     if form.coverColor == color {
                       Circle()
-                        .stroke(.primary, lineWidth: 2)
+                        .stroke(NativeTheme.ink, lineWidth: 2)
                         .padding(-4)
                     }
                   }
@@ -163,6 +166,7 @@ struct NewNotebookSheet: View {
           HStack {
             TextField("New tag", text: $newTag)
               .textInputAutocapitalization(.never)
+              .nativeFieldSurface()
               .onSubmit(addTag)
             Button("Add", action: addTag)
               .disabled(newTag.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -176,10 +180,15 @@ struct NewNotebookSheet: View {
             }
           }
           Text("You can move this notebook later.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            .font(NativeTheme.footnote)
+            .foregroundStyle(NativeTheme.graphite)
         }
       }
+      .scrollContentBackground(.hidden)
+      .background(NativeTheme.leaf)
+      .foregroundStyle(NativeTheme.ink)
+      .font(NativeTheme.body)
+      .tint(NativeTheme.ink)
       .navigationTitle("New Notebook")
       .interactiveDismissDisabled(isDirty)
       .background {
@@ -199,6 +208,8 @@ struct NewNotebookSheet: View {
         Button("Keep Editing", role: .cancel) {}
       }
       .navigationBarTitleDisplayMode(.inline)
+      .toolbarBackground(NativeTheme.leaf, for: .navigationBar)
+      .toolbarBackground(.visible, for: .navigationBar)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel", action: requestCancel)
@@ -267,11 +278,6 @@ struct NewNotebookSheet: View {
   }
 
   private func colorValue(_ value: String) -> Color {
-    let hex = value.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-    guard hex.count == 6, let rgb = UInt64(hex, radix: 16) else { return .secondary }
-    return Color(
-      red: Double((rgb >> 16) & 0xFF) / 255,
-      green: Double((rgb >> 8) & 0xFF) / 255,
-      blue: Double(rgb & 0xFF) / 255)
+    NativeTheme.color(value)
   }
 }
