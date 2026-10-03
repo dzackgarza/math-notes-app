@@ -129,14 +129,14 @@ double *ChannelValue(Sample &s, Channel channel) {
 
 // W3C InkML §3.2 trace text: points separated by ",", channel values by a space
 // (microsoft/InkMLjs inkml.js InkTrace.toInkML).
-std::string WriteTrace(const Stroke &stroke) {
+std::string WriteTrace(const std::vector<Sample> &samples, uint32_t channels) {
   std::string text;
-  for (size_t i = 0; i < stroke.samples.size(); ++i) {
+  for (size_t i = 0; i < samples.size(); ++i) {
     if (i > 0) text += ",";
-    Sample s = stroke.samples[i];
+    Sample s = samples[i];
     bool first = true;
     for (auto [channel, name] : kChannels) {
-      if (!(stroke.channels & channel)) continue;
+      if (!(channels & channel)) continue;
       if (!first) text += " ";
       first = false;
       text += FormatNumber(*ChannelValue(s, channel), ChannelPrecision(channel));
@@ -183,15 +183,22 @@ Stroke ReadStroke(const pugi::xml_node &node, const ReadContext &context) {
   s.brush = node.attribute("mn:brush").value();
   s.brush_version = int(Num(node, "mn:brush-version", 1));
   s.size = Num(node, "mn:size");
+  s.modes = uint32_t(Num(node, "mn:modes", 0));
+  s.smoothing_ms = Num(node, "mn:smoothing-ms", 20);
   s.time = node.attribute("mn:time").value();
   s.outline = ReadPathData(node.attribute("d").value());
-  pugi::xml_node trace = node.child("metadata").child("inkml:trace");
-  if (trace) {
+  for (pugi::xml_node trace : node.child("metadata").children("inkml:trace")) {
     std::string_view ref = trace.attribute("contextRef").value();
     if (ref.starts_with('#')) ref.remove_prefix(1);
     auto format = context.trace_formats.find(std::string(ref));
     if (format != context.trace_formats.end()) s.channels = format->second;
-    s.samples = ReadTrace(trace.text().get(), s.channels);
+    auto samples = ReadTrace(trace.text().get(), s.channels);
+    if (std::string_view(trace.attribute("mn:role").value()) == "geometry")
+      s.samples = std::move(samples);
+    else if (trace.next_sibling("inkml:trace"))
+      s.sensor_samples = std::move(samples);
+    else
+      s.samples = std::move(samples);
   }
   return s;
 }
@@ -355,12 +362,21 @@ void WriteStroke(pugi::xml_node &parent, const Stroke &s) {
   Set(node, "mn:brush", s.brush);
   Set(node, "mn:brush-version", std::to_string(s.brush_version));
   Set(node, "mn:size", Coord(s.size));
+  if (s.modes) Set(node, "mn:modes", std::to_string(s.modes));
+  if (s.smoothing_ms != 20) Set(node, "mn:smoothing-ms", Coord(s.smoothing_ms));
   Set(node, "mn:time", s.time);
   Set(node, "d", WritePathData(s.outline, /*closed=*/true));
   if (!s.samples.empty()) {
-    pugi::xml_node trace = node.append_child("metadata").append_child("inkml:trace");
+    pugi::xml_node metadata = node.append_child("metadata");
+    if (!s.sensor_samples.empty()) {
+      pugi::xml_node sensor = metadata.append_child("inkml:trace");
+      Set(sensor, "contextRef", "#" + TraceFormatId(s.channels));
+      sensor.text() = WriteTrace(s.sensor_samples, s.channels).c_str();
+    }
+    pugi::xml_node trace = metadata.append_child("inkml:trace");
     Set(trace, "contextRef", "#" + TraceFormatId(s.channels));
-    trace.text() = WriteTrace(s).c_str();
+    if (!s.sensor_samples.empty()) Set(trace, "mn:role", "geometry");
+    trace.text() = WriteTrace(s.samples, s.channels).c_str();
   }
 }
 

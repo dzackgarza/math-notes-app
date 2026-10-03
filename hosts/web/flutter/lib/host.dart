@@ -151,11 +151,15 @@ extension type ToolSettings(JSObject value) implements JSObject {
     int rgb,
     double size,
     double opacity,
+    int modes,
+    double smoothingMs,
   });
   external int get brush;
   external int get rgb;
   external double get size;
   external double get opacity;
+  external int get modes;
+  external double get smoothingMs;
 }
 
 // Notes/.pens.json (docs/FORMAT.md, Other files).

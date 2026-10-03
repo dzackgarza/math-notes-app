@@ -202,6 +202,8 @@ typedef struct InkToolSettings {
   uint32_t rgb;   /* 0xRRGGBB */
   float size;     /* pt */
   float opacity;  /* (0, 1]: the stroke's fill-opacity */
+  uint32_t modes; /* bit 0: grid, bit 1: lines, bit 2: temporary */
+  float smoothing_ms; /* 0: off; otherwise Google Ink window in ms */
 } InkToolSettings;
 
 /* ---- Pen presets ------------------------------------------------------ */

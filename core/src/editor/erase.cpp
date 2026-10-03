@@ -181,7 +181,8 @@ ink::Stroke InkStroke(const Stroke &stroke) {
     // Append drops inputs out of order, as the live stroke does.
     (void)batch.Append(input);
   }
-  Pen pen{.brush = BrushFromName(stroke.brush), .color = stroke.fill, .size = float(stroke.size)};
+  Pen pen{.brush = BrushFromName(stroke.brush), .color = stroke.fill,
+          .size = float(stroke.size), .smoothing_ms = float(stroke.smoothing_ms)};
   return ink::Stroke(MakeBrush(pen), batch);
 }
 
