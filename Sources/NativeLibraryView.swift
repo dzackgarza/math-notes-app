@@ -201,6 +201,13 @@ struct NativeLibraryView: View {
           Button(action: createNote) {
             Label("New Note", systemImage: "square.and.pencil")
           }
+
+          Menu {
+            folderActions(folder)
+          } label: {
+            Image(systemName: "ellipsis.circle")
+          }
+          .accessibilityLabel("\(folder.name) notebook actions")
         }
 
         Menu {
@@ -550,12 +557,17 @@ struct NativeLibraryView: View {
   }
 
   @ViewBuilder
-  private func folderActions(_ item: LibraryFolderItem) -> some View {
+  private func folderActions(_ reference: FolderReference) -> some View {
     Button("Details and Tags", systemImage: "tag") {
-      editFolderDetails(item.reference)
+      editFolderDetails(reference)
     }
     Divider()
-    entryActions(LibraryEntryTarget(path: item.reference.path, kind: .folder))
+    entryActions(LibraryEntryTarget(path: reference.path, kind: .folder))
+  }
+
+  @ViewBuilder
+  private func folderActions(_ item: LibraryFolderItem) -> some View {
+    folderActions(item.reference)
   }
 
   private func folderActionsButton(_ item: LibraryFolderItem) -> some View {
