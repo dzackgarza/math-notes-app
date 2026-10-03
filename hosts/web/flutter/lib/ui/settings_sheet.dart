@@ -175,27 +175,33 @@ Future<void> showSettings(
                                       CupertinoListTile(
                                         title: Text(undo ? 'Undo' : 'Redo', style: body),
                                         subtitle: Text('Use two or three fingers on the page', style: footnote),
-                                        trailing: SizedBox(
-                                          width: 280,
-                                          child: CupertinoSlidingSegmentedControl<HistoryGesture>(
-                                            groupValue: undo ? preferences.undoGesture : preferences.redoGesture,
-                                            children: {
-                                              for (final (gesture, title) in [
-                                                (HistoryGesture.twoFingerTap, '2 tap'),
-                                                (HistoryGesture.threeFingerTap, '3 tap'),
-                                                (HistoryGesture.threeFingerSwipeLeft, '3 ←'),
-                                                (HistoryGesture.threeFingerSwipeRight, '3 →'),
-                                              ])
-                                                if (gesture != (undo ? preferences.redoGesture : preferences.undoGesture))
-                                                  gesture: Text(title),
-                                            },
-                                            onValueChanged: tools.fingerDraws ? null : (gesture) => update(() {
-                                              if (undo) {
-                                                preferences.undoGesture = gesture!;
-                                              } else {
-                                                preferences.redoGesture = gesture!;
-                                              }
-                                            }),
+                                        trailing: IgnorePointer(
+                                          ignoring: tools.fingerDraws,
+                                          child: Opacity(
+                                            opacity: tools.fingerDraws ? 0.5 : 1.0,
+                                            child: SizedBox(
+                                              width: 280,
+                                              child: CupertinoSlidingSegmentedControl<HistoryGesture>(
+                                                groupValue: undo ? preferences.undoGesture : preferences.redoGesture,
+                                                children: {
+                                                  for (final (gesture, title) in [
+                                                    (HistoryGesture.twoFingerTap, '2 tap'),
+                                                    (HistoryGesture.threeFingerTap, '3 tap'),
+                                                    (HistoryGesture.threeFingerSwipeLeft, '3 ←'),
+                                                    (HistoryGesture.threeFingerSwipeRight, '3 →'),
+                                                  ])
+                                                    if (gesture != (undo ? preferences.redoGesture : preferences.undoGesture))
+                                                      gesture: Text(title),
+                                                },
+                                                onValueChanged: (gesture) => update(() {
+                                                  if (undo) {
+                                                    preferences.undoGesture = gesture!;
+                                                  } else {
+                                                    preferences.redoGesture = gesture!;
+                                                  }
+                                                }),
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ),
