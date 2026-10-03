@@ -35,20 +35,17 @@ Preserve original ink so an interpretation can be revised.
 
 ## Component ownership
 
-The [TikZ workbench](https://github.com/dzackgarza/zettlr-pandoc/tree/tikz-workbench-module/packages/tikz-workbench)
-in `dzackgarza/zettlr-pandoc` owns the TikZ interface and core. That project
-is making the workbench a reusable module with a host contract that is
-independent of Zettlr, for example
-[zettlr-pandoc#123](https://github.com/dzackgarza/zettlr-pandoc/issues/123).
-The module is expected to support stylus and touch input through its pinned
-editor forks, TikZ Editor and Quiver.
+The standalone [Visual TikZ Editor](https://github.com/dzackgarza/visual-tikz-editor)
+owns the TikZ interface and core. Its host contract keeps the source document
+under the host's control. The editor supplies a visual drawing surface without
+requiring TeX, and uses pinned TikZ Editor and Quiver forks for diagram editing.
 
 This feature is a small integration layer on that module. It is blocked
 until the module is complete. The notebook adapter owns only figure
 identity, the association with the original ink, persistence, selection,
 and clipboard delivery. When the integration needs a capability from the
 core, such as stylus capture or interpretation of doodled geometry, file
-the request as an issue on `dzackgarza/zettlr-pandoc`. Do not build the
+the request as an issue on `dzackgarza/visual-tikz-editor`. Do not build the
 capability in this app.
 
 ## Acceptance
