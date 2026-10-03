@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test, centerPixel, createTestNotebook, enterText, openTestNotebook, penStroke, line, savedPages, brightness, frames, isInk, pixelBounds, closePopover } from "./support.ts";
+import { test, centerPixel, createTestNotebook, enterText, openTestNotebook, penStroke, line, savedPages, storedNote, brightness, frames, isInk, pixelBounds, closePopover } from "./support.ts";
 
 test("Editor preferences: the last note reopens and the undo dial uses its chosen steps", async ({ page, context }, info) => {
   test.setTimeout(120_000);
@@ -118,6 +118,18 @@ test("Editor preferences: the last note reopens and the undo dial uses its chose
   await frames(page);
   await expect.poll(async () => Math.abs((await inkWidth()) - fittedWidth)).toBeLessThanOrEqual(2);
   expect((await savedPages(page, "Recall")).map((item) => item.strokes)).toEqual([4]);
+  await button("Pages").click();
+  await button("Add bookmark").click();
+  await expect(page.getByLabel("Add bookmark\nTap the line to mark.", { exact: true })).toBeVisible();
+  await cdp.send("Input.synthesizePinchGesture", { x: box.x + 450, y: box.y + 260, scaleFactor: 1.5, relativeSpeed: 500 });
+  await expect.poll(inkWidth).toBeGreaterThan(fittedWidth * 1.2);
+  await doubleTap();
+  await expect.poll(async () => Math.abs((await inkWidth()) - fittedWidth)).toBeLessThanOrEqual(2);
+  const single = [{ id: 0, x: box.x + 450, y: box.y + 260 }];
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: single });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await expect.poll(async () => (await storedNote(page, ["Test Notebook", "Recall"])).pages[0].bookmarks.length).toBe(1);
+  await button("Close Add bookmark").click();
   await button("Library").click();
   await page.screenshot({ path: info.outputPath("dark-library.png") });
   await openTestNotebook(page);

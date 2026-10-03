@@ -164,6 +164,8 @@ class _EditorScreenState extends State<EditorScreen> {
   final strokes = <int>{};
   final palms = <int>{};
   final taps = FingerTap();
+  Timer? pendingTouchTap;
+  bool ignoreTouchTapUp = false;
   Matrix4? gestureTransform;
   double? gestureScroll;
   bool get fingerDraws => tools.fingerDraws;
@@ -423,6 +425,7 @@ class _EditorScreenState extends State<EditorScreen> {
     }
     if (event.kind == PointerDeviceKind.touch) {
       if (event is PointerDownEvent && touches.isEmpty) {
+        ignoreTouchTapUp = false;
         gestureTransform = transform.value.clone();
         gestureScroll = scroll.hasClients ? scroll.offset : null;
       }
@@ -440,8 +443,9 @@ class _EditorScreenState extends State<EditorScreen> {
         return;
       }
       final gesture = taps.add(event);
-      if (gesture == PageGesture.doubleTap &&
-          tool != 'navigate' && tool != 'bookmark' && tool != 'text') {
+      if (gesture == PageGesture.doubleTap) {
+        pendingTouchTap?.cancel();
+        ignoreTouchTapUp = true;
         fitWidth();
       }
       final historyGesture = switch (gesture) {
@@ -497,6 +501,29 @@ class _EditorScreenState extends State<EditorScreen> {
       else
         widget.note.saver.schedule();
     }
+  }
+
+  void pageTap(TapUpDetails details) {
+    final selectedTool = tool;
+    final position = details.localPosition;
+    void activate() {
+      if (!mounted || canvas == null) return;
+      if (selectedTool == 'navigate') run(() => followAt(position));
+      if (selectedTool == 'bookmark')
+        edit(() => canvas!.addBookmark(position.dx, position.dy));
+      if (selectedTool == 'text') run(() => textAt(position));
+    }
+
+    if (details.kind != PointerDeviceKind.touch) {
+      activate();
+      return;
+    }
+    if (ignoreTouchTapUp) {
+      ignoreTouchTapUp = false;
+      return;
+    }
+    pendingTouchTap?.cancel();
+    pendingTouchTap = Timer(kDoubleTapTimeout, activate);
   }
 
   void cancelPull() {
@@ -1132,6 +1159,7 @@ class _EditorScreenState extends State<EditorScreen> {
     widget.viewport.removeListener(receiveViewport);
     arrangement.removeListener(arrange);
     pullTimer?.cancel();
+    pendingTouchTap?.cancel();
     focus.dispose();
     if (frameRequest != null) web.window.cancelAnimationFrame(frameRequest!);
     still?.dispose();
@@ -1636,25 +1664,10 @@ class _EditorScreenState extends State<EditorScreen> {
                                               details.globalPosition,
                                             ),
                                           ),
-                                          onTapUp: tool == 'navigate'
-                                              ? (details) => run(
-                                                  () => followAt(
-                                                    details.localPosition,
-                                                  ),
-                                                )
-                                              : tool == 'bookmark'
-                                              ? (details) => edit(
-                                                  () => canvas!.addBookmark(
-                                                    details.localPosition.dx,
-                                                    details.localPosition.dy,
-                                                  ),
-                                                )
-                                              : tool == 'text'
-                                              ? (details) => run(
-                                                  () => textAt(
-                                                    details.localPosition,
-                                                  ),
-                                                )
+                                          onTapUp: tool == 'navigate' ||
+                                                  tool == 'bookmark' ||
+                                                  tool == 'text'
+                                              ? pageTap
                                               : null,
                                           child: InteractiveViewer(
                                             transformationController: transform,
