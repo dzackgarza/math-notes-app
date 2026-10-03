@@ -181,8 +181,14 @@ struct NewNotebookSheet: View {
         }
       }
       .navigationTitle("New Notebook")
-      .interactiveDismissDisabled(isDirty) {
-        showingDiscardConfirmation = true
+      .interactiveDismissDisabled(isDirty)
+      .background {
+        if isDirty {
+          CreationDismissGuard {
+            showingDiscardConfirmation = true
+          }
+          .frame(width: 0, height: 0)
+        }
       }
       .confirmationDialog(
         "Discard new notebook?",

@@ -277,8 +277,14 @@ struct NewNoteSheet: View {
         }
       }
       .navigationTitle("New Note")
-      .interactiveDismissDisabled(isDirty) {
-        showingDiscardConfirmation = true
+      .interactiveDismissDisabled(isDirty)
+      .background {
+        if isDirty {
+          CreationDismissGuard {
+            showingDiscardConfirmation = true
+          }
+          .frame(width: 0, height: 0)
+        }
       }
       .confirmationDialog(
         "Discard new note?",
