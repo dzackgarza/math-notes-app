@@ -487,7 +487,7 @@ class _EditorScreenState extends State<EditorScreen> {
 
   void updatePull() {
     if (!scroll.hasClients) return;
-    if (drawing) {
+    if (drawing || horizontal) {
       cancelPull();
       if (atEnd) setState(() => atEnd = false);
       return;
