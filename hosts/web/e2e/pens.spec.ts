@@ -270,10 +270,7 @@ test("Flutter pens session: tool rail, pen and marker popovers, highlighter, col
     const at = (y: number) => ({ x: box.x + 240, y: box.y + y });
     const popoverWrite = async (y: number, force = 0.6) => {
       await penStroke(cdp, line(box.x + 140, box.x + 340, box.y + y), force);
-      const misses = await page.evaluate(() =>
-        (window as Window & { mathNotes: { unmatchedPointerDowns: number } })
-          .mathNotes.unmatchedPointerDowns,
-      );
+      const misses = await page.evaluate(() => window.mathNotes.unmatchedPointerDowns);
       expect(misses, `browser pointerdown reaches Flutter at row ${y}`).toBe(0);
     };
 
