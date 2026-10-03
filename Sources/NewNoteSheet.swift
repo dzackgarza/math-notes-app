@@ -137,6 +137,7 @@ struct NewNoteSheet: View {
   let onSaveDraft: (NewNoteDraft) -> Void
   let onSaveTemplate: (NewNoteStartingTemplate) -> Void
   let renderPreview: (String, InkPageSize, InkOrientation) throws -> Data
+  let renderNotebookPreview: (FolderReference) throws -> Data?
   let onCancel: () -> Void
 
   @State private var form: NewNoteFormState
@@ -158,6 +159,7 @@ struct NewNoteSheet: View {
     onSaveDraft: @escaping (NewNoteDraft) -> Void,
     onSaveTemplate: @escaping (NewNoteStartingTemplate) -> Void,
     renderPreview: @escaping (String, InkPageSize, InkOrientation) throws -> Data,
+    renderNotebookPreview: @escaping (FolderReference) throws -> Data?,
     onCancel: @escaping () -> Void
   ) {
     self.folders = folders
@@ -168,6 +170,7 @@ struct NewNoteSheet: View {
     self.onSaveDraft = onSaveDraft
     self.onSaveTemplate = onSaveTemplate
     self.renderPreview = renderPreview
+    self.renderNotebookPreview = renderNotebookPreview
     self.onCancel = onCancel
     let initialForm = NewNoteFormState(
       folders: folders,
@@ -230,8 +233,11 @@ struct NewNoteSheet: View {
           }
         }
 
-        Section("Location") {
-          Picker("Folder", selection: $form.parent) {
+        Section("Notebook") {
+          CreationNotebookPreview(folder: form.parent, render: renderNotebookPreview)
+            .frame(maxWidth: .infinity)
+            .frame(height: 120)
+          Picker("Change notebook", selection: $form.parent) {
             ForEach(availableFolders) { folder in
               Text(folder.name).tag(folder)
             }
@@ -276,7 +282,7 @@ struct NewNoteSheet: View {
           }
         }
       }
-      .navigationTitle("New Note")
+      .navigationTitle(newNoteTitle)
       .interactiveDismissDisabled(isDirty)
       .background {
         if isDirty {
@@ -307,6 +313,10 @@ struct NewNoteSheet: View {
         }
       }
     }
+  }
+
+  var newNoteTitle: String {
+    "New Note in \(form.parent.name)"
   }
 
   var isDirty: Bool {
@@ -435,6 +445,51 @@ struct CreationPaperPreview: View {
         image = rendered
       } catch {
         errorMessage = error.localizedDescription
+      }
+    }
+  }
+}
+
+@MainActor
+struct CreationNotebookPreview: View {
+  let folder: FolderReference
+  let render: (FolderReference) throws -> Data?
+
+  @State private var image: UIImage?
+  @State private var failed = false
+
+  var body: some View {
+    ZStack {
+      RoundedRectangle(cornerRadius: 6)
+        .fill(Color(uiColor: .secondarySystemBackground))
+      if let image {
+        Image(uiImage: image)
+          .resizable()
+          .scaledToFit()
+          .accessibilityLabel("\(folder.name) thumbnail")
+      } else if failed {
+        Image(systemName: "exclamationmark.triangle")
+          .foregroundStyle(.secondary)
+          .accessibilityLabel("Notebook thumbnail failed")
+      } else {
+        Image(systemName: "book.closed")
+          .font(.largeTitle)
+          .foregroundStyle(.secondary)
+          .accessibilityLabel("\(folder.name) notebook")
+      }
+    }
+    .task(id: folder.id) {
+      image = nil
+      failed = false
+      do {
+        if let data = try render(folder) {
+          image = UIImage(data: data)
+        } else {
+          image = nil
+        }
+      } catch {
+        image = nil
+        failed = true
       }
     }
   }
