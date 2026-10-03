@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test, centerPixel, createTestNotebook, enterText, openTestNotebook, penStroke, line, savedPages, brightness, frames, isInk, pixelBounds } from "./support.ts";
+import { test, centerPixel, createTestNotebook, enterText, openTestNotebook, penStroke, line, savedPages, brightness, frames, isInk, pixelBounds, closePopover } from "./support.ts";
 
 test("Editor preferences: the last note reopens and the undo dial uses its chosen steps", async ({ page, context }, info) => {
   test.setTimeout(120_000);
@@ -30,6 +30,17 @@ test("Editor preferences: the last note reopens and the undo dial uses its chose
   await page.screenshot({ path: info.outputPath("dark-editor.png") });
   expect(await centerPixel(page, { x: 300, y: 24 })).toEqual([0x26, 0x30, 0x2c]);
   expect(brightness(await centerPixel(page, { x: 500, y: 400 }))).toBeGreaterThan(730);
+  await button("Open navigation").click();
+  await button("Navigation Layers").click();
+  await page.screenshot({ path: info.outputPath("dark-navigation.png") });
+  await button("Close navigation").click();
+  await button("Pages").click();
+  await page.screenshot({ path: info.outputPath("dark-pages-menu.png") });
+  await closePopover(page);
+  await button("Pen").click();
+  await button("Save pen").waitFor();
+  await page.screenshot({ path: info.outputPath("dark-pen-menu.png") });
+  await closePopover(page);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Recall", exact: true })).toBeVisible();
   await canvas.waitFor();
@@ -68,6 +79,8 @@ test("Editor preferences: the last note reopens and the undo dial uses its chose
     .toEqual(["threeFingerSwipeLeft", "threeFingerSwipeRight"]);
   await penStroke(cdp, line(box.x + 200, box.x + 300, box.y + 480), 0.6);
   expect((await savedPages(page, "Recall")).map((item) => item.strokes)).toEqual([4]);
+  const inkRegion = { x: 90, y: 80, width: 600, height: 480 };
+  const beforeSwipes = await pixelBounds(page, inkRegion, isInk);
   const swipe = async (direction: -1 | 1) => {
     const origin = Array.from({ length: 3 }, (_, id) => ({ id, x: box.x + 440 + id * 42, y: box.y + 240 }));
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: origin });
@@ -79,9 +92,13 @@ test("Editor preferences: the last note reopens and the undo dial uses its chose
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   };
   await swipe(-1);
-  expect((await savedPages(page, "Recall")).map((item) => item.strokes)).toEqual([3]);
+  await expect.poll(async () => (await savedPages(page, "Recall")).map((item) => item.strokes)).toEqual([3]);
   await swipe(1);
-  expect((await savedPages(page, "Recall")).map((item) => item.strokes)).toEqual([4]);
+  await expect.poll(async () => (await savedPages(page, "Recall")).map((item) => item.strokes)).toEqual([4]);
+  const afterSwipes = await pixelBounds(page, inkRegion, isInk);
+  for (const edge of ["left", "right", "top", "bottom"] as const) {
+    expect(Math.abs(afterSwipes[edge] - beforeSwipes[edge]), `the ${edge} edge stays in place`).toBeLessThanOrEqual(2);
+  }
   const doubleTap = async () => {
     const point = [{ id: 0, x: box.x + 450, y: box.y + 260 }];
     for (let tap = 0; tap < 2; tap++) {
@@ -90,7 +107,7 @@ test("Editor preferences: the last note reopens and the undo dial uses its chose
     }
   };
   const inkWidth = async () => {
-    const bounds = await pixelBounds(page, { x: 90, y: 80, width: 600, height: 480 }, isInk);
+    const bounds = await pixelBounds(page, inkRegion, isInk);
     return bounds.right - bounds.left;
   };
   const fittedWidth = await inkWidth();
@@ -104,6 +121,11 @@ test("Editor preferences: the last note reopens and the undo dial uses its chose
   await button("Library").click();
   await page.screenshot({ path: info.outputPath("dark-library.png") });
   await openTestNotebook(page);
+  await button("New note").click();
+  await page.getByRole("textbox", { name: "Title", exact: true }).waitFor();
+  await page.getByLabel("First page preview").waitFor();
+  await page.screenshot({ path: info.outputPath("dark-new-note.png") });
+  await button("Cancel").click();
   await button("Recall actions").click();
   await button("Move to trash").click();
   await expect(button("Recall actions")).toHaveCount(0);
