@@ -115,22 +115,22 @@ extension _ClippingsPanel on _EditorScreenState {
                                         CupertinoButton(
                                           padding: const EdgeInsets.all(6),
                                           minSize: 32,
-                                    onPressed:
-                                        (action == 'up' && i == 0) ||
-                                            (action == 'down' &&
-                                                i == clippings.length - 1)
-                                        ? null
-                                        : () => run(() async {
-                                            await native.host
-                                                .changeClipping(
-                                                  widget.engine,
-                                                  widget.note.root,
-                                                  item.id,
-                                                  action,
-                                                )
-                                                .toDart;
-                                            await refreshClippings();
-                                          }),
+                                          onPressed:
+                                              (action == 'up' && i == 0) ||
+                                                  (action == 'down' &&
+                                                      i == clippings.length - 1)
+                                              ? null
+                                              : () => run(() async {
+                                                  await native.host
+                                                      .changeClipping(
+                                                        widget.engine,
+                                                        widget.note.root,
+                                                        item.id,
+                                                        action,
+                                                      )
+                                                      .toDart;
+                                                  await refreshClippings();
+                                                }),
                                           child: Semantics(
                                             label: '$action clipping',
                                             child: Icon(switch (action) {
