@@ -194,10 +194,20 @@ struct NativeLibraryView: View {
 
       ToolbarItemGroup(placement: .topBarTrailing) {
         if folder.path.isEmpty {
+          filterMenu
+        }
+
+        sortMenu
+
+        if folder.path.isEmpty {
           Button(action: createNotebook) {
             Label("New Notebook", systemImage: "folder.badge.plus")
           }
         } else {
+          Button(action: importPDF) {
+            Label("Import PDF", systemImage: "doc.badge.plus")
+          }
+
           Button(action: createNote) {
             Label("New Note", systemImage: "square.and.pencil")
           }
@@ -210,166 +220,178 @@ struct NativeLibraryView: View {
           .accessibilityLabel("\(folder.name) notebook actions")
         }
 
-        Menu {
-          Button {
-            searchPresented = false
-            selectScope(.folder)
-          } label: {
-            if scope == .folder {
-              Label("Library", systemImage: "checkmark")
-            } else {
-              Label("Library", systemImage: "books.vertical")
-            }
-          }
-
-          Button {
-            searchPresented = false
-            selectScope(.recent)
-          } label: {
-            if scope == .recent {
-              Label("Recent", systemImage: "checkmark")
-            } else {
-              Label("Recent", systemImage: "clock")
-            }
-          }
-
-          Button {
-            searchPresented = false
-            selectScope(.favorites)
-          } label: {
-            if scope == .favorites {
-              Label("Favorites", systemImage: "checkmark")
-            } else {
-              Label("Favorites", systemImage: "star")
-            }
-          }
-
-          Button {
-            searchPresented = false
-            selectScope(.trash)
-          } label: {
-            if scope == .trash {
-              Label("Trash", systemImage: "checkmark")
-            } else {
-              Label("Trash", systemImage: "trash")
-            }
-          }
-
-          if !tags.isEmpty {
-            Divider()
-            ForEach(tags) { tag in
-              Button {
-                searchPresented = false
-                selectTag(tag.name)
-              } label: {
-                if scope == .tag && selectedTag == tag.name {
-                  Label(tag.name, systemImage: "checkmark")
-                } else {
-                  Label(tag.name, systemImage: "tag")
-                }
-              }
-            }
-          }
-
-          Button(action: createTag) {
-            Label("New Tag…", systemImage: "tag.badge.plus")
-          }
-
-          if !folder.path.isEmpty {
-            Divider()
-
-            Button(action: importPDF) {
-              Label("Import PDF", systemImage: "doc.badge.plus")
-            }
-          }
-
-          Divider()
-
-          Button {
-            setSort(.name)
-          } label: {
-            if sort == .name {
-              Label("Name", systemImage: "checkmark")
-            } else {
-              Text("Name")
-            }
-          }
-
-          Button {
-            setSort(.modified)
-          } label: {
-            if sort == .modified {
-              Label("Date Modified", systemImage: "checkmark")
-            } else {
-              Text("Date Modified")
-            }
-          }
-
-          Divider()
-
-          if sort == .name {
-            Button {
-              setSortDirection(.ascending)
-            } label: {
-              if sortDirection == .ascending {
-                Label("A to Z", systemImage: "checkmark")
-              } else {
-                Text("A to Z")
-              }
-            }
-
-            Button {
-              setSortDirection(.descending)
-            } label: {
-              if sortDirection == .descending {
-                Label("Z to A", systemImage: "checkmark")
-              } else {
-                Text("Z to A")
-              }
-            }
-          } else {
-            Button {
-              setSortDirection(.descending)
-            } label: {
-              if sortDirection == .descending {
-                Label("Newest First", systemImage: "checkmark")
-              } else {
-                Text("Newest First")
-              }
-            }
-
-            Button {
-              setSortDirection(.ascending)
-            } label: {
-              if sortDirection == .ascending {
-                Label("Oldest First", systemImage: "checkmark")
-              } else {
-                Text("Oldest First")
-              }
-            }
-          }
-
-          Divider()
-
-          Button(action: toggleLayout) {
-            Label(
-              grid ? "List" : "Grid",
-              systemImage: grid ? "list.bullet" : "square.grid.2x2")
-          }
-
-          Divider()
-
-          Button(action: refresh) {
-            Label("Rescan", systemImage: "arrow.clockwise")
-          }
-
-          Button(action: showSettings) {
-            Label("Settings", systemImage: "gearshape")
-          }
-        } label: {
-          Label("Library Options", systemImage: "ellipsis.circle")
+        Button(action: refresh) {
+          Label("Rescan", systemImage: "arrow.clockwise")
         }
       }
+    }
+  }
+
+  private var filterLabel: String {
+    switch scope {
+    case .recent: return "Recent"
+    case .favorites: return "Favorites"
+    case .trash: return "Trash"
+    case .tag: return selectedTag ?? "Tags"
+    case .folder: return "All"
+    }
+  }
+
+  private var filterMenu: some View {
+    Menu {
+      Button {
+        searchPresented = false
+        selectScope(.folder)
+      } label: {
+        if scope == .folder {
+          Label("All", systemImage: "checkmark")
+        } else {
+          Text("All")
+        }
+      }
+
+      Button {
+        searchPresented = false
+        selectScope(.recent)
+      } label: {
+        if scope == .recent {
+          Label("Recent", systemImage: "checkmark")
+        } else {
+          Text("Recent")
+        }
+      }
+
+      Button {
+        searchPresented = false
+        selectScope(.favorites)
+      } label: {
+        if scope == .favorites {
+          Label("Favorites", systemImage: "checkmark")
+        } else {
+          Text("Favorites")
+        }
+      }
+
+      Button {
+        searchPresented = false
+        selectScope(.trash)
+      } label: {
+        if scope == .trash {
+          Label("Trash", systemImage: "checkmark")
+        } else {
+          Text("Trash")
+        }
+      }
+
+      if !tags.isEmpty {
+        Divider()
+        ForEach(tags) { tag in
+          Button {
+            searchPresented = false
+            selectTag(tag.name)
+          } label: {
+            if scope == .tag && selectedTag == tag.name {
+              Label(tag.name, systemImage: "checkmark")
+            } else {
+              Text(tag.name)
+            }
+          }
+        }
+      }
+    } label: {
+      Label(filterLabel, systemImage: "line.3.horizontal.decrease")
+    }
+  }
+
+  private var sortMenu: some View {
+    Menu {
+      Button {
+        setSort(.name)
+      } label: {
+        if sort == .name {
+          Label("Name", systemImage: "checkmark")
+        } else {
+          Text("Name")
+        }
+      }
+
+      Button {
+        setSort(.modified)
+      } label: {
+        if sort == .modified {
+          Label("Date Modified", systemImage: "checkmark")
+        } else {
+          Text("Date Modified")
+        }
+      }
+
+      Divider()
+
+      if sort == .name {
+        Button {
+          setSortDirection(.ascending)
+        } label: {
+          if sortDirection == .ascending {
+            Label("A to Z", systemImage: "checkmark")
+          } else {
+            Text("A to Z")
+          }
+        }
+
+        Button {
+          setSortDirection(.descending)
+        } label: {
+          if sortDirection == .descending {
+            Label("Z to A", systemImage: "checkmark")
+          } else {
+            Text("Z to A")
+          }
+        }
+      } else {
+        Button {
+          setSortDirection(.descending)
+        } label: {
+          if sortDirection == .descending {
+            Label("Newest First", systemImage: "checkmark")
+          } else {
+            Text("Newest First")
+          }
+        }
+
+        Button {
+          setSortDirection(.ascending)
+        } label: {
+          if sortDirection == .ascending {
+            Label("Oldest First", systemImage: "checkmark")
+          } else {
+            Text("Oldest First")
+          }
+        }
+      }
+
+      Divider()
+
+      Button {
+        if !grid { toggleLayout() }
+      } label: {
+        if grid {
+          Label("Grid", systemImage: "checkmark")
+        } else {
+          Text("Grid")
+        }
+      }
+
+      Button {
+        if grid { toggleLayout() }
+      } label: {
+        if !grid {
+          Label("List", systemImage: "checkmark")
+        } else {
+          Text("List")
+        }
+      }
+    } label: {
+      Label("Sort", systemImage: "arrow.up.arrow.down")
     }
   }
 
