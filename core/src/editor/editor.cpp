@@ -282,6 +282,30 @@ ink::StrokeInputBatch Editor::Batch(const std::vector<InkPenSample> &samples, do
   return batch;
 }
 
+int Editor::ActiveLayer() const {
+  const auto &layers = document().notebook.layers;
+  if (active_layer_id_.empty()) return layers.empty() ? -1 : 0;
+  for (size_t i = 0; i < layers.size(); ++i) if (layers[i].id == active_layer_id_) return static_cast<int>(i);
+  return -1;
+}
+
+bool Editor::SetActiveLayer(size_t index) {
+  if (index >= document().notebook.layers.size() || live_ || figure_capture_) return false;
+  active_layer_id_ = document().notebook.layers[index].id;
+  layer_ = index;
+  return true;
+}
+
+bool Editor::ResolveActiveLayer() {
+  int index = ActiveLayer();
+  if (figure_capture_) index = static_cast<int>(figure_capture_->layer);
+  if (index < 0 || static_cast<size_t>(index) >= document().notebook.layers.size()) return false;
+  const auto &layer = document().notebook.layers[index];
+  active_layer_id_ = layer.id;
+  layer_ = static_cast<size_t>(index);
+  return !layer.hidden && !layer.locked;
+}
+
 void Editor::Input(const InkPenSample *samples, size_t count) {
   // A pen-down starts a gesture, which takes the samples until its end.
   bool erasing = erase_.has_value();
@@ -296,6 +320,7 @@ void Editor::Input(const InkPenSample *samples, size_t count) {
   if (select_) return SelectInput(samples, count);
   if (ignored_) return IgnoreInput(samples, count);
   if (erasing) return EraseInput(samples, count);
+  if (!ResolveActiveLayer()) { live_.reset(); return; }
 
   std::vector<InkPenSample> real, predicted;
   bool ended = false, cancelled = false;
@@ -305,8 +330,8 @@ void Editor::Input(const InkPenSample *samples, size_t count) {
     if (s.tool == INK_TOOL_TOUCH || s.phase == INK_PHASE_HOVER) continue;
     if (s.phase == INK_PHASE_BEGIN) {
       Point at = ToContent(view_, s.x, s.y);
-      const std::vector<PagePlacement> layout = LayoutPages(document());
-      const PagePlacement *placement = PageAt(layout, at.y);
+      const std::vector<PagePlacement> layout = Layout(document());
+      const PagePlacement *placement = PageAt(layout, at);
       if (!placement) continue;
       if (figure_capture_ && placement->page != figure_capture_->page) {
         figure_capture_->cross_page_input = true;
@@ -401,8 +426,8 @@ void Editor::EraseInput(const InkPenSample *samples, size_t count) {
     if (s.tool == INK_TOOL_TOUCH || s.phase == INK_PHASE_HOVER || s.predicted) continue;
     if (s.phase == INK_PHASE_BEGIN) {
       Point at = ToContent(view_, s.x, s.y);
-      const std::vector<PagePlacement> layout = LayoutPages(document());
-      const PagePlacement *placement = PageAt(layout, at.y);
+      const std::vector<PagePlacement> layout = Layout(document());
+      const PagePlacement *placement = PageAt(layout, at);
       if (!placement) continue;
       double scale = std::sqrt(std::abs(view_.a * view_.d - view_.b * view_.c));
       erase_.emplace(EraseGesture{.kind = eraser_kind_,

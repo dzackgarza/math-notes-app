@@ -74,7 +74,7 @@ TEST_CASE("A notebook exports a selected page range as a deterministic PDF") {
       {.x = 150, .y = 100, .time = 20, .id = 1, .tool = INK_TOOL_PEN, .phase = INK_PHASE_MOVE},
       {.x = 200, .y = 100, .time = 40, .id = 2, .tool = INK_TOOL_PEN, .phase = INK_PHASE_END}};
   REQUIRE(ink_input(session.get(), ink, 3) == INK_OK);
-  REQUIRE(ink_document_set_page_size(session.document, INK_PAGE_LETTER, 0, 0) == INK_OK);
+  REQUIRE(ink_document_set_page_size(session.document, INK_PAGE_LETTER, INK_PORTRAIT, 0, 0) == INK_OK);
   REQUIRE(ink_document_insert_page(session.document, 1) == INK_OK);
   REQUIRE(ink_document_insert_page(session.document, 2) == INK_OK);
   const InkPdfExportSpec range{.first_page = 1, .page_count = 2};

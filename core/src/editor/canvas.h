@@ -20,6 +20,8 @@ struct InkDocument {
   ink_engine::NotebookFiles new_assets;
   // Page 1 of the notebook's template notebook (ink_document_set_template).
   std::optional<ink_engine::Page> template_page;
+  // The page layout of every canvas on the document (ink_document_set_arrangement).
+  ink_engine::PageArrangement arrangement = ink_engine::PageArrangement::kVertical;
   // The last ink_document_dirty_files result, which the host reads in place.
   std::vector<std::pair<std::string, std::string>> dirty;
   std::vector<std::string> dirty_removed;
@@ -28,10 +30,14 @@ struct InkDocument {
   std::string png;
   // The last ink_export_pdf result.
   std::string pdf;
+  std::string layers_json;
+  std::string navigation_json;
+  std::string figure_source;
+  std::string clipping_svg;
 };
 
 struct InkCanvas {
-  explicit InkCanvas(InkDocument &doc) : document(&doc), editor(doc.history) {}
+  explicit InkCanvas(InkDocument &doc) : document(&doc), editor(doc.history, doc.arrangement) {}
 
   InkDocument *document;
   ink_engine::Editor editor;

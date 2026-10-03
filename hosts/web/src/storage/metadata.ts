@@ -31,12 +31,14 @@ export interface LibraryMetadata {
 }
 
 export type PageSizeSetting = "a4" | "letter";
+export type OrientationSetting = "portrait" | "landscape";
 
 export interface StartingTemplate {
   name: string;
   folder: string[];
   paper: string;
   pageSize: PageSizeSetting;
+  orientation?: OrientationSetting;
   tags: string[];
 }
 
@@ -46,6 +48,7 @@ export interface NoteDraft {
   template: string;
   tags: string[];
   pageSize?: PageSizeSetting;
+  orientation?: OrientationSetting;
 }
 
 const FILE = ".library.json";
@@ -62,7 +65,7 @@ interface StoredMetadata {
 }
 
 export const emptyNote = (): NoteMetadata => ({ favorite: false, tags: [], description: "" });
-export const emptyFolder = (): FolderMetadata => ({ description: "", paper: "dotted", coverColor: "#A9C1F5", coverStyle: "classic", tags: [] });
+export const emptyFolder = (): FolderMetadata => ({ description: "", paper: "dotted", coverColor: "#24324A", coverStyle: "classic", tags: [] });
 
 // The tag colors offered in turn, from the spec's light palette.
 export const TAG_COLORS = ["#2F6FEB", "#3FA35B", "#8B5CF6", "#F08A24", "#2BB3C0", "#D6455D", "#1F3A93", "#C084FC"];

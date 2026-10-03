@@ -4,9 +4,14 @@ Math Notes uses one portable C++20 ink document engine with web and iPad hosts.
 The existing engine owns notebook pages, SVG editing, selection, erasure, and
 history. [Google Ink](https://github.com/google/ink) supplies brush construction,
 stroke geometry, and hit testing; [Skia](https://skia.org) renders pages. The v1
-plan continues this engine and composes mature host components around it.
+plan continues this engine. Flutter with Cupertino owns the complete web GUI;
+UIKit owns the independent iPad GUI. The shared boundary is the document,
+ink, and rendering core. The [adopted framework decision](reports/Web%20interface%20framework%20selection.md)
+records alternatives and integration evidence. [#56](https://github.com/dzackgarza/math-notes-app/issues/56)
+owns the web host transition and deployed acceptance.
 The [Write assessment](ink-reflow-owners.md) is input to a post-v1 refactoring
-decision, after the product works on both hosts.
+decision. [Targets and versions](../AGENTS.md#targets-and-versions) gives the
+order: v1 is the web app, v2 is the iPad port.
 
 The [initial dependency proposal](source/initial-dependency-proposal.md)
 records the earlier component ideas. The [v1 ownership map](V1_OWNERSHIP_MAP.md)
@@ -34,13 +39,13 @@ Add narrower tests after most of the architecture exists.
                          │  stable C ABI (core/include/ink.h)
                 ┌────────┴─────────┐
             Web host           iPadOS host
-     TypeScript + WASM         Swift, UIKit, Metal
+     Flutter/Dart + WASM       Swift, UIKit, Metal
 ```
 
 | Host | Role |
 | --- | --- |
-| Web (WASM, PWA) | Built first. The product on Linux, Windows, and macOS, in desktop Chrome. |
-| iPadOS (UIKit) | Built second. Native notebook canvas and navigation. A bounded `WKWebView` hosts only the shared TikZ figure editor. UIKit owns Pencil double tap, Pencil Pro squeeze and barrel roll, hover pose, haptics, and the input-to-display path for note ink. |
+| Web (WASM, PWA) | v1. The product in Chrome on Linux. |
+| iPadOS (UIKit) | v2. A port of the finished web app on the same core. Native notebook canvas and navigation. A bounded `WKWebView` hosts only the shared TikZ figure editor. UIKit owns Pencil double tap, Pencil Pro squeeze and barrel roll, hover pose, haptics, and the input-to-display path for note ink. |
 
 ## Engine integration
 
@@ -90,7 +95,11 @@ record candidates for specific gaps. They do not change the engine owner.
   printed sheet. A4 by default; the size is a notebook setting, and an
   imported PDF page keeps its own size. There is no infinite canvas. Reflow
   and insert space that push ink past the bottom of a page move it onto the
-  next page and add a page when needed.
+  next page and add a page when needed. The ink of that page moves down by
+  the depth that the arriving ink takes, and its own overflow goes on in the
+  same way; empty space at the bottom of a page takes the push, so a page
+  with room changes no later page. The rules are in
+  `core/src/document/reflow.h`.
 - Storage and file format: [FORMAT.md](FORMAT.md).
 - The current document model keeps fixed-size pages as standalone SVG files.
   Immer values and `DocumentHistory` own undo/redo and changed-page identity.
@@ -119,7 +128,7 @@ stays in its current owner during v1 unless a specific defect requires change.
 
 Navigation, scrolling, edge motion, zoom, tabs, text editing, layout,
 drag-and-drop, and other common app behavior belong to platform APIs or
-complete framework components. Use their interaction, accessibility, input,
+complete framework components. Use their interaction, input,
 and lifecycle contracts together with their appearance. The product
 specification describes the user's task and any real departure from those
 contracts. Standard behavior is inherited from the owner. An observed
@@ -177,21 +186,21 @@ call site already uses them. Source evidence and exact pins are in
 
 | Concern | Owner and Math Notes boundary |
 | --- | --- |
-| Web page scrolling and page-end insertion | [Framework7 9.1.2 `page-content` and bottom pull](https://framework7.io/docs/pull-to-refresh.html) own the editor viewport's browser scroll and pull motion. It is a nested editor root; Ionic keeps outer chrome and does not scroll that viewport. A held-ready release callback issues the notebook add-page command. The [UI assessment](research_notes/Component%20ownership%20decisions/ui.md) defines the pen/finger input adapter and device acceptance. |
-| Web pen/finger arbitration | Follow [Chromium PDF viewer's ink host](https://chromium.googlesource.com/chromium/src/+/be0366525a33fc4df00ab2b4164cb0f506dcc47b/chrome/browser/resources/pdf/elements/viewer-ink-host.ts): retain `touch-action: auto`, identify pen contact, and cancel only its drawing touch sequence through a non-passive touch listener. Finger touch remains in native browser scroll. The host sends pen samples to the existing engine; Framework7 and the browser retain motion. Device acceptance proves pen input, one-finger pan, pinch, and bottom pull together. |
+| Web page scrolling and page-end insertion | Flutter owns the notebook interaction surface and standard scroll physics. Cupertino scrollables supply fling, resistance, and rebound. A framework-owned pull interaction reports a held-ready release; Math Notes issues one add-page command and supplies its template. #56 proves the complete surface on physical touch hardware. |
+| Web pen/finger arbitration | Flutter owns hit testing, input dispatch, focus, and cancellation. A bounded browser adapter supplies original, coalesced, and predicted pen samples, pressure, and both tilt axes only for the accepted notebook input target. The embedded Skia canvas is passive (`pointer-events: none`). |
 | iPad page navigation | [`UIScrollView`](https://developer.apple.com/documentation/uikit/uiscrollview) owns scrolling and zoom around the Metal drawing surface. UIKit arbitrates direct touches and Pencil input. |
 | iPad page-end insertion | [MJRefresh 3.7.9 `MJRefreshBackFooter`](https://github.com/CoderMJLee/MJRefresh/tree/3.7.9) owns bottom-pull behavior on the `UIScrollView`. A held-ready release issues the notebook add-page command. |
-| Web document zoom | [`@use-gesture/vanilla` 10.3.1 PinchGesture](https://use-gesture.netlify.app/docs/gestures/) recognizes touch/trackpad pinch and reports scale and focal point to the renderer. Framework7 remains scroll owner. |
-| Chrome, sheets, menus, and forms | Ionic components on the web; SwiftUI and UIKit on iPad. Use their full control behavior and accessibility. App code supplies content and document commands. |
-| Document tabs | [Kobalte Tabs 0.13.14](https://kobalte.dev/docs/core/components/tabs/) owns selection, linked panels, focus, and keyboard behavior. The app maps stable tab IDs to notes. |
-| Typed text | Ionic `ion-textarea` and UIKit `UITextView` own input, composition, caret, and selection. [Skia Paragraph](https://skia.org/docs/user/modules/quickstart/) owns shared shaping and line layout for rendered page text. The app stores authored text and SVG baselines. |
-| Drag-and-drop and selection manipulation | [interact.js 1.10.28](https://interactjs.io/docs/draggable/) owns web selected-object handle sessions. UIKit supplies native contact events and [drag-and-drop](https://developer.apple.com/documentation/uikit/drag-and-drop) for external transfers. The current engine owns selection membership and committed object transforms on both hosts. |
-| Split panes | [corvu Resizable 0.2.5](https://corvu.dev/docs/primitives/resizable/) owns the web splitter; UIKit/SwiftUI own native panes. The host stores proportions and connects document position callbacks. |
+| Web document zoom | Flutter owns touch scaling and navigation. Its `InteractiveViewer` supplies pan, pinch, scale bounds, and friction; Cupertino scrollables supply bounce. #56 must integrate these contracts without an application motion state machine. |
+| Chrome, sheets, menus, and forms | Flutter Cupertino on web; UIKit and SwiftUI on iPad. Framework controls own input, focus, and keyboard behavior. Math Notes supplies content, layout, and document commands. |
+| Document tabs | Flutter owns web focus, selection, and keyboard input; UIKit owns native controls. Math Notes maps note IDs to open documents and view state. #62 delivers the note picker and tabs. |
+| Typed text | Flutter `CupertinoTextField` and UIKit `UITextView` own input, composition, caret, and selection. [Skia Paragraph](https://skia.org/docs/user/modules/quickstart/) owns shared page-text shaping and layout. The app stores authored text and SVG baselines. |
+| Drag-and-drop and selection manipulation | Flutter owns web input sessions and in-app drag targets; UIKit owns native interaction and external transfers. The current engine owns selection membership and committed object transforms. App adapters map accepted interactions to document coordinates. |
+| Split panes | Flutter owns web layout and input; UIKit/SwiftUI own native panes. #28 composes framework controls and mature Flutter packages where needed for resize behavior and keyboard access. Math Notes stores proportions and links document positions. |
 | History | The existing `DocumentHistory` and Immer document values own undo/redo. The notebook model tracks saved-file identity. |
 | Ink editing | Google Ink owns brush and stroke geometry. The current engine owns document edits, selection, erasure, and notebook mapping. The [v1 ruled-editing decision](v1-ruled-editing-decision.md) selects a bounded port of pinned Write algorithms for #30 and #31 and names the fixed-page residue. |
 | Persistence and offline lifecycle | File System Access, IndexedDB/idb-keyval, Apple file coordination, and Vite PWA/Workbox own their respective platform mechanisms. #3, #5, and #7 define the minimum notebook-format and save-transaction adapters, including interruption and conflict behavior. |
 | Source syntax and graphics | pugixml 1.16 maps page SVG and InkML/namespaced metadata; nlohmann-json at vcpkg baseline `10541e31` owns notebook JSON syntax. Skia renders the current document. `@tikz-editor/core` owns TikZ syntax and source patches. The adapter maps documented fields and preserves authored source. |
-| Mathematical figures | The [FreeTikZ integration plan](specs/tikz-drawing-mode.md#component-ownership) uses TikZ Editor `app-v0.5.2`, Planegcs 1.2.0, BusyTeX 1.4.0 with the pinned TeX Live extra-plus-pictures profile, and MuPDF C SVG output 1.28.0. The app owns capture-to-figure identity and notebook file mapping. |
+| Mathematical figures | The [TikZ mode contract](specs/tikz-drawing-mode.md) extracts a geometric TikZ skeleton for external figure refinement. The [permanent product boundary](../AGENTS.md#product-boundary-handwritten-drafts) keeps handwriting as ink and typesetting in external tools. FreeTikZ owns capture, TikZ Editor supplies supported geometry/source operations, and the app owns persistence and Copy TikZ. |
 
 ### Ink reflow owner survey
 
@@ -213,13 +222,9 @@ they do not claim that every component is installed.
 | Ink strokes and geometry | [Google Ink `1b220eee`](https://github.com/google/ink/tree/1b220eee5a05e9b67be9f20f49ae2d574c8667a7), Apache-2.0 | Existing brush, outline, and hit-test owner; the app maps results to its notebook model. |
 | Page rendering | [Skia](https://skia.org) within the pinned Skia build | Render the current document on SkCanvas. |
 | Rendered page text layout | [Skia Paragraph](https://skia.org/docs/user/modules/quickstart/) within the pinned Skia build | Shape and lay out stored authored text. |
-| Web editor scroll and bottom pull | [Framework7 9.1.2](https://framework7.io/docs/pull-to-refresh.html) | Nested editor viewport and completed pull callback. |
+| Complete web GUI | [Flutter with Cupertino](reports/Web%20interface%20framework%20selection.md) | Controls, navigation, input, focus, scrolling, and HTML platform views. #56 pins the SDK and packages in the host build. |
 | iPad editor scroll and bottom pull | [UIScrollView](https://developer.apple.com/documentation/uikit/uiscrollview), [MJRefresh 3.7.9](https://github.com/CoderMJLee/MJRefresh/tree/3.7.9) | Native motion and bottom action. |
-| Web pinch, object handles, tabs, split panes | [`@use-gesture/vanilla` 10.3.1](https://use-gesture.netlify.app/docs/gestures/), [interact.js 1.10.28](https://interactjs.io/), [Kobalte Tabs 0.13.14](https://kobalte.dev/docs/core/components/tabs/), [corvu Resizable 0.2.5](https://corvu.dev/docs/primitives/resizable/) | Host reports completed gestures and commands to the document. |
 | TikZ figure editor and source patching | [TikZ Editor `app-v0.5.2` / `b8b0d001`](https://github.com/DominikPeters/tikz-editor/tree/app-v0.5.2), MIT; [Math Notes FreeTikZ fork `9e5fb05c`](https://github.com/dzackgarza/freetikz/tree/9e5fb05c22dbc5637ff7cebf99f3dbee6f962b68) | Complete React editor, `@tikz-editor/core`, CodeMirror 6; FreeTikZ keeps pen-first capture. |
-| Figure geometric constraints | [Planegcs 1.2.0 / `ee9b156d`](https://github.com/Salusoft89/planegcs/tree/1.2.0), LGPL-2.1 | Solve accepted scene relations; map stable IDs and units. |
-| Offline final TeX preview | [TeXlyre-BusyTeX 1.4.0 / `f3c8780e`](https://github.com/TeXlyre/texlyre-busytex/blob/f3c8780e85939ced63133501d66b6386d89f69e4/package.json), AGPL-3.0-or-later; [upstream builder `f544a51a`](https://github.com/TeXlyre/texlyre-busytex-build/tree/f544a51a99e7d3978bb70608e927a9a23f96d4a7) `texlive-extra.profile` plus `collection-pictures 1`, `build/wasm/texlive-extra.fmt-rebuilt`; official dated `texlive2026-20260301.iso` SHA-512 `4a9071bb567c3bdd6443378dedc8e485aea4a2f1203ec8ed7c17f6787093b9c37636a037032c0be63352e3d0bf98cf5616dab19fdcd7cb83f766b3e085b620ff` | Verify ISO before extraction, package local `.js`/`.data`, and disable remote fetches. LuaLaTeX compiles exact source and preamble; retain PDF and diagnostics. |
-| Compiled figure to page-visible SVG | [MuPDF C SVG device 1.28.0 / `205b8cf4`](https://mupdf.readthedocs.io/en/1.28.0/_static/generated/c/html/output-svg_8h.html), AGPL-3.0-or-later | Convert compiled PDF to vector SVG with text as paths; embed it in the standalone page SVG. |
 | Figure editor host bridge | [TeXlyre embed mirror `b98714d3`](https://github.com/TeXlyre/tikz-editor-embed-mirror/tree/b98714d3584ee849178f19cf44c7768ff9063f6e) protocol, web iframe and bounded iPad `WKWebView` | Host reads/writes notebook files; embedded editor sends source/SVG results. |
 
 ### Current engine
@@ -247,15 +252,30 @@ needs no COOP/COEP headers.
 
 ### Current web host
 
+The Flutter web app is the only web GUI. `hosts/web/flutter/lib` holds the
+Cupertino chrome; `hosts/web/src/flutter.ts` is the bridge to the engine and
+the folder services.
+
+The Flutter host follows MVVM ownership at the application boundary. One
+app-wide `ToolsViewModel` owns tool configuration that must follow the user
+between notes: pen/marker/highlighter settings and palette, eraser/lasso/space
+modes, finger-drawing behavior, and toolbar visibility. Each
+open editor owns an `EditorViewModel` for note-local canvas, page, drawing
+capture, selection, clippings, figure preview, and save-state observation.
+`OpenNotes` remains the session repository for tabs, split panes, linked
+viewports, and link destinations. Editor presentation is split under
+`hosts/web/flutter/lib/ui/editor/`; screens and panels consume those models
+through Provider rather than owning durable tool or document state themselves.
+
 | Concern | Library | Introduced in |
 | --- | --- | --- |
-| UI chrome (toolbars, library, panels) | SolidJS 1.9, [Ionic](https://ionicframework.com/docs/components) 8 web components in iOS mode, so the web chrome matches the iPad host's SwiftUI controls, through the Solid components of [@ionic-solidjs/core](https://github.com/ionic-solidjs/ionic-solidjs); tool icons from lucide-solid | [#57](https://github.com/dzackgarza/math-notes-app/issues/57) |
-| Build, dev server, PWA | Vite 8 (run with `bunx --bun vite`), vite-plugin-pwa 1.3 | [#5](https://github.com/dzackgarza/math-notes-app/issues/5) |
+| UI chrome (toolbars, library, panels) | Flutter Cupertino widgets; pull_down_button, popover, flex_color_picker, lucide_icons_flutter | [#56](https://github.com/dzackgarza/math-notes-app/issues/56) |
+| Bridge build, offline cache | Vite 8 (run with `bunx --bun vite`) for the bridge; workbox-build | [#56](https://github.com/dzackgarza/math-notes-app/issues/56) |
 | Folder handle persistence (Chromium) | idb-keyval 6.3 | [#5](https://github.com/dzackgarza/math-notes-app/issues/5) |
 | PDF page rasterizer (planned) | [mupdf](https://www.npmjs.com/package/mupdf) (Artifex's WASM build), in a Web Worker, loaded only at import | [#8](https://github.com/dzackgarza/math-notes-app/issues/8) |
 | Tests | Vitest 5 Browser Mode with the Playwright 1.63 provider (Chromium) | [#5](https://github.com/dzackgarza/math-notes-app/issues/5) |
 
-Pen samples go straight to the engine; no pen sample passes through Solid
+Pen samples go straight to the engine; no pen sample passes through Flutter
 state. Platform navigation stays with the host's interaction components.
 
 ### Current iPad host and selected platform APIs

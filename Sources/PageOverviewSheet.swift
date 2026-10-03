@@ -1,0 +1,197 @@
+import SwiftUI
+import UIKit
+
+@MainActor
+struct PageOverviewSheet: View {
+  let document: EngineDocument
+  @Binding var currentPage: Int
+  let onSelect: (Int) -> Void
+  let onEdit: (Int) -> Void
+  let onError: (Error) -> Void
+  let onDone: () -> Void
+
+  @State private var pageCount: Int
+  @State private var thumbnailRevision = 0
+
+  init(
+    document: EngineDocument,
+    currentPage: Binding<Int>,
+    onSelect: @escaping (Int) -> Void,
+    onEdit: @escaping (Int) -> Void,
+    onError: @escaping (Error) -> Void,
+    onDone: @escaping () -> Void
+  ) {
+    self.document = document
+    _currentPage = currentPage
+    self.onSelect = onSelect
+    self.onEdit = onEdit
+    self.onError = onError
+    self.onDone = onDone
+    _pageCount = State(initialValue: (try? document.pageCount()) ?? 0)
+  }
+
+  var body: some View {
+    NavigationStack {
+      ScrollView {
+        LazyVGrid(
+          columns: [GridItem(.adaptive(minimum: 140, maximum: 190), spacing: 16)],
+          spacing: 20
+        ) {
+          ForEach(0..<pageCount, id: \.self) { index in
+            pageCard(index)
+          }
+        }
+        .padding(20)
+      }
+      .navigationTitle("Pages")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Done", action: onDone)
+        }
+      }
+    }
+  }
+
+  private func pageCard(_ index: Int) -> some View {
+    VStack(spacing: 6) {
+      Button {
+        onSelect(index)
+      } label: {
+        PageOverviewThumbnail(
+          document: document,
+          index: index,
+          revision: thumbnailRevision)
+          .aspectRatio(0.7, contentMode: .fit)
+          .frame(maxWidth: .infinity)
+          .background(.background)
+          .overlay {
+            RoundedRectangle(cornerRadius: 4)
+              .stroke(
+                pageCount > 1 && index == currentPage
+                  ? Color.accentColor
+                  : Color.secondary.opacity(0.35),
+                lineWidth: pageCount > 1 && index == currentPage ? 3 : 1)
+          }
+          .clipShape(RoundedRectangle(cornerRadius: 4))
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel("Page \(index + 1)")
+      .draggable(String(index))
+      .dropDestination(for: String.self) { items, _ in
+        guard let source = items.first.flatMap(Int.init) else { return false }
+        return movePage(from: source, to: index)
+      }
+
+      Text("\(index + 1)")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+    .contextMenu {
+      Button("Duplicate", systemImage: "plus.square.on.square") {
+        duplicatePage(index)
+      }
+
+      if pageCount > 1 {
+        Button("Delete", systemImage: "trash", role: .destructive) {
+          deletePage(index)
+        }
+      }
+    }
+  }
+
+  private func movePage(from: Int, to: Int) -> Bool {
+    guard from >= 0, from < pageCount, to >= 0, to < pageCount else {
+      return false
+    }
+    guard from != to else { return true }
+
+    do {
+      try document.movePage(from: from, to: to)
+      if currentPage == from {
+        currentPage = to
+      } else if from < currentPage && currentPage <= to {
+        currentPage -= 1
+      } else if to <= currentPage && currentPage < from {
+        currentPage += 1
+      }
+      thumbnailRevision &+= 1
+      onEdit(currentPage)
+      return true
+    } catch {
+      onError(error)
+      return false
+    }
+  }
+
+  private func duplicatePage(_ index: Int) {
+    do {
+      try document.duplicatePage(at: index)
+      if index < currentPage {
+        currentPage += 1
+      }
+      pageCount = try document.pageCount()
+      thumbnailRevision &+= 1
+      onEdit(currentPage)
+    } catch {
+      onError(error)
+    }
+  }
+
+  private func deletePage(_ index: Int) {
+    guard pageCount > 1 else { return }
+    let previousCount = pageCount
+    do {
+      try document.deletePage(at: index)
+      if index < currentPage || currentPage == previousCount - 1 {
+        currentPage = max(0, currentPage - 1)
+      }
+      pageCount = try document.pageCount()
+      thumbnailRevision &+= 1
+      onEdit(currentPage)
+    } catch {
+      onError(error)
+    }
+  }
+}
+
+@MainActor
+private struct PageOverviewThumbnail: View {
+  let document: EngineDocument
+  let index: Int
+  let revision: Int
+
+  @State private var image: UIImage?
+  @State private var failed = false
+
+  var body: some View {
+    ZStack {
+      Rectangle()
+        .fill(.background)
+
+      if let image {
+        Image(uiImage: image)
+          .resizable()
+          .scaledToFit()
+      } else if failed {
+        Image(systemName: "exclamationmark.triangle")
+          .foregroundStyle(.secondary)
+      } else {
+        ProgressView()
+      }
+    }
+    .task(id: revision) {
+      image = nil
+      failed = false
+      do {
+        image = UIImage(data: try document.pagePNG(index: index, width: 240))
+        if image == nil {
+          failed = true
+        }
+      } catch {
+        image = nil
+        failed = true
+      }
+    }
+  }
+}

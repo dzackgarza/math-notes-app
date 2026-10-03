@@ -43,6 +43,29 @@ describe("penSamples", () => {
     expect(up).toMatchObject([{ tool: Tool.eraser, phase: Phase.end }]);
   });
 
+  test("a stroke begun with the side button held erases until the pen lifts", () => {
+    const ids = { next: 0 };
+    const down = penSamples(event("pointerdown", { button: 0, buttons: 3 }), origin, pen, ids);
+    const released = penSamples(event("pointermove", { buttons: 1 }), origin, pen, ids);
+    const up = penSamples(event("pointerup", { button: 0, buttons: 0 }), origin, pen, ids);
+    expect([...down, ...released, ...up]).toMatchObject([
+      { tool: Tool.eraser, phase: Phase.begin },
+      { tool: Tool.eraser, phase: Phase.move },
+      { tool: Tool.eraser, phase: Phase.end },
+    ]);
+    const next = penSamples(event("pointerdown", { button: 0, buttons: 1 }), origin, pen, ids);
+    expect(next).toMatchObject([{ tool: Tool.pen, phase: Phase.begin }]);
+  });
+
+  test("a finger is the pen when fingers draw, and the touch tool otherwise", () => {
+    const finger = (type: string) =>
+      new PointerEvent(type, { pointerId: 2, pointerType: "touch", isPrimary: true, buttons: 1 });
+    const ids = { next: 0 };
+    expect(penSamples(finger("pointerdown"), origin, 0, ids, true)).toMatchObject([{ tool: Tool.pen }]);
+    expect(penSamples(finger("pointerup"), origin, 0, ids, true)).toMatchObject([{ tool: Tool.pen }]);
+    expect(penSamples(finger("pointerdown"), origin, 0, ids)).toMatchObject([{ tool: Tool.touch }]);
+  });
+
   test("coalesced samples come first in order, then the predicted ones flagged", () => {
     const at = (x: number) => new PointerEvent("pointermove", { pointerType: "pen", clientX: x, clientY: 20, buttons: 1 });
     const e = event("pointermove", {

@@ -8,6 +8,37 @@ build := "core/build/wasm"
 export EMSDK := emsdk
 export PATH := emsdk / "upstream/emscripten" + ":" + env("PATH")
 
+flutter := justfile_directory() / ".ci/flutter"
+flutter_rev := "4cf24164269a5ebf0c16a028a00727d0e77bbb05"
+
+[private]
+_flutter-sdk:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ ! -d "{{flutter}}" ]; then
+      git clone --depth 1 --branch 3.47.0 https://github.com/flutter/flutter.git "{{flutter}}"
+    fi
+    test "$(git -C '{{flutter}}' rev-parse HEAD)" = '{{flutter_rev}}'
+    '{{flutter}}/bin/flutter' precache --web
+
+# Builds the Flutter web app against the engine and storage services.
+web-build: engine-module
+    mkdir -p hosts/web/src/engine/wasm
+    cp {{build}}/web/engine.* {{build}}/web/engine_test.* hosts/web/src/engine/wasm/
+    just _flutter-host
+
+# CI supplies the engine module as an artifact.
+[private]
+_flutter-host: _flutter-sdk
+    cmake -P core/cmake/TextFonts.cmake
+    mkdir -p hosts/web/flutter/generated_fonts
+    cp .ci/fonts/*.ttf hosts/web/flutter/generated_fonts/
+    cd hosts/web && bunx tsc -b && bunx --bun vite build --config vite.flutter.config.ts
+    cd hosts/web/flutter && '{{flutter}}/bin/flutter' pub get --enforce-lockfile && '{{flutter}}/bin/flutter' build web --base-href /math-notes/ --no-web-resources-cdn
+    rsync -a --delete hosts/web/flutter/build/bridge/ hosts/web/flutter/build/web/bridge/
+    bun hosts/web/build-tikz.mjs
+    cd hosts/web && bun flutter-cache.mjs
+
 # Installs emsdk 4.0.7, vcpkg and the Playwright browsers where the recipes
 # below look for them (the engine workflow's setup steps).
 setup:
@@ -19,6 +50,7 @@ setup:
     cd hosts/web && bun install --frozen-lockfile && bunx playwright install chromium chromium-headless-shell
 
 engine-wasm:
+    @test -x {{emsdk}}/upstream/emscripten/em++ || { echo "No emsdk at {{emsdk}}: run just setup" >&2; exit 1; }
     cmake -S core -B {{build}} -G Ninja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_TOOLCHAIN_FILE={{vcpkg}}/scripts/buildsystems/vcpkg.cmake \
       -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE={{emsdk}}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake \
@@ -71,15 +103,31 @@ web-engine-test: engine-module
     cp {{build}}/web/engine.* {{build}}/web/engine_test.* hosts/web/src/engine/wasm/
     cd hosts/web && bunx tsc -b && node --test src/engine/engine.test.ts
 
-# The web app in hosts/web/dist, with the engine module.
-web-build: engine-module
-    mkdir -p hosts/web/src/engine/wasm
-    cp {{build}}/web/engine.* {{build}}/web/engine_test.* hosts/web/src/engine/wasm/
-    cd hosts/web && bunx tsc -b && bunx --bun vite build
-
+# CI is the builder for this machine (push, then `just web-fetch`); CI itself runs the recipes below.
 # Builds the web app and copies it to /var/www/math-notes (served at http://localhost/math-notes/, README).
 web-deploy: web-build
-    rsync -a --delete hosts/web/dist/ /var/www/math-notes/
+    rsync -a --delete hosts/web/flutter/build/web/ /var/www/math-notes/
+
+# The Engine (wasm32) workflow runs on every push; its artifacts exist once the
+# "Build Flutter host" step has run (`gh run watch --interval 60 <run>`). The engine module
+# goes to hosts/web/src/engine/wasm, the web app to /var/www/math-notes.
+# Deploys CI's build of the checked-out commit (served at http://localhost/math-notes/).
+web-fetch:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    sha="$(git rev-parse HEAD)"
+    run="$(gh run list --workflow engine.yml --commit "$sha" --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+    if [ -z "$run" ]; then
+      echo "No Engine (wasm32) run for $sha: push the commit, or run: gh workflow run engine.yml --ref $(git branch --show-current)" >&2
+      exit 1
+    fi
+    dir="hosts/web/flutter/build/ci/$run"
+    gh run download "$run" -n engine-module -D "$dir/engine"
+    gh run download "$run" -n web-app -D "$dir/web"
+    mkdir -p hosts/web/src/engine/wasm
+    rsync -a "$dir/engine/" hosts/web/src/engine/wasm/
+    rsync -a --delete "$dir/web/" /var/www/math-notes/
+    echo "Deployed run $run of $sha to http://localhost/math-notes/"
 
 # Vitest Browser Mode in Chromium, then Playwright against the deployment.
 web-test: web-deploy
@@ -125,8 +173,3 @@ write-fixtures:
     done
     # replay every case; upstream-test<N> cases are also compared with Write's test<N>_ref.html
     (cd "$W/syncscribble" && WRITE_REPLAY_DIR="$F" WRITE_REPLAY_TMP="$tmp/replay" run --replaytest)
-
-# Rewrites docs/specs/ui/screenshots: the library, New Notebook, New Note and editor
-# screens of the deployment at 1366 × 1024, for review against the mockups.
-screenshots: web-deploy
-    cd hosts/web && bun e2e/screenshots.ts

@@ -72,6 +72,7 @@ TEST_CASE("A null handle or pointer gives an argument status") {
   int32_t drew = 0;
   CHECK(ink_render(nullptr, &drew) == INK_ERROR_ARGUMENT);
   CHECK(std::string(ink_last_error()) == "canvas is null");
+  CHECK(ink_canvas_invalidate(nullptr) == INK_ERROR_ARGUMENT);
   CHECK(ink_document_create(1, nullptr) == INK_ERROR_ARGUMENT);
   ink_test::Session session;
   CHECK(ink_canvas_set_tool(session.get(), nullptr) == INK_ERROR_ARGUMENT);
@@ -179,12 +180,22 @@ TEST_CASE("A notebook loaded file by file equals the notebook loaded at once") {
   // Pages in reverse name order: placement follows notebook.json and names.
   for (auto it = files.rbegin(); it != files.rend(); ++it) {
     if (it->first == "notebook.json") continue;
-    InkStatus status =
-        ink_document_load_page(session.document, it->first.c_str(), Data(it->second), it->second.size());
-    CHECK(status == (it->first == "pages/0006.svg" ? INK_ERROR_PARSE : INK_OK));
+    REQUIRE(ink_document_load_page(session.document, it->first.c_str(), Data(it->second),
+                                   it->second.size()) == INK_OK);
   }
   CHECK(AllFiles(session.doc()) == AllFiles(LoadNotebook(files)));
   CHECK(DirtyFiles(session.document).empty());  // loaded files are saved
+}
+
+TEST_CASE("Loading a malformed page reports its parse error") {
+  ink_test::Session session;
+  const std::string json =
+      R"({"layers":[{"id":"l-inkaaa"}],"pages":[{"id":"p-merge6","file":"pages/0006.svg"}]})";
+  REQUIRE(ink_document_load_notebook(session.document, Data(json), json.size()) == INK_OK);
+  const std::string page = ink_test::ReadFile(INK_FIXTURE_DIR "/errors/conflict-page.svg");
+  CHECK(ink_document_load_page(session.document, "pages/0006.svg", Data(page), page.size()) ==
+        INK_ERROR_PARSE);
+  CHECK(std::string(ink_last_error()) == "pages/0006.svg: Could not determine tag type at offset 237");
 }
 
 TEST_CASE("Dirty files are the changed pages until the host marks them saved") {

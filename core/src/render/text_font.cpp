@@ -1,6 +1,6 @@
 #include "render/text_font.h"
 
-#include <stdexcept>
+#include <vector>
 
 #include "include/core/SkData.h"
 #include "include/core/SkFontMgr.h"
@@ -9,18 +9,59 @@
 #include "text_font.inc"
 
 namespace ink_engine {
+namespace {
+struct BundledFont {
+  const char *family;
+  const char *file;
+  sk_sp<SkData> data;
+};
+const std::vector<BundledFont> &Fonts() {
+  static const std::vector<BundledFont> fonts{
+      {"Noto Sans", "mn-font-NotoSans.ttf",
+       SkData::MakeWithoutCopy(kTextFontData, sizeof kTextFontData)},
+      {"Noto Sans Arabic", "mn-font-NotoSansArabic.ttf",
+       SkData::MakeWithoutCopy(kNotoSansArabic, sizeof kNotoSansArabic)},
+      {"Noto Sans Hebrew", "mn-font-NotoSansHebrew.ttf",
+       SkData::MakeWithoutCopy(kNotoSansHebrew, sizeof kNotoSansHebrew)},
+      {"Noto Sans Devanagari", "mn-font-NotoSansDevanagari.ttf",
+       SkData::MakeWithoutCopy(kNotoSansDevanagari, sizeof kNotoSansDevanagari)},
+      {"Noto Sans Symbols 2", "mn-font-NotoSansSymbols2.ttf",
+       SkData::MakeWithoutCopy(kNotoSansSymbols2, sizeof kNotoSansSymbols2)},
+  };
+  return fonts;
+}
+}  // namespace
 
-sk_sp<SkTypeface> TextTypeface() {
-  // Skia CanvasKit's FontMgr.FromData uses a font manager backed by font
-  // bytes. Both engine hosts load this same Noto Sans face from source.
-  static sk_sp<SkTypeface> face = [] {
-    sk_sp<SkData> bytes = SkData::MakeWithCopy(kTextFontData, sizeof kTextFontData);
-    sk_sp<SkFontMgr> manager = SkFontMgr_New_Custom_Data(SkSpan<sk_sp<SkData>>(&bytes, 1));
-    sk_sp<SkTypeface> typeface = manager->matchFamilyStyle("Noto Sans", SkFontStyle());
-    if (!typeface) throw std::runtime_error("bundled Noto Sans typeface did not load");
-    return typeface;
+const NotebookFiles &TextFontFiles() {
+  static const NotebookFiles files = [] {
+    NotebookFiles result;
+    result["assets/mn-font-Apache.txt"] =
+        std::string(reinterpret_cast<const char *>(kLICENSE), sizeof kLICENSE);
+    result["assets/mn-font-OFL.txt"] =
+        std::string(reinterpret_cast<const char *>(kOFL_txt), sizeof kOFL_txt);
+    for (const auto &font : Fonts())
+      result[std::string("assets/") + font.file] =
+          std::string(static_cast<const char *>(font.data->data()), font.data->size());
+    return result;
   }();
-  return face;
+  return files;
+}
+
+std::string TextFontCss() {
+  std::string css;
+  for (const auto &font : Fonts())
+    css += std::string("@font-face{font-family:'") + font.family + "';src:url('../assets/" +
+           font.file + "')}\n";
+  return css;
+}
+
+sk_sp<SkFontMgr> TextFontManager() {
+  static sk_sp<SkFontMgr> manager = [] {
+    std::vector<sk_sp<SkData>> fonts;
+    for (const auto &font : Fonts()) fonts.push_back(font.data);
+    return SkFontMgr_New_Custom_Data(SkSpan<sk_sp<SkData>>(fonts.data(), fonts.size()));
+  }();
+  return manager;
 }
 
 }  // namespace ink_engine

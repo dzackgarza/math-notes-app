@@ -4,7 +4,7 @@ find_package(Catch2 3 CONFIG REQUIRED)
 include(Catch)
 
 add_executable(ink_tests test_version.cpp test_pdf.cpp test_ink.cpp test_document.cpp test_editor.cpp
-  test_render.cpp test_abi.cpp test_pages.cpp test_history.cpp test_erase.cpp test_selection.cpp test_pens.cpp
+  test_render.cpp test_abi.cpp test_pages.cpp test_history.cpp test_erase.cpp test_selection.cpp test_space.cpp test_pens.cpp
   support/trace.cpp support/notebook_dir.cpp support/write_fixture.cpp)
 target_include_directories(ink_tests PRIVATE . ../src)
 target_compile_definitions(ink_tests PRIVATE

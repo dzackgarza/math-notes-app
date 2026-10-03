@@ -1,4 +1,5 @@
 #include "selection/selection.h"
+#include "render/text_layout.h"
 
 #include <algorithm>
 #include <cmath>
@@ -22,7 +23,6 @@
 #include "ink/geometry/mesh.h"
 #include "ink/geometry/mesh_format.h"
 #include "strokes/outline.h"
-#include "render/text_font.h"
 
 namespace ink_engine {
 namespace {
@@ -41,14 +41,10 @@ ink::AffineTransform ToInk(const Transform &m) {
 }
 
 Rect TextBox(const Text &text) {
-  SkFont font(TextTypeface(), float(text.size));
-  double width = 0;
-  for (const std::string &line : text.lines) {
-    width = std::max(width, double(font.measureText(line.data(), line.size(),
-                                                  SkTextEncoding::kUTF8)));
-  }
-  double height = text.size * (1 + 1.2 * (text.lines.size() - 1));
-  return {text.x, text.y - text.size, text.x + width, text.y - text.size + height};
+  auto layout = LayoutText(text);
+  const double top = text.y - layout.paragraph->getAlphabeticBaseline();
+  const double width = text.width > 0 ? text.width : layout.paragraph->getLongestLine();
+  return {text.x, top, text.x + width, top + layout.paragraph->getHeight()};
 }
 
 // The element's hit-test meshes in its local coordinates.
@@ -274,6 +270,23 @@ Element Transformed(const Element &element, const Transform &m) {
   return copy;
 }
 
+Element Recolored(const Element &element, Rgb color) {
+  if (std::holds_alternative<Figure>(element.value)) return element;
+  if (Children(element)) return MapChildren(element, [&](const Element &c) { return Recolored(c, color); });
+  Element copy = element;
+  std::visit(
+      [&](auto &e) {
+        using T = std::decay_t<decltype(e)>;
+        if constexpr (std::is_same_v<T, Stroke> || std::is_same_v<T, Text>) {
+          e.fill = color;
+        } else if constexpr (std::is_same_v<T, Shape>) {
+          e.stroke = color;
+        }
+      },
+      copy.value);
+  return copy;
+}
+
 namespace {
 
 // The id field of an element that has one; a link has none.
@@ -303,6 +316,12 @@ std::string NewId(const Element &element, IdGenerator &ids) {
 Element WithNewIds(const Element &element, IdGenerator &ids) {
   Element copy = MapChildren(element, [&](const Element &c) { return WithNewIds(c, ids); });
   if (std::string *id = IdOf(copy)) *id = NewId(copy, ids);
+  return copy;
+}
+
+Element WithoutTimes(const Element &element) {
+  Element copy = MapChildren(element, [](const Element &child) { return WithoutTimes(child); });
+  if (auto *stroke = std::get_if<Stroke>(&copy.value)) stroke->time.clear();
   return copy;
 }
 
@@ -398,6 +417,7 @@ Element InlineImages(const Element &element, const std::string &page_file, const
   auto figure = [&](Figure &figure) {
     figure.scene_href = InlineAsset(page_file, figure.scene_href, "application/json", assets);
     figure.tikz_href = InlineAsset(page_file, figure.tikz_href, "text/plain", assets);
+    if (!figure.draft_href.empty()) figure.draft_href = InlineAsset(page_file, figure.draft_href, "text/plain", assets);
   };
   return MapAssets(element, image, figure);
 }
@@ -440,6 +460,7 @@ Element StoreImages(const Element &element, const std::string &page_file, Assets
                                           ".scene.json", assets, added);
     figure.tikz_href = StoreFigureAsset(std::move(tikz), page_file, figure.id,
                                          ".tikz", assets, added);
+    if (!figure.draft_href.empty()) figure.draft_href = StoreFigureAsset(DecodeFigureAsset(figure.draft_href), page_file, figure.id, ".draft.tikz", assets, added);
   };
   return MapAssets(element, image, figure);
 }

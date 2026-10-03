@@ -1,14 +1,17 @@
 // Page operations, page sizes and templates through the C ABI (issue #21).
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <map>
 #include <string>
+#include <vector>
 
 #include "document/templates.h"
 #include "format/notebook.h"
 #include "format/page_svg.h"
 #include "ink.h"
 #include "support/session.h"
+#include "support/write_fixture.h"
 
 using namespace ink_engine;
 
@@ -45,6 +48,36 @@ void ThreePages(ink_test::Session &session) {
 }
 
 }  // namespace
+
+TEST_CASE("An unlisted page can be restored to the notebook index without changing its file") {
+  ink_test::Session session;
+  const std::string original_id = session.doc().pages[0]->id;
+  const std::string page = AllFiles(session.doc()).at("pages/0001.svg");
+
+  Document without_page = session.doc();
+  without_page.pages = {};
+  const std::string notebook = WriteNotebookJson(without_page);
+  REQUIRE(ink_document_load_notebook(
+              session.document, reinterpret_cast<const uint8_t *>(notebook.data()),
+              notebook.size()) == INK_OK);
+  REQUIRE(ink_document_load_page(
+              session.document, "pages/0001.svg",
+              reinterpret_cast<const uint8_t *>(page.data()), page.size()) == INK_OK);
+
+  size_t count = 1;
+  REQUIRE(ink_document_page_count(session.document, &count) == INK_OK);
+  CHECK(count == 0);
+  REQUIRE(ink_document_list_unlisted_page(
+              session.document, "pages/0001.svg", "p-fallback", 0) == INK_OK);
+  REQUIRE(ink_document_page_count(session.document, &count) == INK_OK);
+  CHECK(count == 1);
+  CHECK(session.doc().pages[0]->file == "pages/0001.svg");
+  CHECK(session.doc().pages[0]->id == original_id);
+
+  auto dirty = DirtyFiles(session.document);
+  REQUIRE(dirty.contains("notebook.json"));
+  CHECK(dirty.at("notebook.json").bytes.find("pages/0001.svg") != std::string::npos);
+}
 
 TEST_CASE("A page inserted between pages 1 and 2 gets a new file and changes no other page") {
   ink_test::Session session;
@@ -89,21 +122,92 @@ TEST_CASE("A deleted page's file is listed for deletion; a moved page changes on
   CHECK(ink_document_delete_page(session.document, 3) == INK_ERROR_ARGUMENT);
 }
 
+TEST_CASE("A duplicated page follows its original with the same ink under new ids") {
+  ink_test::Session session(ink_test::WithStrokes(ink_test::Session().doc(), {{{100, 100}, {200, 150}}}));
+  REQUIRE(ink_document_insert_page(session.document, 1) == INK_OK);
+  REQUIRE(ink_document_mark_saved(session.document) == INK_OK);
+
+  REQUIRE(ink_document_duplicate_page(session.document, 0) == INK_OK);
+  CHECK(ListedFiles(session.doc()) ==
+        std::vector<std::string>{"pages/0001.svg", "pages/0003.svg", "pages/0002.svg"});
+  auto dirty = DirtyFiles(session.document);
+  CHECK(dirty.size() == 2);
+  CHECK(dirty.contains("notebook.json"));
+  std::map<std::string, std::string> files = AllFiles(session.doc());
+  auto ids = [](const std::string &svg) {
+    std::vector<std::string> out;
+    for (size_t at = svg.find("id=\""); at != std::string::npos; at = svg.find("id=\"", at + 1))
+      out.push_back(svg.substr(at + 4, svg.find('"', at + 4) - at - 4));
+    return out;
+  };
+  auto without_ids = [](std::string svg) {
+    for (size_t at = svg.find("id=\""); at != std::string::npos; at = svg.find("id=\"", at + 1))
+      svg.erase(at + 4, svg.find('"', at + 4) - at - 4);
+    return svg;
+  };
+  const std::string &original = files.at("pages/0001.svg");
+  const std::string &copy = dirty.at("pages/0003.svg").bytes;
+  CHECK(copy == files.at("pages/0003.svg"));
+  CHECK(copy.find("<path id=\"s-") != std::string::npos);
+  CHECK(without_ids(copy) == without_ids(original));
+  const std::vector<std::string> original_ids = ids(original);
+  for (const std::string &id : ids(copy)) {
+    if (id.starts_with("p-") || id.starts_with("s-"))
+      CHECK(std::ranges::find(original_ids, id) == original_ids.end());
+  }
+
+  int32_t undone = 0;
+  int32_t page = 0;
+  ink_undo(session.document, &undone, &page);
+  CHECK(DirtyFiles(session.document).empty());
+  CHECK(ink_document_duplicate_page(session.document, 2) == INK_ERROR_ARGUMENT);
+}
+
 TEST_CASE("New pages take the notebook's page size") {
   ink_test::Session session;
   ink_document_insert_page(session.document, 1);
   CHECK(session.doc().pages[1]->width == 595.28);
   CHECK(session.doc().pages[1]->height == 841.89);
-  REQUIRE(ink_document_set_page_size(session.document, INK_PAGE_LETTER, 0, 0) == INK_OK);
+  REQUIRE(ink_document_set_page_size(session.document, INK_PAGE_LETTER, INK_PORTRAIT, 0, 0) == INK_OK);
   ink_document_insert_page(session.document, 2);
   CHECK(session.doc().pages[2]->width == 612);
   CHECK(session.doc().pages[2]->height == 792);
   CHECK(DirtyFiles(session.document).at("notebook.json").bytes.find("\"pageSize\": \"Letter\"") !=
         std::string::npos);
-  REQUIRE(ink_document_set_page_size(session.document, INK_PAGE_CUSTOM, 500, 700.5) == INK_OK);
+  REQUIRE(ink_document_set_page_size(session.document, INK_PAGE_CUSTOM, INK_PORTRAIT, 500, 700.5) == INK_OK);
   ink_document_insert_page(session.document, 0);
   CHECK(session.doc().pages[0]->width == 500);
   CHECK(session.doc().pages[0]->height == 700.5);
+  REQUIRE(ink_document_set_page_size(session.document, INK_PAGE_LETTER, INK_LANDSCAPE, 0, 0) == INK_OK);
+  ink_document_insert_page(session.document, 0);
+  CHECK(session.doc().pages[0]->width == 792);
+  CHECK(session.doc().pages[0]->height == 612);
+  CHECK(session.doc().notebook.page_size == PageSize{std::array<double, 2>{792, 612}});
+}
+
+TEST_CASE("The page size of new pages reads back as it was set") {
+  ink_test::Session session;
+  InkPageSize size = INK_PAGE_CUSTOM;
+  InkOrientation orientation = INK_LANDSCAPE;
+  double width = 0, height = 0;
+  REQUIRE(ink_document_page_size(session.document, &size, &orientation, &width, &height) == INK_OK);
+  CHECK(size == INK_PAGE_A4);
+  CHECK(orientation == INK_PORTRAIT);
+  CHECK(width == 595.28);
+  CHECK(height == 841.89);
+  REQUIRE(ink_document_set_page_size(session.document, INK_PAGE_LETTER, INK_LANDSCAPE, 0, 0) == INK_OK);
+  REQUIRE(ink_document_page_size(session.document, &size, &orientation, &width, &height) == INK_OK);
+  CHECK(size == INK_PAGE_LETTER);
+  CHECK(orientation == INK_LANDSCAPE);
+  CHECK(width == 792);
+  CHECK(height == 612);
+  REQUIRE(ink_document_set_page_size(session.document, INK_PAGE_CUSTOM, INK_PORTRAIT, 500, 700.5) == INK_OK);
+  REQUIRE(ink_document_page_size(session.document, &size, &orientation, &width, &height) == INK_OK);
+  CHECK(size == INK_PAGE_CUSTOM);
+  CHECK(orientation == INK_PORTRAIT);
+  CHECK(width == 500);
+  CHECK(height == 700.5);
+  CHECK(ink_document_page_size(session.document, &size, &orientation, nullptr, &height) == INK_ERROR_ARGUMENT);
 }
 
 TEST_CASE("A new page copies the template's background, regenerated for another page size") {
@@ -120,7 +224,7 @@ TEST_CASE("A new page copies the template's background, regenerated for another 
   const Background &a4 = session.doc().pages[1]->background;
   CHECK(a4 == session.document->template_page->background);
 
-  ink_document_set_page_size(session.document, INK_PAGE_LETTER, 0, 0);
+  ink_document_set_page_size(session.document, INK_PAGE_LETTER, INK_PORTRAIT, 0, 0);
   ink_document_insert_page(session.document, 2);
   const Page &letter = *session.doc().pages[2];
   CHECK(letter.background.ruling == Ruling::kLined);
@@ -179,7 +283,7 @@ TEST_CASE("A notebook created from a template has page 1 on its background") {
 
   InkDocument *document = nullptr;
   const auto *svg = reinterpret_cast<const uint8_t *>(page1.data());
-  REQUIRE(ink_document_create_from_template(5, "dotted", svg, page1.size(), INK_PAGE_A4, 0, 0, &document) == INK_OK);
+  REQUIRE(ink_document_create_from_template(5, "dotted", svg, page1.size(), INK_PAGE_A4, INK_PORTRAIT, 0, 0, &document) == INK_OK);
   const Document &doc = document->history.current();
   CHECK(doc.notebook.template_name == "dotted");
   REQUIRE(doc.pages.size() == 1);

@@ -1,0 +1,41 @@
+% Source of paper.pdf, the PDF that the import workflow annotates:
+%   pdflatex paper.tex
+% Each page starts with a black bar: half the paper width on page 1, a
+% quarter of it on page 2.
+\documentclass[12pt]{article}
+\usepackage[letterpaper]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\newtheorem{theorem}{Theorem}
+\pagestyle{empty}
+\begin{document}
+\noindent\rule{0.5\paperwidth}{1cm}
+
+\section*{Bases}
+
+\begin{theorem}
+Every vector space $V$ over a field $k$ has a basis.
+\end{theorem}
+
+\begin{proof}
+Order the linearly independent subsets of $V$ by inclusion. The union of a
+chain of such subsets is linearly independent, so Zorn's lemma gives a
+maximal linearly independent subset $B$. If $v \in V$ were outside the span
+of $B$, then $B \cup \{v\}$ would be linearly independent, against the
+maximality of $B$. Hence $B$ spans $V$.
+\end{proof}
+
+\newpage
+\noindent\rule{0.25\paperwidth}{1cm}
+
+\section*{Dimension}
+
+\begin{theorem}
+Any two bases of $V$ have the same cardinality.
+\end{theorem}
+
+\begin{proof}
+For finite bases, exchange the vectors of one basis for the vectors of the
+other, one at a time: each exchange keeps a spanning set, so neither basis
+has more vectors than the other.
+\end{proof}
+\end{document}

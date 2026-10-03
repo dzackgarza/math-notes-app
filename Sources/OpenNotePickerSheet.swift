@@ -1,0 +1,76 @@
+import SwiftUI
+
+@MainActor
+struct OpenNotePickerSheet: View {
+  let root: NotesRootAccess
+  let title: String
+  let notes: [LibraryNotebookItem]
+  let opened: Set<NotebookReference>
+  let onOpen: (NotebookReference) -> Void
+  let onCancel: () -> Void
+
+  @State private var query = ""
+
+  private var filteredNotes: [LibraryNotebookItem] {
+    let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !needle.isEmpty else { return notes }
+    return notes.filter { item in
+      item.reference.name.localizedCaseInsensitiveContains(needle)
+        || item.reference.path.dropLast().joined(separator: " / ")
+          .localizedCaseInsensitiveContains(needle)
+    }
+  }
+
+  var body: some View {
+    NavigationStack {
+      Group {
+        if filteredNotes.isEmpty {
+          ContentUnavailableView {
+            Label(query.isEmpty ? "No Notes" : "No Results", systemImage: "magnifyingglass")
+          } description: {
+            Text(query.isEmpty ? "There are no notes in this notes folder." : "No note matches the search.")
+          }
+        } else {
+          List(filteredNotes) { item in
+            Button {
+              onOpen(item.reference)
+            } label: {
+              HStack(spacing: 12) {
+                LibraryThumbnail(root: root, item: item)
+                  .frame(width: 48, height: 62)
+                  .clipShape(RoundedRectangle(cornerRadius: 5))
+
+                VStack(alignment: .leading, spacing: 3) {
+                  Text(item.reference.name)
+                    .foregroundStyle(.primary)
+                  let folder = item.reference.path.dropLast().joined(separator: " / ")
+                  if !folder.isEmpty {
+                    Text(folder)
+                      .font(.caption)
+                      .foregroundStyle(.secondary)
+                  }
+                }
+                Spacer()
+                if opened.contains(item.reference) {
+                  Image(systemName: "checkmark")
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("Already open")
+                }
+              }
+            }
+            .buttonStyle(.plain)
+          }
+          .listStyle(.insetGrouped)
+        }
+      }
+      .navigationTitle(title)
+      .navigationBarTitleDisplayMode(.inline)
+      .searchable(text: $query, prompt: "Search notes")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel", action: onCancel)
+        }
+      }
+    }
+  }
+}

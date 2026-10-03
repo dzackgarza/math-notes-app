@@ -8,21 +8,30 @@
 #include "include/codec/SkCodec.h"
 #include "include/codec/SkPngDecoder.h"
 #include "include/codec/SkJpegDecoder.h"
+#include "include/core/SkBlurTypes.h"
 #include "include/core/SkCanvas.h"
 #include "include/core/SkColorSpace.h"
 #include "include/core/SkFont.h"
 #include "include/core/SkFontTypes.h"
+#include "include/core/SkMaskFilter.h"
 #include "include/core/SkPaint.h"
 #include "include/core/SkPathBuilder.h"
 #include "include/effects/SkDashPathEffect.h"
 #include "include/gpu/ganesh/GrDirectContext.h"
 #include "include/gpu/ganesh/SkSurfaceGanesh.h"
 #include "selection/selection.h"
-#include "render/text_font.h"
+#include "render/text_layout.h"
 #include "strokes/outline.h"
 
 namespace ink_engine {
 namespace {
+
+// Each page is a sheet on the desk (docs/specs/tablet-ui.md, "Pages in the
+// editor"): a soft shadow 1 pt below it, blurred with a 1.5 pt sigma. Its
+// extent stays inside kPageGap above the next page.
+constexpr float kShadowSigma = 1.5f;
+constexpr float kShadowOffset = 1;
+constexpr float kShadowExtent = 3 * kShadowSigma + kShadowOffset;
 
 SkMatrix ToSkMatrix(const Transform &t) {
   return SkMatrix::MakeAll(float(t.a), float(t.c), float(t.e), float(t.b), float(t.d), float(t.f),
@@ -138,7 +147,7 @@ SkMatrix Renderer::ContentMatrix() const {
 }
 
 bool Renderer::Update(const Document &document, const View &view, bool live_changed) {
-  std::vector<PagePlacement> layout = LayoutPages(document);
+  std::vector<PagePlacement> layout = LayoutPages(document, view.arrangement);
   bool document_changed = !document_ || !(document_->pages == document.pages) ||
                           !(document_->notebook == document.notebook);
   bool full = !content_ || invalidated_ || !(view == view_) || layout != layout_ ||
@@ -228,8 +237,15 @@ void Renderer::Redraw(const SkRegion &region) {
     for (const PagePlacement &placement : layout_) {
       SkRect page_rect = SkRect::MakeXYWH(float(placement.x), float(placement.y),
                                           float(placement.width), float(placement.height));
-      if (!SkRect::Intersects(page_rect, clip_content)) continue;
+      if (!SkRect::Intersects(page_rect.makeOutset(kShadowExtent, kShadowExtent), clip_content)) {
+        continue;
+      }
       canvas->setMatrix(content * SkMatrix::Translate(page_rect.x(), page_rect.y()));
+      SkPaint shadow(SkColor4f::FromColor(SkColorSetARGB(0x40, 0, 0, 0)));
+      shadow.setAntiAlias(true);
+      shadow.setMaskFilter(SkMaskFilter::MakeBlur(kNormal_SkBlurStyle, kShadowSigma));
+      canvas->drawRect(SkRect::MakeXYWH(0, kShadowOffset, page_rect.width(), page_rect.height()),
+                       shadow);
       DrawPage(canvas, *document_->pages[placement.page],
                clip_content.makeOffset(-page_rect.x(), -page_rect.y()));
     }
@@ -312,13 +328,8 @@ void Renderer::DrawElements(SkCanvas *canvas, const Page &page, const Elements &
           } else if constexpr (std::is_same_v<T, Text>) {
             canvas->save();
             canvas->concat(ToSkMatrix(e.transform));
-            SkFont font(TextTypeface(), float(e.size));
-            SkPaint paint = FillPaint(e.fill);
-            for (size_t i = 0; i < e.lines.size(); ++i) {
-              const std::string &line = e.lines[i];
-              canvas->drawSimpleText(line.data(), line.size(), SkTextEncoding::kUTF8,
-                                     float(e.x), float(e.y + i * e.size * 1.2), font, paint);
-            }
+            auto layout = LayoutText(e);
+            layout.paragraph->paint(canvas, e.x, e.y - layout.paragraph->getAlphabeticBaseline());
             canvas->restore();
             ++stats_.elements_drawn;
           } else if constexpr (std::is_same_v<T, Figure>) {

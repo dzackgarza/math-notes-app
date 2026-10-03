@@ -16,5 +16,5 @@ test("ink_render draws the desk, the paper and a stroke on a WebGL2 canvas", asy
     const pixels = { stroke: px(90, 50), paper: px(300, 300), desk: px(650, 50) };
     return { drew, again: Module.ccall("render_again", "number", [], []), ...pixels };
   });
-  expect(result).toEqual({ drew: 1, again: 0, stroke: "1a1a1aff", paper: "fcfaf5ff", desk: "e9ebefff" });
+  expect(result).toEqual({ drew: 1, again: 0, stroke: "1a1a1aff", paper: "fcfaf5ff", desk: "daddd5ff" });
 });

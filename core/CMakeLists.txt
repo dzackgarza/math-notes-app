@@ -33,6 +33,22 @@ file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/text_font.inc"
   CONTENT "constexpr unsigned char kTextFontData[] = {${TEXT_FONT_BYTES}};\n")
 unset(TEXT_FONT_HEX)
 unset(TEXT_FONT_BYTES)
+include(cmake/TextFonts.cmake)
+foreach(FAMILY IN LISTS NOTO_FAMILIES)
+  file(READ "${NOTO_CACHE}/${FAMILY}-Regular.ttf" TEXT_FONT_HEX HEX)
+  string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," TEXT_FONT_BYTES "${TEXT_FONT_HEX}")
+  file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/text_font.inc"
+    "constexpr unsigned char k${FAMILY}[] = {${TEXT_FONT_BYTES}};\n")
+endforeach()
+foreach(LICENSE_FILE LICENSE OFL.txt)
+  file(READ "${CMAKE_CURRENT_SOURCE_DIR}/assets/fonts/${LICENSE_FILE}" TEXT_FONT_HEX HEX)
+  string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," TEXT_FONT_BYTES "${TEXT_FONT_HEX}")
+  string(MAKE_C_IDENTIFIER "${LICENSE_FILE}" LICENSE_ID)
+  file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/text_font.inc"
+    "constexpr unsigned char k${LICENSE_ID}[] = {${TEXT_FONT_BYTES}};\n")
+endforeach()
+unset(TEXT_FONT_HEX)
+unset(TEXT_FONT_BYTES)
 
 add_library(ink STATIC
   src/ink.cpp
@@ -42,6 +58,10 @@ add_library(ink STATIC
   src/format/notebook.cpp
   src/format/pens.cpp
   src/document/pages.cpp
+  src/document/layers.cpp
+  src/document/navigation.cpp
+  src/document/figures.cpp
+  src/document/reflow.cpp
   src/document/templates.cpp
   src/strokes/clip.cpp
   src/strokes/outline.cpp
@@ -53,7 +73,9 @@ add_library(ink STATIC
   src/layout/layout.cpp
   src/render/renderer.cpp
   src/render/text_font.cpp
-  src/selection/selection.cpp)
+  src/render/text_layout.cpp
+  src/selection/selection.cpp
+  src/selection/ruled.cpp)
 target_include_directories(ink PUBLIC include src PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(ink PRIVATE INK_VERSION="${PROJECT_VERSION}")
 target_link_libraries(ink PUBLIC Skia::skia inkcore pugixml::pugixml FastFloat::fast_float immer
@@ -82,19 +104,27 @@ if(EMSCRIPTEN)
     _ink_version _ink_last_error
     _ink_document_create _ink_document_load_notebook _ink_document_load_page
     _ink_document_load_asset _ink_document_asset _ink_document_dirty_files _ink_document_mark_saved
-    _ink_document_free _ink_document_content_size
-    _ink_document_page_count _ink_document_insert_page _ink_document_delete_page
-    _ink_document_move_page _ink_document_set_page_size _ink_document_set_template
+    _ink_document_free _ink_document_content_size _ink_document_set_arrangement
+    _ink_document_page_count _ink_document_insert_page _ink_document_delete_page _ink_import_page_image _ink_import_page_svg
+    _ink_document_move_page _ink_document_duplicate_page _ink_document_set_page_size _ink_document_page_size _ink_document_set_template
+    _ink_document_layers _ink_document_add_layer _ink_document_set_layer _ink_document_move_layer _ink_document_remove_layer
+    _ink_document_navigation _ink_document_bookmark_png
+    _ink_document_figure_source _ink_document_figure_draft
+    _ink_canvas_bookmark_selection _ink_canvas_link_selection _ink_canvas_add_bookmark
+    _ink_canvas_ungroup_selection
+    _ink_canvas_set_layer _ink_canvas_active_layer
+    _ink_clipping_add _ink_clipping_svg
     _ink_builtin_template_count _ink_builtin_template_name _ink_builtin_template_create
-    _ink_document_create_from_template _ink_export_pdf
+    _ink_document_create_from_template _ink_export_pdf _ink_export_pdf_layers
     _ink_canvas_create_webgl _ink_canvas_set_view _ink_canvas_set_surface_size
-    _ink_pens_default _ink_pens_read _ink_pens_write
+    _ink_pens_default _ink_pens_read _ink_pens_write _ink_pens_preview_png
     _ink_canvas_set_tool _ink_canvas_figure_begin _ink_canvas_figure_scene _ink_canvas_figure_complete _ink_canvas_selected_figure
     _ink_canvas_set_eraser _ink_canvas_set_utc_offset _ink_canvas_free _ink_canvas_page_at
     _ink_canvas_set_selector _ink_canvas_selection _ink_canvas_select_all _ink_canvas_clear_selection
-    _ink_canvas_delete_selection _ink_canvas_copy_selection _ink_canvas_paste _ink_canvas_duplicate_selection
+    _ink_canvas_delete_selection _ink_canvas_copy_selection _ink_canvas_paste _ink_canvas_paste_at _ink_canvas_duplicate_selection _ink_canvas_recolor_selection
     _ink_canvas_insert_text _ink_canvas_select_text_at _ink_canvas_selected_text _ink_canvas_set_selected_text
-    _ink_input _ink_input_update _ink_render _ink_undo _ink_redo _ink_document_page_rect _ink_document_page_png _ink_struct_layout
+    _ink_canvas_text_properties _ink_canvas_edit_text
+    _ink_input _ink_input_update _ink_render _ink_canvas_invalidate _ink_undo _ink_redo _ink_document_page_rect _ink_document_page_png _ink_struct_layout
     _malloc _free)
   list(JOIN INK_EXPORTS "," INK_EXPORTS_FLAG)
   set(INK_MODULE_FLAGS

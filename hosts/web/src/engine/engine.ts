@@ -21,7 +21,7 @@ export const Phase = { hover: 0, begin: 1, move: 2, end: 3, cancel: 4 } as const
 export const Has = { pressure: 1, altitude: 2, azimuth: 4, roll: 8, hoverHeight: 16 } as const;
 export const Brush = { pressurePen: 0, marker: 1, highlighter: 2 } as const;
 export const Eraser = { stroke: 0, free: 1 } as const;
-export const Selector = { lasso: 0, rect: 1 } as const;
+export const Selector = { lasso: 0, rect: 1, ruled: 2, ruledErase: 3, spaceVertical: 4, spaceHorizontal: 5, spaceRuled: 6, oval: 7 } as const;
 
 // Struct layouts, wasm32: byteLength, then each field's offset (ink.h).
 export const PEN_SAMPLE = {
@@ -43,15 +43,16 @@ export const PEN_SAMPLE = {
   reserved: 59,
 } as const;
 export const TOOL_SETTINGS = { byteLength: 16, brush: 0, rgb: 4, size: 8, opacity: 12 } as const;
-export const INK_PEN = { byteLength: 24, id: 0, name: 4, tool: 8 } as const;
+export const INK_PEN_FILE = { byteLength: 64, pen: 0, marker: 16, highlighter: 32, palette: 48, paletteCount: 52, saved: 56, savedCount: 60 } as const;
 export const INK_FILE = { byteLength: 16, path: 0, bytes: 4, size: 8, kind: 12 } as const;
 export const SELECTION_INFO = { byteLength: 40, count: 0, page: 4, x: 8, y: 16, width: 24, height: 32 } as const;
 export const PDF_EXPORT_SPEC = { byteLength: 16, firstPage: 0, pageCount: 4, includeLinks: 8, includeHiddenLayers: 12 } as const;
 export const FileKind = { write: 0, delete: 1 } as const;
 export const PageSize = { a4: 0, letter: 1, custom: 2 } as const;
+export const Orientation = { portrait: 0, landscape: 1 } as const;
 
 // InkStruct ids of ink_struct_layout.
-export const Struct = { penSample: 0, toolSettings: 1, file: 2, selectionInfo: 3, pen: 4, pdfExportSpec: 5 } as const;
+export const Struct = { penSample: 0, toolSettings: 1, file: 2, selectionInfo: 3, penFile: 4, pdfExportSpec: 5 } as const;
 
 export interface PenSample {
   x: number;
@@ -75,6 +76,13 @@ export interface HistoryStep {
   page: number;
 }
 
+export interface Layer {
+  id: string;
+  name: string;
+  hidden: boolean;
+  locked: boolean;
+}
+
 export interface ToolSettings {
   brush: number;
   rgb: number;
@@ -83,11 +91,31 @@ export interface ToolSettings {
   opacity: number;
 }
 
-// A preset of Notes/.pens.json (docs/FORMAT.md, Other files).
-export interface Pen {
+// Notes/.pens.json (docs/FORMAT.md, Other files): the pen, marker and highlighter
+// settings, the palette as 0xRRGGBB values, and the saved pens.
+export interface PenFile {
+  pen: ToolSettings;
+  marker: ToolSettings;
+  highlighter: ToolSettings;
+  palette: number[];
+  saved: ToolSettings[];
+}
+
+export interface NavigationMark {
   id: string;
-  name: string;
-  tool: ToolSettings;
+  href: string;
+  file: string;
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface TextBoxProperties {
+  content: string;
+  width: number;
+  rtl: boolean;
 }
 
 function writeTool(view: DataView, at: number, tool: ToolSettings): void {
@@ -270,23 +298,28 @@ export class Engine {
     });
   }
 
-  // The presets of a .pens.json. Throws EngineError with Status.parse when the
-  // file is not a pen list.
-  readPens(json: Uint8Array): Pen[] {
+  // The settings of a .pens.json. Throws EngineError with Status.parse when
+  // the file does not have the FORMAT.md form.
+  readPens(json: Uint8Array): PenFile {
     const bytes = this.copyIn(json);
     try {
-      return this.withScratch(8, (out) => {
-        this.check(this.module._ink_pens_read(bytes, json.length, out, out + 4));
+      return this.withScratch(4, (out) => {
+        this.check(this.module._ink_pens_read(bytes, json.length, out));
         const view = this.view();
-        const pens = view.getUint32(out, true);
-        return Array.from({ length: view.getUint32(out + 4, true) }, (_, i) => {
-          const at = pens + i * INK_PEN.byteLength;
-          return {
-            id: this.readCString(view.getUint32(at + INK_PEN.id, true)),
-            name: this.readCString(view.getUint32(at + INK_PEN.name, true)),
-            tool: readTool(view, at + INK_PEN.tool),
-          };
-        });
+        const at = view.getUint32(out, true);
+        const palette = view.getUint32(at + INK_PEN_FILE.palette, true);
+        const saved = view.getUint32(at + INK_PEN_FILE.saved, true);
+        return {
+          pen: readTool(view, at + INK_PEN_FILE.pen),
+          marker: readTool(view, at + INK_PEN_FILE.marker),
+          highlighter: readTool(view, at + INK_PEN_FILE.highlighter),
+          palette: Array.from({ length: view.getUint32(at + INK_PEN_FILE.paletteCount, true) }, (_, i) =>
+            view.getUint32(palette + 4 * i, true),
+          ),
+          saved: Array.from({ length: view.getUint32(at + INK_PEN_FILE.savedCount, true) }, (_, i) =>
+            readTool(view, saved + i * TOOL_SETTINGS.byteLength),
+          ),
+        };
       });
     } finally {
       this.free(bytes);
@@ -294,33 +327,45 @@ export class Engine {
   }
 
   // The .pens.json of `pens`.
-  writePens(pens: readonly Pen[]): Uint8Array<ArrayBuffer> {
-    const strings: number[] = [];
-    const cString = (text: string) => {
-      const bytes = encoder.encode(`${text}\0`);
-      strings.push(this.copyIn(bytes));
-      return strings[strings.length - 1];
-    };
-    const array = this.malloc(Math.max(pens.length, 1) * INK_PEN.byteLength);
+  writePens(pens: PenFile): Uint8Array<ArrayBuffer> {
+    const file = this.malloc(INK_PEN_FILE.byteLength);
+    const palette = this.malloc(Math.max(pens.palette.length, 1) * 4);
+    const saved = this.malloc(Math.max(pens.saved.length, 1) * TOOL_SETTINGS.byteLength);
     try {
-      pens.forEach((pen, i) => {
-        const at = array + i * INK_PEN.byteLength;
-        const id = cString(pen.id), name = cString(pen.name);
-        const view = this.view();
-        view.setUint32(at + INK_PEN.id, id, true);
-        view.setUint32(at + INK_PEN.name, name, true);
-        writeTool(view, at + INK_PEN.tool, pen.tool);
-      });
+      const view = this.view();
+      writeTool(view, file + INK_PEN_FILE.pen, pens.pen);
+      writeTool(view, file + INK_PEN_FILE.marker, pens.marker);
+      writeTool(view, file + INK_PEN_FILE.highlighter, pens.highlighter);
+      pens.palette.forEach((rgb, i) => view.setUint32(palette + 4 * i, rgb, true));
+      pens.saved.forEach((tool, i) => writeTool(view, saved + i * TOOL_SETTINGS.byteLength, tool));
+      view.setUint32(file + INK_PEN_FILE.palette, palette, true);
+      view.setUint32(file + INK_PEN_FILE.paletteCount, pens.palette.length, true);
+      view.setUint32(file + INK_PEN_FILE.saved, saved, true);
+      view.setUint32(file + INK_PEN_FILE.savedCount, pens.saved.length, true);
       return this.withScratch(8, (out) => {
-        this.check(this.module._ink_pens_write(array, pens.length, out, out + 4));
+        this.check(this.module._ink_pens_write(file, out, out + 4));
         const view = this.view();
         const at = view.getUint32(out, true);
         return this.heap().slice(at, at + view.getUint32(out + 4, true));
       });
     } finally {
-      strings.forEach((s) => this.free(s));
-      this.free(array);
+      this.free(saved);
+      this.free(palette);
+      this.free(file);
     }
+  }
+
+  // A PNG of a sample stroke drawn with `tool`, at `scale` pixels per pt.
+  penPreviewPng(tool: ToolSettings, width: number, height: number, scale: number): Uint8Array<ArrayBuffer> {
+    return this.withScratch(TOOL_SETTINGS.byteLength, (at) => {
+      writeTool(this.view(), at, tool);
+      return this.withScratch(8, (out) => {
+        this.check(this.module._ink_pens_preview_png(at, width, height, scale, out, out + 4));
+        const view = this.view();
+        const png = view.getUint32(out, true);
+        return this.heap().slice(png, png + view.getUint32(out + 4, true));
+      });
+    });
   }
 
   builtinTemplates(): string[] {
@@ -357,12 +402,12 @@ export class Engine {
 
   // A new notebook on template `name`, whose pages/0001.svg is `page1`:
   // page 1 has the template's background, with no undo step.
-  createDocumentFromTemplate(seed: bigint, name: string, page1: Uint8Array, pageSize: number): InkDocument {
+  createDocumentFromTemplate(seed: bigint, name: string, page1: Uint8Array, pageSize: number, orientation: number): InkDocument {
     const pointer = this.withCString(name, (text) => {
       const bytes = this.copyIn(page1);
       try {
         return this.withScratch(4, (out) => {
-          this.check(this.module._ink_document_create_from_template(seed, text, bytes, page1.length, pageSize, 0, 0, out));
+          this.check(this.module._ink_document_create_from_template(seed, text, bytes, page1.length, pageSize, orientation, 0, 0, out));
           return this.view().getUint32(out, true);
         });
       } finally {
@@ -459,16 +504,19 @@ export class InkDocument {
     });
   }
 
-  exportPdf(title: string, firstPage: number, pageCount: number): Uint8Array<ArrayBuffer> {
+  exportPdf(title: string, firstPage: number, pageCount: number, layers?: readonly string[]): Uint8Array<ArrayBuffer> {
     const e = this.engine;
     return e.withCString(title, (name) => e.withScratch(PDF_EXPORT_SPEC.byteLength + 8, (scratch) => {
       const view = e.view();
       view.setUint32(scratch + PDF_EXPORT_SPEC.firstPage, firstPage, true);
       view.setUint32(scratch + PDF_EXPORT_SPEC.pageCount, pageCount, true);
-      view.setUint32(scratch + PDF_EXPORT_SPEC.includeLinks, 0, true);
+      view.setUint32(scratch + PDF_EXPORT_SPEC.includeLinks, 1, true);
       view.setUint32(scratch + PDF_EXPORT_SPEC.includeHiddenLayers, 0, true);
       const out = scratch + PDF_EXPORT_SPEC.byteLength;
-      e.check(e.module._ink_export_pdf(this.pointer, name, scratch, out, out + 4));
+      if (layers) e.withCString(JSON.stringify(layers), (ids) => {
+        e.check(e.module._ink_export_pdf_layers(this.pointer, name, scratch, ids, out, out + 4));
+      });
+      else e.check(e.module._ink_export_pdf(this.pointer, name, scratch, out, out + 4));
       const result = e.view();
       const bytes = result.getUint32(out, true);
       const size = result.getUint32(out + 4, true);
@@ -477,6 +525,84 @@ export class InkDocument {
   }
 
   // Before page `index`; the page count appends.
+  layers(): Layer[] {
+    const e = this.engine;
+    return e.withScratch(4, (out) => {
+      e.check(e.module._ink_document_layers(this.pointer, out));
+      return JSON.parse(e.readCString(e.view().getUint32(out, true))) as Layer[];
+    });
+  }
+
+  navigation(): NavigationMark[] {
+    const e = this.engine;
+    return e.withScratch(4, out => {
+      e.check(e.module._ink_document_navigation(this.pointer, out));
+      return JSON.parse(e.readCString(e.view().getUint32(out, true))) as NavigationMark[];
+    });
+  }
+
+  figureSource(id: string): string {
+    const e = this.engine;
+    return e.withCString(id, name => e.withScratch(8, out => {
+      e.check(e.module._ink_document_figure_source(this.pointer, name, out, out + 4));
+      const view = e.view();
+      const at = view.getUint32(out, true);
+      return decoder.decode(e.heap().subarray(at, at + view.getUint32(out + 4, true)));
+    }));
+  }
+
+  saveFigureDraft(id: string, source: string): void {
+    const e = this.engine;
+    const data = new TextEncoder().encode(source);
+    const bytes = e.copyIn(data);
+    try { e.withCString(id, name => e.check(e.module._ink_document_figure_draft(this.pointer, name, bytes, data.length))); }
+    finally { e.free(bytes); }
+  }
+
+  bookmarkPng(id: string, width: number): Uint8Array<ArrayBuffer> {
+    const e = this.engine;
+    return e.withCString(id, name => e.withScratch(8, out => {
+      e.check(e.module._ink_document_bookmark_png(this.pointer, name, width, out, out + 4));
+      const view = e.view();
+      const at = view.getUint32(out, true);
+      return e.heap().slice(at, at + view.getUint32(out + 4, true));
+    }));
+  }
+
+  addClipping(svg: string): void {
+    const e = this.engine;
+    const encoded = new TextEncoder().encode(svg);
+    const bytes = e.copyIn(encoded);
+    try { e.check(e.module._ink_clipping_add(this.pointer, bytes, encoded.length)); }
+    finally { e.free(bytes); }
+  }
+
+  clippingSvg(index: number): string {
+    const e = this.engine;
+    return e.withScratch(4, (out) => {
+      e.check(e.module._ink_clipping_svg(this.pointer, index, out));
+      return e.readCString(e.view().getUint32(out, true));
+    });
+  }
+
+  addLayer(name: string): void {
+    const e = this.engine;
+    e.withCString(name, (text) => e.check(e.module._ink_document_add_layer(this.pointer, text)));
+  }
+
+  setLayer(index: number, name: string, hidden: boolean, locked: boolean): void {
+    const e = this.engine;
+    e.withCString(name, (text) => e.check(e.module._ink_document_set_layer(this.pointer, index, text, +hidden, +locked)));
+  }
+
+  moveLayer(from: number, to: number): void {
+    this.engine.check(this.engine.module._ink_document_move_layer(this.pointer, from, to));
+  }
+
+  removeLayer(index: number, mergeDown: boolean): void {
+    this.engine.check(this.engine.module._ink_document_remove_layer(this.pointer, index, +mergeDown));
+  }
+
   insertPage(index: number): void {
     this.engine.check(this.engine.module._ink_document_insert_page(this.pointer, index));
   }
@@ -485,12 +611,51 @@ export class InkDocument {
     this.engine.check(this.engine.module._ink_document_delete_page(this.pointer, index));
   }
 
+  importPageImage(index: number, png: Uint8Array, width: number, height: number): void {
+    const e = this.engine;
+    const bytes = e.copyIn(png);
+    try {
+      e.check(e.module._ink_import_page_image(this.pointer, index, bytes, png.length, width, height));
+    } finally {
+      e.free(bytes);
+    }
+  }
+
+  importPageSvg(index: number, svg: Uint8Array): void {
+    const e = this.engine;
+    const bytes = e.copyIn(svg);
+    try {
+      e.check(e.module._ink_import_page_svg(this.pointer, index, bytes, svg.length));
+    } finally {
+      e.free(bytes);
+    }
+  }
+
   movePage(from: number, to: number): void {
     this.engine.check(this.engine.module._ink_document_move_page(this.pointer, from, to));
   }
 
-  setPageSize(size: number, width = 0, height = 0): void {
-    this.engine.check(this.engine.module._ink_document_set_page_size(this.pointer, size, width, height));
+  duplicatePage(index: number): void {
+    this.engine.check(this.engine.module._ink_document_duplicate_page(this.pointer, index));
+  }
+
+  setPageSize(size: number, orientation: number, width = 0, height = 0): void {
+    this.engine.check(this.engine.module._ink_document_set_page_size(this.pointer, size, orientation, width, height));
+  }
+
+  // The size of new pages: a PageSize, an Orientation, and the dimensions in pt.
+  pageSize(): { size: number; orientation: number; width: number; height: number } {
+    const e = this.engine;
+    return e.withScratch(24, (out) => {
+      e.check(e.module._ink_document_page_size(this.pointer, out, out + 4, out + 8, out + 16));
+      const view = e.view();
+      return {
+        size: view.getInt32(out, true),
+        orientation: view.getInt32(out + 4, true),
+        width: view.getFloat64(out + 8, true),
+        height: view.getFloat64(out + 16, true),
+      };
+    });
   }
 
   // `page1` is the template notebook's pages/0001.svg.
@@ -504,6 +669,11 @@ export class InkDocument {
         e.free(bytes);
       }
     });
+  }
+
+  // 0 stacks the pages vertically, 1 puts them in one row, 2 puts two in each row.
+  setArrangement(arrangement: number): void {
+    this.engine.check(this.engine.module._ink_document_set_arrangement(this.pointer, arrangement));
   }
 
   // The laid-out pages' extent in content coordinates (pt).
@@ -615,7 +785,19 @@ export class Canvas {
     this.engine.check(this.engine.module._ink_canvas_set_selector(this.pointer, kind, active ? 1 : 0));
   }
 
-  beginFigure(page: number, layer = 0): void {
+  activeLayer(): number {
+    const e = this.engine;
+    return e.withScratch(4, (out) => {
+      e.check(e.module._ink_canvas_active_layer(this.pointer, out));
+      return e.view().getInt32(out, true);
+    });
+  }
+
+  setLayer(index: number): void {
+    this.engine.check(this.engine.module._ink_canvas_set_layer(this.pointer, index));
+  }
+
+  beginFigure(page: number, layer = this.activeLayer()): void {
     this.engine.check(this.engine.module._ink_canvas_figure_begin(this.pointer, page, layer));
   }
 
@@ -686,6 +868,36 @@ export class Canvas {
     this.engine.check(this.engine.module._ink_canvas_clear_selection(this.pointer));
   }
 
+  bookmarkSelection(): void {
+    this.engine.check(this.engine.module._ink_canvas_bookmark_selection(this.pointer));
+  }
+
+  textProperties(): TextBoxProperties {
+    const e = this.engine;
+    return e.withScratch(4, out => {
+      e.check(e.module._ink_canvas_text_properties(this.pointer, out));
+      return JSON.parse(e.readCString(e.view().getUint32(out, true))) as TextBoxProperties;
+    });
+  }
+
+  editText(properties: TextBoxProperties, x: number, y: number, existing: boolean): void {
+    const e = this.engine;
+    e.withCString(JSON.stringify(properties), json => e.check(e.module._ink_canvas_edit_text(this.pointer, json, x, y, existing ? 1 : 0)));
+  }
+
+  ungroupSelection(): void {
+    this.engine.check(this.engine.module._ink_canvas_ungroup_selection(this.pointer));
+  }
+
+  linkSelection(href: string): void {
+    const e = this.engine;
+    e.withCString(href, text => e.check(e.module._ink_canvas_link_selection(this.pointer, text)));
+  }
+
+  addBookmark(x: number, y: number): void {
+    this.engine.check(this.engine.module._ink_canvas_add_bookmark(this.pointer, x, y));
+  }
+
   deleteSelection(): void {
     this.engine.check(this.engine.module._ink_canvas_delete_selection(this.pointer));
   }
@@ -704,12 +916,14 @@ export class Canvas {
 
   // Pastes a clipboard document on the page under view point (x, y). Throws
   // EngineError with Status.parse when the text is not a page SVG.
-  paste(svg: string, x: number, y: number): void {
+  paste(svg: string, x: number, y: number, placeAtPointer = false): void {
     const e = this.engine;
     const text = encoder.encode(svg);
     const bytes = e.copyIn(text);
     try {
-      e.check(e.module._ink_canvas_paste(this.pointer, bytes, text.length, x, y));
+      e.check(placeAtPointer
+        ? e.module._ink_canvas_paste_at(this.pointer, bytes, text.length, x, y)
+        : e.module._ink_canvas_paste(this.pointer, bytes, text.length, x, y));
     } finally {
       e.free(bytes);
     }
@@ -759,6 +973,10 @@ export class Canvas {
     this.engine.check(this.engine.module._ink_canvas_duplicate_selection(this.pointer));
   }
 
+  recolorSelection(rgb: number): void {
+    this.engine.check(this.engine.module._ink_canvas_recolor_selection(this.pointer, rgb));
+  }
+
   setUtcOffset(utcMinusHostMs: number): void {
     this.engine.check(this.engine.module._ink_canvas_set_utc_offset(this.pointer, utcMinusHostMs));
   }
@@ -790,6 +1008,12 @@ export class Canvas {
       e.check(e.module._ink_render(this.pointer, out));
       return e.view().getInt32(out, true) !== 0;
     });
+  }
+
+  // Makes the next render() draw a frame, for a caller that reads the canvas
+  // element: the drawing buffer holds a frame only until the browser presents it.
+  invalidate(): void {
+    this.engine.check(this.engine.module._ink_canvas_invalidate(this.pointer));
   }
 
   free(): void {

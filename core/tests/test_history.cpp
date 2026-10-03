@@ -63,7 +63,7 @@ std::map<std::string, std::string> Written(InkDocument *document) {
 
 // View point at (x, y) pt on listed page `page` (identity view).
 std::pair<double, double> OnPage(const Document &document, size_t page, double x, double y) {
-  PagePlacement p = LayoutPages(document)[page];
+  PagePlacement p = LayoutPages(document, PageArrangement::kVertical)[page];
   return {p.x + x, p.y + y};
 }
 
@@ -136,7 +136,7 @@ TEST_CASE("Undoing a stroke on page 7 shows page 7 and saves only its file") {
   CHECK(written.contains("pages/0007.svg"));
   CHECK(written.at("pages/0007.svg") == AllFiles(session.doc()).at("pages/0007.svg"));
 
-  ink_document_set_page_size(session.document, INK_PAGE_LETTER, 0, 0);
+  ink_document_set_page_size(session.document, INK_PAGE_LETTER, INK_PORTRAIT, 0, 0);
   ink_undo(session.document, &moved, &page);
   CHECK(page == -1);  // a notebook setting, on no page
 }

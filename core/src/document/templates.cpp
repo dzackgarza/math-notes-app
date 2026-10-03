@@ -19,7 +19,7 @@ constexpr double Pt(double units) { return units * 0.48; }
 
 Background MakeBackground(const RulingSpec &spec, double width, double height) {
   Background bg{.ruling = spec.ruling,
-                .y_ruling = spec.ruling == Ruling::kBlank ? 28.8 : spec.y_ruling,
+                .y_ruling = spec.ruling == Ruling::kBlank ? 0 : spec.y_ruling,
                 .y_offset = spec.ruling == Ruling::kBlank ? 0 : spec.y_ruling,
                 .x_ruling = spec.x_ruling,
                 .margin_left = spec.margin_left,

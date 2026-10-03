@@ -12,10 +12,13 @@
 #include <vector>
 
 #include "document/document.h"
+#include "document/reflow.h"
 #include "editor/erase.h"
 #include "editor/history.h"
 #include "ink.h"
+#include "layout/layout.h"
 #include "render/renderer.h"
+#include "selection/ruled.h"
 #include "selection/selection.h"
 #include "ink/brush/brush.h"
 #include "ink/geometry/envelope.h"
@@ -29,6 +32,11 @@ struct Pen {
   Rgb color{26, 26, 26};
   float size = 1.6f;  // pt
   float opacity = 1;  // the stroke's fill-opacity
+};
+
+struct TextBoxStyle {
+  double width = 0;
+  bool rtl = false;
 };
 
 // "pressure-pen", "marker", "highlighter": the family names in mn:brush.
@@ -50,7 +58,20 @@ ink::Brush MakeBrush(const Pen &pen);
 // An element of a page: its layer and its index in that layer.
 struct ElementRef {
   size_t layer = 0, index = 0;
-  bool operator==(const ElementRef &) const = default;
+  auto operator<=>(const ElementRef &) const = default;
+};
+
+// A ruled select or ruled erase drag (Write MODE_SELECTRULED and
+// MODE_ERASERULED; scribblearea.cpp:1539-1547, 1560-1563, 1697-1724): the
+// elements it has taken at each pen event.
+struct RuledDrag {
+  Page page;               // the selectable layers, on the working grid
+  RuledGrid grid;
+  GroupedCenters grouped;  // of `page`
+  int line = 0;              // ruled erase: Write eraseCurrLine
+  double min = 0, max = 0;   // ruled erase: Write eraseXmin, eraseXmax
+  std::optional<RuledRange> range;  // ruled select: what the drag covers
+  std::vector<ElementRef> items;    // layer, then document order
 };
 
 // The selected elements of one page. They index into `value`; once the
@@ -61,16 +82,24 @@ struct Selection {
   immer::box<Page> value;
   std::vector<ElementRef> items;  // layer, then document order
   Rect rect;                      // Write RectSelector::selRect, page coordinates
+  double line_spacing = 0;  // ruled moves snap to whole lines
 };
 
 class Editor {
  public:
-  explicit Editor(DocumentHistory &history) : history_(&history) {}
+  // `arrangement` is the document's page layout (InkDocument::arrangement).
+  Editor(DocumentHistory &history, const PageArrangement &arrangement)
+      : history_(&history), arrangement_(&arrangement) {
+    if (!history.current().notebook.layers.empty()) active_layer_id_ = history.current().notebook.layers.front().id;
+  }
 
   // content -> view affine transform, SVG matrix order. Content coordinates
   // are those of the page layout (layout/layout.h).
   void SetView(const Transform &content_to_view) { view_ = content_to_view; }
   void SetPen(const Pen &pen) { pen_ = pen; }
+  bool SetActiveLayer(size_t index);
+  void SetTemplate(const std::optional<Page> &page) { template_page_ = page; }
+  int ActiveLayer() const;
   // Added to host sample times (ms) to get UTC ms since the Unix epoch.
   void SetUtcOffset(double utc_minus_host_ms) { utc_offset_ms_ = utc_minus_host_ms; }
   // The eraser of the pen's eraser end and of the eraser tool; `active`: pen
@@ -91,16 +120,27 @@ class Editor {
   void InputUpdate(const InkPenSample *samples, size_t count);
 
   const Document &document() const { return history_->current(); }
+  std::vector<PagePlacement> Layout(const Document &doc) const {
+    return LayoutPages(doc, *arrangement_);
+  }
   // The document as the canvas shows it: during an erase gesture, with the
   // erased strokes hidden or cut; while the selection is dragged, without it;
-  // otherwise the document.
+  // during an insert-space drag, with the ink where the pen has put it;
+  // during a ruled erase drag, without the ink it has taken; otherwise the
+  // document.
   const Document &Shown() const {
-    return erase_ ? erase_->shown : transform_ ? transform_->shown : document();
+    if (erase_) return erase_->shown;
+    if (transform_) return transform_->shown;
+    return select_ && select_->shown ? *select_->shown : document();
   }
 
   // The selection; null when there is none or the document changed under it.
   const Selection *CurrentSelection();
   void ClearSelection();
+  void BookmarkSelection();
+  void LinkSelection(const std::string &href);
+  void UngroupSelection();
+  void AddBookmark(double x, double y);
   // Selects every element of the page's visible, unlocked layers.
   void SelectAll(size_t page);
   // Deletes the selection: one history step. False when nothing is selected.
@@ -118,10 +158,13 @@ class Editor {
   // centered on (x, y), kept on the page. Inline images become files of
   // `assets`, the new ones also in `added`. False when `svg` does not parse.
   bool Paste(std::string_view svg, double x, double y, double view_width, double view_height,
-             Assets &assets, NotebookFiles &added);
+             Assets &assets, NotebookFiles &added, bool place_at_pointer = false);
   // Copies the selection kDuplicateOffset right and down, new ids, as the
   // new selection: one history step. Figure sidecars become new assets.
   void DuplicateSelection(Assets &assets, NotebookFiles &added);
+  // Recolors the selected elements (selection/selection.h Recolored), which
+  // stay selected: one history step. False when nothing is selected.
+  bool RecolorSelection(Rgb color);
   enum class FigureCaptureError { kNone, kCrossPageInput, kPageChanged, kCrossLayerMove };
   // A capture owns pen strokes on one page and layer until completion.
   bool StartFigureCapture(size_t page, size_t layer);
@@ -133,10 +176,11 @@ class Editor {
   // A live gesture or capture error leaves the session active.
   std::optional<Figure> CompleteFigureCapture();
   // Text uses the same page elements, history and selection transforms as ink.
-  bool InsertText(std::string_view utf8, double x, double y);
+  bool InsertText(std::string_view utf8, double x, double y, TextBoxStyle style = {});
   bool SelectTextAt(double x, double y);
   std::optional<std::string> SelectedText();
-  bool SetSelectedText(std::string_view utf8);
+  const Text *SelectedTextValue();
+  bool SetSelectedText(std::string_view utf8, std::optional<TextBoxStyle> style = std::nullopt);
   // What the canvas draws over the pages for the selection tools; none when
   // there is no selection and no lasso or rectangle is being drawn.
   std::optional<SelectionOverlay> Overlay();
@@ -214,6 +258,13 @@ class Editor {
     Point origin;       // content position of the page
     Point start, last;  // page coordinates
     LassoPath lasso;
+    std::optional<RuledDrag> ruled;
+    // Insert space (Write MODE_INSSPACEVERT, MODE_INSSPACEHORZ,
+    // MODE_INSSPACERULED): the ink that the drag moves.
+    std::optional<SpaceGesture> space;
+    // The document with the ink where an insert-space drag has put it, or
+    // without the ink that a ruled erase drag has taken.
+    std::optional<Document> shown;
   };
   // A drag of the selection or of one of its handles (Write MODE_MOVESELFREE,
   // MODE_SCALESEL, MODE_ROTATESEL; scribblearea.cpp:1735-1832, 2045-2139).
@@ -257,10 +308,14 @@ class Editor {
                      double t0, const std::vector<InkPenSample> &real) const;
 
   DocumentHistory *history_;
+  const PageArrangement *arrangement_;
   Transform view_;
   Pen pen_;
   double utc_offset_ms_ = 0;
   size_t page_ = 0, layer_ = 0;
+  std::string active_layer_id_;
+  std::optional<Page> template_page_;
+  bool ResolveActiveLayer();
   InkEraser eraser_kind_ = INK_ERASER_STROKE;
   bool eraser_active_ = false;
   InkSelector selector_kind_ = INK_SELECTOR_LASSO;

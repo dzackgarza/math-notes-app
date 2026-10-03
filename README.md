@@ -1,6 +1,6 @@
 # math-notes-app
 
-Handwritten math notes: a C++ ink engine with a web app and an iPad app, all in this repo. Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). The issue tree under [#11](https://github.com/dzackgarza/math-notes-app/issues/11) records requirements and gaps. MVP work lands directly on `main`: complete the web app first, then port it to iPad. The iPad app is developed on Linux, built by GitHub Actions, and installed with SideStore: no Mac, no App Store, free Apple Account.
+Handwritten math notes: a C++ ink engine with a web app and an iPad app, all in this repo. Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Adopted web interface framework: [Flutter selection](docs/reports/Web%20interface%20framework%20selection.md). Roadmap: the issue tree under [#11](https://github.com/dzackgarza/math-notes-app/issues/11). The iPad app is developed on Linux, built by GitHub Actions, and installed with SideStore: no Mac, no App Store, free Apple Account.
 
 ```
 push to main ──► GitHub Actions (macos-26) ──► release vN: MathNotes.ipa + source.json
@@ -23,15 +23,18 @@ iPad: SideStore source ◄── releases/latest/download/source.json
 | `core/` | The C++ engine; `core/include/ink.h` is its C ABI. |
 | `hosts/web/` | The web host; `src/engine/` wraps the engine module (`just web-engine-test`). |
 | `tests/fixtures/write/` | Traces and results recorded from Stylus Labs Write; see its README.md. |
-| `justfile` | `test-commit` / `test-push`: YAML lint. Swift compiles only in CI. `write-fixtures`: regenerates `tests/fixtures/write/`. |
+| `justfile` | `test-commit` and `test-push`: YAML lint. Swift compiles only in CI. `write-fixtures`: regenerates `tests/fixtures/write/`. |
 
 ## Web app on this machine
 
-`just web-deploy` builds the site and copies it to `/var/www/math-notes`. nginx serves it at `http://localhost/math-notes/` with `include <repo>/hosts/web/deploy/nginx-math-notes.conf;` inside the `server` block for `localhost`, then `sudo nginx -s reload`. Only `assets/` gets a long cache lifetime. Use `localhost`, not a LAN address: the folder picker and coalesced pen events need a secure context.
+CI builds the engine and the Flutter web app on every push (workflow "Engine (wasm32)", which uploads the artifacts `engine-module` and `web-app`). `just web-fetch` downloads the build of the checked-out commit and copies the web app to `/var/www/math-notes`; `gh run watch --interval 60 <run>` waits for a run. `just web-deploy` builds both on this machine instead, which loads the machine for minutes. nginx serves the deployment at `http://localhost/math-notes/` with `include <repo>/hosts/web/deploy/nginx-math-notes.conf;` inside the `server` block for `localhost`, then `sudo nginx -s reload`. Use `localhost`, not a LAN address: the folder picker and coalesced pen events need a secure context.
 
 In Chrome, choose the notes folder once; after a restart, **Reconnect folder** grants access again (it needs a click).
 
 `just web-test` runs the Vitest Browser Mode tests and the Playwright tests against the deployment.
+
+Workbox caches the application, engine, renderer, and font assets for offline
+restart. A new deployment activates at once; a reload shows it.
 
 ## Releasing
 

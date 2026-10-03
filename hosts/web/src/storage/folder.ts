@@ -9,6 +9,15 @@ import type { Engine, FileChange, NotebookFile } from "../engine/engine.ts";
 
 const ROOT_KEY = "notes-root";
 
+// Every read and write of the notes folder goes through this Web Locks
+// queue (https://w3c.github.io/web-locks/). A writer runs alone; readers
+// share the lock with each other, so no reader sees a file that a writer has
+// created but not yet closed. Web Locks are not reentrant: `task` must not
+// call `files` again.
+export async function files<T>(task: () => Promise<T>, mode: LockMode = "exclusive"): Promise<T> {
+  return await navigator.locks.request("math-notes-files", { mode }, task);
+}
+
 export async function pickRoot(): Promise<FileSystemDirectoryHandle> {
   const root = await window.showDirectoryPicker({ id: "notes", mode: "readwrite" });
   await set(ROOT_KEY, root);
@@ -29,6 +38,14 @@ export async function requestPermission(root: FileSystemDirectoryHandle): Promis
   return (await root.requestPermission({ mode: "readwrite" })) === "granted";
 }
 
+// Calls `changed` when a file under the notes folder changes, whether this app
+// or another program (for example a sync client) changed it.
+export async function watchRoot(root: FileSystemDirectoryHandle, changed: () => void): Promise<FileSystemObserver> {
+  const observer = new FileSystemObserver(changed);
+  await observer.observe(root, { recursive: true });
+  return observer;
+}
+
 export async function listNotebooks(root: FileSystemDirectoryHandle): Promise<string[]> {
   const names: string[] = [];
   for await (const [name, handle] of root.entries()) {
@@ -44,7 +61,7 @@ export async function listNotebooks(root: FileSystemDirectoryHandle): Promise<st
 }
 
 export interface NotebookFiles {
-  notebookJson: Uint8Array;
+  notebookJson: Uint8Array<ArrayBuffer>;
   pages: NotebookFile[];
   assets: NotebookFile[];
 }
@@ -67,12 +84,12 @@ async function subdirectory(dir: FileSystemDirectoryHandle, name: string): Promi
   }
 }
 
-export async function readNotebook(dir: FileSystemDirectoryHandle): Promise<NotebookFiles> {
-  const json = await (await dir.getFileHandle("notebook.json")).getFile();
+export async function readNotebook(dir: FileSystemDirectoryHandle, recoveredIndex?: Uint8Array<ArrayBuffer>): Promise<NotebookFiles> {
+  const notebookJson = recoveredIndex ?? new Uint8Array(await (await (await dir.getFileHandle("notebook.json")).getFile()).arrayBuffer());
   const pages = await subdirectory(dir, "pages");
   const assets = await subdirectory(dir, "assets");
   return {
-    notebookJson: new Uint8Array(await json.arrayBuffer()),
+    notebookJson,
     pages: pages ? (await readDirectory(pages, "pages")).filter((f) => f.path.endsWith(".svg")) : [],
     assets: assets ? await readDirectory(assets, "assets") : [],
   };

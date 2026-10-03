@@ -29,7 +29,7 @@ new path. A directory is a notebook when it holds a `notebook.json`.
 
 ```text
 Notes/                         root the user picked
-├── .pens.json                 pen presets, shared by all devices
+├── .pens.json                 tool settings, shared by all devices
 ├── .library.json              library metadata: tags, favorites, descriptions
 ├── .templates/                page templates (notebook directories)
 ├── .clippings/                clippings library (a notebook directory)
@@ -130,10 +130,16 @@ conflict. Assets are separate files, not base64 inside SVG.
   Both forms display in a standard SVG renderer.
 - A typed text box is an SVG `text` element with `x`, `y`, `font-size`,
   `font-family`, and `fill`. Each line is a `tspan`; its baseline and the
-  later lines' `dy` values come from Skia Paragraph with
+  later lines' positions come from Skia Paragraph with
   the same bundled font bytes and layout properties used for rendering. Its `transform`
   stores a move or resize. The first `y` is the text baseline. Preserve the
   authored text and its explicit line breaks through layout and save.
+  `mn:width` is the wrapping width in points; zero uses the intrinsic width.
+  `direction` stores the paragraph direction. A child `metadata/mn:text`
+  keeps the authored text, including explicit newlines; positioned `tspan`
+  children contain the laid-out lines. Font faces use the pinned Noto files
+  in `assets/mn-font-*.ttf`, shared with the host text input. The font license
+  is distributed with the application in `core/assets/fonts/`.
 - The stroke's input samples are an [InkML](https://www.w3.org/TR/InkML/)
   `trace` in the path's `metadata`. The page's root `metadata` declares one
   `inkml:traceFormat` per channel set that its strokes use. Channels, in
@@ -184,8 +190,9 @@ conflict. Assets are separate files, not base64 inside SVG.
   spacing), `mn:y-offset` (y of the first line), `mn:x-ruling` (grid
   spacing, 0 when none) and `mn:margin-left` are in points. Ruled select,
   ruled erase, reflow, and insert space read their line positions from
-  these attributes. A `blank` page uses a line spacing of 28.8 pt, anchored
-  at the pen-down point (Write's `blankYRuling`).
+  these attributes. A `blank` page uses a working line spacing of 19.2 pt,
+  anchored at the pen-down point (Write's 40-unit default at 0.48 pt per
+  unit). This working grid is not stored in the page background.
 - An imported PDF page is an `<image>` of its PNG in `assets/`, inside
   `g#background` after the paper `rect` and before the ruling.
 - A new page copies the background of the notebook's `template`.
@@ -236,37 +243,68 @@ same in-place save and dirty-file contract as page files. A missing or invalid
 sidecar is an explicit figure error; the page's visible SVG children remain
 available for viewing and recovery.
 
+During source editing, `mn:draft` points to the durable TikZ draft in
+`assets/`. Each changed draft has a new asset path. History restores the
+referenced bytes when undo returns to a previously saved revision.
+Draft source travels with a copied figure and remains available on reopen.
+
 Plain `.svg` only; `.svgz` is not written. ZIP is only a transport form of
 a notebook directory (send, archive, download).
 
 ## Other files
 
-- `Notes/.pens.json`: the pen presets, an array of
-  `{ "id", "name", "brush", "brushVersion", "color", "opacity", "size" }`,
-  in toolbar order, with the keys in this order, two-space indent and one
-  trailing newline. `brush` and `brushVersion` are as `mn:brush` and
-  `mn:brush-version`; `color` is `#RRGGBB`; `opacity` (0 to 1, 3 decimals)
-  becomes the strokes' `fill-opacity`; `size` is in points (2 decimals).
-  Numbers have no trailing zeros. The app writes these presets on first use:
+- `Notes/.pens.json`: the tool settings, shared by all devices. An object
+  with the keys `pen`, `marker`, `highlighter`, `palette`, `saved`, in this
+  order, two-space indent and one trailing newline:
+  - `pen`, `marker` and `highlighter`: the current settings of the three
+    drawing tools, each `{ "brush", "brushVersion", "color", "opacity",
+    "size" }` with the keys in this order. `brush` and `brushVersion` are as
+    `mn:brush` and `mn:brush-version`; the pen's brush is `pressure-pen`, the
+    marker's is `marker`, the highlighter's is `highlighter`. `color` is `#RRGGBB`; `opacity` (0 to 1,
+    3 decimals) becomes the strokes' `fill-opacity`; `size` is in points
+    (2 decimals). Numbers have no trailing zeros.
+  - `palette`: the visible color swatches, `#RRGGBB`, in toolbar order.
+  - `saved`: the saved pens, in toolbar order, each in the form of `pen`.
+    A saved pen restores the tool of its brush.
+
+  The app writes this file on first use:
 
   ```json
-  [
-    {
-      "id": "black-pen",
-      "name": "Black pen",
+  {
+    "pen": {
       "brush": "pressure-pen",
       "brushVersion": 1,
       "color": "#1A1A1A",
       "opacity": 1,
       "size": 1.2
-    }
-  ]
+    },
+    "marker": {
+      "brush": "marker",
+      "brushVersion": 1,
+      "color": "#1A1A1A",
+      "opacity": 1,
+      "size": 1.2
+    },
+    "highlighter": {
+      "brush": "highlighter",
+      "brushVersion": 1,
+      "color": "#FFE066",
+      "opacity": 0.35,
+      "size": 9.6
+    },
+    "palette": [
+      "#1A1A1A",
+      "#1F4FB5",
+      "#D92D39",
+      "#29955B",
+      "#FFCF26"
+    ],
+    "saved": []
+  }
   ```
 
-  followed by `blue-pen` (`#1F4FB5`), `red-pen` (`#B51F1F`), `marker`
-  (`marker`, `#1A1A1A`, 2.4 pt) and `highlighter` (`highlighter`, `#FFE066`,
-  opacity 0.35, 9.6 pt). A stroke keeps the brush, color, opacity and size
-  it was drawn with; editing a preset changes only later strokes.
+  A stroke keeps the brush, color, opacity and size it was drawn with;
+  changing a tool's settings changes only later strokes.
 - `Notes/.templates/<name>/`: a notebook directory. Page 1's background is
   the template. The app creates `blank`, `lined-wide`, `lined-medium`,
   `lined-narrow` (y-ruling 21.6, 19.2, 16.8 pt; margin 48 pt),
@@ -295,7 +333,7 @@ a notebook directory (send, archive, download).
       "Algebraic Geometry": {
         "description": "Notes on moduli and geometry.",
         "paper": "grid-medium",
-        "coverColor": "#A9C1F5",
+        "coverColor": "#24324A",
         "coverStyle": "spine",
         "tags": ["Research"]
       }

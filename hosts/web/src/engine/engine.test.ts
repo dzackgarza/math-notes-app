@@ -7,7 +7,7 @@ import {
   Engine,
   EngineError,
   INK_FILE,
-  INK_PEN,
+  INK_PEN_FILE,
   PDF_EXPORT_SPEC,
   PEN_SAMPLE,
   SELECTION_INFO,
@@ -74,7 +74,7 @@ test("the wrapper's struct layouts are the ones C exports", () => {
   assert.deepEqual(engine.structLayout(Struct.toolSettings), offsets(TOOL_SETTINGS));
   assert.deepEqual(engine.structLayout(Struct.file), offsets(INK_FILE));
   assert.deepEqual(engine.structLayout(Struct.selectionInfo), offsets(SELECTION_INFO));
-  assert.deepEqual(engine.structLayout(Struct.pen), offsets(INK_PEN));
+  assert.deepEqual(engine.structLayout(Struct.penFile), offsets(INK_PEN_FILE));
   assert.deepEqual(engine.structLayout(Struct.pdfExportSpec), offsets(PDF_EXPORT_SPEC));
 });
 
@@ -104,12 +104,12 @@ test("a new notebook's files, and none after it is marked saved", () => {
   document.free();
 });
 
-test("pen presets written through the wrapper read back unchanged, names in UTF-8", () => {
+test("tool settings written through the wrapper read back unchanged", () => {
   const pens = engine.readPens(engine.defaultPens());
-  assert.deepEqual(
-    pens.map((p) => p.id),
-    ["black-pen", "blue-pen", "red-pen", "marker", "highlighter"],
-  );
-  pens[1] = { id: "blue-pen", name: "Stift ✎ blau", tool: { brush: 1, rgb: 0x2f6feb, size: 3.25, opacity: 0.5 } };
+  assert.deepEqual(pens.palette, [0x1a1a1a, 0x1f4fb5, 0xd92d39, 0x29955b, 0xffcf26]);
+  pens.pen = { brush: 0, rgb: 0x2f6feb, size: 0.75, opacity: 1 };
+  pens.marker = { brush: 1, rgb: 0xd92d39, size: 3.25, opacity: 1 };
+  pens.palette = [0x2f6feb, 0xffffff];
+  pens.saved = [{ brush: 2, rgb: 0x3cbfae, size: 12, opacity: 0.5 }];
   assert.deepEqual(engine.readPens(engine.writePens(pens)), pens);
 });

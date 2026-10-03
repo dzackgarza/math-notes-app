@@ -30,9 +30,9 @@ class SkCanvas;
 
 namespace ink_engine {
 
-// Behind the scroll view's pages: the web UI's --desk token, a light gray as
-// in Noteful (docs/specs/tablet-ui.md, "Visual style").
-inline constexpr uint32_t kDeskColor = 0xFFE9EBEF;
+// Behind the scroll view's pages: binder's board, the chrome color of the
+// web host (lib/ui/theme.dart, docs/reports/Visual direction.md).
+inline constexpr uint32_t kDeskColor = 0xFFDADDD5;
 
 // Counts of the work done, for tests and the frame-time check.
 struct RenderStats {
@@ -56,7 +56,7 @@ struct LiveInk {
 // selected ink while it is dragged. Page coordinates.
 struct SelectionOverlay {
   size_t page = 0;
-  std::vector<Point> lasso;
+  std::vector<Point> lasso;   // a closed outline: the lasso, the oval, the ruled range
   std::optional<Rect> band;   // a rectangle being dragged out
   std::optional<Rect> frame;  // the selection rectangle
   Point rotate_handle;
@@ -79,6 +79,7 @@ struct View {
   Transform content_to_view;  // SVG matrix order; content = layout coordinates
   float pixel_ratio = 1;      // device pixels per view unit
   int width = 0, height = 0;  // device pixels
+  PageArrangement arrangement = PageArrangement::kVertical;
   bool operator==(const View &) const = default;
 };
 
@@ -102,7 +103,8 @@ class Renderer {
   void DrawPageForExport(SkCanvas *canvas, const Document &document, const Page &page,
                          bool include_hidden_layers);
 
-  // Redraws everything on the next Update: the assets changed.
+  // Redraws everything on the next Update: the assets changed, or the host
+  // asks for a frame.
   void Invalidate() { invalidated_ = true; }
 
   const RenderStats &stats() const { return stats_; }

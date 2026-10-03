@@ -45,25 +45,33 @@ TEST_CASE("Hand-made notebooks write the same bytes on a second round trip") {
   }
 }
 
-TEST_CASE("A notebook loads listed pages, then unlisted pages, and error pages") {
+TEST_CASE("A notebook loads listed pages, then unlisted pages") {
   Document doc = LoadNotebook(ink_test::ReadNotebookDir(kDocuments + "/full"));
-  REQUIRE(doc.pages.size() == 6);
+  REQUIRE(doc.pages.size() == 5);
   CHECK(doc.pages[3]->file == "pages/0004.svg");
-  CHECK(doc.pages[5]->file == "pages/0005.svg");
-  CHECK(doc.pages[5]->unlisted);
+  CHECK(doc.pages[4]->file == "pages/0005.svg");
+  CHECK(doc.pages[4]->unlisted);
 
-  const Page &conflict = *doc.pages[4];
+  NotebookFiles written = AllFiles(doc);
+  CHECK(written.contains("pages/0005.svg"));
+  // The unlisted page stays unlisted: notebook.json does not gain it.
+  CHECK(written["notebook.json"].find("0005.svg") == std::string::npos);
+  CHECK(NextPageFile(doc) == "pages/0006.svg");
+}
+
+TEST_CASE("A malformed listed page stays an error page and is never written") {
+  NotebookFiles files{
+      {"notebook.json",
+       R"({"layers":[{"id":"l-inkaaa"}],"pages":[{"id":"p-merge6","file":"pages/0006.svg"}]})"},
+      {"pages/0006.svg", ink_test::ReadFile(INK_FIXTURE_DIR "/errors/conflict-page.svg")}};
+  Document doc = LoadNotebook(files);
+  REQUIRE(doc.pages.size() == 1);
+  const Page &conflict = *doc.pages[0];
   CHECK(conflict.file == "pages/0006.svg");
   REQUIRE(conflict.error.has_value());
   // pugixml status_unrecognized_tag, at the first "<<<<<<<" line.
   CHECK(*conflict.error == "Could not determine tag type at offset 237");
-
-  NotebookFiles written = AllFiles(doc);
-  CHECK_FALSE(written.contains("pages/0006.svg"));
-  CHECK(written.contains("pages/0005.svg"));
-  // The unlisted page stays unlisted: notebook.json does not gain it.
-  CHECK(written["notebook.json"].find("0005.svg") == std::string::npos);
-  CHECK(NextPageFile(doc) == "pages/0007.svg");
+  CHECK_FALSE(AllFiles(doc).contains("pages/0006.svg"));
 }
 
 TEST_CASE("Changing one stroke on page 5 of 10 dirties only pages/0005.svg") {

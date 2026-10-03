@@ -27,6 +27,9 @@ args=(
   skia_use_metal=true
   skia_use_gl=false
   skia_enable_pdf=true
+  skia_enable_skparagraph=true
+  skia_enable_skshaper=true
+  skia_enable_skunicode=true
   skia_pdf_subset_harfbuzz=true
   skia_use_system_expat=false
   skia_use_system_libjpeg_turbo=false
@@ -34,6 +37,7 @@ args=(
   skia_use_system_libwebp=false
   skia_use_system_zlib=false
   skia_use_system_freetype2=false
+  skia_use_freetype=true
   skia_enable_fontmgr_custom_embedded=true
   skia_use_system_harfbuzz=false
   skia_use_system_icu=false
@@ -49,4 +53,6 @@ case $target in
 esac
 
 bin/gn gen "out/$target" --args="${args[*]}"
-third_party/ninja/ninja -C "out/$target" skia
+third_party/ninja/ninja -C "out/$target" skia skparagraph skshaper skunicode_core skunicode_icu
+test -s "out/$target/libskia.a"
+find "out/$target" -maxdepth 1 -name '*freetype*.a' -print -quit | grep -q .

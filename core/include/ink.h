@@ -50,12 +50,15 @@ typedef struct InkFile {
    generator. */
 InkStatus ink_document_create(uint64_t seed, InkDocument **out);
 typedef enum InkPageSize { INK_PAGE_A4 = 0, INK_PAGE_LETTER = 1, INK_PAGE_CUSTOM = 2 } InkPageSize;
+/* Portrait puts the long side of a page size vertical; landscape puts it horizontal. */
+typedef enum InkOrientation { INK_PORTRAIT = 0, INK_LANDSCAPE = 1 } InkOrientation;
 /* A new notebook as ink_document_create, with template `name` set as by
    ink_document_set_template and page 1 on that template's background. The
-   selected page size sets both the first page and future pages. The document
-   starts with no undo step. */
+   selected page size and orientation set both the first page and future
+   pages. The document starts with no undo step. */
 InkStatus ink_document_create_from_template(uint64_t seed, const char *name, const uint8_t *svg,
-                                            size_t size, InkPageSize page_size, double width,
+                                            size_t size, InkPageSize page_size,
+                                            InkOrientation orientation, double width,
                                             double height, InkDocument **out);
 /* Replaces the document with the notebook of notebook.json. Its listed pages
    are error pages ("missing file") until ink_document_load_page loads them. */
@@ -75,6 +78,17 @@ InkStatus ink_document_asset(InkDocument *document, const char *path,
 InkStatus ink_document_dirty_files(InkDocument *document, const InkFile **files, size_t *count);
 /* The host wrote the dirty files. */
 InkStatus ink_document_mark_saved(InkDocument *document);
+/* The View menu's page layouts: pages stacked vertically, all pages in one
+   row, or two pages per row. Each row is centered on the widest row. */
+typedef enum InkPageArrangement {
+  INK_PAGES_VERTICAL = 0,
+  INK_PAGES_HORIZONTAL = 1,
+  INK_PAGES_TWO_PAGE = 2
+} InkPageArrangement;
+/* Lays out the pages of every canvas on the document, and of
+   ink_document_content_size and ink_document_page_rect, in `arrangement`.
+   A new document is INK_PAGES_VERTICAL. */
+InkStatus ink_document_set_arrangement(InkDocument *document, InkPageArrangement arrangement);
 /* The laid-out pages' extent in content coordinates (pt), for
    ink_canvas_set_view. */
 InkStatus ink_document_content_size(InkDocument *document, double *width, double *height);
@@ -85,17 +99,45 @@ InkStatus ink_document_free(InkDocument *document);
 
 /* Listed pages, in notebook.json order. Page indices below count these. */
 InkStatus ink_document_page_count(InkDocument *document, size_t *count);
+/* Notebook-wide layers, in drawing order. Metadata is returned as UTF-8 JSON. */
+InkStatus ink_document_layers(InkDocument *document, const char **json);
+InkStatus ink_document_add_layer(InkDocument *document, const char *name);
+InkStatus ink_document_set_layer(InkDocument *document, size_t index, const char *name, int hidden, int locked);
+InkStatus ink_document_move_layer(InkDocument *document, size_t from, size_t to);
+InkStatus ink_document_remove_layer(InkDocument *document, size_t index, int merge_down);
 /* A new page before page `index` (the count appends), in the notebook's page
    size, with the template's background. One history step each. */
 InkStatus ink_document_insert_page(InkDocument *document, size_t index);
+/* Insert a PDF raster as a page background, retaining its dimensions in pt. */
+InkStatus ink_import_page_image(InkDocument *document, size_t index, const uint8_t *png,
+                                size_t size, double width_pt, double height_pt);
+/* Insert a copy of a page SVG using this notebook's assets and new element ids. */
+InkStatus ink_import_page_svg(InkDocument *document, size_t index, const uint8_t *svg, size_t size);
+/* Move an already loaded unlisted page into notebook.json at `index`.
+   This preserves the page file and parsed page id; `fallback_id` is used only
+   when the page could not provide an id (for example an externally malformed
+   page retained during conflict resolution). */
+InkStatus ink_document_list_unlisted_page(InkDocument *document, const char *file,
+                                          const char *fallback_id, size_t index);
+/* Save selection SVG as a tightly fitted, blank clipping page. */
+InkStatus ink_clipping_add(InkDocument *document, const uint8_t *svg, size_t size);
+/* Clipboard SVG with fresh identities and cleared authored timestamps. */
+InkStatus ink_clipping_svg(InkDocument *document, size_t index, const char **svg);
 /* Removes a page; ink_document_dirty_files then lists its file for deletion. */
 InkStatus ink_document_delete_page(InkDocument *document, size_t index);
 /* Moves page `from` to position `to`. Page files keep their names. */
 InkStatus ink_document_move_page(InkDocument *document, size_t from, size_t to);
+/* A copy of page `index` after it, with a new file and new element ids. */
+InkStatus ink_document_duplicate_page(InkDocument *document, size_t index);
 
-/* The size of new pages: A4, Letter, or `width` × `height` pt. */
-InkStatus ink_document_set_page_size(InkDocument *document, InkPageSize size, double width,
-                                     double height);
+/* The size of new pages: A4, Letter, or `width` × `height` pt, in `orientation`. */
+InkStatus ink_document_set_page_size(InkDocument *document, InkPageSize size,
+                                     InkOrientation orientation, double width, double height);
+/* The size of new pages as ink_document_set_page_size set it: `*width` ×
+   `*height` pt, a landscape page wider than high, and the name A4 or Letter
+   when the dimensions are that size in either orientation. */
+InkStatus ink_document_page_size(InkDocument *document, InkPageSize *size,
+                                 InkOrientation *orientation, double *width, double *height);
 
 /* The notebook's template: `name` under Notes/.templates/, and the bytes of
    that template notebook's pages/0001.svg, whose background new pages copy. */
@@ -167,23 +209,34 @@ typedef struct InkToolSettings {
 
 /* ---- Pen presets ------------------------------------------------------ */
 
-/* One preset of Notes/.pens.json (docs/FORMAT.md, Other files). */
-typedef struct InkPen {
-  const char *id;
-  const char *name;
-  InkToolSettings tool;
-} InkPen;
+/* The tool settings of Notes/.pens.json (docs/FORMAT.md, Other files). Each
+   drawing tool has the brush of its name. A saved pen restores the tool of
+   its brush. */
+typedef struct InkPenFile {
+  InkToolSettings pen;
+  InkToolSettings marker;
+  InkToolSettings highlighter;
+  const uint32_t *palette; /* 0xRRGGBB, in toolbar order */
+  size_t palette_count;
+  const InkToolSettings *saved; /* in toolbar order */
+  size_t saved_count;
+} InkPenFile;
 
 /* The bytes of the default .pens.json, which the host writes on first use.
    `*json` stays valid until the next ink_pens_* call. */
 InkStatus ink_pens_default(const uint8_t **json, size_t *size);
-/* The presets of a .pens.json, in toolbar order. `*pens` and its strings stay
-   valid until the next ink_pens_* call. INK_ERROR_PARSE when the file is not
-   a pen list. */
-InkStatus ink_pens_read(const uint8_t *json, size_t size, const InkPen **pens, size_t *count);
-/* The .pens.json of `pens`. `*json` stays valid until the next ink_pens_*
+/* The settings of a .pens.json. `*file` and its arrays stay valid until the
+   next ink_pens_* call. INK_ERROR_PARSE when the file does not have the
+   FORMAT.md form. */
+InkStatus ink_pens_read(const uint8_t *json, size_t size, const InkPenFile **file);
+/* The .pens.json of `file`. `*json` stays valid until the next ink_pens_*
    call. */
-InkStatus ink_pens_write(const InkPen *pens, size_t count, const uint8_t **json, size_t *size);
+InkStatus ink_pens_write(const InkPenFile *file, const uint8_t **json, size_t *size);
+/* A PNG of a sample stroke drawn with `tool`: `width` x `height` pixels at
+   `scale` pixels per pt, on a transparent background. `*png` stays valid
+   until the next ink_pens_* call. */
+InkStatus ink_pens_preview_png(const InkToolSettings *tool, int32_t width, int32_t height,
+                               float scale, const uint8_t **png, size_t *size);
 
 #ifdef __EMSCRIPTEN__
 /* A canvas on `document` that draws into the WebGL2 canvas element matched
@@ -207,6 +260,9 @@ InkStatus ink_canvas_set_view(InkCanvas *canvas, double a, double b, double c, d
 InkStatus ink_canvas_set_surface_size(InkCanvas *canvas, int32_t width, int32_t height,
                                       float pixel_ratio);
 InkStatus ink_canvas_set_tool(InkCanvas *canvas, const InkToolSettings *tool);
+InkStatus ink_canvas_set_layer(InkCanvas *canvas, size_t index);
+/* -1 means the active layer was removed and a new layer must be selected. */
+InkStatus ink_canvas_active_layer(InkCanvas *canvas, int32_t *index);
 /* Captures pen strokes on one page and layer as one editable TikZ figure.
    The scene is FreeTikZ scene JSON with the original ink samples. The host
    generates TikZ from that scene before completion. Returned bytes remain
@@ -231,7 +287,20 @@ InkStatus ink_canvas_set_eraser(InkCanvas *canvas, InkEraser kind, int32_t activ
 
 typedef enum InkSelector {
   INK_SELECTOR_LASSO = 0, /* selects what a drawn loop covers */
-  INK_SELECTOR_RECT = 1   /* selects what lies inside a dragged rectangle */
+  INK_SELECTOR_RECT = 1,  /* selects what lies inside a dragged rectangle */
+  INK_SELECTOR_RULED = 2,
+  INK_SELECTOR_RULED_ERASE = 3,
+  /* Insert space. The ink moves with the pen; the release is one history
+     step and a cancel restores the page. Ink pushed past the bottom of the
+     page goes to the next page, and a page is added after the last page. */
+  INK_SELECTOR_SPACE_VERTICAL = 4,   /* moves the ink below the pen-down up or down */
+  INK_SELECTOR_SPACE_HORIZONTAL = 5, /* moves the ink right of the pen-down sideways */
+  /* Moves the ink after the pen-down in reading order: the rest of its line
+     sideways, with words that pass the end of a line reflowed to the next
+     lines, or whole lines when the pen-down is in the margin or on a line
+     with no ink after it. A drag up or left deletes the ink it passes. */
+  INK_SELECTOR_SPACE_RULED = 6,
+  INK_SELECTOR_OVAL = 7 /* selects what the ellipse in a dragged rectangle covers */
 } InkSelector;
 
 /* The selection tool. With `active` 1, pen and mouse input select, and
@@ -254,6 +323,17 @@ InkStatus ink_canvas_selection(InkCanvas *canvas, InkSelectionInfo *out);
 /* Selects every element of page `index`'s visible, unlocked layers. */
 InkStatus ink_canvas_select_all(InkCanvas *canvas, size_t index);
 InkStatus ink_canvas_clear_selection(InkCanvas *canvas);
+InkStatus ink_canvas_bookmark_selection(InkCanvas *canvas);
+/* The figure source is its latest edited draft, or the captured TikZ when it has none. */
+InkStatus ink_document_figure_source(InkDocument *document, const char *id, const uint8_t **text, size_t *size);
+InkStatus ink_document_figure_draft(InkDocument *document, const char *id, const uint8_t *text, size_t size);
+InkStatus ink_canvas_link_selection(InkCanvas *canvas, const char *href);
+InkStatus ink_canvas_ungroup_selection(InkCanvas *canvas);
+InkStatus ink_canvas_add_bookmark(InkCanvas *canvas, double x, double y);
+/* Visible bookmarks and links with page-local bounds, in page and line order. */
+InkStatus ink_document_navigation(InkDocument *document, const char **json);
+InkStatus ink_document_bookmark_png(InkDocument *document, const char *id, int32_t width,
+                                    const uint8_t **png, size_t *size);
 /* Deletes the selected elements: one history step. */
 InkStatus ink_canvas_delete_selection(InkCanvas *canvas);
 /* The selection as a standalone SVG document (UTF-8), for the host's
@@ -273,9 +353,15 @@ InkStatus ink_canvas_copy_selection(InkCanvas *canvas, int32_t cut, const uint8_
    not a page SVG. */
 InkStatus ink_canvas_paste(InkCanvas *canvas, const uint8_t *svg, size_t size, double x,
                            double y);
+/* Paste with the selection centered at the drop position in view coordinates. */
+InkStatus ink_canvas_paste_at(InkCanvas *canvas, const uint8_t *svg, size_t size, double x, double y);
 /* Copies the selection 10 pt right and down, with new ids, and selects the
    copy: one history step. */
 InkStatus ink_canvas_duplicate_selection(InkCanvas *canvas);
+/* Gives the selected strokes and text fill `rgb` (0xRRGGBB) and shapes that
+   stroke color, keeping opacity; groups recolor their children. One history
+   step; the selection stays. */
+InkStatus ink_canvas_recolor_selection(InkCanvas *canvas, uint32_t rgb);
 /* Adds UTF-8 text at a view point and selects it. Each line is SVG text in
    the page file. The position is the text box's top-left corner. */
 InkStatus ink_canvas_insert_text(InkCanvas *canvas, const uint8_t *utf8, size_t size,
@@ -288,6 +374,9 @@ InkStatus ink_canvas_select_text_at(InkCanvas *canvas, double x, double y, int32
 InkStatus ink_canvas_selected_text(InkCanvas *canvas, const uint8_t **utf8, size_t *size);
 /* Replaces the selected text box's content in one history step. */
 InkStatus ink_canvas_set_selected_text(InkCanvas *canvas, const uint8_t *utf8, size_t size);
+/* JSON {content, width, rtl}; text and layout changes form one history step. */
+InkStatus ink_canvas_text_properties(InkCanvas *canvas, const char **json);
+InkStatus ink_canvas_edit_text(InkCanvas *canvas, const char *json, double x, double y, int32_t existing);
 /* UTC ms since the Unix epoch minus the host's sample clock, for mn:time. */
 InkStatus ink_canvas_set_utc_offset(InkCanvas *canvas, double utc_minus_host_ms);
 InkStatus ink_canvas_free(InkCanvas *canvas);
@@ -305,6 +394,10 @@ InkStatus ink_input_update(InkCanvas *canvas, const InkPenSample *samples, size_
 /* Draws a frame when the document, the view, or the live stroke changed
    since the last one. `*drew` is 1 when it drew. */
 InkStatus ink_render(InkCanvas *canvas, int32_t *drew);
+/* Makes the next ink_render draw a frame. For a host that reads the frame
+   from the surface: a WebGL drawing buffer holds a frame only until the
+   browser presents it. */
+InkStatus ink_canvas_invalidate(InkCanvas *canvas);
 /* Moves the document one step back or forward in its history. `*moved` is 0
    at either end. `*page` is the page the step changed, for the host to show,
    or -1 when it changed no page (a page size or template). */
@@ -319,8 +412,8 @@ InkStatus ink_document_page_rect(InkDocument *document, size_t index, double *x,
 InkStatus ink_document_page_png(InkDocument *document, size_t index, int32_t width,
                                 const uint8_t **png, size_t *size);
 
-/* A zero-based consecutive page range. `include_links` is reserved for link
-   annotations (#32) and must be zero. Hidden layers are omitted unless
+/* A zero-based consecutive page range. `include_links` exports bookmark
+   destinations and link annotations. Hidden layers are omitted unless
    `include_hidden_layers` is nonzero. */
 typedef struct InkPdfExportSpec {
   size_t first_page;
@@ -334,6 +427,9 @@ typedef struct InkPdfExportSpec {
    export on this document or ink_document_free. */
 InkStatus ink_export_pdf(InkDocument *document, const char *title,
                          const InkPdfExportSpec *spec, const uint8_t **pdf, size_t *size);
+/* Export only the layer ids in the JSON array, independent of screen visibility. */
+InkStatus ink_export_pdf_layers(InkDocument *document, const char *title,
+                         const InkPdfExportSpec *spec, const char *layers, const uint8_t **pdf, size_t *size);
 
 /* ---- Layout check ----------------------------------------------------- */
 
@@ -342,7 +438,7 @@ typedef enum InkStruct {
   INK_STRUCT_TOOL_SETTINGS = 1,
   INK_STRUCT_FILE = 2,
   INK_STRUCT_SELECTION_INFO = 3,
-  INK_STRUCT_PEN = 4,
+  INK_STRUCT_PEN_FILE = 4,
   INK_STRUCT_PDF_EXPORT_SPEC = 5
 } InkStruct;
 
@@ -384,10 +480,14 @@ static_assert(offsetof(InkFile, size) == 2 * sizeof(void *));
 static_assert(offsetof(InkFile, kind) == 3 * sizeof(void *));
 static_assert(sizeof(InkFile) == 4 * sizeof(void *));
 
-static_assert(offsetof(InkPen, id) == 0);
-static_assert(offsetof(InkPen, name) == sizeof(void *));
-static_assert(offsetof(InkPen, tool) == 2 * sizeof(void *));
-static_assert(sizeof(InkPen) == 2 * sizeof(void *) + sizeof(InkToolSettings));
+static_assert(offsetof(InkPenFile, pen) == 0);
+static_assert(offsetof(InkPenFile, marker) == 16);
+static_assert(offsetof(InkPenFile, highlighter) == 32);
+static_assert(offsetof(InkPenFile, palette) == 48);
+static_assert(offsetof(InkPenFile, palette_count) == 48 + sizeof(void *));
+static_assert(offsetof(InkPenFile, saved) == 48 + 2 * sizeof(void *));
+static_assert(offsetof(InkPenFile, saved_count) == 48 + 3 * sizeof(void *));
+static_assert(sizeof(InkPenFile) == 48 + 4 * sizeof(void *));
 
 static_assert(offsetof(InkSelectionInfo, count) == 0);
 static_assert(offsetof(InkSelectionInfo, page) == 4);

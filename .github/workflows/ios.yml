@@ -8,6 +8,11 @@ on:
       - Sources/**
       - AppTests/**
       - core/**
+      - hosts/web/build-tikz.mjs
+      - hosts/web/ipad-figure-generator.js
+      - hosts/web/tikz-embed.html
+      - Resources/TikZRuntime/**
+      - Resources/Fonts/**
       - tests/documents/**
       - project.yml
       - sidestore-source.jq
@@ -51,8 +56,8 @@ jobs:
             ${{ env.SKIA_DIR }}/include
             ${{ env.SKIA_DIR }}/modules
             ${{ env.SKIA_DIR }}/src
-            ${{ env.SKIA_DIR }}/out/device/libskia.a
-            ${{ env.SKIA_DIR }}/out/simulator/libskia.a
+            ${{ env.SKIA_DIR }}/out/device/*.a
+            ${{ env.SKIA_DIR }}/out/simulator/*.a
           key: skia-ios-${{ hashFiles('core/scripts/build-skia-ios.sh') }}
 
       - name: Build Skia for iOS
@@ -82,6 +87,11 @@ jobs:
 
       - name: Build engine xcframework
         run: core/scripts/build-ios-xcframework.sh "$SKIA_DIR" "$VCPKG_ROOT"
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Build iPad TikZ resources
+        run: node hosts/web/build-tikz.mjs Resources/TikZEditor Resources/TikZRuntime
 
       - name: Generate Xcode project
         run: xcodegen generate

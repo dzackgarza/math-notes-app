@@ -17,6 +17,13 @@ export interface SampleIds {
 
 const ERASER_BUTTON = 5; // PointerEvent.button of the pen's eraser end
 const ERASER_BUTTONS = 32; // its bit in PointerEvent.buttons
+const BARREL_BUTTON = 2; // PointerEvent.button of the pen's side (barrel) button
+const BARREL_BUTTONS = 2; // its bit in PointerEvent.buttons
+
+// The tool of each pointer that is down, chosen at pointerdown. The side
+// button is released or the pen lifts with buttons 0, and the rest of the
+// stroke must still reach the gesture that its first sample started.
+const downTools = new Map<number, number>();
 
 function phase(e: PointerEvent): number {
   switch (e.type) {
@@ -31,22 +38,34 @@ function phase(e: PointerEvent): number {
   }
 }
 
-function tool(e: PointerEvent): number {
-  if (e.pointerType === "touch") return Tool.touch;
+function buttonTool(e: PointerEvent, fingerDraws: boolean): number {
+  if (e.pointerType === "touch") return fingerDraws ? Tool.pen : Tool.touch;
   if (e.pointerType === "mouse") return Tool.mouse;
-  const eraser = (e.buttons & ERASER_BUTTONS) !== 0 || e.button === ERASER_BUTTON;
+  const eraser =
+    (e.buttons & (ERASER_BUTTONS | BARREL_BUTTONS)) !== 0 ||
+    e.button === ERASER_BUTTON ||
+    e.button === BARREL_BUTTON;
   return eraser ? Tool.eraser : Tool.pen;
 }
 
+function tool(e: PointerEvent, eventPhase: number, fingerDraws: boolean): number {
+  if (eventPhase === Phase.begin) downTools.set(e.pointerId, buttonTool(e, fingerDraws));
+  const kind = downTools.get(e.pointerId) ?? buttonTool(e, fingerDraws);
+  if (eventPhase === Phase.end || eventPhase === Phase.cancel) downTools.delete(e.pointerId);
+  return kind;
+}
+
 // `origin` is the canvas's top-left in client coordinates (CSS px).
+// `fingerDraws` makes a touch the pen tool instead of the touch tool.
 export function penSamples(
   e: PointerEvent,
   origin: { x: number; y: number },
   has: number,
   ids: SampleIds,
+  fingerDraws = false,
 ): PenSample[] {
-  const kind = tool(e);
   const eventPhase = phase(e);
+  const kind = tool(e, eventPhase, fingerDraws);
   const sample = (p: PointerEvent, samplePhase: number, predicted: boolean): PenSample => {
     return {
       x: p.clientX - origin.x,
