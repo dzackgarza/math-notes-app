@@ -23,7 +23,19 @@ find_package(Immer CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(boost_icl CONFIG REQUIRED)
 find_package(boost_geometry CONFIG REQUIRED)
+find_package(Eigen3 CONFIG REQUIRED)
+find_package(OpenCV CONFIG REQUIRED COMPONENTS core imgproc)
 include(third_party/ink.cmake)
+include(FetchContent)
+FetchContent_Declare(dollar
+  URL https://github.com/htfy96/dollar/archive/a836fc22cd59633727afc3b3e4ede546e34940e2.tar.gz
+  URL_HASH SHA256=db26e6c59453adc28b3a0bc716d91be93913cd8a0fbbe586fc168cf58b1389ec
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+FetchContent_Declare(bezier
+  URL https://github.com/romb-technologies/Bezier/archive/7826021f87511b440ce9c492ca7ae2cb4227e360.tar.gz
+  URL_HASH SHA256=fc80016c4f7d3a9052ba068b2d78b46d4c42b6d9471bb7846a5c7f8df58c6666
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+FetchContent_MakeAvailable(dollar bezier)
 
 # Skia's WASM build has no platform font manager. Embed the same typeface in
 # both engine targets so text geometry and rendering use one font.
@@ -80,7 +92,8 @@ add_library(ink STATIC
 target_include_directories(ink PUBLIC include src PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(ink PRIVATE INK_VERSION="${PROJECT_VERSION}")
 target_link_libraries(ink PUBLIC Skia::skia inkcore pugixml::pugixml FastFloat::fast_float immer
-  nlohmann_json::nlohmann_json Boost::icl Boost::geometry)
+  nlohmann_json::nlohmann_json Boost::icl Boost::geometry dollar Bezier::Bezier
+  opencv_core opencv_imgproc)
 
 if(EMSCRIPTEN)
   target_sources(ink PRIVATE src/render/webgl_surface.cpp)
