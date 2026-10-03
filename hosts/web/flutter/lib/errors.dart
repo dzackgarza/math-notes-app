@@ -51,7 +51,7 @@ void showError(Object error, [StackTrace? stack]) {
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   minimumSize: const Size(44, 44),
                   onPressed: () => toastification.dismiss(toast),
-                  child: const Icon(LucideIcons.x, color: label, size: 18),
+                  child: Icon(LucideIcons.x, color: label, size: 18),
                 ),
               ),
             ),

@@ -702,7 +702,7 @@ class _EditorScreenState extends State<EditorScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           minimumSize: const Size(36, 36),
                           onPressed: () => chooseTool(pen),
-                          child: const Icon(
+                          child: Icon(
                             LucideIcons.x,
                             color: label,
                             size: 18,
@@ -762,7 +762,7 @@ class _EditorScreenState extends State<EditorScreen> {
         children: [
           LongPressDraggable<SelectionTransfer>(
             data: SelectionTransfer(() => canvas!.copySelection(false)),
-            feedback: const DecoratedBox(
+            feedback: DecoratedBox(
               decoration: BoxDecoration(
                 color: surface3,
                 boxShadow: floatingShadow,
@@ -1157,7 +1157,7 @@ class _EditorScreenState extends State<EditorScreen> {
     final tabs = ['Pages', 'Bookmarks', 'Outlines', 'Layers'];
     return Container(
       width: 296,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: surface2,
         border: Border(right: BorderSide(color: separator)),
       ),
@@ -1248,7 +1248,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                 child: Row(
                                   children: [
                                     DecoratedBox(
-                                      decoration: const BoxDecoration(
+                                      decoration: BoxDecoration(
                                         border: Border.fromBorderSide(
                                           BorderSide(color: paperEdge),
                                         ),
@@ -1310,7 +1310,7 @@ class _EditorScreenState extends State<EditorScreen> {
                         style: canvas?.activeLayer() == index ? subhead : callout,
                       ),
                       leading: DecoratedBox(
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           border: Border.fromBorderSide(
                             BorderSide(color: paperEdge),
                           ),

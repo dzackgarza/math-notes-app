@@ -27,4 +27,14 @@ class AppPreferences extends ChangeNotifier {
     _reopenLastNote = value;
     notifyListeners();
   }
+
+  bool _darkAppearance =
+      web.window.localStorage.getItem('appearance') == 'dark';
+  bool get darkAppearance => _darkAppearance;
+  set darkAppearance(bool value) {
+    if (_darkAppearance == value) return;
+    web.window.localStorage.setItem('appearance', value ? 'dark' : 'light');
+    _darkAppearance = value;
+    notifyListeners();
+  }
 }

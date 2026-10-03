@@ -313,7 +313,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       children: [
         Expanded(
           child: DecoratedBox(
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               borderRadius: BorderRadius.all(Radius.circular(6)),
               boxShadow: floatingShadow,
             ),
@@ -990,7 +990,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     return SizedBox(
       width: 220,
       child: DecoratedBox(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: surface1,
           border: Border(right: BorderSide(color: separator)),
         ),

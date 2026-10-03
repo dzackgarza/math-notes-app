@@ -139,7 +139,7 @@ class WorkspaceScreen extends StatelessWidget {
                       DecoratedBox(
                         decoration: BoxDecoration(
                           color: session.tab == i ? surface1 : null,
-                          border: const Border(
+                          border: Border(
                             right: BorderSide(color: separator),
                           ),
                         ),

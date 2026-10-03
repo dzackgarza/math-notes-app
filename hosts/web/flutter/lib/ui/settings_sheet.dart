@@ -84,6 +84,31 @@ Future<void> showSettings(
                               children: [
                                 CupertinoListSection.insetGrouped(
                                   backgroundColor: surface2,
+                                  header: Text(
+                                    'Appearance',
+                                    style: footnote.copyWith(color: secondaryLabel),
+                                  ),
+                                  children: [
+                                    CupertinoListTile(
+                                      title: Text('Theme', style: body),
+                                      trailing: SizedBox(
+                                        width: 190,
+                                        child: CupertinoSlidingSegmentedControl<bool>(
+                                          groupValue: preferences.darkAppearance,
+                                          children: const {
+                                            false: Text('Light'),
+                                            true: Text('Dark'),
+                                          },
+                                          onValueChanged: (dark) => update(
+                                            () => preferences.darkAppearance = dark!,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                CupertinoListSection.insetGrouped(
+                                  backgroundColor: surface2,
                                   children: [
                                     toggle(
                                       'Draw with finger',

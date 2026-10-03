@@ -133,7 +133,7 @@ extension _EditorRail on _EditorScreenState {
                       child: Container(
                         width: 18,
                         height: 18,
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           color: surface2,
                           shape: BoxShape.circle,
                         ),

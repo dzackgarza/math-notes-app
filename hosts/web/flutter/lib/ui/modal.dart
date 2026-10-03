@@ -112,7 +112,7 @@ class Alert extends StatelessWidget {
         child: SizedBox(
           width: _alertWidth,
           child: DecoratedBox(
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: surface2,
               borderRadius: _cornerRadius,
               boxShadow: modalShadow,
@@ -270,7 +270,7 @@ class ActionSheet extends StatelessWidget {
   final Widget? cancelButton;
 
   Widget group(List<Widget> children) => DecoratedBox(
-    decoration: const BoxDecoration(
+    decoration: BoxDecoration(
       color: surface2,
       borderRadius: _cornerRadius,
       boxShadow: modalShadow,

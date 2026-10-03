@@ -64,14 +64,19 @@ class MathNotes extends StatelessWidget {
         ),
       ),
     ],
-    child: ToastificationWrapper(
-      child: CupertinoApp(
-        title: 'Math Notes',
-        theme: cupertinoTheme,
-        builder: (context, child) =>
-            PullDownButtonInheritedTheme(data: pullDownTheme, child: child!),
-        home: const Shell(),
-      ),
+    child: Consumer<AppPreferences>(
+      builder: (context, preferences, child) {
+        setAppearance(preferences.darkAppearance);
+        return ToastificationWrapper(
+          child: CupertinoApp(
+            title: 'Math Notes',
+            theme: cupertinoTheme,
+            builder: (context, child) =>
+                PullDownButtonInheritedTheme(data: pullDownTheme, child: child!),
+            home: const Shell(),
+          ),
+        );
+      },
     ),
   );
 }
@@ -121,15 +126,16 @@ class _ShellState extends State<Shell> {
 
   @override
   Widget build(BuildContext context) {
+    context.watch<AppPreferences>();
     final session = context.watch<OpenNotes>();
     return IndexedStack(
       index: session.active == null ? 0 : 1,
       children: [
         ExcludeFocus(
           excluding: !session.inLibrary,
-          child: const LibraryScreen(),
+          child: LibraryScreen(),
         ),
-        const WorkspaceScreen(),
+        WorkspaceScreen(),
       ],
     );
   }
