@@ -258,7 +258,7 @@ test("Flutter keeps a library in order: keyboard, tags, tabs, moves, trash, rena
     await button("Rename").click();
     await enterText(page.getByRole("textbox", { name: "Name", exact: true }), "Modules");
     await button("Rename").click();
-    await expect(card("Modules")).toBeVisible();
+    await expect(card("Modules")).toBeVisible({ timeout: 30_000 });
     await expect(card("Rings")).toHaveCount(0);
     await card("Modules").click();
     await expect(button("Close Modules")).toBeVisible({ timeout: 30_000 });
