@@ -1,5 +1,5 @@
 import { expect } from "@playwright/test";
-import { test, centerPixel, createTestNotebook, enterText, openTestNotebook, penStroke, line, savedPages, brightness } from "./support.ts";
+import { test, centerPixel, createTestNotebook, enterText, openTestNotebook, penStroke, line, savedPages, brightness, frames, isInk, pixelBounds } from "./support.ts";
 
 test("Editor preferences: the last note reopens and the undo dial uses its chosen steps", async ({ page, context }, info) => {
   test.setTimeout(120_000);
@@ -58,9 +58,12 @@ test("Editor preferences: the last note reopens and the undo dial uses its chose
   expect((await savedPages(page, "Recall")).map((item) => item.strokes)).toEqual([3]);
   await button("More").click();
   await button("Settings").click();
-  await button("3 ←").click();
-  await button("3 →").click();
+  await button("3 ←").first().click();
+  await button("3 →").last().click();
+  await frames(page);
+  await page.screenshot({ path: info.outputPath("dark-settings.png") });
   await button("Done").click();
+  await expect(page.getByRole("dialog", { name: "Settings" })).toHaveCount(0);
   expect(await page.evaluate(() => [localStorage.getItem("undoGesture"), localStorage.getItem("redoGesture")]))
     .toEqual(["threeFingerSwipeLeft", "threeFingerSwipeRight"]);
   await penStroke(cdp, line(box.x + 200, box.x + 300, box.y + 480), 0.6);
@@ -78,6 +81,25 @@ test("Editor preferences: the last note reopens and the undo dial uses its chose
   await swipe(-1);
   expect((await savedPages(page, "Recall")).map((item) => item.strokes)).toEqual([3]);
   await swipe(1);
+  expect((await savedPages(page, "Recall")).map((item) => item.strokes)).toEqual([4]);
+  const doubleTap = async () => {
+    const point = [{ id: 0, x: box.x + 450, y: box.y + 260 }];
+    for (let tap = 0; tap < 2; tap++) {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: point });
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    }
+  };
+  const inkWidth = async () => {
+    const bounds = await pixelBounds(page, { x: 90, y: 80, width: 600, height: 480 }, isInk);
+    return bounds.right - bounds.left;
+  };
+  const fittedWidth = await inkWidth();
+  await cdp.send("Input.synthesizePinchGesture", { x: box.x + 450, y: box.y + 260, scaleFactor: 1.5, relativeSpeed: 500 });
+  await frames(page);
+  await expect.poll(inkWidth).toBeGreaterThan(fittedWidth * 1.2);
+  await doubleTap();
+  await frames(page);
+  await expect.poll(async () => Math.abs((await inkWidth()) - fittedWidth)).toBeLessThanOrEqual(2);
   expect((await savedPages(page, "Recall")).map((item) => item.strokes)).toEqual([4]);
   await button("Library").click();
   await page.screenshot({ path: info.outputPath("dark-library.png") });

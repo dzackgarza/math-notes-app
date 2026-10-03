@@ -440,7 +440,10 @@ class _EditorScreenState extends State<EditorScreen> {
         return;
       }
       final gesture = taps.add(event);
-      if (gesture == PageGesture.doubleTap) fitWidth();
+      if (gesture == PageGesture.doubleTap &&
+          tool != 'navigate' && tool != 'bookmark' && tool != 'text') {
+        fitWidth();
+      }
       final historyGesture = switch (gesture) {
         PageGesture.twoFingerTap => HistoryGesture.twoFingerTap,
         PageGesture.threeFingerTap => HistoryGesture.threeFingerTap,
@@ -1619,7 +1622,6 @@ class _EditorScreenState extends State<EditorScreen> {
                                         onPointerSignal: (event) =>
                                             transform.held = false,
                                         child: GestureDetector(
-                                          onDoubleTap: () {},
                                           onLongPressStart: fingerDraws
                                               ? null
                                               : (details) => run(

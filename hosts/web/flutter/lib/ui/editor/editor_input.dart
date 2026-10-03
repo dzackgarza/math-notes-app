@@ -51,7 +51,11 @@ class FingerTap {
   Duration? previousTap;
   Offset? previousPosition;
 
-  void cancel() => valid = false;
+  void cancel() {
+    valid = false;
+    previousTap = null;
+    previousPosition = null;
+  }
 
   PageGesture? add(PointerEvent event) {
     if (event is PointerDownEvent) {
@@ -86,8 +90,11 @@ class FingerTap {
       }
     }
     if (!valid || elapsed > kLongPressTimeout) return null;
-    if (fingers == 2) return PageGesture.twoFingerTap;
-    if (fingers == 3) return PageGesture.threeFingerTap;
+    if (fingers == 2 || fingers == 3) {
+      previousTap = null;
+      previousPosition = null;
+      return fingers == 2 ? PageGesture.twoFingerTap : PageGesture.threeFingerTap;
+    }
     if (fingers != 1) return null;
     final first = previousTap;
     final position = previousPosition;

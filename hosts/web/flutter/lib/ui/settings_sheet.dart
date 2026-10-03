@@ -31,6 +31,7 @@ Future<void> showSettings(
               child: CupertinoListTile(
                 title: Text(title, style: body),
                 trailing: CupertinoSwitch(
+                  activeColor: accent,
                   value: value,
                   onChanged: (next) => update(() => onChanged(next)),
                 ),

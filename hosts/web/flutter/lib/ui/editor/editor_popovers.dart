@@ -204,6 +204,7 @@ extension _EditorPopovers on _EditorScreenState {
         child: CupertinoListTile(
           title: Text(title, style: body),
           trailing: CupertinoSwitch(
+            activeColor: accent,
             value: modes & bit != 0,
             onChanged: (enabled) => update(() => modes = enabled ? modes | bit : modes & ~bit),
           ),
