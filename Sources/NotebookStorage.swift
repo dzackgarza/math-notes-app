@@ -1504,7 +1504,7 @@ final class NotesRootAccess {
     template: String,
     pageSize: InkPageSize,
     orientation: InkOrientation,
-    width: Int = 480
+    width: Int32 = 480
   ) throws -> Data {
     try ensureBuiltinTemplates()
     let pageURL = url
