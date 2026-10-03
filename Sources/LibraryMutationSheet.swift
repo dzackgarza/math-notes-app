@@ -14,14 +14,12 @@ struct LibraryEntryTarget: Identifiable {
 }
 
 enum LibraryMutationMode {
-  case createFolder
   case rename(LibraryEntryTarget)
   case move(LibraryEntryTarget)
   case restore(LibraryEntryTarget)
 
   var title: String {
     switch self {
-    case .createFolder: "New Folder"
     case .rename: "Rename"
     case .move: "Move"
     case .restore: "Restore"
@@ -30,7 +28,6 @@ enum LibraryMutationMode {
 
   var confirmation: String {
     switch self {
-    case .createFolder: "Create"
     case .rename: "Rename"
     case .move: "Move"
     case .restore: "Restore"
@@ -39,21 +36,20 @@ enum LibraryMutationMode {
 
   var showsName: Bool {
     switch self {
-    case .createFolder, .rename: true
+    case .rename: true
     case .move, .restore: false
     }
   }
 
   var showsFolder: Bool {
     switch self {
-    case .createFolder, .move, .restore: true
+    case .move, .restore: true
     case .rename: false
     }
   }
 
   var initialName: String {
     switch self {
-    case .createFolder: ""
     case let .rename(entry), let .move(entry), let .restore(entry): entry.name
     }
   }

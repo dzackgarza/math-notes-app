@@ -30,8 +30,8 @@ struct NativeLibraryView: View {
   let createTag: () -> Void
   let toggleLayout: () -> Void
   let createNote: () -> Void
+  let createNotebook: () -> Void
   let importPDF: () -> Void
-  let createFolder: () -> Void
   let renameEntry: (LibraryEntryTarget) -> Void
   let moveEntry: (LibraryEntryTarget) -> Void
   let trashEntry: (LibraryEntryTarget) -> Void
@@ -77,12 +77,21 @@ struct NativeLibraryView: View {
         }
       } else if listing.folders.isEmpty && listing.notebooks.isEmpty {
         ContentUnavailableView {
-          Label("No Notes Here", systemImage: "folder")
+          if folder.path.isEmpty {
+            Label("No Notebooks", systemImage: "books.vertical")
+          } else {
+            Label("No Notes", systemImage: "pencil")
+          }
         } description: {
-          Text("This folder has no note folders yet.")
+          Text(folder.path.isEmpty ? "Your notebooks appear here." : "This notebook has no notes yet.")
         } actions: {
-          Button("New Note", action: createNote)
-            .buttonStyle(.borderedProminent)
+          if folder.path.isEmpty {
+            Button("Create Notebook", action: createNotebook)
+              .buttonStyle(.borderedProminent)
+          } else {
+            Button("Create Note", action: createNote)
+              .buttonStyle(.borderedProminent)
+          }
           Button("Rescan", action: refresh)
         }
       } else if grid {
@@ -153,8 +162,14 @@ struct NativeLibraryView: View {
       }
 
       ToolbarItemGroup(placement: .topBarTrailing) {
-        Button(action: createNote) {
-          Label("New Note", systemImage: "square.and.pencil")
+        if folder.path.isEmpty {
+          Button(action: createNotebook) {
+            Label("New Notebook", systemImage: "folder.badge.plus")
+          }
+        } else {
+          Button(action: createNote) {
+            Label("New Note", systemImage: "square.and.pencil")
+          }
         }
 
         Menu {
@@ -219,16 +234,12 @@ struct NativeLibraryView: View {
             Label("New Tag…", systemImage: "tag.badge.plus")
           }
 
-          Divider()
+          if !folder.path.isEmpty {
+            Divider()
 
-          Button(action: importPDF) {
-            Label("Import PDF", systemImage: "doc.badge.plus")
-          }
-
-          Divider()
-
-          Button(action: createFolder) {
-            Label("New Folder", systemImage: "folder.badge.plus")
+            Button(action: importPDF) {
+              Label("Import PDF", systemImage: "doc.badge.plus")
+            }
           }
 
           Divider()

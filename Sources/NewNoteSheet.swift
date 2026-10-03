@@ -205,7 +205,7 @@ struct NewNoteSheet: View {
         }
 
         Section("Preview") {
-          NewNotePaperPreview(
+          CreationPaperPreview(
             template: form.template,
             pageSize: form.pageSize,
             orientation: form.orientation,
@@ -344,7 +344,7 @@ struct NewNoteSheet: View {
 }
 
 @MainActor
-private struct NewNotePaperPreview: View {
+struct CreationPaperPreview: View {
   let template: String
   let pageSize: NewNotePageSize
   let orientation: NewNoteOrientation

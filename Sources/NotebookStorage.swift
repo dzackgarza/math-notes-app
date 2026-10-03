@@ -1367,6 +1367,26 @@ final class NotesRootAccess {
     return FolderReference(path: path)
   }
 
+  func createFolder(
+    parent: FolderReference,
+    name: String,
+    details: LibraryFolderDetails
+  ) throws -> FolderReference {
+    let reference = try createFolder(parent: parent, name: name)
+    let folderURL = urlForPath(reference.path)
+    do {
+      try saveFolderDetails(details, for: reference)
+      return reference
+    } catch {
+      try? coordinatedWrite(at: folderURL, options: .forDeleting) { coordinatedURL in
+        if FileManager.default.fileExists(atPath: coordinatedURL.path) {
+          try FileManager.default.removeItem(at: coordinatedURL)
+        }
+      }
+      throw error
+    }
+  }
+
   func moveEntry(
     path: [String],
     toParent parent: FolderReference,

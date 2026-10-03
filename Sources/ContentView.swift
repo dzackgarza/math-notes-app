@@ -135,6 +135,15 @@ struct ContentView: View {
   @State private var showingPDFImporter = false
   @State private var showingImageImporter = false
   @State private var pdfImportProgress: String?
+  @State private var showingNewNotebook = false
+  @State private var newNotebookFolders: [FolderReference] = []
+  @State private var newNotebookKnownTags: [LibraryTag] = []
+  @State private var newNotebookDefaults = LibraryFolderDetails(
+    description: "",
+    paper: "dotted",
+    coverColor: "#24324A",
+    coverStyle: "classic",
+    tags: [])
   @State private var showingNewNote = false
   @State private var newNoteFolders: [FolderReference] = []
   @State private var newNoteTemplates: [String] = []
@@ -359,6 +368,16 @@ struct ContentView: View {
         errorMessage = error.localizedDescription
       }
     }
+    .sheet(isPresented: $showingNewNotebook) {
+      NewNotebookSheet(
+        folders: newNotebookFolders,
+        knownTags: newNotebookKnownTags,
+        initialParent: libraryFolder,
+        defaults: newNotebookDefaults,
+        renderPreview: renderPaperPreview,
+        onCreate: createNewNotebook,
+        onCancel: { showingNewNotebook = false })
+    }
     .sheet(isPresented: $showingNewNote) {
       NewNoteSheet(
         folders: newNoteFolders,
@@ -371,7 +390,7 @@ struct ContentView: View {
         onCreate: createNewNote,
         onSaveDraft: saveNewNoteDraft,
         onSaveTemplate: saveNewNoteStartingTemplate,
-        renderPreview: renderNewNotePreview,
+        renderPreview: renderPaperPreview,
         onCancel: { showingNewNote = false })
     }
     .sheet(item: $libraryMutation) { request in
@@ -946,8 +965,8 @@ struct ContentView: View {
       createTag: { showingNewTag = true },
       toggleLayout: { libraryGrid.toggle() },
       createNote: prepareNewNote,
+      createNotebook: prepareNewNotebook,
       importPDF: { showingPDFImporter = true },
-      createFolder: { prepareLibraryMutation(.createFolder) },
       renameEntry: { prepareLibraryMutation(.rename($0)) },
       moveEntry: { prepareLibraryMutation(.move($0)) },
       trashEntry: moveLibraryEntryToTrash,
@@ -1234,9 +1253,6 @@ struct ContentView: View {
       let folders: [FolderReference]
 
       switch mode {
-      case .createFolder:
-        initialParent = libraryFolder
-        folders = allFolders
       case let .rename(entry):
         initialParent = FolderReference(path: Array(entry.path.dropLast()))
         folders = allFolders
@@ -1272,8 +1288,6 @@ struct ContentView: View {
     guard let root else { return }
     do {
       switch request.mode {
-      case .createFolder:
-        _ = try root.createFolder(parent: parent, name: name)
       case let .rename(entry):
         try closeOpenEntries(at: entry.path, using: root)
         let currentParent = FolderReference(path: Array(entry.path.dropLast()))
@@ -1391,6 +1405,35 @@ struct ContentView: View {
     }
   }
 
+  private func prepareNewNotebook() {
+    guard let root else { return }
+    do {
+      newNotebookFolders = try root.folders()
+      newNotebookKnownTags = try root.libraryTags()
+      newNotebookDefaults = try root.folderDetails(for: libraryFolder)
+      showingNewNotebook = true
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func createNewNotebook(_ request: NewNotebookRequest) {
+    guard let root else { return }
+    do {
+      let reference = try root.createFolder(
+        parent: request.parent,
+        name: request.title,
+        details: request.details)
+      showingNewNotebook = false
+      libraryQuery = ""
+      libraryScope = .folder
+      libraryFolder = reference
+      refreshLibrary()
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
   private func prepareNewNote() {
     guard let root else { return }
     do {
@@ -1409,7 +1452,7 @@ struct ContentView: View {
     }
   }
 
-  private func renderNewNotePreview(
+  private func renderPaperPreview(
     _ template: String,
     _ pageSize: InkPageSize,
     _ orientation: InkOrientation

@@ -311,6 +311,31 @@ final class NotebookStorageTests: XCTestCase {
   }
 
   @MainActor
+  func testCreateFolderWithDetailsPersistsNotebookMetadataAndTags() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let root = NotesRootAccess(testURL: directory)
+    let details = LibraryFolderDetails(
+      description: "Lecture notes",
+      paper: "grid-medium",
+      coverColor: "#5B2328",
+      coverStyle: "spine",
+      tags: ["Algebra"])
+    let reference = try root.createFolder(
+      parent: FolderReference(path: []),
+      name: "Course",
+      details: details)
+
+    XCTAssertEqual(reference, FolderReference(path: ["Course"]))
+    XCTAssertEqual(try root.folderDetails(for: reference), details)
+    XCTAssertTrue(try root.folders().contains(reference))
+    XCTAssertEqual(try root.libraryTags().map(\.name), ["Algebra"])
+  }
+
+  @MainActor
   func testPageSizeSettingUsesTheSharedDocument() throws {
     let document = EngineDocument(seed: 31)
 
