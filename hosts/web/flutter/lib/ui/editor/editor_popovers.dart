@@ -154,6 +154,8 @@ extension _EditorPopovers on _EditorScreenState {
     final brush = original.brush;
     var size = original.size;
     var opacity = original.opacity;
+    var modes = original.modes;
+    var smoothingMs = original.smoothingMs;
     final rgb = original.rgb;
     var advanced = false;
     var save = false;
@@ -163,6 +165,8 @@ extension _EditorPopovers on _EditorScreenState {
       rgb: rgb,
       size: size,
       opacity: opacity,
+      modes: modes,
+      smoothingMs: smoothingMs,
     );
     final label = toolKinds.firstWhere((kind) => kind.$1 == pen).$2;
     await popover(anchor, label, 340, (context, update) {
@@ -196,6 +200,15 @@ extension _EditorPopovers on _EditorScreenState {
           ),
         ],
       );
+      Widget modeToggle(String title, int bit) => MergeSemantics(
+        child: CupertinoListTile(
+          title: Text(title, style: body),
+          trailing: CupertinoSwitch(
+            value: modes & bit != 0,
+            onChanged: (enabled) => update(() => modes = enabled ? modes | bit : modes & ~bit),
+          ),
+        ),
+      );
       return Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -223,7 +236,7 @@ extension _EditorPopovers on _EditorScreenState {
               semanticLabel: 'Stroke sample',
             ),
           ),
-          if (highlighter || !advanced) ...[
+          if (!advanced) ...[
             section('Size'),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -303,19 +316,49 @@ extension _EditorPopovers on _EditorScreenState {
             ),
           ],
           if (highlighter || advanced) ...[section('Opacity'), opacityRow],
-          if (!highlighter) ...[
-            const SizedBox(height: 12),
-            CupertinoSlidingSegmentedControl<bool>(
-              backgroundColor: segmentTrack,
-              thumbColor: segmentThumb,
-              groupValue: advanced,
-              children: {
-                false: const Text('Size'),
-                true: const Text('Advanced'),
-              },
-              onValueChanged: (value) => update(() => advanced = value!),
+          if (advanced) ...[
+            section('Stroke behavior'),
+            modeToggle('Snap to grid', 1),
+            modeToggle('Draw lines', 2),
+            modeToggle('Temporary ink', 4),
+            section('Smoothing'),
+            Row(
+              children: [
+                Expanded(
+                  child: MergeSemantics(
+                    child: Semantics(
+                      label: 'Smoothing',
+                      child: CupertinoSlider(
+                        value: smoothingMs.clamp(0, 80),
+                        min: 0,
+                        max: 80,
+                        divisions: 8,
+                        onChanged: (value) => update(() => smoothingMs = value),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: 56,
+                  child: Text(
+                    smoothingMs == 0 ? 'Off' : '${smoothingMs.round()} ms',
+                    textAlign: TextAlign.end,
+                  ),
+                ),
+              ],
             ),
           ],
+          const SizedBox(height: 12),
+          CupertinoSlidingSegmentedControl<bool>(
+            backgroundColor: segmentTrack,
+            thumbColor: segmentThumb,
+            groupValue: advanced,
+            children: {
+              false: const Text('Size'),
+              true: const Text('Advanced'),
+            },
+            onValueChanged: (value) => update(() => advanced = value!),
+          ),
           CupertinoButton(
             onPressed: () {
               save = true;
@@ -333,7 +376,8 @@ extension _EditorPopovers on _EditorScreenState {
         ],
       );
     });
-    if (size != original.size || opacity != original.opacity) {
+    if (size != original.size || opacity != original.opacity ||
+        modes != original.modes || smoothingMs != original.smoothingMs) {
       await updatePen(settings());
     }
     if (save) await writePens(saved: [...savedPens, settings()]);
@@ -382,6 +426,8 @@ extension _EditorPopovers on _EditorScreenState {
         rgb: rgb,
         size: current.size,
         opacity: current.opacity,
+        modes: current.modes,
+        smoothingMs: current.smoothingMs,
       ),
     );
   }

@@ -172,7 +172,7 @@ ink_engine::Document WithStrokes(ink_engine::Document document,
 
 std::vector<std::string> ReplayWriteTrace(InkCanvas *canvas, const std::vector<WriteEvent> &trace) {
   ink_canvas_set_view(canvas, 1 / kWritePt, 0, 0, 1 / kWritePt, 0, 0);
-  InkToolSettings marker{INK_BRUSH_MARKER, 0x000000, float(kWritePt), 1};
+  InkToolSettings marker{INK_BRUSH_MARKER, 0x000000, float(kWritePt), 1, 0, 20};
   ink_canvas_set_tool(canvas, &marker);
   ink_canvas_set_eraser(canvas, INK_ERASER_STROKE, 0);
   std::vector<std::string> drawn;

@@ -32,6 +32,8 @@ struct Pen {
   Rgb color{26, 26, 26};
   float size = 1.6f;  // pt
   float opacity = 1;  // the stroke's fill-opacity
+  uint32_t modes = 0;
+  float smoothing_ms = 20;
 };
 
 struct TextBoxStyle {
@@ -198,6 +200,9 @@ class Editor {
   ink::Envelope TakeUpdatedRegion();
 
  private:
+  struct SnapGrid {
+    double x = 0, y = 0, offset = 0;
+  };
   struct LiveStroke {
     ink::InProgressStroke stroke;
     InkTool tool;
@@ -205,6 +210,8 @@ class Editor {
     Pen pen;
     Point origin;                    // content position of the page
     std::vector<InkPenSample> real;  // page coordinates in x, y
+    std::vector<InkPenSample> sensor;  // original page-coordinate samples
+    SnapGrid grid;
     bool updated = false;            // ink_input_update changed a real sample
   };
   struct CommittedStroke {
@@ -214,6 +221,8 @@ class Editor {
     Pen pen;
     Point origin;
     std::vector<InkPenSample> real;
+    std::vector<InkPenSample> sensor;
+    SnapGrid grid;
   };
   struct FigureCapture {
     size_t page = 0, layer = 0, previous_layer = 0;
@@ -305,7 +314,11 @@ class Editor {
   InkPenSample ToPage(InkPenSample sample, const Point &origin) const;
   void Commit();
   Stroke MakeElement(const std::string &id, const ink::Stroke &ink_stroke, const Pen &pen,
-                     double t0, const std::vector<InkPenSample> &real) const;
+                     double t0, const std::vector<InkPenSample> &real,
+                     const std::vector<InkPenSample> &sensor = {}) const;
+  static SnapGrid GridFor(const Background &background);
+  static std::vector<InkPenSample> ProcessedSamples(
+      const std::vector<InkPenSample> &sensor, const Pen &pen, SnapGrid grid);
 
   DocumentHistory *history_;
   const PageArrangement *arrangement_;

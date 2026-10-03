@@ -119,6 +119,8 @@ std::optional<std::string> CheckTool(const InkToolSettings &tool) {
   if (tool.brush > INK_BRUSH_HIGHLIGHTER) return "unknown brush";
   if (!(tool.size > 0)) return "non-positive size";
   if (!(tool.opacity > 0 && tool.opacity <= 1)) return "opacity outside (0, 1]";
+  if (tool.modes & ~uint32_t(7)) return "unknown pen mode";
+  if (!(tool.smoothing_ms >= 0 && tool.smoothing_ms <= 100)) return "smoothing outside [0, 100] ms";
   return std::nullopt;
 }
 
@@ -129,7 +131,8 @@ uint32_t PackRgb(const ink_engine::Rgb &color) {
 ink_engine::Rgb UnpackRgb(uint32_t rgb) { return {uint8_t(rgb >> 16), uint8_t(rgb >> 8), uint8_t(rgb)}; }
 
 ink_engine::Pen ToPen(const InkToolSettings &tool) {
-  return {.brush = InkBrush(tool.brush), .color = UnpackRgb(tool.rgb), .size = tool.size, .opacity = tool.opacity};
+  return {.brush = InkBrush(tool.brush), .color = UnpackRgb(tool.rgb), .size = tool.size,
+          .opacity = tool.opacity, .modes = tool.modes, .smoothing_ms = tool.smoothing_ms};
 }
 
 // Each drawing tool has the brush of its name (InkPenFile).
@@ -851,7 +854,9 @@ InkStatus ink_pens_read(const uint8_t *json, size_t size, const InkPenFile **fil
       InkToolSettings settings{.brush = uint32_t(ink_engine::BrushFromName(p.brush)),
                                .rgb = PackRgb(p.color),
                                .size = float(p.size),
-                               .opacity = float(p.opacity)};
+                               .opacity = float(p.opacity),
+                               .modes = p.modes,
+                               .smoothing_ms = float(p.smoothing_ms)};
       if (auto bad = CheckTool(settings)) error = *bad;
       return settings;
     };
@@ -883,7 +888,8 @@ InkStatus ink_pens_write(const InkPenFile *file, const uint8_t **json, size_t *s
       if (auto bad = CheckTool(tool)) error = *bad;
       ink_engine::Pen pen = ToPen(tool);
       return ink_engine::PenPreset{.brush = ink_engine::BrushName(pen.brush), .color = pen.color,
-                                   .opacity = pen.opacity, .size = pen.size};
+                                   .opacity = pen.opacity, .size = pen.size,
+                                   .modes = pen.modes, .smoothing_ms = pen.smoothing_ms};
     };
     ink_engine::PenFile pens{
         .pen = preset(file->pen), .marker = preset(file->marker), .highlighter = preset(file->highlighter)};
@@ -1512,7 +1518,8 @@ InkStatus ink_struct_layout(InkStruct which, uint32_t *out, size_t capacity, siz
       case INK_STRUCT_TOOL_SETTINGS:
         layout = {sizeof(InkToolSettings), offsetof(InkToolSettings, brush),
                   offsetof(InkToolSettings, rgb), offsetof(InkToolSettings, size),
-                  offsetof(InkToolSettings, opacity)};
+                  offsetof(InkToolSettings, opacity), offsetof(InkToolSettings, modes),
+                  offsetof(InkToolSettings, smoothing_ms)};
         break;
       case INK_STRUCT_FILE:
         layout = {sizeof(InkFile), offsetof(InkFile, path), offsetof(InkFile, bytes),

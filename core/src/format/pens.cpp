@@ -27,7 +27,9 @@ Json Preset(const PenPreset &pen) {
           {"brushVersion", pen.brush_version},
           {"color", WriteColor(pen.color)},
           {"opacity", Number(pen.opacity, kAnglePrecision)},
-          {"size", Number(pen.size, kCoordinatePrecision)}};
+          {"size", Number(pen.size, kCoordinatePrecision)},
+          {"modes", pen.modes},
+          {"smoothingMs", Number(pen.smoothing_ms, kCoordinatePrecision)}};
 }
 
 PenPreset Preset(const Json &pen) {
@@ -35,7 +37,9 @@ PenPreset Preset(const Json &pen) {
           .brush_version = pen.at("brushVersion").get<int>(),
           .color = ReadColor(pen.at("color").get<std::string>()),
           .opacity = pen.at("opacity").get<double>(),
-          .size = pen.at("size").get<double>()};
+          .size = pen.at("size").get<double>(),
+          .modes = pen.at("modes").get<uint32_t>(),
+          .smoothing_ms = pen.at("smoothingMs").get<double>()};
 }
 
 }  // namespace

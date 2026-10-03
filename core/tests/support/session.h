@@ -34,7 +34,7 @@ struct Session {
 
 inline void SetTool(InkCanvas *canvas, InkBrush brush, uint32_t rgb, float size,
                     float opacity = 1) {
-  InkToolSettings tool{uint32_t(brush), rgb, size, opacity};
+  InkToolSettings tool{uint32_t(brush), rgb, size, opacity, 0, 20};
   ink_canvas_set_tool(canvas, &tool);
 }
 

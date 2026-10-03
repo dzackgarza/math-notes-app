@@ -69,10 +69,13 @@ struct Stroke {
   std::string brush;  // google/ink stock brush family, e.g. "pressure-pen"
   int brush_version = 1;
   double size = 0;
+  uint32_t modes = 0;
+  double smoothing_ms = 20;
   std::string time;  // UTC ISO 8601 start time
   std::vector<Polyline> outline;
   uint32_t channels = kChannelX | kChannelY;
   std::vector<Sample> samples;
+  std::vector<Sample> sensor_samples;  // original input when geometry was transformed
   bool operator==(const Stroke &) const = default;
 };
 

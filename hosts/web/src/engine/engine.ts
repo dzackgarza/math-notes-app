@@ -42,8 +42,8 @@ export const PEN_SAMPLE = {
   predicted: 58,
   reserved: 59,
 } as const;
-export const TOOL_SETTINGS = { byteLength: 16, brush: 0, rgb: 4, size: 8, opacity: 12 } as const;
-export const INK_PEN_FILE = { byteLength: 64, pen: 0, marker: 16, highlighter: 32, palette: 48, paletteCount: 52, saved: 56, savedCount: 60 } as const;
+export const TOOL_SETTINGS = { byteLength: 24, brush: 0, rgb: 4, size: 8, opacity: 12, modes: 16, smoothingMs: 20 } as const;
+export const INK_PEN_FILE = { byteLength: 88, pen: 0, marker: 24, highlighter: 48, palette: 72, paletteCount: 76, saved: 80, savedCount: 84 } as const;
 export const INK_FILE = { byteLength: 16, path: 0, bytes: 4, size: 8, kind: 12 } as const;
 export const SELECTION_INFO = { byteLength: 40, count: 0, page: 4, x: 8, y: 16, width: 24, height: 32 } as const;
 export const PDF_EXPORT_SPEC = { byteLength: 16, firstPage: 0, pageCount: 4, includeLinks: 8, includeHiddenLayers: 12 } as const;
@@ -89,6 +89,8 @@ export interface ToolSettings {
   size: number;
   // (0, 1]: the strokes' fill-opacity
   opacity: number;
+  modes: number;
+  smoothingMs: number;
 }
 
 // Notes/.pens.json (docs/FORMAT.md, Other files): the pen, marker and highlighter
@@ -123,6 +125,8 @@ function writeTool(view: DataView, at: number, tool: ToolSettings): void {
   view.setUint32(at + TOOL_SETTINGS.rgb, tool.rgb, true);
   view.setFloat32(at + TOOL_SETTINGS.size, tool.size, true);
   view.setFloat32(at + TOOL_SETTINGS.opacity, tool.opacity, true);
+  view.setUint32(at + TOOL_SETTINGS.modes, tool.modes, true);
+  view.setFloat32(at + TOOL_SETTINGS.smoothingMs, tool.smoothingMs, true);
 }
 
 function readTool(view: DataView, at: number): ToolSettings {
@@ -131,6 +135,8 @@ function readTool(view: DataView, at: number): ToolSettings {
     rgb: view.getUint32(at + TOOL_SETTINGS.rgb, true),
     size: view.getFloat32(at + TOOL_SETTINGS.size, true),
     opacity: view.getFloat32(at + TOOL_SETTINGS.opacity, true),
+    modes: view.getUint32(at + TOOL_SETTINGS.modes, true),
+    smoothingMs: view.getFloat32(at + TOOL_SETTINGS.smoothingMs, true),
   };
 }
 

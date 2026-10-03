@@ -107,9 +107,9 @@ test("a new notebook's files, and none after it is marked saved", () => {
 test("tool settings written through the wrapper read back unchanged", () => {
   const pens = engine.readPens(engine.defaultPens());
   assert.deepEqual(pens.palette, [0x1a1a1a, 0x1f4fb5, 0xd92d39, 0x29955b, 0xffcf26]);
-  pens.pen = { brush: 0, rgb: 0x2f6feb, size: 0.75, opacity: 1 };
-  pens.marker = { brush: 1, rgb: 0xd92d39, size: 3.25, opacity: 1 };
+  pens.pen = { ...pens.pen, rgb: 0x2f6feb, size: 0.75 };
+  pens.marker = { ...pens.marker, rgb: 0xd92d39, size: 3.25 };
   pens.palette = [0x2f6feb, 0xffffff];
-  pens.saved = [{ brush: 2, rgb: 0x3cbfae, size: 12, opacity: 0.5 }];
+  pens.saved = [{ ...pens.highlighter, rgb: 0x3cbfae, size: 12, opacity: 0.5 }];
   assert.deepEqual(engine.readPens(engine.writePens(pens)), pens);
 });

@@ -24,6 +24,25 @@ namespace {
 
 constexpr float kBrushEpsilon = 0.01f;  // pt
 
+InkPenSample SensorAtTime(const std::vector<InkPenSample> &sensor, double time) {
+  if (time <= sensor.front().time) return sensor.front();
+  for (size_t i = 1; i < sensor.size(); ++i) {
+    if (time > sensor[i].time) continue;
+    const double span = sensor[i].time - sensor[i - 1].time;
+    return Interpolate(sensor[i - 1], sensor[i], span > 0 ? (time - sensor[i - 1].time) / span : 0);
+  }
+  return sensor.back();
+}
+
+std::vector<InkPenSample> SensorSpan(const std::vector<InkPenSample> &sensor,
+                                     double first, double last) {
+  std::vector<InkPenSample> span{SensorAtTime(sensor, first)};
+  for (const InkPenSample &sample : sensor)
+    if (sample.time > first && sample.time < last) span.push_back(sample);
+  if (last > first) span.push_back(SensorAtTime(sensor, last));
+  return span;
+}
+
 ink::StrokeInput::ToolType ToolType(uint8_t tool) {
   switch (tool) {
     case INK_TOOL_MOUSE: return ink::StrokeInput::ToolType::kMouse;
@@ -144,6 +163,11 @@ ink::Brush MakeBrush(const Pen &pen) {
       : pen.brush == INK_BRUSH_HIGHLIGHTER
           ? Highlighter(ink::BrushPaint::SelfOverlap::kDiscard, HighlighterVersion::kV1)
           : PressurePen(PressurePenVersion::kV1);
+  const ink::BrushFamily::InputModel model = pen.smoothing_ms == 0
+      ? ink::BrushFamily::InputModel{ink::BrushFamily::PassthroughModel{}}
+      : ink::BrushFamily::InputModel{ink::BrushFamily::SlidingWindowModel{
+            .window_size = ink::Duration32::Millis(pen.smoothing_ms)}};
+  family = *ink::BrushFamily::Create(family.GetCoats(), model, family.GetMetadata());
   ink::Color color = ink::Color::FromUint8(pen.color.r, pen.color.g, pen.color.b, 255);
   return *ink::Brush::Create(family, color, pen.size, kBrushEpsilon);
 }
@@ -306,6 +330,35 @@ bool Editor::ResolveActiveLayer() {
   return !layer.hidden && !layer.locked;
 }
 
+Editor::SnapGrid Editor::GridFor(const Background &background) {
+  if (background.ruling == Ruling::kBlank || background.y_ruling <= 0) return {};
+  return {.x = background.x_ruling > 0 ? background.x_ruling : background.y_ruling,
+          .y = background.y_ruling, .offset = background.y_offset};
+}
+
+std::vector<InkPenSample> Editor::ProcessedSamples(
+    const std::vector<InkPenSample> &sensor, const Pen &pen, SnapGrid grid) {
+  std::vector<InkPenSample> result = sensor;
+  // Write scribblearea.cpp:1473-1496, 1662-1683: quantize input before
+  // constructing connected line segments; line endpoints can share the grid.
+  if ((pen.modes & 1) && grid.y > 0) {
+    for (InkPenSample &sample : result) {
+      sample.x = std::round(sample.x / grid.x) * grid.x;
+      sample.y = grid.offset + std::round((sample.y - grid.offset) / grid.y) * grid.y;
+    }
+  }
+  if ((pen.modes & 2) && result.size() > 1) {
+    const double x0 = result.front().x, y0 = result.front().y;
+    const double dx = result.back().x - x0, dy = result.back().y - y0;
+    for (size_t i = 0; i < result.size(); ++i) {
+      const double fraction = double(i) / double(result.size() - 1);
+      result[i].x = x0 + fraction * dx;
+      result[i].y = y0 + fraction * dy;
+    }
+  }
+  return result;
+}
+
 void Editor::Input(const InkPenSample *samples, size_t count) {
   // A pen-down starts a gesture, which takes the samples until its end.
   bool erasing = erase_.has_value();
@@ -339,7 +392,8 @@ void Editor::Input(const InkPenSample *samples, size_t count) {
       }
       page_ = placement->page;
       live_.emplace(LiveStroke{.tool = InkTool(s.tool), .t0 = s.time, .pen = pen_,
-                               .origin = {placement->x, placement->y}});
+                               .origin = {placement->x, placement->y},
+                               .grid = GridFor(document().pages[page_]->background)});
       live_->stroke.Start(MakeBrush(pen_));
     }
     if (!live_ || s.tool != live_->tool) continue;
@@ -364,14 +418,30 @@ void Editor::Input(const InkPenSample *samples, size_t count) {
   }
   if (!live_) return;
 
-  live_->real.insert(live_->real.end(), real.begin(), real.end());
+  live_->sensor.insert(live_->sensor.end(), real.begin(), real.end());
   // The pen-up batch carries no prediction: google/ink keeps the smoothing of
   // the last real inputs over predicted ones (TRAPS.md).
   if (ended) predicted.clear();
-  (void)live_->stroke.EnqueueInputs(Batch(real, live_->t0), Batch(predicted, live_->t0));
-  if (!live_->real.empty()) {
+  if (live_->pen.modes & 2) {
+    live_->real = ProcessedSamples(live_->sensor, live_->pen, live_->grid);
+    std::vector<InkPenSample> preview = live_->sensor;
+    if (!predicted.empty()) preview.push_back(predicted.back());
+    preview = ProcessedSamples(preview, live_->pen, live_->grid);
+    if (preview.size() > 2) preview.erase(preview.begin() + 1, preview.end() - 1);
+    live_->stroke = ink::InProgressStroke{};
+    live_->stroke.Start(MakeBrush(live_->pen));
+    (void)live_->stroke.EnqueueInputs(Batch(preview, live_->t0), {});
+    live_->updated = true;
+  } else {
+    auto processed = ProcessedSamples(real, live_->pen, live_->grid);
+    auto predicted_processed = ProcessedSamples(predicted, live_->pen, live_->grid);
+    live_->real.insert(live_->real.end(), processed.begin(), processed.end());
+    (void)live_->stroke.EnqueueInputs(Batch(processed, live_->t0),
+                                     Batch(predicted_processed, live_->t0));
+  }
+  if (!live_->sensor.empty()) {
     (void)live_->stroke.UpdateShape(
-        ink::Duration32::Millis(float(live_->real.back().time - live_->t0)));
+        ink::Duration32::Millis(float(live_->sensor.back().time - live_->t0)));
   }
   if (ended) Commit();
 }
@@ -379,6 +449,7 @@ void Editor::Input(const InkPenSample *samples, size_t count) {
 void Editor::Commit() {
   LiveStroke live = std::move(*live_);
   live_.reset();
+  if (live.pen.modes & 4) return;  // Write scribblearea.cpp:1959: discard temporary ink on pen up.
   live.stroke.FinishInputs();
   (void)live.stroke.UpdateShape(ink::Duration32::Infinite());
   // Samples replaced by ink_input_update after they were enqueued: build the
@@ -402,13 +473,17 @@ void Editor::Commit() {
   for (std::vector<InkPenSample> &piece : pieces) {
     double t0 = whole ? live.t0 : piece.front().time;
     ink::Stroke piece_stroke = whole ? ink_stroke : ink::Stroke(MakeBrush(live.pen), Batch(piece, t0));
+    std::vector<InkPenSample> sensor = (live.pen.modes & 3)
+        ? SensorSpan(live.sensor, piece.front().time, piece.back().time)
+        : std::vector<InkPenSample>{};
     std::string id = history_->ids().StrokeId();
-    auto box = immer::box<Element>(Element{MakeElement(id, piece_stroke, live.pen, t0, piece)});
+    auto box = immer::box<Element>(Element{MakeElement(id, piece_stroke, live.pen, t0, piece, sensor)});
     // A highlighter goes under the ink of its layer, as Write's DRAW_UNDER does
     // (syncscribble/scribblearea.cpp:1975-1976, styluslabs/Write 401b65d).
     elements = live.pen.brush == INK_BRUSH_HIGHLIGHTER ? std::move(elements).push_front(box)
                                                        : std::move(elements).push_back(box);
-    committed_.push_back({id, page_, layer_, t0, live.pen, live.origin, std::move(piece)});
+    committed_.push_back({id, page_, layer_, t0, live.pen, live.origin,
+                          std::move(piece), std::move(sensor), live.grid});
     if (figure_capture_) figure_capture_->stroke_ids.insert(id);
   }
   next.pages = next.pages.set(page_, immer::box<Page>(std::move(page)));
@@ -566,6 +641,8 @@ void Editor::UpdateShown() {
       for (auto [from, to] : RemainingSections(base.samples.size(), f.erased[k])) {
         Stroke piece = base;
         piece.samples = SectionSamples(base.samples, from, to);
+        if (!base.sensor_samples.empty())
+          piece.sensor_samples = SectionSamples(base.sensor_samples, from, to);
         RebuildOutline(piece);
         f.pieces.push_back(std::move(piece));
       }
@@ -586,7 +663,8 @@ void Editor::CommitErase() {
 }
 
 Stroke Editor::MakeElement(const std::string &id, const ink::Stroke &ink_stroke, const Pen &pen,
-                           double t0, const std::vector<InkPenSample> &real) const {
+                           double t0, const std::vector<InkPenSample> &real,
+                           const std::vector<InkPenSample> &sensor) const {
   Stroke element{
       .id = id,
       .fill = pen.color,
@@ -594,6 +672,8 @@ Stroke Editor::MakeElement(const std::string &id, const ink::Stroke &ink_stroke,
       .brush = BrushName(pen.brush),
       .brush_version = 1,
       .size = pen.size,
+      .modes = pen.modes & 3,
+      .smoothing_ms = pen.smoothing_ms,
       .time = IsoTime(t0 + utc_offset_ms_),
       .outline = StrokeOutline(ink_stroke.GetShape()),
       .channels = Channels(real.empty() ? 0 : real.front().has),
@@ -601,6 +681,11 @@ Stroke Editor::MakeElement(const std::string &id, const ink::Stroke &ink_stroke,
   for (const InkPenSample &s : real) {
     element.samples.push_back({.x = s.x, .y = s.y, .t = s.time - t0, .force = s.pressure,
                                .altitude = s.altitude, .azimuth = s.azimuth, .roll = s.roll});
+  }
+  for (const InkPenSample &s : sensor) {
+    element.sensor_samples.push_back({.x = s.x, .y = s.y, .t = s.time - t0,
+                                      .force = s.pressure, .altitude = s.altitude,
+                                      .azimuth = s.azimuth, .roll = s.roll});
   }
   return element;
 }
@@ -619,12 +704,21 @@ void Editor::InputUpdate(const InkPenSample *samples, size_t count) {
       }
       return false;
     };
-    if (live_ && replace(live_->real, live_->origin)) {
-      live_->updated = true;
-      continue;
+    if (live_) {
+      const bool transformed = live_->pen.modes & 3;
+      if (replace(transformed ? live_->sensor : live_->real, live_->origin)) {
+        if (transformed)
+          live_->real = ProcessedSamples(live_->sensor, live_->pen, live_->grid);
+        live_->updated = true;
+        continue;
+      }
     }
     for (size_t k = committed_.size(); k-- > 0;) {
-      if (replace(committed_[k].real, committed_[k].origin)) {
+      CommittedStroke &stroke = committed_[k];
+      const bool transformed = stroke.pen.modes & 3;
+      if (replace(transformed ? stroke.sensor : stroke.real, stroke.origin)) {
+        if (transformed)
+          stroke.real = ProcessedSamples(stroke.sensor, stroke.pen, stroke.grid);
         changed[k] = true;
         break;
       }
@@ -638,7 +732,7 @@ void Editor::InputUpdate(const InkPenSample *samples, size_t count) {
     const CommittedStroke &c = committed_[k];
     ink::Stroke rebuilt(MakeBrush(c.pen), Batch(c.real, c.t0));
     Page page = *next.pages[c.page];
-    Stroke element = MakeElement(c.id, rebuilt, c.pen, c.t0, c.real);
+    Stroke element = MakeElement(c.id, rebuilt, c.pen, c.t0, c.real, c.sensor);
     if (!ReplaceStroke(page.layers[c.layer].elements, c.id, element)) continue;
     next.pages = next.pages.set(c.page, immer::box<Page>(std::move(page)));
   }

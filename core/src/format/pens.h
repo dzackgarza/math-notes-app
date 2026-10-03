@@ -16,6 +16,8 @@ struct PenPreset {
   Rgb color;
   double opacity = 1;  // the strokes' fill-opacity
   double size = 0;     // pt
+  uint32_t modes = 0;
+  double smoothing_ms = 20;
   bool operator==(const PenPreset &) const = default;
 };
 
