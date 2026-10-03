@@ -25,6 +25,8 @@ enum LibrarySortDirection: String, CaseIterable, Identifiable {
 struct LibraryFolderItem: Identifiable {
   let reference: FolderReference
   let modified: Date?
+  let noteCount: Int
+  let details: LibraryFolderDetails
 
   var id: String { reference.id }
 }
@@ -880,7 +882,10 @@ final class NotesRootAccess {
           folders.append(
             LibraryFolderItem(
               reference: FolderReference(path: path),
-              modified: try Self.latestNotebookModification(in: child)))
+              modified: try Self.latestNotebookModification(in: child),
+              noteCount: try Self.directNotebookCount(in: child),
+              details: try LibraryMetadataFile.folderDetails(
+                in: LibraryMetadataFile.read(at: root), path: path)))
         }
       }
 
@@ -975,7 +980,10 @@ final class NotesRootAccess {
               folders.append(
                 LibraryFolderItem(
                   reference: FolderReference(path: childPath),
-                  modified: try Self.latestNotebookModification(in: child)))
+                  modified: try Self.latestNotebookModification(in: child),
+                  noteCount: try Self.directNotebookCount(in: child),
+                  details: try LibraryMetadataFile.folderDetails(
+                    in: LibraryMetadataFile.read(at: root), path: childPath)))
             }
             try visit(child, path: childPath)
           }
@@ -1143,7 +1151,11 @@ final class NotesRootAccess {
           reference: reference,
           modified: try coordinatedRead(at: directory) {
             try Self.latestNotebookModification(in: $0)
-          }))
+          },
+          noteCount: try coordinatedRead(at: directory) {
+            try Self.directNotebookCount(in: $0)
+          },
+          details: details))
     }
 
     let nameOrder: (String, String) -> Bool = {
@@ -2586,6 +2598,19 @@ final class NotesRootAccess {
       if modified > latest { latest = modified }
     }
     return latest
+  }
+
+  private static func directNotebookCount(in directory: URL) throws -> Int {
+    try FileManager.default.contentsOfDirectory(
+      at: directory,
+      includingPropertiesForKeys: [.isDirectoryKey],
+      options: [.skipsHiddenFiles])
+      .filter { child in
+        guard !child.lastPathComponent.hasPrefix(".") else { return false }
+        return FileManager.default.fileExists(
+          atPath: child.appendingPathComponent("notebook.json").path)
+      }
+      .count
   }
 
   private static func latestNotebookModification(in directory: URL) throws -> Date? {

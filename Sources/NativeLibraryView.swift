@@ -390,15 +390,8 @@ struct NativeLibraryView: View {
           .aspectRatio(0.72, contentMode: .fit)
           .frame(maxWidth: .infinity)
 
-        if let modified = item.modified {
-          Text(modified, format: .dateTime.month(.abbreviated).day().year())
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        } else {
-          Text("Empty folder")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
+        notebookSummary(item)
+        LibraryTagChips(tags: item.details.tags)
       }
       .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -406,6 +399,20 @@ struct NativeLibraryView: View {
     .accessibilityLabel("Open \(item.reference.name)")
     .contextMenu {
       folderActions(item)
+    }
+  }
+
+  @ViewBuilder
+  private func notebookSummary(_ item: LibraryFolderItem) -> some View {
+    if item.noteCount == 0 {
+      Text("No notes")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    } else if let modified = item.modified {
+      Text("\(item.noteCount) note\(item.noteCount == 1 ? "" : "s") · \(modified.formatted(.dateTime.month(.abbreviated).day().year()))")
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
     }
   }
 
@@ -465,15 +472,8 @@ struct NativeLibraryView: View {
         VStack(alignment: .leading, spacing: 4) {
           Text(item.reference.path.last ?? item.reference.name)
             .font(.headline)
-          if let modified = item.modified {
-            Text(modified, format: .dateTime.month(.abbreviated).day().year())
-              .font(.caption)
-              .foregroundStyle(.secondary)
-          } else {
-            Text("Empty folder")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-          }
+          notebookSummary(item)
+          LibraryTagChips(tags: item.details.tags)
         }
       }
     }
@@ -575,8 +575,6 @@ struct LibraryNotebookCover: View {
   let item: LibraryFolderItem
   let titled: Bool
 
-  @State private var details = LibraryFolderDetails(
-    description: "", paper: "dotted", coverColor: "#24324A", coverStyle: "classic", tags: [])
   @State private var thumbnail: UIImage?
 
   var body: some View {
@@ -585,7 +583,7 @@ struct LibraryNotebookCover: View {
         .fill(coverColor)
       Rectangle()
         .fill(coverColor.opacity(0.55))
-        .frame(width: details.coverStyle == "spine" ? 12 : 4)
+        .frame(width: item.details.coverStyle == "spine" ? 12 : 4)
       VStack(spacing: titled ? 10 : 0) {
         Group {
           if let thumbnail {
@@ -615,7 +613,6 @@ struct LibraryNotebookCover: View {
     .shadow(radius: titled ? 2 : 1, y: 1)
     .task(id: item.modified) {
       do {
-        details = try root.folderDetails(for: item.reference)
         let listing = try root.library(in: item.reference, sort: .modified, direction: .descending)
         if let first = listing.notebooks.first, let data = try root.thumbnail(first.reference) {
           thumbnail = UIImage(data: data)
@@ -630,11 +627,32 @@ struct LibraryNotebookCover: View {
   }
 
   private var coverColor: Color {
-    let hex = details.coverColor.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+    let hex = item.details.coverColor.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
     guard hex.count == 6, let rgb = UInt64(hex, radix: 16) else { return .secondary }
     return Color(
       red: Double((rgb >> 16) & 0xFF) / 255,
       green: Double((rgb >> 8) & 0xFF) / 255,
       blue: Double(rgb & 0xFF) / 255)
+  }
+}
+
+struct LibraryTagChips: View {
+  let tags: [String]
+
+  var body: some View {
+    if !tags.isEmpty {
+      ScrollView(.horizontal) {
+        HStack(spacing: 4) {
+          ForEach(tags, id: \.self) { tag in
+            Text(tag)
+              .font(.caption2)
+              .padding(.horizontal, 6)
+              .padding(.vertical, 2)
+              .background(.quaternary, in: Capsule())
+          }
+        }
+      }
+      .scrollIndicators(.hidden)
+    }
   }
 }
