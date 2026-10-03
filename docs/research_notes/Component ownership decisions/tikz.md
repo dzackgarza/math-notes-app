@@ -1,4 +1,6 @@
-# FreeTikZ drawing editor: component ownership decision
+# Historical TikZ editor ownership survey
+
+The active ownership and product contract are in [the architecture](../../ARCHITECTURE.md#component-ownership) and [drawing mode specification](../../specs/tikz-drawing-mode.md). This survey records the earlier candidate assessment.
 
 Status: historical component research. The current implementation scope is
 defined by [TikZ drawing mode](../../specs/tikz-drawing-mode.md).

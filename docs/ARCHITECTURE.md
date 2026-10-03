@@ -176,9 +176,9 @@ ink ownership belongs to the post-v1 refactoring decision.
 These are the v1 owners and integration targets, not claims that every current
 call site already uses them. Source evidence and exact pins are in
 [ink](research_notes/Component%20ownership%20decisions/ink.md),
-[UI](research_notes/Component%20ownership%20decisions/ui.md), and
-[TikZ](research_notes/Component%20ownership%20decisions/tikz.md), and
-[host interfaces](research_notes/Component%20ownership%20decisions/interfaces.md).
+[UI](research_notes/Component%20ownership%20decisions/ui.md),
+[host interfaces](research_notes/Component%20ownership%20decisions/interfaces.md),
+and the [TikZ drawing contract](specs/tikz-drawing-mode.md).
 
 | Concern | Owner and Math Notes boundary |
 | --- | --- |

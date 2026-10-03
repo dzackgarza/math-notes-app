@@ -230,8 +230,8 @@ figure editor, not as separate page strokes.
 </g>
 ```
 
-The `.scene.json` file is the forked FreeTikZ scene: stable object ids,
-original pen samples, interpreted geometric objects, and their relations.
+The `.scene.json` file records stable object ids, original pen samples,
+interpreted geometric objects, and their relations.
 The `.tikz` file holds the exact TikZ source, including user edits. A canvas
 edit changes only the source range owned by that operation. A page save must
 not regenerate the `.tikz` file from the scene. A scene edit updates the
