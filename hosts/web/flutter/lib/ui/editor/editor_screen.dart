@@ -164,6 +164,8 @@ class _EditorScreenState extends State<EditorScreen> {
   final strokes = <int>{};
   final palms = <int>{};
   final taps = FingerTap();
+  Matrix4? gestureTransform;
+  double? gestureScroll;
   bool get fingerDraws => tools.fingerDraws;
   set fingerDraws(bool value) => tools.fingerDraws = value;
   Set<String> get hiddenTools => tools.hiddenTools;
@@ -420,6 +422,10 @@ class _EditorScreenState extends State<EditorScreen> {
       if (ended) strokes.remove(event.pointer);
     }
     if (event.kind == PointerDeviceKind.touch) {
+      if (event is PointerDownEvent && touches.isEmpty) {
+        gestureTransform = transform.value.clone();
+        gestureScroll = scroll.hasClients ? scroll.offset : null;
+      }
       if (event is PointerDownEvent && strokes.isNotEmpty)
         palms.add(event.pointer);
       if (fingerDraws &&
@@ -433,11 +439,24 @@ class _EditorScreenState extends State<EditorScreen> {
         if (ended) palms.remove(event.pointer);
         return;
       }
-      switch (taps.add(event)) {
-        case 2:
-          history(false);
-        case 3:
-          history(true);
+      final gesture = taps.add(event);
+      if (gesture == PageGesture.doubleTap) fitWidth();
+      final historyGesture = switch (gesture) {
+        PageGesture.twoFingerTap => HistoryGesture.twoFingerTap,
+        PageGesture.threeFingerTap => HistoryGesture.threeFingerTap,
+        PageGesture.threeFingerSwipeLeft => HistoryGesture.threeFingerSwipeLeft,
+        PageGesture.threeFingerSwipeRight => HistoryGesture.threeFingerSwipeRight,
+        _ => null,
+      };
+      if (historyGesture != null) {
+        final preferences = context.read<AppPreferences>();
+        if (gesture == PageGesture.threeFingerSwipeLeft ||
+            gesture == PageGesture.threeFingerSwipeRight) {
+          transform.value = gestureTransform ?? transform.value;
+          if (gestureScroll != null && scroll.hasClients) scroll.jumpTo(gestureScroll!);
+        }
+        if (historyGesture == preferences.undoGesture) history(false);
+        if (historyGesture == preferences.redoGesture) history(true);
       }
       if (event is PointerDownEvent) touches.add(event.pointer);
       if (ended) {
@@ -1600,6 +1619,7 @@ class _EditorScreenState extends State<EditorScreen> {
                                         onPointerSignal: (event) =>
                                             transform.held = false,
                                         child: GestureDetector(
+                                          onDoubleTap: () {},
                                           onLongPressStart: fingerDraws
                                               ? null
                                               : (details) => run(

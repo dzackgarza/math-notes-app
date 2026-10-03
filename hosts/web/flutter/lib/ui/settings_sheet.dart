@@ -160,6 +160,44 @@ Future<void> showSettings(
                                 ),
                                 CupertinoListSection.insetGrouped(
                                   backgroundColor: surface2,
+                                  header: Text('Gestures', style: footnote.copyWith(color: secondaryLabel)),
+                                  children: [
+                                    CupertinoListTile(
+                                      title: Text('Double tap', style: body),
+                                      additionalInfo: Text('Fit page width', style: subhead),
+                                    ),
+                                    for (final undo in [true, false])
+                                      CupertinoListTile(
+                                        title: Text(undo ? 'Undo' : 'Redo', style: body),
+                                        subtitle: Text('Use two or three fingers on the page', style: footnote),
+                                        trailing: SizedBox(
+                                          width: 280,
+                                          child: CupertinoSlidingSegmentedControl<HistoryGesture>(
+                                            groupValue: undo ? preferences.undoGesture : preferences.redoGesture,
+                                            children: {
+                                              for (final (gesture, title) in [
+                                                (HistoryGesture.twoFingerTap, '2 tap'),
+                                                (HistoryGesture.threeFingerTap, '3 tap'),
+                                                (HistoryGesture.threeFingerSwipeLeft, '3 ←'),
+                                                (HistoryGesture.threeFingerSwipeRight, '3 →'),
+                                              ])
+                                                if (gesture != (undo ? preferences.redoGesture : preferences.undoGesture))
+                                                  gesture: Text(title),
+                                            },
+                                            onValueChanged: (gesture) => update(() {
+                                              if (undo) {
+                                                preferences.undoGesture = gesture!;
+                                              } else {
+                                                preferences.redoGesture = gesture!;
+                                              }
+                                            }),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                CupertinoListSection.insetGrouped(
+                                  backgroundColor: surface2,
                                   header: Text(
                                     'Toolbar',
                                     style: footnote.copyWith(
