@@ -268,7 +268,14 @@ test("Flutter pens session: tool rail, pen and marker popovers, highlighter, col
       return (await capture(page, bounds)).filter((rgb) => brightness(rgb) < 600).length;
     };
     const at = (y: number) => ({ x: box.x + 240, y: box.y + y });
-    const popoverWrite = (y: number, force = 0.6) => penStroke(cdp, line(box.x + 140, box.x + 340, box.y + y), force);
+    const popoverWrite = async (y: number, force = 0.6) => {
+      await penStroke(cdp, line(box.x + 140, box.x + 340, box.y + y), force);
+      const misses = await page.evaluate(() =>
+        (window as Window & { mathNotes: { unmatchedPointerDowns: number } })
+          .mathNotes.unmatchedPointerDowns,
+      );
+      expect(misses, `browser pointerdown reaches Flutter at row ${y}`).toBe(0);
+    };
 
     // The pen is selected, so a tap on it opens its popover.
     await tool("Pen").click();

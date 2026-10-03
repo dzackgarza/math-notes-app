@@ -461,6 +461,7 @@ class _EditorScreenState extends State<EditorScreen> {
       element,
       event.timeStamp.inMicroseconds.toDouble(),
       fingerDraws,
+      event is PointerDownEvent,
     )) {
       if (drawing)
         setState(

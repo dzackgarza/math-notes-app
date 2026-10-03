@@ -72,6 +72,7 @@ async function cacheApp(): Promise<void> {
 // _PointerAdapter._convertEventsToPointerData. Retain the original batch until
 // Flutter accepts its hit target. Reading browser events never sends ink.
 const rawEvents = new Map<number, PointerEvent>();
+let unmatchedPointerDowns = 0;
 // The microsecond stamp Flutter gives a browser event: it truncates the
 // milliseconds and the fraction separately (pointer_binding.dart,
 // _BaseAdapter._eventTimeStampToDuration). Math.trunc(timeStamp * 1000)
@@ -165,9 +166,10 @@ function writing<A extends Arguments, R>(task: (...args: A) => Promise<R>): (...
 }
 
 // `fingerDraws` makes a touch draw with the selected tool.
-function acceptPen(canvas: Canvas, element: HTMLCanvasElement, stamp: number, fingerDraws: boolean): boolean {
+function acceptPen(canvas: Canvas, element: HTMLCanvasElement, stamp: number, fingerDraws: boolean, down: boolean): boolean {
   const event = rawEvents.get(stamp);
   logPointer(`flutter ${stamp} ${!event ? "no browser event" : consumed.has(event) ? "consumed" : event.type}`);
+  if (down && !event) unmatchedPointerDowns++;
   if (!event || consumed.has(event)) return false;
   consumed.add(event);
   const bounds = element.getBoundingClientRect();
@@ -255,6 +257,7 @@ async function insertImage(note: OpenNotebook, canvas: Canvas, page: number, x: 
 }
 
 const api = {
+  get unmatchedPointerDowns() { return unmatchedPointerDowns; },
   mountFigureEditor,
   listClippings, saveClipping, clippingSvg, changeClipping,
   conflictCount: reading(conflictCount), noteConflicts: reading(noteConflicts), resolveConflict,
