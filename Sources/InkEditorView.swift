@@ -83,6 +83,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private let documentView = UIView()
   private let onFocusRequested: () -> Void
   private let onViewportChanged: (EditorLinkedViewport) -> Void
+  private let onFitStateChanged: (Bool) -> Void
   private let onEditCommitted: () -> Void
   private let onSaveRequested: () -> Void
   private let onCurrentPageChanged: (Int) -> Void
@@ -145,6 +146,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private var requestedLinkedViewport: EditorLinkedViewport?
   private var lastLayoutSize = CGSize.zero
   private var reportedPage = -1
+  private var reportedFitActive: Bool?
 
   private var pullGate = HeldPullGate()
   private var pullReadyTimer: Timer?
@@ -158,6 +160,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     document: EngineDocument,
     onFocusRequested: @escaping () -> Void = {},
     onViewportChanged: @escaping (EditorLinkedViewport) -> Void = { _ in },
+    onFitStateChanged: @escaping (Bool) -> Void = { _ in },
     onEditCommitted: @escaping () -> Void = {},
     onSaveRequested: @escaping () -> Void = {},
     onCurrentPageChanged: @escaping (Int) -> Void = { _ in },
@@ -179,6 +182,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     self.document = document
     self.onFocusRequested = onFocusRequested
     self.onViewportChanged = onViewportChanged
+    self.onFitStateChanged = onFitStateChanged
     self.onEditCommitted = onEditCommitted
     self.onSaveRequested = onSaveRequested
     self.onCurrentPageChanged = onCurrentPageChanged
@@ -351,6 +355,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     updateContentInsets()
     syncCanvasTransform()
     refreshSelectionBar()
+    reportFitState()
     if layoutSizeChanged, hostLinked {
       if hostFocused {
         DispatchQueue.main.async { [weak self] in
@@ -537,6 +542,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     updateContentInsets()
     syncCanvasTransform()
     refreshSelectionBar()
+    reportFitState()
     publishLinkedViewport()
   }
 
@@ -1379,6 +1385,16 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       scrollView.maximumZoomScale)
   }
 
+  private func reportFitState() {
+    guard let fit = fitScale(), fit > 0 else { return }
+    let fitted = abs(scrollView.zoomScale / fit - 1) <= 0.001
+    guard fitted != reportedFitActive else { return }
+    reportedFitActive = fitted
+    DispatchQueue.main.async { [onFitStateChanged] in
+      onFitStateChanged(fitted)
+    }
+  }
+
   private func currentLinkedViewport() -> EditorLinkedViewport? {
     guard let fit = linkedFitScale(),
       fit > 0,
@@ -1579,6 +1595,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let clippingsOpen: Bool
   let onFocus: () -> Void
   let onViewportChanged: (EditorLinkedViewport) -> Void
+  let onFitStateChanged: (Bool) -> Void
   let onEditCommitted: () -> Void
   let onSaveRequested: () -> Void
   let onCurrentPageChanged: (Int) -> Void
@@ -1602,6 +1619,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       document: document,
       onFocusRequested: onFocus,
       onViewportChanged: onViewportChanged,
+      onFitStateChanged: onFitStateChanged,
       onEditCommitted: onEditCommitted,
       onSaveRequested: onSaveRequested,
       onCurrentPageChanged: onCurrentPageChanged,
@@ -1682,6 +1700,7 @@ struct InkEditorView: View {
   @State private var previousPencilTool: EditorTool?
   let onFocus: () -> Void
   let onViewportChanged: (EditorLinkedViewport) -> Void
+  let onFitStateChanged: (Bool) -> Void
   let onEditCommitted: () -> Void
   let onSaveRequested: () -> Void
   let onPensChanged: (EditorPenLibrary) -> Void
@@ -1724,6 +1743,7 @@ struct InkEditorView: View {
         clippingsOpen: clippingsOpen,
         onFocus: onFocus,
         onViewportChanged: onViewportChanged,
+        onFitStateChanged: onFitStateChanged,
         onEditCommitted: {
           documentRevision &+= 1
           onEditCommitted()

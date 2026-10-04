@@ -91,6 +91,7 @@ private struct NotebookEditorPane: View {
       hiddenTools: hiddenTools,
       onFocus: onFocus,
       onViewportChanged: onViewportChanged,
+      onFitStateChanged: { viewState.fitActive = $0 },
       onEditCommitted: onEditCommitted,
       onSaveRequested: onSaveRequested,
       onPensChanged: onPensChanged,
@@ -881,12 +882,19 @@ struct ContentView: View {
   private var viewMenu: some View {
     let selected = EditorPageArrangement.stored(pageArrangementRaw)
     Menu {
-      Button(
-        selected == .horizontal ? "Fit Height" : "Fit Width",
-        systemImage: selected == .horizontal ? "arrow.up.and.down" : "arrow.left.and.right")
-      {
+      Button {
         fitRevision &+= 1
+      } label: {
+        let label = selected == .horizontal ? "Fit Height" : "Fit Width"
+        if viewState?.fitActive == true {
+          Label(label, systemImage: "checkmark")
+        } else {
+          Label(
+            label,
+            systemImage: selected == .horizontal ? "arrow.up.and.down" : "arrow.left.and.right")
+        }
       }
+      .accessibilityAddTraits(viewState?.fitActive == true ? .isSelected : [])
       Divider()
       ForEach(EditorPageArrangement.allCases) { arrangement in
         Button {

@@ -41,6 +41,7 @@ final class OpenNotebookViewState: Identifiable {
   var currentPage: Int
   var pageNavigationRevision = 0
   var fitRevision = 0
+  var fitActive = true
   var editorPageCommand: EditorPageCommand?
   var captureActive = false
   var selectionActive = false
