@@ -13,6 +13,20 @@ final class EditorToolsTests: XCTestCase {
       668)
   }
 
+  func testPenEditorSectionsMatchToolKinds() {
+    XCTAssertTrue(PenEditorLayout.showsSize(for: .pen, advanced: false))
+    XCTAssertFalse(PenEditorLayout.showsOpacity(for: .pen, advanced: false))
+    XCTAssertFalse(PenEditorLayout.showsSize(for: .marker, advanced: true))
+    XCTAssertTrue(PenEditorLayout.showsOpacity(for: .marker, advanced: true))
+    XCTAssertTrue(PenEditorLayout.showsSize(for: .highlighter, advanced: false))
+    XCTAssertTrue(PenEditorLayout.showsOpacity(for: .highlighter, advanced: false))
+    XCTAssertTrue(PenEditorLayout.showsSize(for: .highlighter, advanced: true))
+    XCTAssertTrue(PenEditorLayout.showsOpacity(for: .highlighter, advanced: true))
+    XCTAssertEqual(PenEditorLayout.sizePresets(for: .pen), [0.6, 1.2, 1.8, 2.4, 3.6])
+    XCTAssertEqual(PenEditorLayout.sizePresets(for: .marker), [1.2, 1.8, 2.4, 3.6, 4.8])
+    XCTAssertEqual(PenEditorLayout.sizePresets(for: .highlighter), [4.8, 7.2, 9.6, 14.4, 19.2])
+  }
+
   @MainActor
   func testNativeRailReadsTheCoreDefaultPenFile() {
     let pens = EditorPenSet.defaults
