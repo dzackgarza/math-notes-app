@@ -326,7 +326,7 @@ struct NewNoteSheet: View {
           HStack {
             TextField("Template name", text: $templateName)
               .nativeFieldSurface()
-            Button("Save") {
+            Button("Save template") {
               saveTemplate()
             }
             .disabled(templateName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)

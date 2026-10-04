@@ -102,7 +102,7 @@ struct LibraryDetailsSheet: View {
           Button("Cancel", action: onCancel)
         }
         ToolbarItem(placement: .confirmationAction) {
-          Button("Save") {
+          Button("Save details") {
             onSave(
               description,
               finalizedTagValues(selectedTags, pendingInput: newTag),
