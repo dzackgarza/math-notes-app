@@ -71,6 +71,11 @@ enum EditorPageCommand: Equatable {
 
 @MainActor
 final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIEditMenuInteractionDelegate, UIDragInteractionDelegate, UIPencilInteractionDelegate {
+  private static let deskMargin: CGFloat = 16
+  private static let toolRailInset: CGFloat = 8
+  private static let toolRailWidth: CGFloat = 60
+  private static let deskLeadingMargin = toolRailInset + toolRailWidth + deskMargin
+
   private let document: EngineDocument
   private let scrollView = UIScrollView()
   private let documentView = UIView()
@@ -1128,36 +1133,30 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   private func fitPages(animated: Bool) {
-    guard scrollView.bounds.width > 0,
-      scrollView.bounds.height > 0,
-      documentSize.width > 0,
-      documentSize.height > 0
-    else { return }
-
-    let fit: CGFloat
-    if appliedArrangement == .horizontal {
-      fit = max(1, scrollView.bounds.height - 32) / documentSize.height
-    } else {
-      fit = max(1, scrollView.bounds.width - 32) / documentSize.width
-    }
-    scrollView.setZoomScale(
-      min(max(fit, scrollView.minimumZoomScale), scrollView.maximumZoomScale),
-      animated: animated)
+    guard let fit = fitScale() else { return }
+    scrollView.setZoomScale(fit, animated: animated)
   }
 
   private func linkedFitScale() -> CGFloat? {
+    fitScale()
+  }
+
+  private func fitScale() -> CGFloat? {
     guard scrollView.bounds.width > 0,
       scrollView.bounds.height > 0,
       documentSize.width > 0,
       documentSize.height > 0
     else { return nil }
 
-    let fit: CGFloat
-    if appliedArrangement == .horizontal {
-      fit = max(1, scrollView.bounds.height - 32) / documentSize.height
-    } else {
-      fit = max(1, scrollView.bounds.width - 32) / documentSize.width
-    }
+    let availableWidth = max(
+      1,
+      scrollView.bounds.width - Self.deskLeadingMargin - Self.deskMargin)
+    let availableHeight = max(
+      1,
+      scrollView.bounds.height - 2 * Self.deskMargin)
+    let fit = appliedArrangement == .horizontal
+      ? availableHeight / documentSize.height
+      : availableWidth / documentSize.width
     return min(
       max(fit, scrollView.minimumZoomScale),
       scrollView.maximumZoomScale)
@@ -1295,9 +1294,17 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private func updateContentInsets() {
     let scaledWidth = documentSize.width * scrollView.zoomScale
     let scaledHeight = documentSize.height * scrollView.zoomScale
-    let horizontal = max(0, (scrollView.bounds.width - scaledWidth) / 2)
-    let vertical = max(0, (scrollView.bounds.height - scaledHeight) / 2)
-    let inset = UIEdgeInsets(top: vertical, left: horizontal, bottom: vertical, right: horizontal)
+    let horizontalExtra = max(
+      0,
+      scrollView.bounds.width - scaledWidth - Self.deskLeadingMargin - Self.deskMargin)
+    let verticalExtra = max(
+      0,
+      scrollView.bounds.height - scaledHeight - 2 * Self.deskMargin)
+    let inset = UIEdgeInsets(
+      top: Self.deskMargin + verticalExtra / 2,
+      left: Self.deskLeadingMargin + horizontalExtra / 2,
+      bottom: Self.deskMargin + verticalExtra / 2,
+      right: Self.deskMargin + horizontalExtra / 2)
     if scrollView.contentInset != inset {
       scrollView.contentInset = inset
     }
