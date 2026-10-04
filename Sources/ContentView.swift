@@ -59,6 +59,7 @@ private struct NotebookEditorPane: View {
   let onSaveRequested: () -> Void
   let onPensChanged: (EditorPenLibrary) -> Void
   let onInsertImage: () -> Void
+  let clippingsOpen: Bool
   let onShowClippings: () -> Void
   let onSaveClipping: (String) -> Void
   let onLinkSelectionRequested: (Int) -> Void
@@ -94,6 +95,7 @@ private struct NotebookEditorPane: View {
       onSaveRequested: onSaveRequested,
       onPensChanged: onPensChanged,
       onInsertImage: onInsertImage,
+      clippingsOpen: clippingsOpen,
       onShowClippings: onShowClippings,
       onSaveClipping: onSaveClipping,
       onSelectionChanged: { viewState.selectionActive = $0 },
@@ -741,9 +743,14 @@ struct ContentView: View {
         openNotes.focusRight(right)
         showingImageImporter = true
       },
+      clippingsOpen: clippings != nil && clippingViewState?.id == viewState.id,
       onShowClippings: {
         openNotes.focusRight(right)
-        prepareClippings(viewState: viewState)
+        if clippings != nil && clippingViewState?.id == viewState.id {
+          dismissClippings()
+        } else {
+          prepareClippings(viewState: viewState)
+        }
       },
       onSaveClipping: { svg in
         openNotes.focusRight(right)

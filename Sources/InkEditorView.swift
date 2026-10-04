@@ -1654,6 +1654,7 @@ struct InkEditorView: View {
   let onSaveRequested: () -> Void
   let onPensChanged: (EditorPenLibrary) -> Void
   let onInsertImage: () -> Void
+  let clippingsOpen: Bool
   let onShowClippings: () -> Void
   let onSaveClipping: (String) -> Void
   let onSelectionChanged: (Bool) -> Void
@@ -1745,6 +1746,7 @@ struct InkEditorView: View {
         insertImage: onInsertImage,
         drawing: drawing,
         selectionActive: selectionActive,
+        clippingsOpen: clippingsOpen,
         toggleDrawing: toggleDrawingMode,
         showClippings: onShowClippings,
         recolorSelection: { rgb in pageCommand = .recolorSelection(rgb) },

@@ -201,6 +201,7 @@ struct EditorToolRail: View {
   let insertImage: () -> Void
   let drawing: Bool
   let selectionActive: Bool
+  let clippingsOpen: Bool
   let toggleDrawing: () -> Void
   let showClippings: () -> Void
   let recolorSelection: (UInt32) -> Void
@@ -255,7 +256,11 @@ struct EditorToolRail: View {
             selected: drawing,
             action: toggleDrawing)
         }
-        railButton(label: "Clippings", systemImage: "tray", action: showClippings)
+        railButton(
+          label: "Clippings",
+          systemImage: "tray",
+          selected: clippingsOpen,
+          action: showClippings)
       }
 
       railSeparator
