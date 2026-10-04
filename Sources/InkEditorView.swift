@@ -1537,12 +1537,7 @@ struct InkEditorView: View {
         insertText: { pageCommand = .requestTextAtCenter },
         insertImage: onInsertImage,
         drawing: drawing,
-        toggleDrawing: {
-          if !drawing, ![EditorTool.pen, .marker, .highlighter].contains(tool) {
-            tool = .pen
-          }
-          pageCommand = .toggleFigureCapture(currentPage)
-        },
+        toggleDrawing: toggleDrawingMode,
         showClippings: onShowClippings,
         onPensChanged: onPensChanged)
 
@@ -1584,42 +1579,31 @@ struct InkEditorView: View {
         .padding(8)
       }
 
-      if bookmarkMode {
+      if let mode = modeBannerLabel {
         HStack(spacing: 10) {
-          Image(systemName: "bookmark")
-          Text("Add Bookmark")
+          Text(mode)
             .font(NativeTheme.subhead)
-          Text("Tap the line to mark.")
-            .font(NativeTheme.callout)
-            .foregroundStyle(NativeTheme.graphite)
-          Button("Done") {
-            bookmarkMode = false
+          if bookmarkMode && !drawing {
+            Text("Tap the line to mark.")
+              .font(NativeTheme.callout)
+              .foregroundStyle(NativeTheme.graphite)
+          }
+          if drawing {
+            Button("Complete") {
+              toggleDrawingMode()
+            }
+          } else {
+            Button {
+              closeModeBanner()
+            } label: {
+              Image(systemName: "xmark")
+            }
+            .accessibilityLabel("Close \(mode)")
           }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .foregroundStyle(NativeTheme.ink)
-        .background(NativeTheme.leaf, in: Capsule())
-        .shadow(color: NativeTheme.ink.opacity(0.18), radius: 9, y: 3)
-        .frame(maxWidth: .infinity, alignment: .top)
-        .padding(.top, 8)
-        .padding(.horizontal, 80)
-      }
-
-      if tool == .navigate {
-        HStack(spacing: 10) {
-          Image(systemName: "link")
-          Text("Follow links")
-            .font(NativeTheme.subhead)
-          Button {
-            tool = drawingTool
-          } label: {
-            Image(systemName: "xmark")
-          }
-          .accessibilityLabel("Close Follow links")
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        .padding(.leading, 16)
+        .padding(.trailing, 8)
+        .padding(.vertical, 4)
         .foregroundStyle(NativeTheme.ink)
         .background(NativeTheme.leaf, in: Capsule())
         .shadow(color: NativeTheme.ink.opacity(0.18), radius: 9, y: 3)
@@ -1656,6 +1640,32 @@ struct InkEditorView: View {
       if old != next, old != .navigate {
         previousPencilTool = old
       }
+    }
+  }
+
+  private var modeBannerLabel: String? {
+    if drawing { return "Drawing mode" }
+    if bookmarkMode { return "Add bookmark" }
+    return switch tool {
+    case .space: "Insert space"
+    case .text: "Text"
+    case .navigate: "Follow links"
+    default: nil
+    }
+  }
+
+  private func toggleDrawingMode() {
+    if !drawing, ![EditorTool.pen, .marker, .highlighter].contains(tool) {
+      tool = .pen
+    }
+    pageCommand = .toggleFigureCapture(currentPage)
+  }
+
+  private func closeModeBanner() {
+    if bookmarkMode {
+      bookmarkMode = false
+    } else {
+      tool = drawingTool
     }
   }
 
