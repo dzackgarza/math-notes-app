@@ -1041,6 +1041,7 @@ struct ContentView: View {
       },
       setSort: { sort in
         librarySort = sort
+        librarySortDirection = sort == .name ? .ascending : .descending
         refreshLibrary()
       },
       setSortDirection: { direction in
