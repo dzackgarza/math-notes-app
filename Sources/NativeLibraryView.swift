@@ -673,11 +673,23 @@ struct NativeLibraryView: View {
         .font(NativeTheme.footnote)
         .foregroundStyle(NativeTheme.graphite)
     } else if let modified = item.modified {
-      Text("\(item.noteCount) note\(item.noteCount == 1 ? "" : "s") · \(modified.formatted(.dateTime.month(.abbreviated).day().year()))")
+      Text("\(item.noteCount) note\(item.noteCount == 1 ? "" : "s") · \(libraryModifiedLabel(modified))")
         .font(NativeTheme.footnote)
         .foregroundStyle(NativeTheme.graphite)
         .lineLimit(1)
     }
+  }
+
+  private func noteMetadataLine(_ item: LibraryNotebookItem) -> String {
+    var parts: [String] = []
+    if !query.isEmpty || scope != .folder,
+      let notebook = item.reference.path.dropLast().last,
+      !notebook.isEmpty
+    {
+      parts.append(notebook)
+    }
+    parts.append(libraryModifiedLabel(item.modified))
+    return parts.joined(separator: " · ")
   }
 
   private func notebookCard(_ item: LibraryNotebookItem) -> some View {
@@ -728,18 +740,10 @@ struct NativeLibraryView: View {
             .lineLimit(2)
         }
 
-        if !query.isEmpty || scope != .folder {
-          let parent = item.reference.path.dropLast().joined(separator: " / ")
-          if !parent.isEmpty {
-            Text(parent)
-              .font(NativeTheme.footnote)
-              .foregroundStyle(NativeTheme.graphite)
-          }
-        }
-
-        Text(item.modified, format: .dateTime.month(.abbreviated).day().year())
+        Text(noteMetadataLine(item))
           .font(NativeTheme.footnote)
           .foregroundStyle(NativeTheme.graphite)
+          .lineLimit(1)
         LibraryTagChips(tags: item.details.tags, knownTags: tags)
       }
       .padding(.trailing, 36)
@@ -820,17 +824,10 @@ struct NativeLibraryView: View {
           Text(item.reference.name)
             .font(NativeTheme.headline)
         }
-        if !query.isEmpty || scope != .folder {
-          let parent = item.reference.path.dropLast().joined(separator: " / ")
-          if !parent.isEmpty {
-            Text(parent)
-              .font(NativeTheme.footnote)
-              .foregroundStyle(NativeTheme.graphite)
-          }
-        }
-        Text(item.modified, format: .dateTime.month(.abbreviated).day().year())
+        Text(noteMetadataLine(item))
           .font(NativeTheme.footnote)
           .foregroundStyle(NativeTheme.graphite)
+          .lineLimit(1)
         LibraryTagChips(tags: item.details.tags, knownTags: tags)
       }
     }
