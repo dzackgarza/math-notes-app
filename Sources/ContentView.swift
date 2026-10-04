@@ -911,56 +911,70 @@ struct ContentView: View {
   @ViewBuilder
   private func pagesMenu(_ session: OpenNotebookSession) -> some View {
     let count = (try? session.document.pageCount()) ?? 0
+    let availability = PageMenuAvailability(
+      drawing: viewState?.captureActive == true,
+      pageCount: count)
     Menu {
       Button("Page Overview", systemImage: "square.grid.2x2") {
         showingPageOverview = true
       }
+      .disabled(!availability.pageOverview)
       Button("Go to Page", systemImage: "number") {
         goToPage = GoToPageRequest(
           pageCount: count,
           currentPage: currentPage)
       }
-      .disabled(count == 0)
+      .disabled(!availability.goToPage)
       Divider()
       Button("Add page", systemImage: "plus.rectangle") {
         editPages(session) { document in
           try document.appendPage()
         }
       }
+      .disabled(!availability.pageMutation)
       Button("Insert page before", systemImage: "rectangle.badge.plus") {
         editPages(session) { document in
           try document.insertPage(at: currentPage)
         }
       }
+      .disabled(!availability.pageMutation)
       Button("Insert page after", systemImage: "rectangle.badge.plus") {
         editPages(session) { document in
           try document.insertPage(at: currentPage + 1)
         }
       }
+      .disabled(!availability.pageMutation)
       Button("Duplicate page", systemImage: "plus.square.on.square") {
         editPages(session) { document in
           try document.duplicatePage(at: currentPage)
         }
       }
+      .disabled(!availability.pageMutation)
       Button("Select page", systemImage: "square.dashed") {
         editorPageCommand = .select(currentPage)
       }
+      .disabled(!availability.selectPage)
       Button("Clear page", systemImage: "eraser") {
         editorPageCommand = .clear(currentPage)
       }
+      .disabled(!availability.clearPage)
       Button("Paper for New Pages", systemImage: "doc.text") {
         preparePagePaper(session)
       }
+      .disabled(!availability.paper)
       Divider()
       Button("Bookmarks", systemImage: "bookmark") {
         prepareBookmarks(session)
       }
+      .disabled(!availability.bookmarks)
       Button("Add Bookmark", systemImage: "bookmark.fill") {
         editorPageCommand = .addBookmark
       }
+      .disabled(!availability.addBookmark)
       Button("Layers", systemImage: "square.3.layers.3d") {
         showingLayers = true
       }
+      .disabled(!availability.layers)
       Divider()
       Button("Delete page", systemImage: "trash", role: .destructive) {
         editPages(session) { document in
@@ -973,7 +987,7 @@ struct ContentView: View {
             viewState: viewState ?? session.primaryView)
         }
       }
-      .disabled(count <= 1)
+      .disabled(!availability.deletePage)
     } label: {
       Label("Pages", systemImage: "doc.on.doc")
     }
