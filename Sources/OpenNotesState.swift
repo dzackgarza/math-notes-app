@@ -16,6 +16,22 @@ struct EditorLinkedViewport: Equatable {
   var center: CGPoint
 }
 
+enum NotebookSaveStatus: Equatable {
+  case saved
+  case pending
+  case saving
+  case failed
+
+  var label: String {
+    switch self {
+    case .saved: "Saved"
+    case .pending: "Unsaved changes"
+    case .saving: "Saving…"
+    case .failed: "Save failed"
+    }
+  }
+}
+
 @MainActor
 @Observable
 final class OpenNotebookViewState: Identifiable {
@@ -46,6 +62,7 @@ final class OpenNotebookSession: Identifiable {
   let primaryView: OpenNotebookViewState
   var documentRevision = 0
   var conflictCount: Int
+  var saveStatus = NotebookSaveStatus.saved
 
   init(
     id: UUID = UUID(),
@@ -58,6 +75,21 @@ final class OpenNotebookSession: Identifiable {
     self.document = document
     self.conflictCount = conflictCount
     self.primaryView = OpenNotebookViewState()
+  }
+
+  func markUnsaved() {
+    saveStatus = .pending
+  }
+
+  func performSave(_ operation: () throws -> Void) throws {
+    saveStatus = .saving
+    do {
+      try operation()
+      saveStatus = .saved
+    } catch {
+      saveStatus = .failed
+      throw error
+    }
   }
 
   var activeLayerID: String? {

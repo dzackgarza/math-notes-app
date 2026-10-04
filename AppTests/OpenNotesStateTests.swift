@@ -18,6 +18,29 @@ final class OpenNotesStateTests: XCTestCase {
       document: EngineDocument(seed: seed))
   }
 
+  func testSessionTracksSaveStatusThroughSuccessAndFailure() throws {
+    let note = session(["A"], seed: 34)
+    XCTAssertEqual(note.saveStatus, .saved)
+    XCTAssertEqual(note.saveStatus.label, "Saved")
+
+    note.markUnsaved()
+    XCTAssertEqual(note.saveStatus, .pending)
+    XCTAssertEqual(note.saveStatus.label, "Unsaved changes")
+
+    try note.performSave {
+      XCTAssertEqual(note.saveStatus, .saving)
+      XCTAssertEqual(note.saveStatus.label, "Saving…")
+    }
+    XCTAssertEqual(note.saveStatus, .saved)
+
+    XCTAssertThrowsError(try note.performSave { throw TestFailure.expected })
+    XCTAssertEqual(note.saveStatus, .failed)
+    XCTAssertEqual(note.saveStatus.label, "Save failed")
+
+    note.markUnsaved()
+    XCTAssertEqual(note.saveStatus, .pending)
+  }
+
   func testOpeningAnAlreadyOpenNoteSelectsItWithoutDuplicatingIt() throws {
     let state = OpenNotesState()
     let first = session(["A"], seed: 1)

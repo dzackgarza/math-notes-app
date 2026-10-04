@@ -603,6 +603,14 @@ struct ContentView: View {
           }
         }
         ToolbarItem(placement: .topBarTrailing) {
+          Text(viewState?.captureActive == true ? "Drawing in progress" : session.saveStatus.label)
+            .font(NativeTheme.footnote)
+            .foregroundStyle(NativeTheme.graphite)
+            .accessibilityLabel("Notebook save")
+            .accessibilityValue(
+              viewState?.captureActive == true ? "Drawing in progress" : session.saveStatus.label)
+        }
+        ToolbarItem(placement: .topBarTrailing) {
           Button {
             prepareOpenNotePicker(.tab)
           } label: {
@@ -712,7 +720,10 @@ struct ContentView: View {
       drawingTool: $selectedDrawingTool,
       onFocus: { openNotes.focusRight(right) },
       onViewportChanged: { openNotes.setLinkedViewport($0) },
-      onEditCommitted: { saveNotebook(note) },
+      onEditCommitted: {
+        note.markUnsaved()
+        saveNotebook(note)
+      },
       onPensChanged: persistPenLibrary,
       onInsertImage: {
         openNotes.focusRight(right)
@@ -1055,8 +1066,10 @@ struct ContentView: View {
     _ session: OpenNotebookSession,
     using root: NotesRootAccess
   ) throws {
-    try root.save(session.document, notebook: session.reference)
-    session.conflictCount = try root.conflictCount(session.reference)
+    try session.performSave {
+      try root.save(session.document, notebook: session.reference)
+      session.conflictCount = try root.conflictCount(session.reference)
+    }
   }
 
   private func handleOpenNotesError(_ error: Error) {
@@ -1963,9 +1976,10 @@ struct ContentView: View {
     guard let session else { return }
     try session.document.saveFigureDraft(id: id, source: source)
     documentRevision &+= 1
+    session.markUnsaved()
     if persistent {
       guard let root else { return }
-      try root.save(session.document, notebook: session.reference)
+      try saveSession(session, using: root)
     }
   }
 
@@ -1978,7 +1992,7 @@ struct ContentView: View {
       try openNotes.requireNoCapture("comparing versions")
       if saveOpen, let session, session.reference == reference {
         do {
-          try root.save(session.document, notebook: reference)
+          try saveSession(session, using: root)
         } catch let storageError as NotebookStorageError {
           switch storageError {
           case .externalChanges:
@@ -2193,7 +2207,8 @@ struct ContentView: View {
     do {
       try root.applyTemplate(name: name, to: session.document)
       documentRevision &+= 1
-      try root.save(session.document, notebook: session.reference)
+      session.markUnsaved()
+      try saveSession(session, using: root)
     } catch {
       errorMessage = error.localizedDescription
     }
@@ -2213,7 +2228,8 @@ struct ContentView: View {
         width: width,
         height: height)
       documentRevision &+= 1
-      try root.save(session.document, notebook: session.reference)
+      session.markUnsaved()
+      try saveSession(session, using: root)
     } catch {
       errorMessage = error.localizedDescription
     }
@@ -2228,11 +2244,13 @@ struct ContentView: View {
     currentPage = page
     documentRevision &+= 1
     pageNavigationRevision &+= 1
+    session?.markUnsaved()
     saveOpenNotebook()
   }
 
   private func layerEdited() {
     documentRevision &+= 1
+    session?.markUnsaved()
     saveOpenNotebook()
   }
 
@@ -2261,6 +2279,7 @@ struct ContentView: View {
       toast.viewState.currentPage = min(max(step.page, 0), max(0, count - 1))
       toast.session.documentRevision &+= 1
       toast.viewState.pageNavigationRevision &+= 1
+      toast.session.markUnsaved()
       saveNotebook(toast.session)
     } catch {
       errorMessage = error.localizedDescription
@@ -2273,6 +2292,7 @@ struct ContentView: View {
     do {
       try action(session.document)
       documentRevision &+= 1
+      session.markUnsaved()
       saveOpenNotebook()
     } catch {
       errorMessage = error.localizedDescription
