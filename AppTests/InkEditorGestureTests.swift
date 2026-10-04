@@ -33,6 +33,19 @@ final class InkEditorGestureTests: XCTestCase {
     XCTAssertTrue(contains(UIKeyCommand.inputEscape, []))
   }
 
+  func testSelectionBarExposesClearSelectionTarget() throws {
+    let controller = InkEditorViewController(document: EngineDocument(seed: 106))
+    controller.loadViewIfNeeded()
+
+    let button = try XCTUnwrap(findButton(in: controller.view, label: "Clear selection"))
+    XCTAssertTrue(button.constraints.contains {
+      $0.firstAttribute == .width && abs($0.constant - 44) < 0.01
+    })
+    XCTAssertTrue(button.constraints.contains {
+      $0.firstAttribute == .height && abs($0.constant - 44) < 0.01
+    })
+  }
+
   func testFingerHistoryGesturesUseExactDirectTouchCounts() {
     let controller = InkEditorViewController(document: EngineDocument(seed: 101))
     controller.loadViewIfNeeded()
@@ -94,6 +107,11 @@ final class InkEditorGestureTests: XCTestCase {
 
   private func gestureRecognizers(in view: UIView) -> [UIGestureRecognizer] {
     (view.gestureRecognizers ?? []) + view.subviews.flatMap { gestureRecognizers(in: $0) }
+  }
+
+  private func findButton(in view: UIView, label: String) -> UIButton? {
+    if let button = view as? UIButton, button.accessibilityLabel == label { return button }
+    return view.subviews.lazy.compactMap { self.findButton(in: $0, label: label) }.first
   }
 
   private func findScrollView(in view: UIView) -> UIScrollView? {

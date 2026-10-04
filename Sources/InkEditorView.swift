@@ -669,6 +669,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       label: "Delete selection", systemImage: "trash", action: #selector(deleteSelection))
     deleteSelection.tintColor = NativeTheme.ribbonUI
     selectionBar.addArrangedSubview(deleteSelection)
+    selectionBar.addArrangedSubview(selectionButton(
+      label: "Clear selection", systemImage: "xmark", action: #selector(clearSelection)))
     view.addSubview(selectionBar)
   }
 
