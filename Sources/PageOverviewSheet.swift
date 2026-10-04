@@ -77,15 +77,33 @@ struct PageOverviewSheet: View {
       }
       .buttonStyle(.plain)
       .accessibilityLabel("Page \(index + 1)")
+      .accessibilityAddTraits(pageCount > 1 && index == currentPage ? .isSelected : [])
       .draggable(String(index))
       .dropDestination(for: String.self) { items, _ in
         guard let source = items.first.flatMap(Int.init) else { return false }
         return movePage(from: source, to: index)
       }
 
-      Text("\(index + 1)")
-        .font(.caption)
-        .foregroundStyle(.secondary)
+      HStack(spacing: 4) {
+        Text("\(index + 1)")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+
+        Menu {
+          Button("Duplicate", systemImage: "plus.square.on.square") {
+            duplicatePage(index)
+          }
+          if pageCount > 1 {
+            Button("Delete", systemImage: "trash", role: .destructive) {
+              deletePage(index)
+            }
+          }
+        } label: {
+          Image(systemName: "ellipsis.circle")
+            .frame(width: 32, height: 32)
+        }
+        .accessibilityLabel("Page \(index + 1) actions")
+      }
     }
     .contextMenu {
       Button("Duplicate", systemImage: "plus.square.on.square") {
