@@ -958,12 +958,6 @@ struct ContentView: View {
         }
       }
       .disabled(!availability.pageMutation)
-      Button("Duplicate page", systemImage: "plus.square.on.square") {
-        editPages(session) { document in
-          try document.duplicatePage(at: currentPage)
-        }
-      }
-      .disabled(!availability.pageMutation)
       Button("Select page", systemImage: "square.dashed") {
         editorPageCommand = .select(currentPage)
       }
