@@ -5,6 +5,13 @@ import XCTest
 
 @MainActor
 final class InkEditorGestureTests: XCTestCase {
+  func testPageCounterTextIsOneBasedAndClamped() {
+    XCTAssertEqual(editorPageCounterText(currentPage: 0, pageCount: 3), "1 / 3")
+    XCTAssertEqual(editorPageCounterText(currentPage: 2, pageCount: 3), "3 / 3")
+    XCTAssertEqual(editorPageCounterText(currentPage: 8, pageCount: 3), "3 / 3")
+    XCTAssertEqual(editorPageCounterText(currentPage: -1, pageCount: 0), "1 / 1")
+  }
+
   func testFingerHistoryGesturesUseExactDirectTouchCounts() {
     let controller = InkEditorViewController(document: EngineDocument(seed: 101))
     controller.loadViewIfNeeded()

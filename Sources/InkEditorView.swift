@@ -1423,6 +1423,12 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   }
 }
 
+func editorPageCounterText(currentPage: Int, pageCount: Int) -> String {
+  let total = max(1, pageCount)
+  let page = min(max(currentPage, 0), total - 1)
+  return "\(page + 1) / \(total)"
+}
+
 @MainActor
 struct InkEditorView: View {
   let document: EngineDocument
@@ -1626,6 +1632,19 @@ struct InkEditorView: View {
     }
     .onChange(of: tool) {
       if bookmarkMode { bookmarkMode = false }
+    }
+    .overlay(alignment: .bottomTrailing) {
+      let count = (try? document.pageCount()) ?? 1
+      let text = editorPageCounterText(currentPage: currentPage, pageCount: count)
+      Text(text)
+        .font(NativeTheme.callout)
+        .foregroundStyle(NativeTheme.ink)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .background(NativeTheme.board, in: RoundedRectangle(cornerRadius: 12))
+        .allowsHitTesting(false)
+        .accessibilityLabel("Page \(text.replacingOccurrences(of: " / ", with: " of "))")
+        .padding(12)
     }
     .sheet(item: $textRequest) { request in
       TextEditorSheet(
