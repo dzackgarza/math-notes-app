@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import InkEngine
+import PDFKit
 import UIKit
 import XCTest
 @testable import MathNotes
@@ -231,6 +232,10 @@ final class NotebookStorageTests: XCTestCase {
     let imported = try PDFImportDocument(url: url)
     XCTAssertEqual(imported.pageCount, 1)
     let page = try imported.rasterizedPage(at: 0, maxWidthPixels: 256)
+    let raster = try XCTUnwrap(UIImage(data: page.png)?.cgImage)
+    XCTAssertEqual(raster.width, 256)
+    XCTAssertEqual(page.widthPt, 612, accuracy: 0.01)
+    XCTAssertEqual(page.heightPt, 792, accuracy: 0.01)
 
     let document = EngineDocument(seed: 59)
     try document.importPageImage(
@@ -249,6 +254,40 @@ final class NotebookStorageTests: XCTestCase {
         $0.path.hasPrefix("assets/") && $0.path.hasSuffix(".png")
       })
   }
+  @MainActor
+  func testPDFImportRasterKeepsMixedPageSizesAtExactWidth() throws {
+    let sizes = [
+      CGSize(width: 595, height: 842),
+      CGSize(width: 960, height: 540),
+      CGSize(width: 612, height: 792),
+    ]
+    let source = PDFDocument()
+    for size in sizes {
+      let format = UIGraphicsImageRendererFormat()
+      format.scale = 1
+      format.opaque = true
+      let image = UIGraphicsImageRenderer(size: size, format: format).image { context in
+        context.cgContext.setFillColor(UIColor.white.cgColor)
+        context.cgContext.fill(CGRect(origin: .zero, size: size))
+      }
+      source.insert(try XCTUnwrap(PDFPage(image: image)), at: source.pageCount)
+    }
+    let url = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString)
+      .appendingPathExtension("pdf")
+    try XCTUnwrap(source.dataRepresentation()).write(to: url, options: .atomic)
+    defer { try? FileManager.default.removeItem(at: url) }
+
+    let imported = try PDFImportDocument(url: url)
+    XCTAssertEqual(imported.pageCount, sizes.count)
+    for (index, size) in sizes.enumerated() {
+      let page = try imported.rasterizedPage(at: index, maxWidthPixels: 256)
+      XCTAssertEqual(try XCTUnwrap(UIImage(data: page.png)?.cgImage).width, 256)
+      XCTAssertEqual(page.widthPt, size.width, accuracy: 0.01)
+      XCTAssertEqual(page.heightPt, size.height, accuracy: 0.01)
+    }
+  }
+
 
   @MainActor
   func testBuiltinTemplateFactoryMatchesTheSharedCreationPath() throws {

@@ -40,7 +40,9 @@ final class PDFImportDocument {
   let pageCount: Int
 
   init(url: URL) throws {
-    guard let document = PDFDocument(url: url) else {
+    guard let data = try? Data(contentsOf: url),
+      let document = PDFDocument(data: data)
+    else {
       throw PDFImportError.cannotOpen
     }
     guard !document.isLocked else {
@@ -70,11 +72,25 @@ final class PDFImportDocument {
       throw PDFImportError.invalidPageSize(index)
     }
 
-    let image = page.thumbnail(
-      of: CGSize(
-        width: maxWidthPixels,
-        height: maxWidthPixels * size.height / size.width),
-      for: .mediaBox)
+    let scale = maxWidthPixels / size.width
+    let targetSize = CGSize(
+      width: maxWidthPixels,
+      height: size.height * scale)
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = 1
+    format.opaque = true
+    let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
+    let image = renderer.image { context in
+      let cg = context.cgContext
+      cg.setFillColor(UIColor.white.cgColor)
+      cg.fill(CGRect(origin: .zero, size: targetSize))
+      cg.saveGState()
+      cg.scaleBy(x: scale, y: scale)
+      cg.translateBy(x: 0, y: size.height)
+      cg.scaleBy(x: 1, y: -1)
+      page.draw(with: .mediaBox, to: cg)
+      cg.restoreGState()
+    }
     guard let png = image.pngData() else {
       throw PDFImportError.rasterizationFailed(index)
     }

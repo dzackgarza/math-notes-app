@@ -34,6 +34,13 @@ targets:
         CFBundleDisplayName: Math Notes
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSSupportsOpeningDocumentsInPlace: true
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: PDF
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - com.adobe.pdf
         UILaunchScreen: {}
         UIAppFonts:
           - AlegreyaSans-Regular.ttf

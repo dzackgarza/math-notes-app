@@ -111,8 +111,14 @@ private struct NotebookEditorPane: View {
   }
 }
 
+private struct PendingPDFImport {
+  let url: URL
+  let scopedAccess: Bool
+}
+
 @MainActor
 struct ContentView: View {
+  @EnvironmentObject private var sceneDelegate: MathNotesSceneDelegate
   @State private var root: NotesRootAccess?
   @State private var libraryFolder = FolderReference(path: [])
   @State private var libraryListing = LibraryListing(folders: [], notebooks: [])
@@ -144,6 +150,7 @@ struct ContentView: View {
   @State private var showingPDFImporter = false
   @State private var showingImageImporter = false
   @State private var pdfImportProgress: String?
+  @State private var pendingPDFImport: PendingPDFImport?
   @State private var showingNewNotebook = false
   @State private var newNotebookFolders: [FolderReference] = []
   @State private var newNotebookKnownTags: [LibraryTag] = []
@@ -540,6 +547,10 @@ struct ContentView: View {
     }
     .task {
       restoreSavedRoot()
+      consumeIncomingDocument()
+    }
+    .onChange(of: sceneDelegate.incomingDocument) { _, _ in
+      consumeIncomingDocument()
     }
     .overlay(alignment: .bottom) {
       if let toast = deletedPageToast, !openNotes.inLibrary {
@@ -1253,6 +1264,10 @@ struct ContentView: View {
       }
     }
     refreshLibrary()
+    if let pendingPDFImport {
+      self.pendingPDFImport = nil
+      Task { await importPDF(pendingPDFImport.url, scopedAccess: pendingPDFImport.scopedAccess) }
+    }
   }
 
 
@@ -1633,7 +1648,33 @@ struct ContentView: View {
     }
   }
 
-  private func importPDF(_ url: URL) async {
+  private func consumeIncomingDocument() {
+    guard let document = sceneDelegate.incomingDocument else { return }
+    sceneDelegate.clearIncomingDocument(document.id)
+    handleIncomingPDF(document.url)
+  }
+
+  private func handleIncomingPDF(_ url: URL) {
+    guard UTType(filenameExtension: url.pathExtension.lowercased())?.conforms(to: .pdf) == true else {
+      errorMessage = "Math Notes can import PDF files."
+      return
+    }
+    let scopedAccess = url.startAccessingSecurityScopedResource()
+    guard root != nil else {
+      if let pendingPDFImport, pendingPDFImport.scopedAccess {
+        pendingPDFImport.url.stopAccessingSecurityScopedResource()
+      }
+      pendingPDFImport = PendingPDFImport(url: url, scopedAccess: scopedAccess)
+      return
+    }
+    Task { await importPDF(url, scopedAccess: scopedAccess) }
+  }
+
+  private func importPDF(_ url: URL, scopedAccess: Bool? = nil) async {
+    let scoped = scopedAccess ?? url.startAccessingSecurityScopedResource()
+    defer {
+      if scoped { url.stopAccessingSecurityScopedResource() }
+    }
     guard let root else { return }
     var importedReference: NotebookReference?
     var completed = 0
