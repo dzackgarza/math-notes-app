@@ -892,34 +892,36 @@ struct LibraryThumbnail: View {
 }
 
 @MainActor
-struct LibraryNotebookCover: View {
-  let root: NotesRootAccess
-  let item: LibraryFolderItem
-  let titled: Bool
+struct NotebookCoverArt<Page: View>: View {
+  let color: Color
+  let style: String
+  let title: String?
+  let page: Page
 
-  @State private var thumbnail: UIImage?
+  init(
+    color: Color,
+    style: String,
+    title: String?,
+    @ViewBuilder page: () -> Page
+  ) {
+    self.color = color
+    self.style = style
+    self.title = title
+    self.page = page()
+  }
 
   var body: some View {
     ZStack(alignment: .leading) {
       RoundedRectangle(cornerRadius: 6)
-        .fill(coverColor)
+        .fill(color)
       Rectangle()
-        .fill(coverColor.opacity(0.55))
-        .frame(width: item.details.coverStyle == "spine" ? 12 : 4)
-      VStack(spacing: titled ? 10 : 0) {
-        Group {
-          if let thumbnail {
-            Image(uiImage: thumbnail)
-              .resizable()
-              .scaledToFit()
-              .background(NativeTheme.paper)
-          } else {
-            Color.clear
-          }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        if titled {
-          Text(item.reference.path.last ?? item.reference.name)
+        .fill(color.opacity(0.55))
+        .frame(width: style == "spine" ? 12 : 4)
+      VStack(spacing: title == nil ? 0 : 10) {
+        page
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+        if let title {
+          Text(title)
             .font(NativeTheme.spineTitle)
             .foregroundStyle(NativeTheme.ink)
             .lineLimit(2)
@@ -929,13 +931,41 @@ struct LibraryNotebookCover: View {
             .background(NativeTheme.paper)
         }
       }
-      .padding(titled ? 10 : 6)
+      .padding(title == nil ? 6 : 10)
     }
     .clipShape(RoundedRectangle(cornerRadius: 6))
     .shadow(
-      color: NativeTheme.ink.opacity(titled ? 0.18 : 0.12),
-      radius: titled ? 9 : 4,
-      y: titled ? 3 : 1)
+      color: NativeTheme.ink.opacity(title == nil ? 0.12 : 0.18),
+      radius: title == nil ? 4 : 9,
+      y: title == nil ? 1 : 3)
+  }
+}
+
+@MainActor
+struct LibraryNotebookCover: View {
+  let root: NotesRootAccess
+  let item: LibraryFolderItem
+  let titled: Bool
+
+  @State private var thumbnail: UIImage?
+
+  var body: some View {
+    NotebookCoverArt(
+      color: coverColor,
+      style: item.details.coverStyle,
+      title: titled ? (item.reference.path.last ?? item.reference.name) : nil
+    ) {
+      Group {
+        if let thumbnail {
+          Image(uiImage: thumbnail)
+            .resizable()
+            .scaledToFit()
+            .background(NativeTheme.paper)
+        } else {
+          Color.clear
+        }
+      }
+    }
     .task(id: item.modified) {
       do {
         let listing = try root.library(in: item.reference, sort: .modified, direction: .descending)
