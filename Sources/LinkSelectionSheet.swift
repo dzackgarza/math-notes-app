@@ -26,7 +26,7 @@ struct LinkSelectionSheet: View {
         }
 
         Section("URL or relative notebook path") {
-          TextField("URL or relative page path", text: $destination)
+          TextField("https://… or ../../Note/pages/0001.svg", text: $destination)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
 
