@@ -176,13 +176,14 @@ struct NativeLibraryView: View {
     .toolbarBackground(.visible, for: .navigationBar)
     .navigationTitle(folder.path.isEmpty ? "" : folder.name)
     .navigationBarTitleDisplayMode(.inline)
-    .searchable(
-      text: $query,
-      isPresented: $searchPresented,
-      placement: .navigationBarDrawer(displayMode: .always),
-      prompt: "Search notebooks and notes")
-    .onChange(of: query) {
-      refreshSearch()
+    .modifier(
+      LibrarySearchModifier(
+        enabled: librarySearchEnabled(folderPath: folder.path),
+        query: $query,
+        searchPresented: $searchPresented,
+        refreshSearch: refreshSearch))
+    .onChange(of: folder.path) { _, path in
+      if !path.isEmpty { searchPresented = false }
     }
     .toolbar {
       if scope == .folder && !folder.path.isEmpty {
