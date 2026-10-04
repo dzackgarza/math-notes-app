@@ -898,6 +898,7 @@ struct ContentView: View {
             Label(arrangement.label, systemImage: arrangement.systemImage)
           }
         }
+        .accessibilityAddTraits(arrangement == selected ? .isSelected : [])
       }
       Divider()
       Button(
@@ -910,10 +911,13 @@ struct ContentView: View {
         Button {
           openNotes.toggleLinkedViews()
         } label: {
-          Label(
-            openNotes.linkedViews ? "Unlink Views" : "Link Views",
-            systemImage: openNotes.linkedViews ? "link.badge.plus" : "link")
+          if openNotes.linkedViews {
+            Label("Link Views", systemImage: "checkmark")
+          } else {
+            Label("Link Views", systemImage: "link")
+          }
         }
+        .accessibilityAddTraits(openNotes.linkedViews ? .isSelected : [])
         Button("Rotate Split", systemImage: "rectangle.2.swap") {
           openNotes.rotateSplit()
         }
