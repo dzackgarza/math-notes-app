@@ -1,5 +1,9 @@
 import SwiftUI
 
+func layerActionAccessibilityLabel(_ action: String, layerName: String) -> String {
+  "\(action) \(layerName)"
+}
+
 @MainActor
 struct LayersSheet: View {
   let document: EngineDocument
@@ -38,12 +42,14 @@ struct LayersSheet: View {
               }
             }
             .disabled(layer.hidden || layer.locked)
+            .accessibilityAddTraits(activeLayerID == layer.id ? .isSelected : [])
 
             HStack {
               Button("Rename") {
                 layerName = layer.name
                 namingLayerID = layer.id
               }
+              .accessibilityLabel(layerActionAccessibilityLabel("Rename", layerName: layer.name))
               Button(layer.hidden ? "Show" : "Hide") {
                 mutate {
                   try document.setLayer(
@@ -53,6 +59,8 @@ struct LayersSheet: View {
                     locked: layer.locked)
                 }
               }
+              .accessibilityLabel(
+                layerActionAccessibilityLabel(layer.hidden ? "Show" : "Hide", layerName: layer.name))
               Button(layer.locked ? "Unlock" : "Lock") {
                 mutate {
                   try document.setLayer(
@@ -62,6 +70,8 @@ struct LayersSheet: View {
                     locked: !layer.locked)
                 }
               }
+              .accessibilityLabel(
+                layerActionAccessibilityLabel(layer.locked ? "Unlock" : "Lock", layerName: layer.name))
             }
             .buttonStyle(.borderless)
 
@@ -70,21 +80,25 @@ struct LayersSheet: View {
                 mutate { try document.moveLayer(from: index, to: index + 1) }
               }
               .disabled(index + 1 >= layers.count)
+              .accessibilityLabel(layerActionAccessibilityLabel("Up", layerName: layer.name))
 
               Button("Down") {
                 mutate { try document.moveLayer(from: index, to: index - 1) }
               }
               .disabled(index == 0)
+              .accessibilityLabel(layerActionAccessibilityLabel("Down", layerName: layer.name))
 
               Button("Merge Down") {
                 removeLayer(index: index, mergeDown: true)
               }
               .disabled(index == 0 || layers[index - 1].locked)
+              .accessibilityLabel(layerActionAccessibilityLabel("Merge down", layerName: layer.name))
 
               Button("Delete", role: .destructive) {
                 deleteLayerID = layer.id
               }
               .disabled(layers.count <= 1)
+              .accessibilityLabel(layerActionAccessibilityLabel("Delete", layerName: layer.name))
             }
             .buttonStyle(.borderless)
           }
