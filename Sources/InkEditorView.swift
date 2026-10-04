@@ -111,6 +111,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private var editFigureButton: UIButton?
   private var selectionColorButton: UIButton?
   private var saveClippingButton: UIButton?
+  private var selectionCopyDragHandle: UIButton?
   private var clippingsPanelOpen = false
   private let figureGenerator = FigureTikZGenerator()
   private var figureCaptureActive = false
@@ -565,17 +566,22 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     onFocusRequested()
     guard !fingerDrawing else { return [] }
     guard !figureCaptureActive, !figureCompleting else { return [] }
-    let location = session.location(in: canvasView)
-    guard let selection = canvasView.selectionFrame(), selection.contains(location) else { return [] }
+    let copyHandle = interaction.view === selectionCopyDragHandle
+    if !copyHandle {
+      let location = session.location(in: canvasView)
+      guard let selection = canvasView.selectionFrame(), selection.contains(location) else { return [] }
+    }
     do {
       guard let svg = try canvasView.copySelection(), !svg.isEmpty else { return [] }
       let provider = NSItemProvider(object: svg as NSString)
-      provider.registerDataRepresentation(
-        forTypeIdentifier: notebookSelectionDragType.identifier,
-        visibility: .ownProcess
-      ) { completion in
-        completion(Data(svg.utf8), nil)
-        return nil
+      if !copyHandle {
+        provider.registerDataRepresentation(
+          forTypeIdentifier: notebookSelectionDragType.identifier,
+          visibility: .ownProcess
+        ) { completion in
+          completion(Data(svg.utf8), nil)
+          return nil
+        }
       }
       return [UIDragItem(itemProvider: provider)]
     } catch {
@@ -589,7 +595,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     session: UIDragSession,
     willEndWith operation: UIDropOperation
   ) {
-    guard operation == .move else { return }
+    guard interaction.view !== selectionCopyDragHandle, operation == .move else { return }
     do {
       try canvasView.deleteSelection()
       onEditCommitted()
@@ -655,6 +661,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     selectionBar.layer.shadowOffset = CGSize(width: 0, height: 3)
     selectionBar.isHidden = true
 
+    let dragCopy = selectionMenuButton(label: "Drag a copy", systemImage: "hand.draw")
+    dragCopy.addInteraction(UIDragInteraction(delegate: self))
+    selectionCopyDragHandle = dragCopy
+    selectionBar.addArrangedSubview(dragCopy)
     selectionBar.addArrangedSubview(selectionButton(
       label: "Copy", systemImage: "doc.on.doc", action: #selector(copySelection)))
     selectionBar.addArrangedSubview(selectionButton(
