@@ -166,6 +166,10 @@ struct NewNotebookSheet: View {
       }
       .pickerStyle(.segmented)
 
+      Text("Cover color")
+        .font(NativeTheme.footnote)
+        .foregroundStyle(NativeTheme.graphite)
+
       HStack(spacing: 12) {
         ForEach(NewNotebookFormState.coverColorOrder, id: \.self) { color in
           Button {
@@ -181,6 +185,7 @@ struct NewNotebookSheet: View {
                     .padding(-4)
                 }
               }
+              .frame(width: 44, height: 44)
           }
           .buttonStyle(.plain)
           .accessibilityLabel(NewNotebookFormState.coverColors[color] ?? color)
