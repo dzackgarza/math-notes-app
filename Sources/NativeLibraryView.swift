@@ -503,6 +503,7 @@ struct NativeLibraryView: View {
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
+    .hoverEffect(.highlight)
     .background(
       selected ? NativeTheme.leaf : Color.clear,
       in: RoundedRectangle(cornerRadius: 8))
@@ -532,6 +533,7 @@ struct NativeLibraryView: View {
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
+    .hoverEffect(.highlight)
     .background(
       scope == .tag && selectedTag == tag.name
         ? NativeTheme.leaf : Color.clear,

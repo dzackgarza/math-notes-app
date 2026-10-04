@@ -350,6 +350,7 @@ struct EditorToolRail: View {
           height: EditorToolRailMetrics.targetSize)
     }
     .buttonStyle(.plain)
+    .hoverEffect(.highlight)
     .accessibilityLabel(String(format: "Colors #%06x", rgb & 0xFFFFFF))
     .popover(isPresented: $showingColors, arrowEdge: .leading) {
       ColorPalettePopover(
@@ -503,6 +504,7 @@ struct EditorToolRail: View {
         .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
+    .hoverEffect(.highlight)
     .foregroundStyle(selected ? NativeTheme.ribbon : NativeTheme.ink)
     .background(
       selected ? NativeTheme.ribbon.opacity(0.12) : Color.clear,
