@@ -12,6 +12,27 @@ final class InkEditorGestureTests: XCTestCase {
     XCTAssertEqual(editorPageCounterText(currentPage: -1, pageCount: 0), "1 / 1")
   }
 
+  func testHardwareKeyboardCommandsUseIPadConventions() {
+    let controller = InkEditorViewController(document: EngineDocument(seed: 105))
+    let commands = controller.keyCommands ?? []
+
+    func contains(_ input: String, _ modifiers: UIKeyModifierFlags) -> Bool {
+      commands.contains { $0.input == input && $0.modifierFlags == modifiers }
+    }
+
+    XCTAssertTrue(contains("s", .command))
+    XCTAssertTrue(contains("z", .command))
+    XCTAssertTrue(contains("z", .command.union(.shift)))
+    XCTAssertTrue(contains("y", .command))
+    XCTAssertTrue(contains("a", .command))
+    XCTAssertTrue(contains("c", .command))
+    XCTAssertTrue(contains("x", .command))
+    XCTAssertTrue(contains("v", .command))
+    XCTAssertTrue(contains("d", .command))
+    XCTAssertTrue(contains(UIKeyCommand.inputDelete, []))
+    XCTAssertTrue(contains(UIKeyCommand.inputEscape, []))
+  }
+
   func testFingerHistoryGesturesUseExactDirectTouchCounts() {
     let controller = InkEditorViewController(document: EngineDocument(seed: 101))
     controller.loadViewIfNeeded()

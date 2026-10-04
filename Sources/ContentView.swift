@@ -56,6 +56,7 @@ private struct NotebookEditorPane: View {
   let onFocus: () -> Void
   let onViewportChanged: (EditorLinkedViewport) -> Void
   let onEditCommitted: () -> Void
+  let onSaveRequested: () -> Void
   let onPensChanged: (EditorPenLibrary) -> Void
   let onInsertImage: () -> Void
   let onShowClippings: () -> Void
@@ -90,6 +91,7 @@ private struct NotebookEditorPane: View {
       onFocus: onFocus,
       onViewportChanged: onViewportChanged,
       onEditCommitted: onEditCommitted,
+      onSaveRequested: onSaveRequested,
       onPensChanged: onPensChanged,
       onInsertImage: onInsertImage,
       onShowClippings: onShowClippings,
@@ -724,6 +726,7 @@ struct ContentView: View {
         note.markUnsaved()
         saveNotebook(note)
       },
+      onSaveRequested: { saveNotebook(note) },
       onPensChanged: persistPenLibrary,
       onInsertImage: {
         openNotes.focusRight(right)

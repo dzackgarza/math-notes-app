@@ -508,6 +508,11 @@ final class InkCanvasView: UIView {
     return String(decoding: UnsafeBufferPointer(start: bytes, count: size), as: UTF8.self)
   }
 
+  func clearSelection() throws {
+    guard let canvas else { return }
+    try require(ink_canvas_clear_selection(canvas), operation: "Clear selection")
+  }
+
   func deleteSelection() throws {
     guard let canvas else { return }
     try require(ink_canvas_delete_selection(canvas), operation: "Delete selection")

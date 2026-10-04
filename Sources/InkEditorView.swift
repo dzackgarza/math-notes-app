@@ -82,6 +82,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private let onFocusRequested: () -> Void
   private let onViewportChanged: (EditorLinkedViewport) -> Void
   private let onEditCommitted: () -> Void
+  private let onSaveRequested: () -> Void
   private let onCurrentPageChanged: (Int) -> Void
   private let onPageCommandHandled: () -> Void
   private let onBookmarkModeChanged: (Bool) -> Void
@@ -98,7 +99,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private let onError: (Error) -> Void
   private lazy var canvasView = InkCanvasView(
     document: document,
-    onInteractionBegan: { [weak self] in self?.onFocusRequested() },
+    onInteractionBegan: { [weak self] in
+      self?.onFocusRequested()
+      self?.becomeFirstResponder()
+    },
     onInteractionEnded: { [weak self] in self?.canvasInteractionEnded() })
   private let selectionBar = UIStackView()
   private var editFigureButton: UIButton?
@@ -148,6 +152,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     onFocusRequested: @escaping () -> Void = {},
     onViewportChanged: @escaping (EditorLinkedViewport) -> Void = { _ in },
     onEditCommitted: @escaping () -> Void = {},
+    onSaveRequested: @escaping () -> Void = {},
     onCurrentPageChanged: @escaping (Int) -> Void = { _ in },
     onPageCommandHandled: @escaping () -> Void = {},
     onBookmarkModeChanged: @escaping (Bool) -> Void = { _ in },
@@ -167,6 +172,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     self.onFocusRequested = onFocusRequested
     self.onViewportChanged = onViewportChanged
     self.onEditCommitted = onEditCommitted
+    self.onSaveRequested = onSaveRequested
     self.onCurrentPageChanged = onCurrentPageChanged
     self.onPageCommandHandled = onPageCommandHandled
     self.onBookmarkModeChanged = onBookmarkModeChanged
@@ -189,8 +195,54 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     fatalError("init(coder:) is not supported")
   }
 
+  override var canBecomeFirstResponder: Bool { true }
+
+  override var keyCommands: [UIKeyCommand]? {
+    [
+      editorKeyCommand("s", modifiers: .command, action: #selector(keyboardSave), title: "Save"),
+      editorKeyCommand("z", modifiers: .command, action: #selector(keyboardUndo), title: "Undo"),
+      editorKeyCommand(
+        "z",
+        modifiers: .command.union(.shift),
+        action: #selector(keyboardRedo),
+        title: "Redo"),
+      editorKeyCommand("y", modifiers: .command, action: #selector(keyboardRedo), title: "Redo"),
+      editorKeyCommand("a", modifiers: .command, action: #selector(keyboardSelectAll), title: "Select All"),
+      editorKeyCommand("c", modifiers: .command, action: #selector(copySelection), title: "Copy"),
+      editorKeyCommand("x", modifiers: .command, action: #selector(cutSelection), title: "Cut"),
+      editorKeyCommand("v", modifiers: .command, action: #selector(keyboardPaste), title: "Paste"),
+      editorKeyCommand("d", modifiers: .command, action: #selector(duplicateSelection), title: "Duplicate"),
+      editorKeyCommand(
+        UIKeyCommand.inputDelete,
+        modifiers: [],
+        action: #selector(keyboardDelete),
+        title: "Delete Selection"),
+      editorKeyCommand(
+        UIKeyCommand.inputEscape,
+        modifiers: [],
+        action: #selector(clearSelection),
+        title: "Clear Selection"),
+    ]
+  }
+
   deinit {
     pullReadyTimer?.invalidate()
+  }
+
+  private func editorKeyCommand(
+    _ input: String,
+    modifiers: UIKeyModifierFlags,
+    action: Selector,
+    title: String
+  ) -> UIKeyCommand {
+    let command = UIKeyCommand(input: input, modifierFlags: modifiers, action: action)
+    command.discoverabilityTitle = title
+    return command
+  }
+
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    if hostActive, hostFocused { becomeFirstResponder() }
   }
 
   override func viewDidLoad() {
@@ -326,6 +378,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   ) {
     loadViewIfNeeded()
 
+    let becameActive = active && !hostActive
     if active != hostActive {
       hostActive = active
       view.isUserInteractionEnabled = active
@@ -336,7 +389,13 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     }
 
     let linkedBecameEnabled = linked && !hostLinked
+    let focusChanged = focused != hostFocused
     hostFocused = focused
+    if active && focused && (becameActive || focusChanged) {
+      becomeFirstResponder()
+    } else if (!active || !focused) && isFirstResponder {
+      resignFirstResponder()
+    }
     hostLinked = linked
     requestedLinkedViewport = linked ? linkedViewport : nil
     if !linked {
@@ -661,6 +720,64 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
 
   @objc private func focusEditor() {
     onFocusRequested()
+    becomeFirstResponder()
+  }
+
+  @objc private func keyboardSave() {
+    guard hostActive, hostFocused else { return }
+    guard !figureCaptureActive else {
+      onError(
+        EngineDocumentError.operation(
+          "Save notebook",
+          "Complete the drawing before saving."))
+      return
+    }
+    onSaveRequested()
+  }
+
+  @objc private func keyboardUndo() {
+    guard hostActive, hostFocused else { return }
+    onUndo()
+  }
+
+  @objc private func keyboardRedo() {
+    guard hostActive, hostFocused else { return }
+    onRedo()
+  }
+
+  @objc private func keyboardSelectAll() {
+    guard hostActive, hostFocused else { return }
+    let center = CGPoint(x: canvasView.bounds.midX, y: canvasView.bounds.midY)
+    let page = reportedPage >= 0 ? reportedPage : (canvasView.page(at: center) ?? 0)
+    do {
+      try canvasView.selectAll(page: page)
+      refreshSelectionBar()
+    } catch {
+      onError(error)
+    }
+  }
+
+  @objc private func keyboardPaste() {
+    guard hostActive, hostFocused,
+      let svg = UIPasteboard.general.string,
+      svg.contains("<svg")
+    else { return }
+    paste(svg, at: CGPoint(x: canvasView.bounds.midX, y: canvasView.bounds.midY))
+  }
+
+  @objc private func keyboardDelete() {
+    guard hostActive, hostFocused, canvasView.selectionFrame() != nil else { return }
+    deleteSelection()
+  }
+
+  @objc private func clearSelection() {
+    guard hostActive, hostFocused, canvasView.selectionFrame() != nil else { return }
+    do {
+      try canvasView.clearSelection()
+      refreshSelectionBar()
+    } catch {
+      onError(error)
+    }
   }
 
   private func canvasInteractionEnded() {
@@ -727,6 +844,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   @objc private func duplicateSelection() {
+    guard canvasView.selectionFrame() != nil else { return }
     do {
       try canvasView.duplicateSelection()
       onEditCommitted()
@@ -1362,6 +1480,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let onFocus: () -> Void
   let onViewportChanged: (EditorLinkedViewport) -> Void
   let onEditCommitted: () -> Void
+  let onSaveRequested: () -> Void
   let onCurrentPageChanged: (Int) -> Void
   let onPageCommandHandled: () -> Void
   let onBookmarkModeChanged: (Bool) -> Void
@@ -1383,6 +1502,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       onFocusRequested: onFocus,
       onViewportChanged: onViewportChanged,
       onEditCommitted: onEditCommitted,
+      onSaveRequested: onSaveRequested,
       onCurrentPageChanged: onCurrentPageChanged,
       onPageCommandHandled: onPageCommandHandled,
       onBookmarkModeChanged: onBookmarkModeChanged,
@@ -1459,6 +1579,7 @@ struct InkEditorView: View {
   let onFocus: () -> Void
   let onViewportChanged: (EditorLinkedViewport) -> Void
   let onEditCommitted: () -> Void
+  let onSaveRequested: () -> Void
   let onPensChanged: (EditorPenLibrary) -> Void
   let onInsertImage: () -> Void
   let onShowClippings: () -> Void
@@ -1500,6 +1621,7 @@ struct InkEditorView: View {
           documentRevision &+= 1
           onEditCommitted()
         },
+        onSaveRequested: onSaveRequested,
         onCurrentPageChanged: { currentPage = $0 },
         onPageCommandHandled: {
           DispatchQueue.main.async {
