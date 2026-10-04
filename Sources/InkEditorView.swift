@@ -110,6 +110,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private let selectionBar = UIStackView()
   private var editFigureButton: UIButton?
   private var selectionColorButton: UIButton?
+  private var saveClippingButton: UIButton?
+  private var clippingsPanelOpen = false
   private let figureGenerator = FigureTikZGenerator()
   private var figureCaptureActive = false
   private var figureCompleting = false
@@ -380,7 +382,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     focused: Bool,
     linked: Bool,
     linkedViewport: EditorLinkedViewport?,
-    fingerDraws: Bool
+    fingerDraws: Bool,
+    clippingsOpen: Bool
   ) {
     loadViewIfNeeded()
 
@@ -411,6 +414,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     if fingerDraws != fingerDrawing {
       setFingerDrawing(fingerDraws)
     }
+
+    clippingsPanelOpen = clippingsOpen
+    updateSaveClippingVisibility()
 
     if tool != appliedTool || eraserMode != appliedEraserMode || selectorMode != appliedSelectorMode || spaceMode != appliedSpaceMode || pens != appliedPens {
       canvasView.applyTool(
@@ -669,8 +675,11 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       label: "Link selection", systemImage: "link", action: #selector(linkSelection)))
     selectionBar.addArrangedSubview(selectionButton(
       label: "Remove bookmark or link", systemImage: "link.badge.minus", action: #selector(ungroupSelection)))
-    selectionBar.addArrangedSubview(selectionButton(
-      label: "Save to clippings", systemImage: "tray.and.arrow.down", action: #selector(saveClipping)))
+    let saveClipping = selectionButton(
+      label: "Save to clippings", systemImage: "tray.and.arrow.down", action: #selector(saveClipping))
+    saveClipping.isHidden = true
+    saveClippingButton = saveClipping
+    selectionBar.addArrangedSubview(saveClipping)
     let deleteSelection = selectionButton(
       label: "Delete selection", systemImage: "trash", action: #selector(deleteSelection))
     deleteSelection.tintColor = NativeTheme.ribbonUI
@@ -798,7 +807,12 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     refreshSelectionBar()
   }
 
+  private func updateSaveClippingVisibility() {
+    saveClippingButton?.isHidden = !clippingsPanelOpen || figureCaptureActive || figureCompleting
+  }
+
   private func refreshSelectionBar() {
+    updateSaveClippingVisibility()
     guard isViewLoaded, let selection = canvasView.selectionFrame() else {
       selectionBar.isHidden = true
       reportSelection(false)
@@ -1033,6 +1047,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       do {
         try canvasView.beginFigure(page: page)
         figureCaptureActive = true
+        updateSaveClippingVisibility()
         figurePreviewGeneration &+= 1
         onFigureSourceChanged("")
         onFigureCaptureChanged(true)
@@ -1046,6 +1061,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     do {
       let scene = try canvasView.figureScene()
       figureCompleting = true
+      updateSaveClippingVisibility()
       figurePreviewGeneration &+= 1
       syncDrawingSuppression()
       Task { @MainActor [weak self] in
@@ -1057,6 +1073,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
             tikz: generated.source)
           self.figureCaptureActive = false
           self.figureCompleting = false
+          self.updateSaveClippingVisibility()
           self.syncDrawingSuppression()
           self.onFigureSourceChanged(generated.source)
           self.onFigureCaptureChanged(false)
@@ -1067,6 +1084,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
           }
         } catch {
           self.figureCompleting = false
+          self.updateSaveClippingVisibility()
           self.syncDrawingSuppression()
           self.onError(error)
         }
@@ -1546,6 +1564,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let linked: Bool
   let linkedViewport: EditorLinkedViewport?
   let fingerDraws: Bool
+  let clippingsOpen: Bool
   let onFocus: () -> Void
   let onViewportChanged: (EditorLinkedViewport) -> Void
   let onEditCommitted: () -> Void
@@ -1610,7 +1629,8 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       focused: focused,
       linked: linked,
       linkedViewport: linkedViewport,
-      fingerDraws: fingerDraws)
+      fingerDraws: fingerDraws,
+      clippingsOpen: clippingsOpen)
   }
 }
 
@@ -1689,6 +1709,7 @@ struct InkEditorView: View {
         linked: linked,
         linkedViewport: linkedViewport,
         fingerDraws: fingerDraws,
+        clippingsOpen: clippingsOpen,
         onFocus: onFocus,
         onViewportChanged: onViewportChanged,
         onEditCommitted: {
