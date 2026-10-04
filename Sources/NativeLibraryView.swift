@@ -612,8 +612,10 @@ struct NativeLibraryView: View {
     Button("Details and Tags", systemImage: "tag") {
       editFolderDetails(reference)
     }
-    Divider()
-    entryActions(LibraryEntryTarget(path: reference.path, kind: .folder))
+    if !reference.path.isEmpty {
+      Divider()
+      entryActions(LibraryEntryTarget(path: reference.path, kind: .folder))
+    }
   }
 
   @ViewBuilder
