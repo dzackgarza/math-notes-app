@@ -38,10 +38,8 @@ struct CreationSheetLayout<Fields: View, Preview: View>: View {
             .frame(height: CreationSheetLayoutMetrics.previewHeight)
         }
         .padding(20)
-        .frame(
-          width: CreationSheetLayoutMetrics.previewWidth,
-          maxHeight: .infinity,
-          alignment: .top)
+        .frame(width: CreationSheetLayoutMetrics.previewWidth)
+        .frame(maxHeight: .infinity, alignment: .top)
       }
       .frame(
         minWidth: CreationSheetLayoutMetrics.splitThreshold,
