@@ -456,7 +456,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
 
     if fitRevision != self.fitRevision {
       self.fitRevision = fitRevision
-      fitPages(animated: true)
+      fitPages(animated: true, preserveLeadingPosition: true)
     }
 
     if bookmarkMode != self.bookmarkMode {
@@ -1252,9 +1252,55 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     syncCanvasTransform()
   }
 
-  private func fitPages(animated: Bool) {
+  private func fitPages(
+    animated: Bool,
+    preserveLeadingPosition: Bool = false
+  ) {
     guard let fit = fitScale() else { return }
-    scrollView.setZoomScale(fit, animated: animated)
+
+    let horizontal = appliedArrangement == .horizontal
+    let oldInset = scrollView.adjustedContentInset
+    let oldZoom = scrollView.zoomScale
+    let leadingCoordinate = preserveLeadingPosition
+      ? FitScrollPosition.leadingDocumentCoordinate(
+        contentOffset: horizontal ? scrollView.contentOffset.x : scrollView.contentOffset.y,
+        leadingInset: horizontal ? oldInset.left : oldInset.top,
+        zoomScale: oldZoom)
+      : nil
+
+    scrollView.setZoomScale(fit, animated: preserveLeadingPosition ? false : animated)
+    guard let leadingCoordinate else { return }
+
+    updateContentInsets()
+    let inset = scrollView.adjustedContentInset
+    let minimumX = -inset.left
+    let minimumY = -inset.top
+    let maximumX = max(
+      minimumX,
+      documentSize.width * fit - scrollView.bounds.width + inset.right)
+    let maximumY = max(
+      minimumY,
+      documentSize.height * fit - scrollView.bounds.height + inset.bottom)
+    var offset = scrollView.contentOffset
+    if horizontal {
+      offset.x = FitScrollPosition.contentOffset(
+        for: leadingCoordinate,
+        leadingInset: inset.left,
+        zoomScale: fit,
+        minimum: minimumX,
+        maximum: maximumX)
+      offset.y = minimumY
+    } else {
+      offset.x = minimumX
+      offset.y = FitScrollPosition.contentOffset(
+        for: leadingCoordinate,
+        leadingInset: inset.top,
+        zoomScale: fit,
+        minimum: minimumY,
+        maximum: maximumY)
+    }
+    scrollView.setContentOffset(offset, animated: false)
+    syncCanvasTransform()
   }
 
   private func linkedFitScale() -> CGFloat? {
