@@ -89,100 +89,14 @@ struct NewNotebookSheet: View {
 
   var body: some View {
     NavigationStack {
-      Form {
-        Section("Notebook") {
-          TextField("Notebook title", text: $form.title)
-            .textInputAutocapitalization(.sentences)
-            .nativeFieldSurface()
-
-          TextEditor(text: $form.description)
-            .scrollContentBackground(.hidden)
-            .frame(minHeight: 72)
-            .nativeFieldSurface()
-            .onChange(of: form.description) { _, value in
-              if value.count > 500 {
-                form.description = String(value.prefix(500))
-              }
-            }
-          Text("Description (optional) · \(form.description.count) / 500")
-            .font(NativeTheme.footnote)
-            .foregroundStyle(NativeTheme.graphite)
-        }
-
-        Section("Cover") {
-          Picker("Cover style", selection: $form.coverStyle) {
-            Text("Classic").tag("classic")
-            Text("Spine").tag("spine")
-          }
-          .pickerStyle(.segmented)
-
-          HStack(spacing: 12) {
-            ForEach(NewNotebookFormState.coverColorOrder, id: \.self) { color in
-              Button {
-                form.coverColor = color
-              } label: {
-                Circle()
-                  .fill(colorValue(color))
-                  .frame(width: 30, height: 30)
-                  .overlay {
-                    if form.coverColor == color {
-                      Circle()
-                        .stroke(NativeTheme.ink, lineWidth: 2)
-                        .padding(-4)
-                    }
-                  }
-              }
-              .buttonStyle(.plain)
-              .accessibilityLabel(NewNotebookFormState.coverColors[color] ?? color)
-              .accessibilityValue(form.coverColor == color ? "Selected" : "")
-            }
-          }
-        }
-
-        Section("Paper") {
-          Picker("Paper style", selection: $form.paper) {
-            ForEach(NewNotebookFormState.paperStyles, id: \.self) { paper in
-              Text(paperLabel(paper)).tag(paper)
-            }
-          }
-          .pickerStyle(.segmented)
-        }
-
-        Section("Preview") {
-          CreationPaperPreview(
-            template: form.paper,
-            pageSize: .a4,
-            orientation: .portrait,
-            render: renderPreview)
-            .frame(maxWidth: .infinity)
-            .frame(height: 280)
-        }
-
-        Section("Tags") {
-          ForEach(tagNames, id: \.self) { name in
-            Toggle(name, isOn: tagBinding(name))
-          }
-
-          HStack {
-            TextField("New tag", text: $newTag)
-              .textInputAutocapitalization(.never)
-              .nativeFieldSurface()
-              .onSubmit(addTag)
-            Button("Add", action: addTag)
-              .disabled(newTag.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-          }
-        }
-
-        Section("Location") {
-          Picker("Folder", selection: $form.parent) {
-            ForEach(availableFolders) { folder in
-              Text(folder.name).tag(folder)
-            }
-          }
-          Text("You can move this notebook later.")
-            .font(NativeTheme.footnote)
-            .foregroundStyle(NativeTheme.graphite)
-        }
+      CreationSheetLayout {
+        notebookFormFields
+      } preview: {
+        CreationPaperPreview(
+          template: form.paper,
+          pageSize: .a4,
+          orientation: .portrait,
+          render: renderPreview)
       }
       .scrollContentBackground(.hidden)
       .background(NativeTheme.leaf)
@@ -221,6 +135,93 @@ struct NewNotebookSheet: View {
           .disabled(form.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
       }
+    }
+  }
+
+  @ViewBuilder
+  private var notebookFormFields: some View {
+    Section("Notebook") {
+      TextField("Notebook title", text: $form.title)
+        .textInputAutocapitalization(.sentences)
+        .nativeFieldSurface()
+
+      TextEditor(text: $form.description)
+        .scrollContentBackground(.hidden)
+        .frame(minHeight: 72)
+        .nativeFieldSurface()
+        .onChange(of: form.description) { _, value in
+          if value.count > 500 {
+            form.description = String(value.prefix(500))
+          }
+        }
+      Text("Description (optional) · \(form.description.count) / 500")
+        .font(NativeTheme.footnote)
+        .foregroundStyle(NativeTheme.graphite)
+    }
+
+    Section("Cover") {
+      Picker("Cover style", selection: $form.coverStyle) {
+        Text("Classic").tag("classic")
+        Text("Spine").tag("spine")
+      }
+      .pickerStyle(.segmented)
+
+      HStack(spacing: 12) {
+        ForEach(NewNotebookFormState.coverColorOrder, id: \.self) { color in
+          Button {
+            form.coverColor = color
+          } label: {
+            Circle()
+              .fill(colorValue(color))
+              .frame(width: 30, height: 30)
+              .overlay {
+                if form.coverColor == color {
+                  Circle()
+                    .stroke(NativeTheme.ink, lineWidth: 2)
+                    .padding(-4)
+                }
+              }
+          }
+          .buttonStyle(.plain)
+          .accessibilityLabel(NewNotebookFormState.coverColors[color] ?? color)
+          .accessibilityValue(form.coverColor == color ? "Selected" : "")
+        }
+      }
+    }
+
+    Section("Paper") {
+      Picker("Paper style", selection: $form.paper) {
+        ForEach(NewNotebookFormState.paperStyles, id: \.self) { paper in
+          Text(paperLabel(paper)).tag(paper)
+        }
+      }
+      .pickerStyle(.segmented)
+    }
+
+    Section("Tags") {
+      ForEach(tagNames, id: \.self) { name in
+        Toggle(name, isOn: tagBinding(name))
+      }
+
+      HStack {
+        TextField("New tag", text: $newTag)
+          .textInputAutocapitalization(.never)
+          .nativeFieldSurface()
+          .onSubmit(addTag)
+        Button("Add", action: addTag)
+          .disabled(newTag.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+      }
+    }
+
+    Section("Location") {
+      Picker("Folder", selection: $form.parent) {
+        ForEach(availableFolders) { folder in
+          Text(folder.name).tag(folder)
+        }
+      }
+      Text("You can move this notebook later.")
+        .font(NativeTheme.footnote)
+        .foregroundStyle(NativeTheme.graphite)
     }
   }
 

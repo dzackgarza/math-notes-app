@@ -211,109 +211,14 @@ struct NewNoteSheet: View {
 
   var body: some View {
     NavigationStack {
-      Form {
-        Section("Note") {
-          TextField("Title", text: $form.title)
-            .textInputAutocapitalization(.sentences)
-            .nativeFieldSurface()
-        }
-
-        Section("Paper") {
-          Picker("Paper style", selection: $form.template) {
-            ForEach(NewNotePaperStyle.choices, id: \.self) { name in
-              Text(NewNotePaperStyle.shortLabel(name)).tag(name)
-            }
-          }
-          .pickerStyle(.segmented)
-
-          Picker("Page size", selection: $form.pageSize) {
-            ForEach(NewNotePageSize.allCases) { size in
-              Text(size.label).tag(size)
-            }
-          }
-          .pickerStyle(.segmented)
-
-          Picker("Orientation", selection: $form.orientation) {
-            ForEach(NewNoteOrientation.allCases) { value in
-              Text(value.label).tag(value)
-            }
-          }
-          .pickerStyle(.segmented)
-        }
-
-        Section("Preview") {
-          CreationPaperPreview(
-            template: form.template,
-            pageSize: form.pageSize,
-            orientation: form.orientation,
-            render: renderPreview)
-            .frame(maxWidth: .infinity)
-            .frame(height: 280)
-        }
-
-        Section("Tags") {
-          ForEach(tagNames, id: \.self) { name in
-            Toggle(name, isOn: tagBinding(name))
-          }
-          HStack {
-            TextField("New tag", text: $newTag)
-              .textInputAutocapitalization(.never)
-              .nativeFieldSurface()
-              .onSubmit(addTag)
-            Button("Add", action: addTag)
-              .disabled(newTag.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-          }
-        }
-
-        Section("Notebook") {
-          CreationNotebookPreview(folder: form.parent, render: renderNotebookPreview)
-            .frame(maxWidth: .infinity)
-            .frame(height: 120)
-          Picker("Change notebook", selection: $form.parent) {
-            ForEach(availableFolders) { folder in
-              Text(folder.name).tag(folder)
-            }
-          }
-        }
-
-        if !startingTemplates.isEmpty || namingTemplate {
-          Section("Starting template") {
-            ForEach(startingTemplates) { settings in
-              Button {
-                form.apply(settings)
-              } label: {
-                VStack(alignment: .leading, spacing: 2) {
-                  Text(settings.name)
-                  Text(templateSummary(settings))
-                    .font(NativeTheme.footnote)
-                    .foregroundStyle(NativeTheme.graphite)
-                }
-              }
-            }
-
-            if namingTemplate {
-              HStack {
-                TextField("Template name", text: $templateName)
-                  .nativeFieldSurface()
-                Button("Save") {
-                  saveTemplate()
-                }
-                .disabled(templateName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-              }
-            }
-          }
-        }
-
-        Section {
-          if !namingTemplate {
-            Button("Save as template") {
-              namingTemplate = true
-            }
-          }
-          Button("Save as draft") {
-            onSaveDraft(form.draft)
-          }
-        }
+      CreationSheetLayout {
+        noteFormFields
+      } preview: {
+        CreationPaperPreview(
+          template: form.template,
+          pageSize: form.pageSize,
+          orientation: form.orientation,
+          render: renderPreview)
       }
       .scrollContentBackground(.hidden)
       .background(NativeTheme.leaf)
@@ -351,6 +256,102 @@ struct NewNoteSheet: View {
           }
           .disabled(form.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var noteFormFields: some View {
+    Section("Note") {
+      TextField("Title", text: $form.title)
+        .textInputAutocapitalization(.sentences)
+        .nativeFieldSurface()
+    }
+
+    Section("Paper") {
+      Picker("Paper style", selection: $form.template) {
+        ForEach(NewNotePaperStyle.choices, id: \.self) { name in
+          Text(NewNotePaperStyle.shortLabel(name)).tag(name)
+        }
+      }
+      .pickerStyle(.segmented)
+
+      Picker("Page size", selection: $form.pageSize) {
+        ForEach(NewNotePageSize.allCases) { size in
+          Text(size.label).tag(size)
+        }
+      }
+      .pickerStyle(.segmented)
+
+      Picker("Orientation", selection: $form.orientation) {
+        ForEach(NewNoteOrientation.allCases) { value in
+          Text(value.label).tag(value)
+        }
+      }
+      .pickerStyle(.segmented)
+    }
+
+    Section("Tags") {
+      ForEach(tagNames, id: \.self) { name in
+        Toggle(name, isOn: tagBinding(name))
+      }
+      HStack {
+        TextField("New tag", text: $newTag)
+          .textInputAutocapitalization(.never)
+          .nativeFieldSurface()
+          .onSubmit(addTag)
+        Button("Add", action: addTag)
+          .disabled(newTag.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+      }
+    }
+
+    Section("Notebook") {
+      CreationNotebookPreview(folder: form.parent, render: renderNotebookPreview)
+        .frame(maxWidth: .infinity)
+        .frame(height: 120)
+      Picker("Change notebook", selection: $form.parent) {
+        ForEach(availableFolders) { folder in
+          Text(folder.name).tag(folder)
+        }
+      }
+    }
+
+    if !startingTemplates.isEmpty || namingTemplate {
+      Section("Starting template") {
+        ForEach(startingTemplates) { settings in
+          Button {
+            form.apply(settings)
+          } label: {
+            VStack(alignment: .leading, spacing: 2) {
+              Text(settings.name)
+              Text(templateSummary(settings))
+                .font(NativeTheme.footnote)
+                .foregroundStyle(NativeTheme.graphite)
+            }
+          }
+        }
+
+        if namingTemplate {
+          HStack {
+            TextField("Template name", text: $templateName)
+              .nativeFieldSurface()
+            Button("Save") {
+              saveTemplate()
+            }
+            .disabled(templateName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+          }
+        }
+      }
+    }
+
+    Section {
+      if !namingTemplate {
+        Button("Save as template") {
+          namingTemplate = true
+        }
+      }
+      Button("Save as draft") {
+        onSaveDraft(form.draft)
       }
     }
   }

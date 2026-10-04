@@ -381,6 +381,7 @@ struct ContentView: View {
         renderPreview: renderPaperPreview,
         onCreate: createNewNotebook,
         onCancel: { showingNewNotebook = false })
+        .presentationSizing(.page.fitted(horizontal: false, vertical: true))
     }
     .sheet(isPresented: $showingNewNote) {
       NewNoteSheet(
@@ -397,6 +398,7 @@ struct ContentView: View {
         renderPreview: renderPaperPreview,
         renderNotebookPreview: renderNotebookPreview,
         onCancel: { showingNewNote = false })
+        .presentationSizing(.page.fitted(horizontal: false, vertical: true))
     }
     .sheet(item: $libraryMutation) { request in
       LibraryMutationSheet(
