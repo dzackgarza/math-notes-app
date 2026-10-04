@@ -11,7 +11,7 @@ private enum OpenNotePickerPurpose {
 
   var title: String {
     switch self {
-    case .tab: "Open Note"
+    case .tab: "Open note"
     case .reference: "Choose Reference"
     case .linkTarget: "Choose Linked Note"
     }
@@ -267,11 +267,11 @@ struct ContentView: View {
           }
         } else {
           ContentUnavailableView {
-            Label("Choose Notes Folder", systemImage: "folder")
+            Label("Choose notes folder", systemImage: "folder")
           } description: {
             Text("Math Notes edits notebooks directly in a folder you choose in Files.")
           } actions: {
-            Button("Choose Folder") {
+            Button("Choose folder") {
               showingFolderPicker = true
             }
             .buttonStyle(.borderedProminent)
@@ -639,7 +639,7 @@ struct ContentView: View {
           Button {
             prepareOpenNotePicker(.tab)
           } label: {
-            Label("Open Note", systemImage: "doc.badge.plus")
+            Label("Open note", systemImage: "doc.badge.plus")
           }
         }
         ToolbarItem(placement: .topBarTrailing) {
@@ -896,7 +896,7 @@ struct ContentView: View {
       Button {
         fitRevision &+= 1
       } label: {
-        let label = selected == .horizontal ? "Fit Height" : "Fit Width"
+        let label = selected == .horizontal ? "Fit height" : "Fit width"
         if viewState?.fitActive == true {
           Label(label, systemImage: "checkmark")
         } else {
@@ -921,7 +921,7 @@ struct ContentView: View {
       }
       Divider()
       Button(
-        openNotes.splitOpen ? "Close Split" : "Split View",
+        openNotes.splitOpen ? "Close split view" : "Split view",
         systemImage: "rectangle.split.2x1"
       ) {
         toggleSplit()
@@ -931,13 +931,13 @@ struct ContentView: View {
           openNotes.toggleLinkedViews()
         } label: {
           if openNotes.linkedViews {
-            Label("Link Views", systemImage: "checkmark")
+            Label("Link views", systemImage: "checkmark")
           } else {
-            Label("Link Views", systemImage: "link")
+            Label("Link views", systemImage: "link")
           }
         }
         .accessibilityAddTraits(openNotes.linkedViews ? .isSelected : [])
-        Button("Rotate Split", systemImage: "rectangle.2.swap") {
+        Button("Rotate split", systemImage: "rectangle.2.swap") {
           openNotes.rotateSplit()
         }
       }
@@ -952,11 +952,11 @@ struct ContentView: View {
       drawing: viewState?.captureActive == true,
       pageCount: count)
     Menu {
-      Button("Page Overview", systemImage: "square.grid.2x2") {
+      Button("Page overview", systemImage: "square.grid.2x2") {
         showingPageOverview = true
       }
       .disabled(!availability.pageOverview)
-      Button("Go to Page", systemImage: "number") {
+      Button("Go to page", systemImage: "number") {
         goToPage = GoToPageRequest(
           pageCount: count,
           currentPage: currentPage)
@@ -989,7 +989,7 @@ struct ContentView: View {
         editorPageCommand = .clear(currentPage)
       }
       .disabled(!availability.clearPage)
-      Button("Paper for New Pages", systemImage: "doc.text") {
+      Button("Paper for new pages", systemImage: "doc.text") {
         preparePagePaper(session)
       }
       .disabled(!availability.paper)
@@ -998,7 +998,7 @@ struct ContentView: View {
         prepareBookmarks(session)
       }
       .disabled(!availability.bookmarks)
-      Button("Add Bookmark", systemImage: "bookmark.fill") {
+      Button("Add bookmark", systemImage: "bookmark.fill") {
         editorPageCommand = .addBookmark
       }
       .disabled(!availability.addBookmark)

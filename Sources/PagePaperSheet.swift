@@ -78,7 +78,7 @@ struct PagePaperSheet: View {
   var body: some View {
     NavigationStack {
       Form {
-        Section("Paper Style") {
+        Section("Paper style") {
           ForEach(request.templates, id: \.self) { template in
             Button {
               selectedTemplate = template
@@ -96,7 +96,7 @@ struct PagePaperSheet: View {
           }
         }
 
-        Section("Page Size") {
+        Section("Page size") {
           Picker("Page size", selection: $size) {
             Text("A4").tag(PageSizeChoice.a4)
             Text("Letter").tag(PageSizeChoice.letter)
@@ -129,7 +129,7 @@ struct PagePaperSheet: View {
           }
         }
       }
-      .navigationTitle("Paper for New Pages")
+      .navigationTitle("Paper for new pages")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .confirmationAction) {

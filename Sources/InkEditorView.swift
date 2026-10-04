@@ -642,7 +642,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     }
     if canSaveClipping {
       actions.append(UIAction(
-        title: "Save to Clippings",
+        title: "Save to clippings",
         image: UIImage(systemName: "tray.and.arrow.down")
       ) { [weak self] _ in
         self?.saveClipping()

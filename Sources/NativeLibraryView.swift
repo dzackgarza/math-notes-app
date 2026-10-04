@@ -101,10 +101,10 @@ struct NativeLibraryView: View {
             Text(folder.path.isEmpty ? "Your notebooks appear here." : "This notebook has no notes yet.")
           } actions: {
             if folder.path.isEmpty {
-              Button("Create Notebook", action: createNotebook)
+              Button("Create notebook", action: createNotebook)
                 .buttonStyle(.borderedProminent)
             } else {
-              Button("Create Note", action: createNote)
+              Button("Create note", action: createNote)
                 .buttonStyle(.borderedProminent)
             }
             Button("Rescan", action: refresh)
@@ -203,7 +203,7 @@ struct NativeLibraryView: View {
 
         if folder.path.isEmpty {
           Button(action: createNotebook) {
-            Label("New Notebook", systemImage: "folder.badge.plus")
+            Label("New notebook", systemImage: "folder.badge.plus")
           }
         } else {
           Button(action: importPDF) {
@@ -211,7 +211,7 @@ struct NativeLibraryView: View {
           }
 
           Button(action: createNote) {
-            Label("New Note", systemImage: "square.and.pencil")
+            Label("New note", systemImage: "square.and.pencil")
           }
 
           Menu {
@@ -338,9 +338,9 @@ struct NativeLibraryView: View {
         setSort(.modified)
       } label: {
         if sort == .modified {
-          Label("Date Modified", systemImage: "checkmark")
+          Label("Date modified", systemImage: "checkmark")
         } else {
-          Text("Date Modified")
+          Text("Date modified")
         }
       }
       .accessibilityAddTraits(sort == .modified ? .isSelected : [])
@@ -374,9 +374,9 @@ struct NativeLibraryView: View {
           setSortDirection(.descending)
         } label: {
           if sortDirection == .descending {
-            Label("Newest First", systemImage: "checkmark")
+            Label("Newest first", systemImage: "checkmark")
           } else {
-            Text("Newest First")
+            Text("Newest first")
           }
         }
         .accessibilityAddTraits(sortDirection == .descending ? .isSelected : [])
@@ -385,9 +385,9 @@ struct NativeLibraryView: View {
           setSortDirection(.ascending)
         } label: {
           if sortDirection == .ascending {
-            Label("Oldest First", systemImage: "checkmark")
+            Label("Oldest first", systemImage: "checkmark")
           } else {
-            Text("Oldest First")
+            Text("Oldest first")
           }
         }
         .accessibilityAddTraits(sortDirection == .ascending ? .isSelected : [])
@@ -589,7 +589,7 @@ struct NativeLibraryView: View {
       moveEntry(entry)
     }
     Divider()
-    Button("Move to Trash", systemImage: "trash", role: .destructive) {
+    Button("Move to trash", systemImage: "trash", role: .destructive) {
       trashEntry(entry)
     }
   }
@@ -602,12 +602,12 @@ struct NativeLibraryView: View {
       }
     } else {
       Button(
-        item.favorite ? "Remove Favorite" : "Add Favorite",
+        item.favorite ? "Remove favorite" : "Add favorite",
         systemImage: item.favorite ? "star.fill" : "star")
       {
         toggleFavorite(item)
       }
-      Button("Details and Tags", systemImage: "tag") {
+      Button("Details and tags", systemImage: "tag") {
         editNoteDetails(item.reference)
       }
       if item.conflicts > 0 {
@@ -622,7 +622,7 @@ struct NativeLibraryView: View {
 
   @ViewBuilder
   private func folderActions(_ reference: FolderReference) -> some View {
-    Button("Details and Tags", systemImage: "tag") {
+    Button("Details and tags", systemImage: "tag") {
       editFolderDetails(reference)
     }
     if !reference.path.isEmpty {

@@ -26,7 +26,7 @@ enum EditorTool: String, CaseIterable, Identifiable {
     case .highlighter: "Highlighter"
     case .eraser: "Eraser"
     case .lasso: "Lasso"
-    case .space: "Insert Space"
+    case .space: "Insert space"
     case .navigate: "Follow links"
     case .text: "Text"
     case .image: "Image"
@@ -251,7 +251,7 @@ struct EditorToolRail: View {
         ForEach(visibleInserterTools) { toolControl($0) }
         if !hiddenTools.contains("drawing") {
           railButton(
-            label: drawing ? "Finish drawing" : "Drawing mode",
+            label: drawing ? "Complete drawing" : "Drawing mode",
             systemImage: "scribble.variable",
             selected: drawing,
             action: toggleDrawing)

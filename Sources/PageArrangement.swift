@@ -9,9 +9,9 @@ enum EditorPageArrangement: Int, CaseIterable, Identifiable {
 
   var label: String {
     switch self {
-    case .vertical: "Vertical Scroll"
-    case .horizontal: "Horizontal Scroll"
-    case .twoPage: "Two Pages"
+    case .vertical: "Vertical scroll"
+    case .horizontal: "Horizontal scroll"
+    case .twoPage: "Two pages"
     }
   }
 
