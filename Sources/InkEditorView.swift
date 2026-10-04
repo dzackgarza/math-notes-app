@@ -564,9 +564,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     itemsForBeginning session: UIDragSession
   ) -> [UIDragItem] {
     onFocusRequested()
-    guard !fingerDrawing else { return [] }
-    guard !figureCaptureActive, !figureCompleting else { return [] }
     let copyHandle = interaction.view === selectionCopyDragHandle
+    guard !fingerDrawing || copyHandle else { return [] }
+    guard !figureCaptureActive, !figureCompleting else { return [] }
     if !copyHandle {
       let location = session.location(in: canvasView)
       guard let selection = canvasView.selectionFrame(), selection.contains(location) else { return [] }
