@@ -849,10 +849,12 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     let minimumX = safe.minX + 8
     let maximumX = max(minimumX, safe.maxX - size.width - 8)
     let x = min(max(target.midX - size.width / 2, minimumX), maximumX)
-    var y = target.minY - size.height - 8
-    if y < safe.minY + 8 {
-      y = min(target.maxY + 8, safe.maxY - size.height - 8)
-    }
+    let preferredY = target.maxY + size.height + 8 <= safe.maxY
+      ? target.maxY + 8
+      : target.minY - size.height - 8
+    let minimumY = safe.minY + 8
+    let maximumY = max(minimumY, safe.maxY - size.height - 8)
+    let y = min(max(preferredY, minimumY), maximumY)
     selectionBar.frame = CGRect(origin: CGPoint(x: x, y: y), size: size)
   }
 
