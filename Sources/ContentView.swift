@@ -135,6 +135,7 @@ struct ContentView: View {
   @State private var selectedDrawingTool: EditorTool = .pen
   @State private var penLibrary = EditorPenLibrary.defaults
   @State private var sharePayload: SharePayload?
+  @State private var exportPayload: ExportPayload?
   @State private var pdfExport: PDFExportRequest?
   @State private var showingPDFImporter = false
   @State private var showingImageImporter = false
@@ -237,11 +238,6 @@ struct ContentView: View {
     nonmutating set { viewState?.editorPageCommand = newValue }
   }
 
-  private var openConflictCount: Int {
-    get { session?.conflictCount ?? 0 }
-    nonmutating set { session?.conflictCount = newValue }
-  }
-
   var body: some View {
     NavigationStack {
       Group {
@@ -335,16 +331,20 @@ struct ContentView: View {
     .sheet(item: $sharePayload) { payload in
       ActivityShareSheet(url: payload.url)
     }
+    .sheet(item: $exportPayload) { payload in
+      DocumentExportPicker(url: payload.url)
+    }
     .sheet(item: $pdfExport) { request in
       PDFExportSheet(
         request: request,
         onExport: { firstPage, pageCount, layerIDs in
-          guard let session else {
+          guard let exportSession = openNotes.opened.first(where: { $0.id == request.sessionID }) else {
             pdfExport = nil
             return
           }
-          sharePDF(
-            session,
+          finishPDFExport(
+            exportSession,
+            destination: request.destination,
             firstPage: firstPage,
             pageCount: pageCount,
             layerIDs: layerIDs)
@@ -813,32 +813,48 @@ struct ContentView: View {
 
   @ViewBuilder
   private func documentMenu(_ session: OpenNotebookSession) -> some View {
+    let drawing = viewState?.captureActive == true
     Menu {
-      Button("Save", systemImage: "square.and.arrow.down") {
-        saveOpenNotebook()
+      Button {
+        saveNotebook(session)
+      } label: {
+        Label(session.saveStatus == .failed ? "Retry save" : "Save", systemImage: "square.and.arrow.down")
       }
-      if openConflictCount > 0 {
+      .disabled(drawing)
+
+      Button(PDFExportDestination.share.menuLabel, systemImage: "square.and.arrow.up") {
+        preparePDFExport(session, destination: .share)
+      }
+      .disabled(drawing)
+
+      Button(PDFExportDestination.export.menuLabel, systemImage: "folder") {
+        preparePDFExport(session, destination: .export)
+      }
+      .disabled(drawing)
+
+      if session.conflictCount > 0 {
         Button("Compare conflicting versions", systemImage: "exclamationmark.triangle") {
           prepareConflicts(session.reference)
         }
+        .disabled(drawing)
       }
-      Button("Export PDF…", systemImage: "square.and.arrow.up") {
-        preparePDFExport(session)
-      }
-      Divider()
-      Button("Settings", systemImage: "gearshape") {
-        settingsFromLibrary = false
-        showingEditorSettings = true
-      }
+
       Divider()
       if openNotes.rightFocused && openNotes.splitOpen {
-        Button("Close split", systemImage: "rectangle.split.2x1") {
+        Button("Close note", systemImage: "rectangle.split.2x1") {
           closeSplit()
         }
+        .disabled(drawing)
       } else {
         Button("Close note", systemImage: "xmark") {
           closeOpenNote(session.id)
         }
+        .disabled(drawing)
+      }
+
+      Button("Settings", systemImage: "gearshape") {
+        settingsFromLibrary = false
+        showingEditorSettings = true
       }
     } label: {
       Label("More", systemImage: "ellipsis")
@@ -1294,7 +1310,7 @@ struct ContentView: View {
           direction: librarySortDirection)
       }
       if let session {
-        openConflictCount = (try? root.conflictCount(session.reference)) ?? 0
+        session.conflictCount = (try? root.conflictCount(session.reference)) ?? 0
       }
     } catch {
       libraryFolderDetails = nil
@@ -2152,9 +2168,14 @@ struct ContentView: View {
     }
   }
 
-  private func preparePDFExport(_ session: OpenNotebookSession) {
+  private func preparePDFExport(
+    _ session: OpenNotebookSession,
+    destination: PDFExportDestination
+  ) {
     do {
       pdfExport = PDFExportRequest(
+        sessionID: session.id,
+        destination: destination,
         pageCount: try session.document.pageCount(),
         currentPage: currentPage,
         layers: try session.document.layers())
@@ -2163,14 +2184,16 @@ struct ContentView: View {
     }
   }
 
-  private func sharePDF(
+  private func finishPDFExport(
     _ session: OpenNotebookSession,
+    destination: PDFExportDestination,
     firstPage: Int,
     pageCount: Int,
     layerIDs: [String]
   ) {
+    guard let root else { return }
     do {
-      try saveOpenNotebookThrowing()
+      try saveSession(session, using: root)
       let total = try session.document.pageCount()
       let data = try session.document.exportPDF(
         title: session.reference.name,
@@ -2183,10 +2206,14 @@ struct ContentView: View {
         .appendingPathComponent(baseName)
         .appendingPathExtension("pdf")
       try data.write(to: url, options: .atomic)
-      let payload = SharePayload(url: url)
       pdfExport = nil
       DispatchQueue.main.async {
-        sharePayload = payload
+        switch destination {
+        case .share:
+          sharePayload = SharePayload(url: url)
+        case .export:
+          exportPayload = ExportPayload(url: url)
+        }
       }
     } catch {
       errorMessage = error.localizedDescription
@@ -2300,11 +2327,6 @@ struct ContentView: View {
     } catch {
       errorMessage = error.localizedDescription
     }
-  }
-
-  private func saveOpenNotebookThrowing() throws {
-    guard let root, let session else { return }
-    try saveSession(session, using: root)
   }
 
   private func saveOpenNotebook() {

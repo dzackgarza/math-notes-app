@@ -1,8 +1,36 @@
 import Foundation
 import SwiftUI
 
+enum PDFExportDestination: Equatable {
+  case share
+  case export
+
+  var menuLabel: String {
+    switch self {
+    case .share: "Share"
+    case .export: "Export PDF"
+    }
+  }
+
+  var title: String {
+    switch self {
+    case .share: "Share PDF"
+    case .export: "Export PDF"
+    }
+  }
+
+  var actionLabel: String {
+    switch self {
+    case .share: "Share"
+    case .export: "Export"
+    }
+  }
+}
+
 struct PDFExportRequest: Identifiable {
   let id = UUID()
+  let sessionID: UUID
+  let destination: PDFExportDestination
   let pageCount: Int
   let currentPage: Int
   let layers: [EngineLayer]
@@ -82,14 +110,14 @@ struct PDFExportSheet: View {
           }
         }
       }
-      .navigationTitle("Export PDF")
+      .navigationTitle(request.destination.title)
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel", action: onCancel)
         }
         ToolbarItem(placement: .confirmationAction) {
-          Button("Export") {
+          Button(request.destination.actionLabel) {
             let layers = request.layers
               .filter { includedLayers.contains($0.id) }
               .map(\.id)
