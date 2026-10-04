@@ -38,7 +38,7 @@ struct UndoDialButton: View {
   @State private var indicatorAngle = 0.0
   @State private var indicatorCount = 0
 
-  private let buttonSize = 42.0
+  private let buttonSize = Double(EditorToolRailMetrics.targetSize)
 
   var body: some View {
     Image(systemName: "arrow.uturn.backward")

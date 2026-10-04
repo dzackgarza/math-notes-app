@@ -166,6 +166,21 @@ struct EditorPenSet: Equatable {
   }()
 }
 
+// The default rail is 13 targets and 12 equal gaps: 13 * 44 + 12 * 8 = 668 pt.
+// That leaves the 8 pt top inset inside a 720 pt canvas without vertical padding.
+enum EditorToolRailMetrics {
+  static let width: CGFloat = 60
+  static let targetSize: CGFloat = 44
+  static let gap: CGFloat = 8
+
+  static func contentHeight(groupCounts: [Int]) -> CGFloat {
+    let groups = groupCounts.filter { $0 > 0 }
+    let targets = groups.reduce(0, +)
+    guard targets > 0 else { return 0 }
+    return CGFloat(targets) * targetSize + CGFloat(targets - 1) * gap
+  }
+}
+
 @MainActor
 struct EditorToolRail: View {
   @Binding var tool: EditorTool
@@ -190,68 +205,13 @@ struct EditorToolRail: View {
   let onPensChanged: (EditorPenLibrary) -> Void
 
   var body: some View {
-    VStack(spacing: 8) {
-      ForEach(visibleTools) { item in
-        if item == .eraser {
-          eraserButton
-        } else if item == .lasso {
-          selectorButton
-        } else if item == .space {
-          spaceButton
-        } else if item == .text {
-          railButton(
-            label: item.label,
-            systemImage: item.systemImage,
-            selected: tool == item
-          ) {
-            tool = .text
-            insertText()
-          }
-        } else if item == .image {
-          railButton(
-            label: item.label,
-            systemImage: item.systemImage,
-            selected: false,
-            action: insertImage)
-        } else {
-          railButton(
-            label: item.label,
-            systemImage: item.systemImage,
-            selected: tool == item
-          ) {
-            if tool == item {
-              editingPen = item
-            } else {
-              tool = item
-            }
-          }
-        }
+    ViewThatFits(in: .vertical) {
+      railContents
+      ScrollView(.vertical, showsIndicators: false) {
+        railContents
       }
-
-      if !hiddenTools.contains("drawing") {
-        railButton(
-          label: drawing ? "Finish drawing" : "Drawing mode",
-          systemImage: "scribble.variable",
-          selected: drawing,
-          action: toggleDrawing)
-      }
-
-      if !drawing {
-        railButton(label: "Clippings", systemImage: "tray", action: showClippings)
-
-        Divider()
-          .overlay(NativeTheme.separator)
-          .frame(width: 28)
-
-        UndoDialButton(undo: undo, redo: redo)
-        railButton(label: "Redo", systemImage: "arrow.uturn.forward") {
-          _ = redo()
-        }
-      }
-
-      colorButton
     }
-    .padding(8)
+    .frame(width: EditorToolRailMetrics.width)
     .foregroundStyle(NativeTheme.ink)
     .background(NativeTheme.leaf, in: RoundedRectangle(cornerRadius: 16))
     .overlay {
@@ -275,9 +235,96 @@ struct EditorToolRail: View {
     }
   }
 
-  private var visibleTools: [EditorTool] {
-    let tools: [EditorTool] = drawing ? [.pen, .marker, .highlighter] : EditorTool.toolbarCases
-    return tools.filter { !hiddenTools.contains($0.rawValue) }
+  private var railContents: some View {
+    VStack(spacing: 0) {
+      if !visibleWritingTools.isEmpty {
+        VStack(spacing: EditorToolRailMetrics.gap) {
+          ForEach(visibleWritingTools) { toolControl($0) }
+        }
+        railSeparator
+      }
+
+      VStack(spacing: EditorToolRailMetrics.gap) {
+        ForEach(visibleInserterTools) { toolControl($0) }
+        if !hiddenTools.contains("drawing") {
+          railButton(
+            label: drawing ? "Finish drawing" : "Drawing mode",
+            systemImage: "scribble.variable",
+            selected: drawing,
+            action: toggleDrawing)
+        }
+        railButton(label: "Clippings", systemImage: "tray", action: showClippings)
+      }
+
+      railSeparator
+
+      VStack(spacing: EditorToolRailMetrics.gap) {
+        UndoDialButton(undo: undo, redo: redo)
+          .disabled(drawing)
+        railButton(label: "Redo", systemImage: "arrow.uturn.forward") {
+          _ = redo()
+        }
+        .disabled(drawing)
+      }
+
+      railSeparator
+      colorButton
+    }
+  }
+
+  private var railSeparator: some View {
+    Divider()
+      .overlay(NativeTheme.separator)
+      .frame(width: 28, height: EditorToolRailMetrics.gap)
+  }
+
+  private var visibleWritingTools: [EditorTool] {
+    [.pen, .marker, .highlighter, .eraser, .lasso]
+      .filter { !hiddenTools.contains($0.rawValue) }
+  }
+
+  private var visibleInserterTools: [EditorTool] {
+    [.text, .image, .space]
+      .filter { !hiddenTools.contains($0.rawValue) }
+  }
+
+  @ViewBuilder
+  private func toolControl(_ item: EditorTool) -> some View {
+    if item == .eraser {
+      eraserButton
+    } else if item == .lasso {
+      selectorButton
+    } else if item == .space {
+      spaceButton
+        .disabled(drawing)
+    } else if item == .text {
+      railButton(
+        label: item.label,
+        systemImage: item.systemImage,
+        selected: tool == item
+      ) {
+        tool = .text
+        insertText()
+      }
+    } else if item == .image {
+      railButton(
+        label: item.label,
+        systemImage: item.systemImage,
+        selected: false,
+        action: insertImage)
+    } else {
+      railButton(
+        label: item.label,
+        systemImage: item.systemImage,
+        selected: tool == item
+      ) {
+        if tool == item {
+          editingPen = item
+        } else {
+          tool = item
+        }
+      }
+    }
   }
 
   private var colorButton: some View {
@@ -298,7 +345,9 @@ struct EditorToolRail: View {
           Circle()
             .stroke(NativeTheme.ink, lineWidth: 2)
         }
-        .frame(width: 42, height: 42)
+        .frame(
+          width: EditorToolRailMetrics.targetSize,
+          height: EditorToolRailMetrics.targetSize)
     }
     .buttonStyle(.plain)
     .accessibilityLabel(String(format: "Colors #%06x", rgb & 0xFFFFFF))
@@ -448,7 +497,9 @@ struct EditorToolRail: View {
     Button(action: action) {
       Image(systemName: systemImage)
         .font(.system(size: 22))
-        .frame(width: 42, height: 42)
+        .frame(
+          width: EditorToolRailMetrics.targetSize,
+          height: EditorToolRailMetrics.targetSize)
         .contentShape(Rectangle())
     }
     .buttonStyle(.plain)

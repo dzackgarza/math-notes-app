@@ -4,6 +4,15 @@ import XCTest
 @testable import MathNotes
 
 final class EditorToolsTests: XCTestCase {
+  func testNativeRailMatchesTabletGeometry() {
+    XCTAssertEqual(EditorToolRailMetrics.width, 60)
+    XCTAssertEqual(EditorToolRailMetrics.targetSize, 44)
+    XCTAssertEqual(EditorToolRailMetrics.gap, 8)
+    XCTAssertEqual(
+      EditorToolRailMetrics.contentHeight(groupCounts: [5, 5, 2, 1]),
+      668)
+  }
+
   @MainActor
   func testNativeRailReadsTheCoreDefaultPenFile() {
     let pens = EditorPenSet.defaults
