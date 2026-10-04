@@ -36,21 +36,13 @@ struct PDFExportRequest: Identifiable {
   let layers: [EngineLayer]
 }
 
-private enum PDFExportScope: String, CaseIterable, Identifiable {
-  case all = "All Pages"
-  case range = "Page Range"
-
-  var id: Self { self }
-}
-
 struct PDFExportSheet: View {
   let request: PDFExportRequest
   let onExport: (Int, Int, [String]) -> Void
   let onCancel: () -> Void
 
-  @State private var scope: PDFExportScope = .all
-  @State private var firstPage: Int
-  @State private var lastPage: Int
+  @State private var firstPage: String
+  @State private var lastPage: String
   @State private var includedLayers: Set<String>
 
   init(
@@ -61,9 +53,8 @@ struct PDFExportSheet: View {
     self.request = request
     self.onExport = onExport
     self.onCancel = onCancel
-    let current = min(max(request.currentPage + 1, 1), max(request.pageCount, 1))
-    _firstPage = State(initialValue: current)
-    _lastPage = State(initialValue: current)
+    _firstPage = State(initialValue: "1")
+    _lastPage = State(initialValue: String(max(request.pageCount, 1)))
     _includedLayers = State(
       initialValue: Set(request.layers.filter { !$0.hidden }.map(\.id)))
   }
@@ -72,26 +63,10 @@ struct PDFExportSheet: View {
     NavigationStack {
       Form {
         Section("Pages") {
-          Picker("Export", selection: $scope) {
-            ForEach(PDFExportScope.allCases) { item in
-              Text(item.rawValue).tag(item)
-            }
-          }
-          .pickerStyle(.segmented)
-
-          if scope == .range {
-            Stepper(
-              "From page \(firstPage)",
-              value: $firstPage,
-              in: 1...max(1, lastPage))
-
-            Stepper(
-              "Through page \(lastPage)",
-              value: $lastPage,
-              in: min(firstPage, max(1, request.pageCount))...max(1, request.pageCount))
-          } else {
-            LabeledContent("Page count", value: "\(request.pageCount)")
-          }
+          TextField("First page", text: $firstPage)
+            .keyboardType(.numberPad)
+          TextField("Last page", text: $lastPage)
+            .keyboardType(.numberPad)
         }
 
         Section("Layers") {
@@ -118,18 +93,22 @@ struct PDFExportSheet: View {
         }
         ToolbarItem(placement: .confirmationAction) {
           Button(request.destination.actionLabel) {
+            guard let range = pageRange else { return }
             let layers = request.layers
               .filter { includedLayers.contains($0.id) }
               .map(\.id)
-            if scope == .all {
-              onExport(0, request.pageCount, layers)
-            } else {
-              onExport(firstPage - 1, lastPage - firstPage + 1, layers)
-            }
+            onExport(range.first - 1, range.last - range.first + 1, layers)
           }
-          .disabled(request.pageCount <= 0)
+          .disabled(pageRange == nil)
         }
       }
     }
   }
+  private var pageRange: (first: Int, last: Int)? {
+    guard let first = Int(firstPage), let last = Int(lastPage),
+      first >= 1, last >= first, last <= request.pageCount
+    else { return nil }
+    return (first, last)
+  }
+
 }
