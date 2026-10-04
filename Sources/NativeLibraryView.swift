@@ -661,6 +661,7 @@ struct NativeLibraryView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
       }
       .buttonStyle(.plain)
+      .hoverEffect(.highlight)
       .accessibilityLabel("Open \(item.reference.name)")
 
       folderActionsButton(item)
@@ -705,6 +706,7 @@ struct NativeLibraryView: View {
           notebookCardContent(item)
         }
         .buttonStyle(.plain)
+        .hoverEffect(.highlight)
         .accessibilityLabel("\(item.reference.name) actions")
       } else {
         Button {
@@ -713,6 +715,7 @@ struct NativeLibraryView: View {
           notebookCardContent(item)
         }
         .buttonStyle(.plain)
+        .hoverEffect(.highlight)
         .accessibilityLabel("Open \(item.reference.name)")
       }
 
@@ -774,6 +777,7 @@ struct NativeLibraryView: View {
         }
       }
       .buttonStyle(.plain)
+      .hoverEffect(.highlight)
       .frame(maxWidth: .infinity, alignment: .leading)
 
       folderActionsButton(item)
@@ -792,6 +796,7 @@ struct NativeLibraryView: View {
           notebookRowContent(item)
         }
         .buttonStyle(.plain)
+        .hoverEffect(.highlight)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityLabel("\(item.reference.name) actions")
       } else {
@@ -801,6 +806,7 @@ struct NativeLibraryView: View {
           notebookRowContent(item)
         }
         .buttonStyle(.plain)
+        .hoverEffect(.highlight)
         .frame(maxWidth: .infinity, alignment: .leading)
       }
 
