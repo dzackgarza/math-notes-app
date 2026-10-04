@@ -80,17 +80,7 @@ struct LibraryDetailsSheet: View {
         }
 
         Section("Tags") {
-          ForEach(tagNames, id: \.self) { name in
-            Toggle(name, isOn: tagBinding(name))
-          }
-
-          HStack {
-            TextField("New tag", text: $newTag)
-              .textInputAutocapitalization(.never)
-              .onSubmit(addTag)
-            Button("Add", action: addTag)
-              .disabled(newTag.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-          }
+          EditableTagEditor(tags: $selectedTags, input: $newTag)
         }
 
         if request.target.paper != nil {
@@ -113,37 +103,14 @@ struct LibraryDetailsSheet: View {
         }
         ToolbarItem(placement: .confirmationAction) {
           Button("Save") {
-            onSave(description, selectedTags, request.target.paper == nil ? nil : paper)
+            onSave(
+              description,
+              finalizedTagValues(selectedTags, pendingInput: newTag),
+              request.target.paper == nil ? nil : paper)
           }
         }
       }
     }
   }
 
-  private var tagNames: [String] {
-    var result = request.knownTags.map(\.name)
-    for name in selectedTags where !result.contains(name) {
-      result.append(name)
-    }
-    return result
-  }
-
-  private func tagBinding(_ name: String) -> Binding<Bool> {
-    Binding(
-      get: { selectedTags.contains(name) },
-      set: { selected in
-        if selected {
-          if !selectedTags.contains(name) { selectedTags.append(name) }
-        } else {
-          selectedTags.removeAll { $0 == name }
-        }
-      })
-  }
-
-  private func addTag() {
-    let name = newTag.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !name.isEmpty else { return }
-    if !selectedTags.contains(name) { selectedTags.append(name) }
-    newTag = ""
-  }
 }

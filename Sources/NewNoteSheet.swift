@@ -252,7 +252,7 @@ struct NewNoteSheet: View {
         }
         ToolbarItem(placement: .confirmationAction) {
           Button("Create") {
-            onCreate(form.request)
+            onCreate(finalizedForm.request)
           }
           .disabled(form.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
@@ -292,17 +292,7 @@ struct NewNoteSheet: View {
     }
 
     Section("Tags") {
-      ForEach(tagNames, id: \.self) { name in
-        Toggle(name, isOn: tagBinding(name))
-      }
-      HStack {
-        TextField("New tag", text: $newTag)
-          .textInputAutocapitalization(.never)
-          .nativeFieldSurface()
-          .onSubmit(addTag)
-        Button("Add", action: addTag)
-          .disabled(newTag.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-      }
+      EditableTagEditor(tags: $form.tags, input: $newTag)
     }
 
     Section("Notebook") {
@@ -320,6 +310,7 @@ struct NewNoteSheet: View {
       Section("Starting template") {
         ForEach(startingTemplates) { settings in
           Button {
+            newTag = ""
             form.apply(settings)
           } label: {
             VStack(alignment: .leading, spacing: 2) {
@@ -351,7 +342,7 @@ struct NewNoteSheet: View {
         }
       }
       Button("Save as draft") {
-        onSaveDraft(form.draft)
+        onSaveDraft(finalizedForm.draft)
       }
     }
   }
@@ -376,37 +367,16 @@ struct NewNoteSheet: View {
     folders.contains(form.parent) ? folders : [form.parent] + folders
   }
 
-  private var tagNames: [String] {
-    var result = knownTags.map(\.name)
-    for name in form.tags where !result.contains(name) {
-      result.append(name)
-    }
-    return result
-  }
-
-  private func tagBinding(_ name: String) -> Binding<Bool> {
-    Binding(
-      get: { form.tags.contains(name) },
-      set: { selected in
-        if selected {
-          if !form.tags.contains(name) { form.tags.append(name) }
-        } else {
-          form.tags.removeAll { $0 == name }
-        }
-      })
-  }
-
-  private func addTag() {
-    let name = newTag.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !name.isEmpty else { return }
-    if !form.tags.contains(name) { form.tags.append(name) }
-    newTag = ""
+  private var finalizedForm: NewNoteFormState {
+    var next = form
+    next.tags = finalizedTagValues(form.tags, pendingInput: newTag)
+    return next
   }
 
   private func saveTemplate() {
     let name = templateName.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !name.isEmpty else { return }
-    onSaveTemplate(form.startingTemplate(named: name))
+    onSaveTemplate(finalizedForm.startingTemplate(named: name))
   }
 
   private func templateSummary(_ settings: NewNoteStartingTemplate) -> String {
