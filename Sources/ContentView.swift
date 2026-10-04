@@ -515,10 +515,7 @@ struct ContentView: View {
           onMove: moveClipping,
           onDelete: deleteClipping,
           onRefresh: refreshClippings,
-          onClose: {
-            clippings = nil
-            self.clippingViewState = nil
-          })
+          onClose: dismissClippings)
           .id(request.id)
           .transition(.move(edge: .trailing).combined(with: .opacity))
           .zIndex(10)
@@ -1162,7 +1159,7 @@ struct ContentView: View {
       try openNotes.showLibrary { note in
         try saveSession(note, using: root)
       }
-      clippings = nil
+      dismissClippings()
       conflictReview = nil
       refreshLibrary()
     } catch {
@@ -1192,7 +1189,7 @@ struct ContentView: View {
       try openNotes.close(index) { note in
         try saveSession(note, using: root)
       }
-      clippings = nil
+      dismissClippings()
       conflictReview = nil
       refreshLibrary()
     } catch {
@@ -1223,7 +1220,7 @@ struct ContentView: View {
       openNotes.reset()
     }
 
-    clippings = nil
+    dismissClippings()
     conflictReview = nil
     libraryFolder = FolderReference(path: [])
     libraryQuery = ""
@@ -1667,7 +1664,7 @@ struct ContentView: View {
 
       selectedTool = .pen
       selectedDrawingTool = .pen
-      clippings = nil
+      dismissClippings()
       conflictReview = nil
       openNotes.show(
         OpenNotebookSession(
@@ -1729,7 +1726,7 @@ struct ContentView: View {
       showingNewNote = false
       selectedTool = .pen
       selectedDrawingTool = .pen
-      clippings = nil
+      dismissClippings()
       conflictReview = nil
       openNotes.show(
         OpenNotebookSession(
@@ -1752,7 +1749,7 @@ struct ContentView: View {
         load: { reference in
           try makeOpenSession(reference, using: root)
         })
-      clippings = nil
+      dismissClippings()
       conflictReview = nil
     } catch {
       handleOpenNotesError(error)
@@ -1770,7 +1767,7 @@ struct ContentView: View {
         load: { reference in
           try makeOpenSession(reference, using: root)
         })
-      clippings = nil
+      dismissClippings()
       conflictReview = nil
     } catch {
       handleOpenNotesError(error)
@@ -1778,16 +1775,24 @@ struct ContentView: View {
   }
 
   private func toggleSplit() {
+    let closingView = openNotes.splitOpen ? openNotes.secondaryView : nil
     do {
       try openNotes.toggleSplit()
+      if let closingView, clippingViewState === closingView {
+        dismissClippings()
+      }
     } catch {
       handleOpenNotesError(error)
     }
   }
 
   private func closeSplit() {
+    let closingView = openNotes.secondaryView
     do {
       try openNotes.closeSplitIfAllowed()
+      if let closingView, clippingViewState === closingView {
+        dismissClippings()
+      }
     } catch {
       handleOpenNotesError(error)
     }
@@ -1982,7 +1987,7 @@ struct ContentView: View {
         }
         targetView.currentPage = mark.page
         targetView.editorPageCommand = .jumpToMark(mark)
-        clippings = nil
+        dismissClippings()
         conflictReview = nil
       }
     } catch {
@@ -2081,7 +2086,7 @@ struct ContentView: View {
             using: root,
             currentPage: previousPage)
         }
-        clippings = nil
+        dismissClippings()
       }
 
       let remaining = try root.conflicts(request.reference)
@@ -2102,6 +2107,11 @@ struct ContentView: View {
     return try root.clippingPreviews().enumerated().map {
       ClippingPreview(id: $0.element.id, index: $0.offset, png: $0.element.png)
     }
+  }
+
+  private func dismissClippings() {
+    clippings = nil
+    clippingViewState = nil
   }
 
   private func prepareClippings(viewState: OpenNotebookViewState) {
