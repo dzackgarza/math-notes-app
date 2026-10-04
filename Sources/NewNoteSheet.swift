@@ -49,6 +49,35 @@ enum NewNoteOrientation: String, CaseIterable, Identifiable {
   }
 }
 
+enum NewNotePaperStyle {
+  static let choices = ["dotted", "grid-medium", "lined-medium", "blank", "grid-fine"]
+
+  static func shortLabel(_ name: String) -> String {
+    switch name {
+    case "dotted": "Dot"
+    case "grid-medium": "Grid"
+    case "lined-medium": "Lined"
+    case "blank": "Plain"
+    case "grid-fine": "Graph"
+    default: name.replacingOccurrences(of: "-", with: " ").capitalized
+    }
+  }
+
+  static func summaryLabel(_ name: String) -> String {
+    switch name {
+    case "dotted": "Dot paper"
+    case "grid-medium": "Grid paper"
+    case "lined-medium": "Lined paper"
+    case "blank": "Plain paper"
+    case "grid-fine": "Graph paper"
+    case "lined-wide": "Lined paper, wide"
+    case "lined-narrow": "Lined paper, narrow"
+    case "grid-coarse": "Grid paper, coarse"
+    default: name.replacingOccurrences(of: "-", with: " ").capitalized
+    }
+  }
+}
+
 struct NewNoteFormState: Equatable {
   var title: String
   var parent: FolderReference
@@ -130,7 +159,6 @@ struct NewNoteFormState: Equatable {
 @MainActor
 struct NewNoteSheet: View {
   let folders: [FolderReference]
-  let templates: [String]
   let knownTags: [LibraryTag]
   let startingTemplates: [NewNoteStartingTemplate]
   let onCreate: (NewNoteRequest) -> Void
@@ -163,7 +191,6 @@ struct NewNoteSheet: View {
     onCancel: @escaping () -> Void
   ) {
     self.folders = folders
-    self.templates = templates
     self.knownTags = knownTags
     self.startingTemplates = startingTemplates
     self.onCreate = onCreate
@@ -193,22 +220,25 @@ struct NewNoteSheet: View {
 
         Section("Paper") {
           Picker("Paper style", selection: $form.template) {
-            ForEach(availableTemplates, id: \.self) { name in
-              Text(displayName(name)).tag(name)
+            ForEach(NewNotePaperStyle.choices, id: \.self) { name in
+              Text(NewNotePaperStyle.shortLabel(name)).tag(name)
             }
           }
+          .pickerStyle(.segmented)
 
           Picker("Page size", selection: $form.pageSize) {
             ForEach(NewNotePageSize.allCases) { size in
               Text(size.label).tag(size)
             }
           }
+          .pickerStyle(.segmented)
 
           Picker("Orientation", selection: $form.orientation) {
             ForEach(NewNoteOrientation.allCases) { value in
               Text(value.label).tag(value)
             }
           }
+          .pickerStyle(.segmented)
         }
 
         Section("Preview") {
@@ -345,10 +375,6 @@ struct NewNoteSheet: View {
     folders.contains(form.parent) ? folders : [form.parent] + folders
   }
 
-  private var availableTemplates: [String] {
-    templates.contains(form.template) ? templates : [form.template] + templates
-  }
-
   private var tagNames: [String] {
     var result = knownTags.map(\.name)
     for name in form.tags where !result.contains(name) {
@@ -382,14 +408,8 @@ struct NewNoteSheet: View {
     onSaveTemplate(form.startingTemplate(named: name))
   }
 
-  private func displayName(_ template: String) -> String {
-    template
-      .replacingOccurrences(of: "-", with: " ")
-      .capitalized
-  }
-
   private func templateSummary(_ settings: NewNoteStartingTemplate) -> String {
-    let paper = displayName(settings.paper)
+    let paper = NewNotePaperStyle.summaryLabel(settings.paper)
     let tags = "\(settings.tags.count) tag\(settings.tags.count == 1 ? "" : "s")"
     return "\(paper) · \(settings.pageSize.uppercased()) · \(tags)"
   }

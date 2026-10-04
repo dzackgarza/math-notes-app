@@ -2,6 +2,38 @@ import XCTest
 @testable import MathNotes
 
 final class NewNoteSheetTests: XCTestCase {
+  func testPaperChoicesAndLabelsMatchWebCreationSheet() {
+    XCTAssertEqual(
+      NewNotePaperStyle.choices,
+      ["dotted", "grid-medium", "lined-medium", "blank", "grid-fine"])
+    XCTAssertEqual(NewNotePaperStyle.shortLabel("dotted"), "Dot")
+    XCTAssertEqual(NewNotePaperStyle.shortLabel("grid-medium"), "Grid")
+    XCTAssertEqual(NewNotePaperStyle.shortLabel("lined-medium"), "Lined")
+    XCTAssertEqual(NewNotePaperStyle.shortLabel("blank"), "Plain")
+    XCTAssertEqual(NewNotePaperStyle.shortLabel("grid-fine"), "Graph")
+    XCTAssertEqual(NewNotePaperStyle.summaryLabel("grid-medium"), "Grid paper")
+    XCTAssertEqual(NewNotePaperStyle.summaryLabel("lined-wide"), "Lined paper, wide")
+    XCTAssertEqual(NewNotePaperStyle.summaryLabel("grid-coarse"), "Grid paper, coarse")
+  }
+
+  func testUnlistedFolderPaperDefaultIsPreservedUntilChanged() {
+    let root = FolderReference(path: [])
+    let state = NewNoteFormState(
+      folders: [root],
+      templates: ["blank", "lined-wide"],
+      initialParent: root,
+      folderDefaults: LibraryFolderDetails(
+        description: "",
+        paper: "lined-wide",
+        coverColor: "#24324A",
+        coverStyle: "classic",
+        tags: []),
+      draft: nil)
+
+    XCTAssertEqual(state.template, "lined-wide")
+    XCTAssertFalse(NewNotePaperStyle.choices.contains(state.template))
+  }
+
   func testDefaultsComeFromCurrentFolderWithoutDraft() {
     let root = FolderReference(path: [])
     let analysis = FolderReference(path: ["Analysis"])
