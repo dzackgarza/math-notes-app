@@ -947,8 +947,8 @@ final class NotesRootAccess {
 
     return try coordinatedRead(at: url) { root in
       let fileManager = FileManager.default
-      let favoritePaths = try LibraryMetadataFile.favoritePaths(
-        in: LibraryMetadataFile.read(at: root))
+      let metadata = try LibraryMetadataFile.read(at: root)
+      let favoritePaths = try LibraryMetadataFile.favoritePaths(in: metadata)
       var folders: [LibraryFolderItem] = []
       var notebooks: [LibraryNotebookItem] = []
 
@@ -968,7 +968,13 @@ final class NotesRootAccess {
           if fileManager.fileExists(
             atPath: child.appendingPathComponent("notebook.json").path)
           {
-            if name.localizedCaseInsensitiveContains(needle) {
+            let details = try LibraryMetadataFile.noteDetails(in: metadata, path: childPath)
+            if Self.matchesSearch(
+              needle,
+              name: name,
+              description: details.description,
+              tags: details.tags)
+            {
               notebooks.append(
                 LibraryNotebookItem(
                   reference: NotebookReference(path: childPath),
@@ -977,18 +983,24 @@ final class NotesRootAccess {
                   conflicts: try combinedConflictCount(
                     NotebookReference(path: childPath),
                     at: child),
-                  details: try LibraryMetadataFile.noteDetails(
-                    in: LibraryMetadataFile.read(at: root), path: childPath)))
+                  details: details))
             }
           } else {
-            if name.localizedCaseInsensitiveContains(needle) {
+            let details = try LibraryMetadataFile.folderDetails(in: metadata, path: childPath)
+            let directNoteNames = try Self.directNotebookNames(in: child)
+            if Self.matchesSearch(
+              needle,
+              name: name,
+              description: details.description,
+              tags: details.tags,
+              additionalNames: directNoteNames)
+            {
               folders.append(
                 LibraryFolderItem(
                   reference: FolderReference(path: childPath),
                   modified: try Self.latestNotebookModification(in: child),
-                  noteCount: try Self.directNotebookCount(in: child),
-                  details: try LibraryMetadataFile.folderDetails(
-                    in: LibraryMetadataFile.read(at: root), path: childPath)))
+                  noteCount: directNoteNames.count,
+                  details: details))
             }
             try visit(child, path: childPath)
           }
@@ -1192,18 +1204,20 @@ final class NotesRootAccess {
   }
 
   func trashNotes(
+    query: String = "",
     sort: LibrarySort,
     direction: LibrarySortDirection
   ) throws -> LibraryListing {
-    try coordinatedRead(at: url) { root in
+    let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    return try coordinatedRead(at: url) { root in
       let trash = root.appendingPathComponent(".trash", isDirectory: true)
       guard FileManager.default.fileExists(atPath: trash.path) else {
         return LibraryListing(folders: [], notebooks: [])
       }
 
       let fileManager = FileManager.default
-      let favoritePaths = try LibraryMetadataFile.favoritePaths(
-        in: LibraryMetadataFile.read(at: root))
+      let metadata = try LibraryMetadataFile.read(at: root)
+      let favoritePaths = try LibraryMetadataFile.favoritePaths(in: metadata)
       var notebooks: [LibraryNotebookItem] = []
 
       func visit(_ directory: URL, path: [String]) throws {
@@ -1219,16 +1233,23 @@ final class NotesRootAccess {
           if fileManager.fileExists(
             atPath: child.appendingPathComponent("notebook.json").path)
           {
-            notebooks.append(
-              LibraryNotebookItem(
-                reference: NotebookReference(path: childPath),
-                modified: try Self.notebookModification(at: child),
-                favorite: favoritePaths.contains(childPath.joined(separator: "/")),
-                conflicts: try combinedConflictCount(
-                  NotebookReference(path: childPath),
-                  at: child),
-                details: try LibraryMetadataFile.noteDetails(
-                  in: LibraryMetadataFile.read(at: root), path: childPath)))
+            let details = try LibraryMetadataFile.noteDetails(in: metadata, path: childPath)
+            if needle.isEmpty || Self.matchesSearch(
+              needle,
+              name: child.lastPathComponent,
+              description: details.description,
+              tags: details.tags)
+            {
+              notebooks.append(
+                LibraryNotebookItem(
+                  reference: NotebookReference(path: childPath),
+                  modified: try Self.notebookModification(at: child),
+                  favorite: favoritePaths.contains(childPath.joined(separator: "/")),
+                  conflicts: try combinedConflictCount(
+                    NotebookReference(path: childPath),
+                    at: child),
+                  details: details))
+            }
           } else {
             try visit(child, path: childPath)
           }
@@ -2607,6 +2628,32 @@ final class NotesRootAccess {
       if modified > latest { latest = modified }
     }
     return latest
+  }
+
+  private static func matchesSearch(
+    _ needle: String,
+    name: String,
+    description: String,
+    tags: [String],
+    additionalNames: [String] = []
+  ) -> Bool {
+    name.localizedCaseInsensitiveContains(needle) ||
+      description.localizedCaseInsensitiveContains(needle) ||
+      tags.contains(where: { $0.localizedCaseInsensitiveContains(needle) }) ||
+      additionalNames.contains(where: { $0.localizedCaseInsensitiveContains(needle) })
+  }
+
+  private static func directNotebookNames(in directory: URL) throws -> [String] {
+    try FileManager.default.contentsOfDirectory(
+      at: directory,
+      includingPropertiesForKeys: [.isDirectoryKey],
+      options: [.skipsHiddenFiles])
+      .filter { child in
+        guard !child.lastPathComponent.hasPrefix(".") else { return false }
+        return FileManager.default.fileExists(
+          atPath: child.appendingPathComponent("notebook.json").path)
+      }
+      .map(\.lastPathComponent)
   }
 
   private static func directNotebookCount(in directory: URL) throws -> Int {

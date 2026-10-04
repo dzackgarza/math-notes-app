@@ -959,6 +959,66 @@ final class NotebookStorageTests: XCTestCase {
       ["Draft tag", "Template tag", "Created tag"])
   }
 
+  @MainActor
+  func testLibrarySearchMatchesWebMetadataAndDirectNotePredicates() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let root = NotesRootAccess(testURL: directory)
+    let course = try root.createFolder(
+      parent: FolderReference(path: []),
+      name: "Course",
+      details: LibraryFolderDetails(
+        description: "Geometry archive",
+        paper: "blank",
+        coverColor: "#24324A",
+        coverStyle: "classic",
+        tags: ["Research"]))
+    let (spectral, _) = try root.createNote(
+      title: "Spectral Sequences",
+      parent: course,
+      template: "blank",
+      pageSize: INK_PAGE_A4,
+      orientation: INK_PORTRAIT)
+    let (measure, _) = try root.createNote(
+      title: "Measure Theory",
+      parent: FolderReference(path: []),
+      template: "blank",
+      pageSize: INK_PAGE_A4,
+      orientation: INK_PORTRAIT)
+    try root.saveNoteDetails(
+      LibraryNoteDetails(
+        favorite: false,
+        tags: ["Analysis"],
+        description: "Lebesgue integration"),
+      for: measure)
+
+    func search(_ query: String) throws -> LibraryListing {
+      try root.searchLibrary(query: query, sort: .name, direction: .ascending)
+    }
+
+    XCTAssertEqual(try search("Lebesgue").notebooks.map(\.reference), [measure])
+    XCTAssertEqual(try search("Analysis").notebooks.map(\.reference), [measure])
+    XCTAssertEqual(try search("Geometry").folders.map(\.reference), [course])
+    XCTAssertEqual(try search("Research").folders.map(\.reference), [course])
+
+    let directName = try search("Spectral")
+    XCTAssertEqual(directName.folders.map(\.reference), [course])
+    XCTAssertEqual(directName.notebooks.map(\.reference), [spectral])
+
+    _ = try root.moveToTrash(path: measure.path)
+    XCTAssertEqual(
+      try root.trashNotes(query: "Lebesgue", sort: .name, direction: .ascending)
+        .notebooks.map(\.reference.name),
+      [measure.name])
+    XCTAssertEqual(
+      try root.trashNotes(query: "Analysis", sort: .name, direction: .ascending)
+        .notebooks.map(\.reference.name),
+      [measure.name])
+  }
+
   func testLibraryMetadataUsesCanonicalFormatOrder() throws {
     let data = try LibraryMetadataFile.settingFavorite(
       in: nil,

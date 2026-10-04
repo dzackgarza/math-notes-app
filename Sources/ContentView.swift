@@ -1287,25 +1287,25 @@ struct ContentView: View {
           direction: librarySortDirection)
       } else if !libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
         if libraryScope == .trash {
-          let needle = libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-          let listing = try root.trashNotes(
+          libraryListing = try root.trashNotes(
+            query: libraryQuery,
             sort: librarySort,
             direction: librarySortDirection)
-          libraryListing = LibraryListing(
-            folders: [],
-            notebooks: listing.notebooks.filter {
-              $0.reference.name.localizedCaseInsensitiveContains(needle)
-            })
         } else {
           let listing = try root.searchLibrary(
             query: libraryQuery,
             sort: librarySort,
             direction: librarySortDirection)
-          libraryListing = libraryScope == .favorites
-            ? LibraryListing(
+          switch libraryScope {
+          case .favorites:
+            libraryListing = LibraryListing(
               folders: [],
               notebooks: listing.notebooks.filter(\.favorite))
-            : listing
+          case .recent:
+            libraryListing = LibraryListing(folders: [], notebooks: listing.notebooks)
+          default:
+            libraryListing = listing
+          }
         }
       } else if libraryScope == .recent {
         libraryListing = try root.allNotes(
