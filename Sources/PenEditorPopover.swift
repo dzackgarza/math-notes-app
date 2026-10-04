@@ -77,7 +77,7 @@ struct PenEditorPopover: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("\(formatSize(value)) pt")
-            .accessibilityValue(abs(size - value) < 0.05 ? "Selected" : "")
+            .accessibilityAddTraits(abs(size - value) < 0.05 ? .isSelected : [])
           }
         }
 

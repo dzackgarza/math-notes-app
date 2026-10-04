@@ -34,7 +34,7 @@ struct LibraryTagSheet: View {
               }
               .buttonStyle(.plain)
               .accessibilityLabel(value)
-              .accessibilityValue(color == value ? "Selected" : "")
+              .accessibilityAddTraits(color == value ? .isSelected : [])
             }
           }
         }

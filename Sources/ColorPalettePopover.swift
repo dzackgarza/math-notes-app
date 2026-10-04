@@ -31,7 +31,7 @@ struct ColorPalettePopover: View {
               .labelsHidden()
               .frame(width: 44, height: 44)
               .accessibilityLabel("Color \(hex(rgb))")
-              .accessibilityValue("Selected")
+              .accessibilityAddTraits(.isSelected)
           } else {
             Button {
               chooseColor(rgb)

@@ -395,7 +395,7 @@ struct EditorToolRail: View {
           }
           .buttonStyle(.plain)
           .foregroundStyle(eraserMode == mode ? NativeTheme.ribbon : NativeTheme.ink)
-          .accessibilityValue(eraserMode == mode ? "Selected" : "")
+          .accessibilityAddTraits(eraserMode == mode ? .isSelected : [])
         }
       }
       .padding(16)
@@ -437,7 +437,7 @@ struct EditorToolRail: View {
           }
           .buttonStyle(.plain)
           .foregroundStyle(selectorMode == mode ? NativeTheme.ribbon : NativeTheme.ink)
-          .accessibilityValue(selectorMode == mode ? "Selected" : "")
+          .accessibilityAddTraits(selectorMode == mode ? .isSelected : [])
         }
       }
       .padding(16)
@@ -479,7 +479,7 @@ struct EditorToolRail: View {
           }
           .buttonStyle(.plain)
           .foregroundStyle(spaceMode == mode ? NativeTheme.ribbon : NativeTheme.ink)
-          .accessibilityValue(spaceMode == mode ? "Selected" : "")
+          .accessibilityAddTraits(spaceMode == mode ? .isSelected : [])
         }
       }
       .padding(16)
@@ -510,6 +510,6 @@ struct EditorToolRail: View {
       selected ? NativeTheme.ribbon.opacity(0.12) : Color.clear,
       in: RoundedRectangle(cornerRadius: 10))
     .accessibilityLabel(label)
-    .accessibilityValue(selected ? "Selected" : "")
+    .accessibilityAddTraits(selected ? .isSelected : [])
   }
 }

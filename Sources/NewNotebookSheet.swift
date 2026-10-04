@@ -184,7 +184,7 @@ struct NewNotebookSheet: View {
           }
           .buttonStyle(.plain)
           .accessibilityLabel(NewNotebookFormState.coverColors[color] ?? color)
-          .accessibilityValue(form.coverColor == color ? "Selected" : "")
+          .accessibilityAddTraits(form.coverColor == color ? .isSelected : [])
         }
       }
     }

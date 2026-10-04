@@ -505,6 +505,7 @@ struct NativeLibraryView: View {
     }
     .buttonStyle(.plain)
     .hoverEffect(.highlight)
+    .accessibilityAddTraits(selected ? .isSelected : [])
     .background(
       selected ? NativeTheme.leaf : Color.clear,
       in: RoundedRectangle(cornerRadius: 8))
@@ -535,6 +536,8 @@ struct NativeLibraryView: View {
     }
     .buttonStyle(.plain)
     .hoverEffect(.highlight)
+    .accessibilityAddTraits(
+      scope == .tag && selectedTag == tag.name ? .isSelected : [])
     .background(
       scope == .tag && selectedTag == tag.name
         ? NativeTheme.leaf : Color.clear,
