@@ -262,6 +262,7 @@ struct NativeLibraryView: View {
           Text("All")
         }
       }
+      .accessibilityAddTraits(scope == .folder ? .isSelected : [])
 
       Button {
         searchPresented = false
@@ -273,6 +274,7 @@ struct NativeLibraryView: View {
           Text("Recent")
         }
       }
+      .accessibilityAddTraits(scope == .recent ? .isSelected : [])
 
       Button {
         searchPresented = false
@@ -284,6 +286,7 @@ struct NativeLibraryView: View {
           Text("Favorites")
         }
       }
+      .accessibilityAddTraits(scope == .favorites ? .isSelected : [])
 
       Button {
         searchPresented = false
@@ -295,6 +298,7 @@ struct NativeLibraryView: View {
           Text("Trash")
         }
       }
+      .accessibilityAddTraits(scope == .trash ? .isSelected : [])
 
       if !tags.isEmpty {
         Divider()
@@ -309,6 +313,7 @@ struct NativeLibraryView: View {
               Text(tag.name)
             }
           }
+          .accessibilityAddTraits(scope == .tag && selectedTag == tag.name ? .isSelected : [])
         }
       }
     } label: {
@@ -327,6 +332,7 @@ struct NativeLibraryView: View {
           Text("Name")
         }
       }
+      .accessibilityAddTraits(sort == .name ? .isSelected : [])
 
       Button {
         setSort(.modified)
@@ -337,6 +343,7 @@ struct NativeLibraryView: View {
           Text("Date Modified")
         }
       }
+      .accessibilityAddTraits(sort == .modified ? .isSelected : [])
 
       Divider()
 
@@ -350,6 +357,7 @@ struct NativeLibraryView: View {
             Text("A to Z")
           }
         }
+        .accessibilityAddTraits(sortDirection == .ascending ? .isSelected : [])
 
         Button {
           setSortDirection(.descending)
@@ -360,6 +368,7 @@ struct NativeLibraryView: View {
             Text("Z to A")
           }
         }
+        .accessibilityAddTraits(sortDirection == .descending ? .isSelected : [])
       } else {
         Button {
           setSortDirection(.descending)
@@ -370,6 +379,7 @@ struct NativeLibraryView: View {
             Text("Newest First")
           }
         }
+        .accessibilityAddTraits(sortDirection == .descending ? .isSelected : [])
 
         Button {
           setSortDirection(.ascending)
@@ -380,6 +390,7 @@ struct NativeLibraryView: View {
             Text("Oldest First")
           }
         }
+        .accessibilityAddTraits(sortDirection == .ascending ? .isSelected : [])
       }
 
       Divider()
@@ -393,6 +404,7 @@ struct NativeLibraryView: View {
           Text("Grid")
         }
       }
+      .accessibilityAddTraits(grid ? .isSelected : [])
 
       Button {
         if grid { toggleLayout() }
@@ -403,6 +415,7 @@ struct NativeLibraryView: View {
           Text("List")
         }
       }
+      .accessibilityAddTraits(!grid ? .isSelected : [])
     } label: {
       Label("Sort", systemImage: "arrow.up.arrow.down")
     }
