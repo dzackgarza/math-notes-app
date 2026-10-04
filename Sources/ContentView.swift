@@ -96,6 +96,7 @@ private struct NotebookEditorPane: View {
       onInsertImage: onInsertImage,
       onShowClippings: onShowClippings,
       onSaveClipping: onSaveClipping,
+      onSelectionChanged: { viewState.selectionActive = $0 },
       onLinkSelectionRequested: onLinkSelectionRequested,
       onFollowLink: onFollowLink,
       onDropClipping: onDropClipping,
@@ -173,6 +174,7 @@ struct ContentView: View {
   @State private var pendingLink: PendingLink?
   @State private var showingLinkChooser = false
   @State private var clippings: ClippingsRequest?
+  @State private var clippingViewState: OpenNotebookViewState?
   @State private var figureEditor: FigureEditorRequest?
   @State private var conflictReview: ConflictReviewRequest?
   @State private var showingOpenNotePicker = false
@@ -500,15 +502,23 @@ struct ContentView: View {
         onCancel: { conflictReview = nil })
     }
     .overlay(alignment: .trailing) {
-      if let request = clippings {
+      if let request = clippings, let clippingViewState {
         ClippingsSheet(
           request: request,
-          onInsert: insertClipping,
+          selectionActive: clippingViewState.selectionActive,
+          drawing: clippingViewState.captureActive,
+          onInsert: { insertClipping($0, viewState: clippingViewState) },
+          onSaveSelection: {
+            clippingViewState.editorPageCommand = .saveSelectionToClippings
+          },
           onSave: saveClippingDrop,
           onMove: moveClipping,
           onDelete: deleteClipping,
           onRefresh: refreshClippings,
-          onClose: { clippings = nil })
+          onClose: {
+            clippings = nil
+            self.clippingViewState = nil
+          })
           .id(request.id)
           .transition(.move(edge: .trailing).combined(with: .opacity))
           .zIndex(10)
@@ -736,7 +746,7 @@ struct ContentView: View {
       },
       onShowClippings: {
         openNotes.focusRight(right)
-        prepareClippings()
+        prepareClippings(viewState: viewState)
       },
       onSaveClipping: { svg in
         openNotes.focusRight(right)
@@ -2094,8 +2104,9 @@ struct ContentView: View {
     }
   }
 
-  private func prepareClippings() {
+  private func prepareClippings(viewState: OpenNotebookViewState) {
     do {
+      clippingViewState = viewState
       clippings = ClippingsRequest(items: try clippingItems())
     } catch {
       errorMessage = error.localizedDescription
@@ -2129,10 +2140,10 @@ struct ContentView: View {
     }
   }
 
-  private func insertClipping(_ id: String) {
+  private func insertClipping(_ id: String, viewState: OpenNotebookViewState) {
     guard let root else { return }
     do {
-      editorPageCommand = .pasteSVGAtCenter(
+      viewState.editorPageCommand = .pasteSVGAtCenter(
         try root.clippingSVG(id: id),
         placeAtPointer: true)
     } catch {

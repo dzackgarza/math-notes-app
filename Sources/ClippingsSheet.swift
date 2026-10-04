@@ -8,13 +8,25 @@ struct ClippingPreview: Identifiable {
   let png: Data
 }
 
+struct ClippingsPanelAvailability: Equatable {
+  let selectionActive: Bool
+  let drawing: Bool
+
+  var canSaveSelection: Bool { selectionActive && !drawing }
+  var canInsert: Bool { !drawing }
+  var canAcceptDrop: Bool { !drawing }
+}
+
 struct ClippingsRequest: Identifiable {
   let id = UUID()
   let items: [ClippingPreview]
 }
 
 struct ClippingsSheet: View {
+  let selectionActive: Bool
+  let drawing: Bool
   let onInsert: (String) -> Void
+  let onSaveSelection: () -> Void
   let onSave: (String) -> Bool
   let onMove: (String, Int) -> Bool
   let onDelete: (String) -> Bool
@@ -25,14 +37,20 @@ struct ClippingsSheet: View {
 
   init(
     request: ClippingsRequest,
+    selectionActive: Bool,
+    drawing: Bool,
     onInsert: @escaping (String) -> Void,
+    onSaveSelection: @escaping () -> Void,
     onSave: @escaping (String) -> Bool,
     onMove: @escaping (String, Int) -> Bool,
     onDelete: @escaping (String) -> Bool,
     onRefresh: @escaping () -> [ClippingPreview]?,
     onClose: @escaping () -> Void
   ) {
+    self.selectionActive = selectionActive
+    self.drawing = drawing
     self.onInsert = onInsert
+    self.onSaveSelection = onSaveSelection
     self.onSave = onSave
     self.onMove = onMove
     self.onDelete = onDelete
@@ -42,9 +60,22 @@ struct ClippingsSheet: View {
   }
 
   var body: some View {
+    let availability = ClippingsPanelAvailability(
+      selectionActive: selectionActive,
+      drawing: drawing)
     NavigationStack {
-      List(items) { item in
-        HStack(spacing: 12) {
+      List {
+        Section {
+          Text("Drop a selection here to save it. Drag a clipping onto the page.")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+          if availability.canSaveSelection {
+            Button("Save selected content", action: onSaveSelection)
+          }
+        }
+
+        ForEach(items) { item in
+          HStack(spacing: 12) {
           Button {
             onInsert(item.id)
           } label: {
@@ -59,6 +90,7 @@ struct ClippingsSheet: View {
             }
           }
           .buttonStyle(.plain)
+          .disabled(!availability.canInsert)
           .draggable(item.id)
           .accessibilityLabel("Insert clipping \(item.index + 1)")
 
@@ -86,6 +118,7 @@ struct ClippingsSheet: View {
             Image(systemName: "trash")
           }
           .accessibilityLabel("Delete clipping")
+          }
         }
       }
       .navigationTitle("Clippings")
@@ -107,7 +140,9 @@ struct ClippingsSheet: View {
     }
     .frame(width: 340)
     .dropDestination(for: String.self) { values, _ in
-      guard let svg = values.first, svg.contains("<svg"), onSave(svg) else { return false }
+      guard availability.canAcceptDrop,
+        let svg = values.first, svg.contains("<svg"), onSave(svg)
+      else { return false }
       if let refreshed = onRefresh() { items = refreshed }
       return true
     }

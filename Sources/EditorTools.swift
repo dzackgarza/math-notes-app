@@ -200,8 +200,10 @@ struct EditorToolRail: View {
   let insertText: () -> Void
   let insertImage: () -> Void
   let drawing: Bool
+  let selectionActive: Bool
   let toggleDrawing: () -> Void
   let showClippings: () -> Void
+  let recolorSelection: (UInt32) -> Void
   let onPensChanged: (EditorPenLibrary) -> Void
 
   var body: some View {
@@ -357,6 +359,8 @@ struct EditorToolRail: View {
         tool: $tool,
         drawingTool: $drawingTool,
         library: $penLibrary,
+        selectionActive: selectionActive,
+        onRecolorSelection: recolorSelection,
         onPersist: onPensChanged)
         .presentationCompactAdaptation(.popover)
     }

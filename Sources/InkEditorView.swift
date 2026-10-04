@@ -61,6 +61,8 @@ enum EditorPageCommand: Equatable {
   case clear(Int)
   case addBookmark
   case linkSelection(String)
+  case saveSelectionToClippings
+  case recolorSelection(UInt32)
   case jumpToMark(EngineNavigationMark)
   case requestTextAtCenter
   case commitText(EditorTextRequest, EngineTextProperties)
@@ -90,6 +92,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private let onLinkSelectionRequested: (Int) -> Void
   private let onFollowLink: (String, Int) -> Void
   private let onSaveClipping: (String) -> Void
+  private let onSelectionChanged: (Bool) -> Void
   private let onUndo: () -> Void
   private let onRedo: () -> Void
   private let onPencilAction: (UIPencilPreferredAction) -> Void
@@ -112,6 +115,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private var figureCompleting = false
   private var figurePreviewGeneration = 0
   private var reportedFigureID: String?
+  private var reportedSelectionActive = false
   private var documentSize: CGSize
   private var setInitialZoom = false
   private var appliedTool: EditorTool = .pen
@@ -160,6 +164,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     onLinkSelectionRequested: @escaping (Int) -> Void = { _ in },
     onFollowLink: @escaping (String, Int) -> Void = { _, _ in },
     onSaveClipping: @escaping (String) -> Void = { _ in },
+    onSelectionChanged: @escaping (Bool) -> Void = { _ in },
     onUndo: @escaping () -> Void = {},
     onRedo: @escaping () -> Void = {},
     onPencilAction: @escaping (UIPencilPreferredAction) -> Void = { _ in },
@@ -180,6 +185,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     self.onLinkSelectionRequested = onLinkSelectionRequested
     self.onFollowLink = onFollowLink
     self.onSaveClipping = onSaveClipping
+    self.onSelectionChanged = onSelectionChanged
     self.onUndo = onUndo
     self.onRedo = onRedo
     self.onPencilAction = onPencilAction
@@ -795,9 +801,11 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private func refreshSelectionBar() {
     guard isViewLoaded, let selection = canvasView.selectionFrame() else {
       selectionBar.isHidden = true
+      reportSelection(false)
       return
     }
 
+    reportSelection(true)
     selectionBar.isHidden = false
     let selectedFigure = try? canvasView.selectedFigure()
     editFigureButton?.isHidden = selectedFigure == nil
@@ -822,6 +830,12 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       y = min(target.maxY + 8, safe.maxY - size.height - 8)
     }
     selectionBar.frame = CGRect(origin: CGPoint(x: x, y: y), size: size)
+  }
+
+  private func reportSelection(_ active: Bool) {
+    guard active != reportedSelectionActive else { return }
+    reportedSelectionActive = active
+    onSelectionChanged(active)
   }
 
   @objc private func copySelection() {
@@ -940,6 +954,13 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         }
       case let .linkSelection(href):
         try canvasView.linkSelection(href)
+        onEditCommitted()
+      case .saveSelectionToClippings:
+        if let svg = try canvasView.copySelection() {
+          onSaveClipping(svg)
+        }
+      case let .recolorSelection(rgb):
+        try canvasView.recolorSelection(rgb)
         onEditCommitted()
       case let .jumpToMark(mark):
         scrollToMark(mark)
@@ -1536,6 +1557,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let onLinkSelectionRequested: (Int) -> Void
   let onFollowLink: (String, Int) -> Void
   let onSaveClipping: (String) -> Void
+  let onSelectionChanged: (Bool) -> Void
   let onUndo: () -> Void
   let onRedo: () -> Void
   let onPencilAction: (UIPencilPreferredAction) -> Void
@@ -1558,6 +1580,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       onLinkSelectionRequested: onLinkSelectionRequested,
       onFollowLink: onFollowLink,
       onSaveClipping: onSaveClipping,
+      onSelectionChanged: onSelectionChanged,
       onUndo: onUndo,
       onRedo: onRedo,
       onPencilAction: onPencilAction,
@@ -1623,6 +1646,7 @@ struct InkEditorView: View {
   @State private var textRequest: EditorTextRequest?
   @State private var drawing = false
   @State private var figureSource = ""
+  @State private var selectionActive = false
   @State private var previousPencilTool: EditorTool?
   let onFocus: () -> Void
   let onViewportChanged: (EditorLinkedViewport) -> Void
@@ -1632,6 +1656,7 @@ struct InkEditorView: View {
   let onInsertImage: () -> Void
   let onShowClippings: () -> Void
   let onSaveClipping: (String) -> Void
+  let onSelectionChanged: (Bool) -> Void
   let onLinkSelectionRequested: (Int) -> Void
   let onFollowLink: (String, Int) -> Void
   let onDropClipping: (String, CGPoint) -> Bool
@@ -1689,6 +1714,12 @@ struct InkEditorView: View {
         onLinkSelectionRequested: onLinkSelectionRequested,
         onFollowLink: onFollowLink,
         onSaveClipping: onSaveClipping,
+        onSelectionChanged: { active in
+          DispatchQueue.main.async {
+            selectionActive = active
+            onSelectionChanged(active)
+          }
+        },
         onUndo: { _ = history(redo: false) },
         onRedo: { _ = history(redo: true) },
         onPencilAction: applyPencilAction,
@@ -1713,8 +1744,10 @@ struct InkEditorView: View {
         insertText: { pageCommand = .requestTextAtCenter },
         insertImage: onInsertImage,
         drawing: drawing,
+        selectionActive: selectionActive,
         toggleDrawing: toggleDrawingMode,
         showClippings: onShowClippings,
+        recolorSelection: { rgb in pageCommand = .recolorSelection(rgb) },
         onPensChanged: onPensChanged)
 
       if drawing || !figureSource.isEmpty {

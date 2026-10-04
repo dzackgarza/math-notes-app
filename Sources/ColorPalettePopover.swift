@@ -8,6 +8,8 @@ struct ColorPalettePopover: View {
   @Binding var tool: EditorTool
   @Binding var drawingTool: EditorTool
   @Binding var library: EditorPenLibrary
+  let selectionActive: Bool
+  let onRecolorSelection: (UInt32) -> Void
   let onPersist: (EditorPenLibrary) -> Void
 
   @Environment(\.dismiss) private var dismiss
@@ -23,7 +25,8 @@ struct ColorPalettePopover: View {
         spacing: 4
       ) {
         ForEach(Array(library.palette.enumerated()), id: \.offset) { index, rgb in
-          if rgb == currentSettings.rgb {
+          let selected = rgb == currentSettings.rgb
+          if !selectionActive && selected {
             ColorPicker(
               "",
               selection: currentSwatchBinding(index: index),
@@ -36,11 +39,12 @@ struct ColorPalettePopover: View {
             Button {
               chooseColor(rgb)
             } label: {
-              swatch(rgb, selected: false)
+              swatch(rgb, selected: selected)
             }
             .buttonStyle(.plain)
             .frame(width: 44, height: 44)
             .accessibilityLabel("Color \(hex(rgb))")
+            .accessibilityAddTraits(selected ? .isSelected : [])
           }
         }
 
@@ -123,6 +127,11 @@ struct ColorPalettePopover: View {
   }
 
   private func chooseColor(_ rgb: UInt32) {
+    if selectionActive {
+      onRecolorSelection(rgb)
+      dismiss()
+      return
+    }
     var next = library
     next.setColor(rgb, for: drawingTool)
     library = next

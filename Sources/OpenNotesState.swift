@@ -43,6 +43,7 @@ final class OpenNotebookViewState: Identifiable {
   var fitRevision = 0
   var editorPageCommand: EditorPageCommand?
   var captureActive = false
+  var selectionActive = false
 
   init(
     id: UUID = UUID(),
