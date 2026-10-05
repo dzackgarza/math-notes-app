@@ -1620,9 +1620,9 @@ struct ContentView: View {
 
   private func addLibraryTag(_ name: String, _ color: String) {
     guard let root else { return }
+    showingNewTag = false
     do {
       try root.addLibraryTag(name: name, color: color)
-      showingNewTag = false
       refreshLibrary()
     } catch {
       errorMessage = error.localizedDescription
