@@ -297,13 +297,12 @@ final class OpenNotesState {
   @discardableResult
   func reloadIfOpen(
     _ reference: NotebookReference,
+    save: (OpenNotebookSession) throws -> Void,
     load: (NotebookReference) throws -> OpenNotebookSession
   ) throws -> OpenNotebookSession? {
     guard let current = find(reference) else { return nil }
     release([current.id])
-    let replacement = try load(reference)
-    show(replacement)
-    return replacement
+    return try open(reference, save: save, load: load)
   }
 
   func toggleSplit() throws {

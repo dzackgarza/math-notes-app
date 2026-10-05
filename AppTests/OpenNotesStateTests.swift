@@ -422,9 +422,10 @@ final class OpenNotesStateTests: XCTestCase {
       load: { _ in reference })
 
     let replacement = try XCTUnwrap(
-      try state.reloadIfOpen(reference.reference) { ref in
-        self.session(ref.path, seed: 30)
-      })
+      try state.reloadIfOpen(
+        reference.reference,
+        save: { _ in },
+        load: { ref in self.session(ref.path, seed: 30) })
 
     XCTAssertFalse(state.splitOpen)
     XCTAssertTrue(state.active === replacement)
@@ -454,6 +455,28 @@ final class OpenNotesStateTests: XCTestCase {
     XCTAssertNil(state.linkedViewport)
   }
 
+  func testReloadSavesTheTabExposedByReleasingTheResolvedNote() throws {
+    let state = OpenNotesState()
+    let first = session(["A"], seed: 34)
+    let resolved = session(["B"], seed: 35)
+    state.show(first)
+    state.show(resolved)
+    var events: [String] = []
+
+    let replacement = try XCTUnwrap(
+      try state.reloadIfOpen(
+        resolved.reference,
+        save: { events.append("save \($0.reference.name)") },
+        load: { reference in
+          events.append("load \(reference.name)")
+          return self.session(reference.path, seed: 36)
+        }))
+
+    XCTAssertEqual(events, ["save A", "load B"])
+    XCTAssertTrue(state.active === replacement)
+    XCTAssertEqual(state.opened.map(\.reference), [first.reference, resolved.reference])
+  }
+
   func testReloadMovesTheResolvedNoteToTheSelectedLastTab() throws {
     let state = OpenNotesState()
     let first = session(["A"], seed: 18)
@@ -466,9 +489,10 @@ final class OpenNotesStateTests: XCTestCase {
       load: { _ in first })
 
     let replacement = try XCTUnwrap(
-      try state.reloadIfOpen(first.reference) { reference in
-        self.session(reference.path, seed: 20)
-      })
+      try state.reloadIfOpen(
+        first.reference,
+        save: { _ in },
+        load: { reference in self.session(reference.path, seed: 20) })
 
     XCTAssertNotEqual(first.id, replacement.id)
     XCTAssertTrue(state.active === replacement)

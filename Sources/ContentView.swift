@@ -2252,9 +2252,10 @@ struct ContentView: View {
     do {
       let changed = conflictReviewChanged
       if changed, openNotes.find(reference) != nil {
-        _ = try openNotes.reloadIfOpen(reference) { target in
-          try makeOpenSession(target, using: root)
-        }
+        _ = try openNotes.reloadIfOpen(
+          reference,
+          save: { note in try saveSession(note, using: root) },
+          load: { target in try makeOpenSession(target, using: root) })
         dismissClippings()
       }
       conflictReview = nil
