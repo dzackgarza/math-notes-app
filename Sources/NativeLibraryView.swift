@@ -558,7 +558,7 @@ struct NativeLibraryView: View {
           .frame(width: 10, height: 10)
           .frame(width: 20)
         Text(tag.name)
-          .font(NativeTheme.body)
+          .font(scope == .tag && selectedTag == tag.name ? NativeTheme.headline : NativeTheme.body)
           .foregroundStyle(NativeTheme.ink)
           .lineLimit(1)
         Spacer(minLength: 8)
@@ -884,7 +884,7 @@ struct LibraryThumbnail: View {
 
   @State private var image: UIImage?
   @State private var missing = false
-  @State private var failed = false
+  @State private var failureMessage: String?
 
   var body: some View {
     ZStack {
@@ -896,10 +896,10 @@ struct LibraryThumbnail: View {
           .resizable()
           .scaledToFit()
           .accessibilityLabel("\(item.reference.name) first page")
-      } else if failed {
+      } else if let failureMessage {
         Image(systemName: "exclamationmark.triangle")
           .foregroundStyle(NativeTheme.graphite)
-          .accessibilityLabel("Thumbnail failed")
+          .accessibilityLabel("Thumbnail failed: \(failureMessage)")
       } else if missing {
         Image(systemName: "doc")
           .foregroundStyle(NativeTheme.graphite)
@@ -922,20 +922,20 @@ struct LibraryThumbnail: View {
     .task(id: item.modified) {
       image = nil
       missing = false
-      failed = false
+      failureMessage = nil
       do {
         guard let data = try root.thumbnail(item.reference) else {
           missing = true
           return
         }
         guard let rendered = UIImage(data: data) else {
-          failed = true
+          failureMessage = "Invalid image data"
           return
         }
         image = rendered
       } catch {
         image = nil
-        failed = true
+        failureMessage = error.localizedDescription
       }
     }
   }
@@ -999,7 +999,7 @@ struct LibraryNotebookCover: View {
 
   @State private var thumbnail: UIImage?
   @State private var thumbnailMissing = false
-  @State private var thumbnailFailed = false
+  @State private var thumbnailFailureMessage: String?
   @State private var thumbnailConflicts = false
 
   var body: some View {
@@ -1014,10 +1014,10 @@ struct LibraryNotebookCover: View {
             .resizable()
             .scaledToFit()
             .background(NativeTheme.paper)
-        } else if thumbnailFailed {
+        } else if let thumbnailFailureMessage {
           Image(systemName: "exclamationmark.triangle")
             .foregroundStyle(NativeTheme.graphite)
-            .accessibilityLabel("Thumbnail failed")
+            .accessibilityLabel("Thumbnail failed: \(thumbnailFailureMessage)")
         } else if thumbnailMissing {
           Image(systemName: "doc")
             .foregroundStyle(NativeTheme.graphite)
@@ -1041,7 +1041,7 @@ struct LibraryNotebookCover: View {
     .task(id: thumbnailKey) {
       thumbnail = nil
       thumbnailMissing = false
-      thumbnailFailed = false
+      thumbnailFailureMessage = nil
       thumbnailConflicts = false
       guard let coverNote = item.coverNote else { return }
       do {
@@ -1050,14 +1050,14 @@ struct LibraryNotebookCover: View {
           return
         }
         guard let rendered = UIImage(data: data) else {
-          thumbnailFailed = true
+          thumbnailFailureMessage = "Invalid image data"
           return
         }
         thumbnail = rendered
         thumbnailConflicts = try root.conflictCount(coverNote) > 0
       } catch {
         thumbnail = nil
-        thumbnailFailed = true
+        thumbnailFailureMessage = error.localizedDescription
       }
     }
     .accessibilityLabel("\(item.reference.name) notebook cover")
