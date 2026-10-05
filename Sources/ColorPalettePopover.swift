@@ -34,7 +34,7 @@ struct ColorPalettePopover: View {
               supportsOpacity: false)
               .labelsHidden()
               .frame(width: 44, height: 44)
-              .accessibilityLabel("Color wheel")
+              .accessibilityLabel("Color \(hex(rgb))")
               .accessibilityValue(hex(rgb))
               .accessibilityAddTraits(.isSelected)
           } else {
