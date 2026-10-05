@@ -252,7 +252,11 @@ struct NewNoteSheet: View {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel", action: requestCancel)
         }
-        ToolbarItem(placement: .confirmationAction) {
+        ToolbarItemGroup(placement: .bottomBar) {
+          Button("Save as draft") {
+            onSaveDraft(finalizedForm.draft)
+          }
+          Spacer()
           Button("Create") {
             onCreate(finalizedForm.request)
           }
@@ -345,11 +349,6 @@ struct NewNoteSheet: View {
       }
     }
 
-    Section {
-      Button("Save as draft") {
-        onSaveDraft(finalizedForm.draft)
-      }
-    }
   }
 
   var newNoteTitle: String {
