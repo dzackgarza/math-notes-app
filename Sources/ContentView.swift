@@ -1248,11 +1248,16 @@ struct ContentView: View {
       let index = openNotes.opened.firstIndex(where: { $0.id == id })
     else { return }
 
+    let closing = openNotes.opened[index]
+    let closingPrimary = closing.primaryView
+    let closingSecondary = openNotes.secondary?.id == closing.id ? openNotes.secondaryView : nil
     do {
       try openNotes.close(index) { note in
         try saveSession(note, using: root)
       }
-      dismissClippings()
+      if clippingViewState === closingPrimary || clippingViewState === closingSecondary {
+        dismissClippings()
+      }
       conflictReview = nil
       refreshLibrary()
     } catch {
