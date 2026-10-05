@@ -1943,7 +1943,7 @@ struct InkEditorView: View {
 
   private func toggleDrawingMode() {
     if !drawing, ![EditorTool.pen, .marker, .highlighter].contains(tool) {
-      tool = .pen
+      tool = drawingTool
     }
     pageCommand = .toggleFigureCapture(currentPage)
   }
