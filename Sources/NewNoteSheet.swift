@@ -358,7 +358,7 @@ struct NewNoteSheet: View {
   }
 
   var isDirty: Bool {
-    form != openedForm || !newTag.isEmpty || namingTemplate || !templateName.isEmpty
+    form != openedForm || !newTag.isEmpty
   }
 
   private func requestCancel() {
