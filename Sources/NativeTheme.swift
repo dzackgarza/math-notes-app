@@ -92,4 +92,14 @@ extension View {
       .toolbarBackground(.visible, for: .navigationBar)
       .presentationBackground(NativeTheme.leaf)
   }
+
+  func nativePageSurface() -> some View {
+    foregroundStyle(NativeTheme.ink)
+      .font(NativeTheme.body)
+      .tint(NativeTheme.ink)
+      .background(NativeTheme.board)
+      .toolbarBackground(NativeTheme.board, for: .navigationBar)
+      .toolbarBackground(.visible, for: .navigationBar)
+      .presentationBackground(NativeTheme.board)
+  }
 }

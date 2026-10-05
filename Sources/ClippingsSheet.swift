@@ -67,8 +67,8 @@ struct ClippingsSheet: View {
       List {
         Section {
           Text("Drop a selection here to save it. Drag a clipping onto the page.")
-            .font(.footnote)
-            .foregroundStyle(.secondary)
+            .font(NativeTheme.footnote)
+            .foregroundStyle(NativeTheme.graphite)
           if availability.canSaveSelection {
             Button("Save selected content", action: onSaveSelection)
           }
@@ -121,6 +121,8 @@ struct ClippingsSheet: View {
           }
         }
       }
+      .scrollContentBackground(.hidden)
+      .nativePageSurface()
       .navigationTitle("Clippings")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
@@ -146,7 +148,7 @@ struct ClippingsSheet: View {
       if let refreshed = onRefresh() { items = refreshed }
       return true
     }
-    .background(.regularMaterial)
+    .background(NativeTheme.board)
     .clipShape(RoundedRectangle(cornerRadius: 16))
     .shadow(radius: 10)
     .padding(8)

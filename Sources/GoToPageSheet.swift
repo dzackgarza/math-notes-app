@@ -34,6 +34,8 @@ struct GoToPageSheet: View {
           .focused($pageFocused)
           .task { pageFocused = true }
       }
+      .scrollContentBackground(.hidden)
+      .nativeSheetSurface()
       .navigationTitle("Go to page")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {

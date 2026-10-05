@@ -195,6 +195,7 @@ struct FigureEditorSheet: View {
               .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
           }
         }
+        .nativePageSurface()
         .navigationTitle("Figure editor")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

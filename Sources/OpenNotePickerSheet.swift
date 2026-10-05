@@ -40,11 +40,11 @@ struct OpenNotePickerSheet: View {
 
                 VStack(alignment: .leading, spacing: 3) {
                   Text(item.conflicts > 0 ? "⚠ \(item.reference.name)" : item.reference.name)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(NativeTheme.ink)
                   let folder = FolderReference(path: Array(item.reference.path.dropLast()))
                   Text(folder.name)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(NativeTheme.footnote)
+                    .foregroundStyle(NativeTheme.graphite)
                 }
                 Spacer()
                 if opened.contains(item.reference) {
@@ -59,6 +59,8 @@ struct OpenNotePickerSheet: View {
           .listStyle(.insetGrouped)
         }
       }
+      .scrollContentBackground(.hidden)
+      .nativeSheetSurface()
       .navigationTitle(title)
       .navigationBarTitleDisplayMode(.inline)
       .searchable(text: $query, prompt: "Search")
