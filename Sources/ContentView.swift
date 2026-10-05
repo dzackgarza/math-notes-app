@@ -1627,6 +1627,9 @@ struct ContentView: View {
   private func prepareNewNotebook() {
     guard let root else { return }
     do {
+      try openNotes.saveAll { note in
+        try saveSession(note, using: root)
+      }
       newNotebookFolders = try root.folders()
       newNotebookKnownTags = try root.libraryTags()
       newNotebookDefaults = try root.folderDetails(for: libraryFolder)
@@ -1657,6 +1660,9 @@ struct ContentView: View {
   private func prepareNewNote() {
     guard let root else { return }
     do {
+      try openNotes.saveAll { note in
+        try saveSession(note, using: root)
+      }
       newNoteFolders = try root.folders()
       newNoteTemplates = try root.templateNames()
       guard !newNoteTemplates.isEmpty else {
