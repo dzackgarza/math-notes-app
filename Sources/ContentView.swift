@@ -1719,9 +1719,9 @@ struct ContentView: View {
 
   private func saveNewNoteDraft(_ draft: NewNoteDraft) {
     guard let root else { return }
-    showingNewNote = false
     do {
       try root.saveNewNoteDraft(draft)
+      showingNewNote = false
       refreshLibrary()
       showLibraryNotice("Draft saved")
     } catch {
@@ -1731,9 +1731,9 @@ struct ContentView: View {
 
   private func saveNewNoteStartingTemplate(_ template: NewNoteStartingTemplate) {
     guard let root else { return }
-    showingNewNote = false
     do {
       try root.saveNewNoteStartingTemplate(template)
+      showingNewNote = false
       refreshLibrary()
       showLibraryNotice("Template saved")
     } catch {
