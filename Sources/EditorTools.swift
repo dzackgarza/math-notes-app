@@ -395,7 +395,7 @@ struct EditorToolRail: View {
                 .font(.system(size: 24))
                 .frame(width: 44, height: 44)
                 .background(
-                  eraserMode == mode ? NativeTheme.ribbon.opacity(0.12) : Color.clear,
+                  eraserMode == mode ? NativeTheme.selectedFill : Color.clear,
                   in: RoundedRectangle(cornerRadius: 10))
               Text(mode.rawValue)
                 .font(NativeTheme.footnote)
@@ -436,7 +436,7 @@ struct EditorToolRail: View {
                 .font(.system(size: 24))
                 .frame(width: 44, height: 44)
                 .background(
-                  selectorMode == mode ? NativeTheme.ribbon.opacity(0.12) : Color.clear,
+                  selectorMode == mode ? NativeTheme.selectedFill : Color.clear,
                   in: RoundedRectangle(cornerRadius: 10))
               Text(mode.rawValue)
                 .font(NativeTheme.footnote)
@@ -477,7 +477,7 @@ struct EditorToolRail: View {
                 .font(.system(size: 24))
                 .frame(width: 44, height: 44)
                 .background(
-                  spaceMode == mode ? NativeTheme.ribbon.opacity(0.12) : Color.clear,
+                  spaceMode == mode ? NativeTheme.selectedFill : Color.clear,
                   in: RoundedRectangle(cornerRadius: 10))
               Text(mode.rawValue)
                 .font(NativeTheme.footnote)
@@ -513,7 +513,7 @@ struct EditorToolRail: View {
     .hoverEffect(.highlight)
     .foregroundStyle(selected ? NativeTheme.ribbon : NativeTheme.ink)
     .background(
-      selected ? NativeTheme.ribbon.opacity(0.12) : Color.clear,
+      selected ? NativeTheme.selectedFill : Color.clear,
       in: RoundedRectangle(cornerRadius: 10))
     .accessibilityLabel(label)
     .accessibilityAddTraits(selected ? .isSelected : [])

@@ -17,7 +17,7 @@ enum NativeTheme {
   static let paper = color("#FBFAF6")
   static let paperEdge = color("#C9CDC3")
   static let warning = color("#7A4E00")
-  static let separator = ink.opacity(0.16)
+  static let separator = ink.opacity(41.0 / 255.0)
 
   static let boardUI = uiColor("#DADDD5")
   static let leafUI = uiColor("#EEF0EA")

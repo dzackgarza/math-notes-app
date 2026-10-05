@@ -113,7 +113,6 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     })
   private let selectionBar = UIStackView()
   private var editFigureButton: UIButton?
-  private var selectionColorButton: UIButton?
   private var saveClippingButton: UIButton?
   private var selectionCopyDragHandle: UIButton?
   private var clippingsPanelOpen = false
@@ -130,7 +129,6 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private var appliedSelectorMode: EditorSelectorMode = .freehand
   private var appliedSpaceMode: EditorSpaceMode = .reflow
   private var appliedPens = EditorPenSet.defaults
-  private var appliedPalette: [UInt32] = []
   private var appliedArrangement = EditorPageArrangement.vertical
   private var appliedLayerID: String?
   private var documentRevision = 0
@@ -378,7 +376,6 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     selectorMode: EditorSelectorMode,
     spaceMode: EditorSpaceMode,
     pens: EditorPenSet,
-    palette: [UInt32],
     revision: Int,
     arrangement: EditorPageArrangement,
     activeLayerID: String?,
@@ -439,11 +436,6 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       appliedSelectorMode = selectorMode
       appliedSpaceMode = spaceMode
       appliedPens = pens
-    }
-
-    if palette != appliedPalette {
-      appliedPalette = palette
-      updateSelectionColorMenu()
     }
 
     if arrangement != appliedArrangement {
@@ -684,10 +676,6 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       label: "Cut", systemImage: "scissors", action: #selector(cutSelection)))
     selectionBar.addArrangedSubview(selectionButton(
       label: "Duplicate", systemImage: "plus.square.on.square", action: #selector(duplicateSelection)))
-    let selectionColor = selectionMenuButton(
-      label: "Recolor selection", systemImage: "paintpalette")
-    selectionColorButton = selectionColor
-    selectionBar.addArrangedSubview(selectionColor)
     let deleteSelection = selectionButton(
       label: "Delete selection", systemImage: "trash", action: #selector(deleteSelection))
     deleteSelection.tintColor = NativeTheme.ribbonUI
@@ -727,35 +715,6 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     button.widthAnchor.constraint(equalToConstant: 44).isActive = true
     button.heightAnchor.constraint(equalToConstant: 44).isActive = true
     return button
-  }
-
-  private func updateSelectionColorMenu() {
-    guard let button = selectionColorButton else { return }
-    button.isEnabled = !appliedPalette.isEmpty
-    button.showsMenuAsPrimaryAction = true
-    button.menu = UIMenu(
-      title: "Selection color",
-      children: appliedPalette.map { rgb in
-        UIAction(
-          title: String(format: "#%06X", rgb & 0xFFFFFF),
-          image: selectionColorImage(rgb)
-        ) { [weak self] _ in
-          self?.recolorSelection(rgb)
-        }
-      })
-  }
-
-  private func selectionColorImage(_ rgb: UInt32) -> UIImage {
-    let size = CGSize(width: 18, height: 18)
-    return UIGraphicsImageRenderer(size: size).image { context in
-      let color = UIColor(
-        red: CGFloat((rgb >> 16) & 0xFF) / 255,
-        green: CGFloat((rgb >> 8) & 0xFF) / 255,
-        blue: CGFloat(rgb & 0xFF) / 255,
-        alpha: 1)
-      color.setFill()
-      context.cgContext.fillEllipse(in: CGRect(origin: .zero, size: size))
-    }
   }
 
   @objc private func focusEditor() {
@@ -1589,7 +1548,6 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let spaceMode: EditorSpaceMode
   let tool: EditorTool
   let pens: EditorPenSet
-  let palette: [UInt32]
   let arrangement: EditorPageArrangement
   let activeLayerID: String?
   let fitRevision: Int
@@ -1657,7 +1615,6 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       selectorMode: selectorMode,
       spaceMode: spaceMode,
       pens: pens,
-      palette: palette,
       revision: revision,
       arrangement: arrangement,
       activeLayerID: activeLayerID,
@@ -1737,7 +1694,6 @@ struct InkEditorView: View {
         spaceMode: spaceMode,
         tool: tool,
         pens: penLibrary.tools,
-        palette: penLibrary.palette,
         arrangement: arrangement,
         activeLayerID: activeLayerID,
         fitRevision: fitRevision,
