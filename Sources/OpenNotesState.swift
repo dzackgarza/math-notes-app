@@ -137,7 +137,7 @@ enum OpenNotesStateError: LocalizedError {
   var errorDescription: String? {
     switch self {
     case let .captureInProgress(action):
-      "Finish the current figure before \(action)."
+      "Complete the drawing before \(action)."
     case let .saveFailed(_, underlying):
       underlying.localizedDescription
     }
@@ -232,7 +232,7 @@ final class OpenNotesState {
   func showLibrary(
     save: (OpenNotebookSession) throws -> Void
   ) throws {
-    try requireNoCapture("opening the library")
+    try requireNoCapture("returning to the library")
     inLibrary = true
     try saveAll(save: save)
   }
