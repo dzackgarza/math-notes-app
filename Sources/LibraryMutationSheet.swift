@@ -115,7 +115,6 @@ struct LibraryMutationSheet: View {
           Button(request.mode.confirmation) {
             onApply(name, parent)
           }
-          .disabled(request.mode.showsName && name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
       }
     }
