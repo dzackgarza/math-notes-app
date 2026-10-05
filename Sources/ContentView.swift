@@ -194,6 +194,7 @@ struct ContentView: View {
   @State private var clippingViewState: OpenNotebookViewState?
   @State private var figureEditor: FigureEditorRequest?
   @State private var conflictReview: ConflictReviewRequest?
+  @State private var conflictReviewChanged = false
   @State private var showingOpenNotePicker = false
   @State private var showingEditorSettings = false
   @State private var deletedPageToast: DeletedPageToast?
@@ -516,7 +517,7 @@ struct ContentView: View {
         onChoice: { choice in
           resolveConflict(request, choice: choice)
         },
-        onCancel: { conflictReview = nil })
+        onCancel: { finishConflictReview(request.reference) })
     }
     .overlay(alignment: .trailing) {
       if let request = clippings, let clippingViewState {
@@ -2204,8 +2205,10 @@ struct ContentView: View {
       openNotes.find(reference)?.conflictCount = conflicts.count
       guard let conflict = conflicts.first else {
         conflictReview = nil
+        conflictReviewChanged = false
         return
       }
+      conflictReviewChanged = false
       conflictReview = ConflictReviewRequest(
         reference: reference,
         conflict: conflict)
@@ -2225,21 +2228,38 @@ struct ContentView: View {
         conflict: request.conflict,
         choice: choice)
 
-      if openNotes.find(request.reference) != nil {
-        _ = try openNotes.reloadIfOpen(request.reference) { reference in
-          try makeOpenSession(reference, using: root)
+      conflictReviewChanged = true
+      let remaining = try root.conflicts(request.reference)
+      openNotes.find(request.reference)?.conflictCount = remaining.count
+      if let conflict = remaining.first {
+        conflictReview = ConflictReviewRequest(
+          reference: request.reference,
+          conflict: conflict)
+      } else {
+        finishConflictReview(request.reference)
+      }
+    } catch {
+      errorMessage = error.localizedDescription
+    }
+  }
+
+  private func finishConflictReview(_ reference: NotebookReference) {
+    guard let root else {
+      conflictReview = nil
+      conflictReviewChanged = false
+      return
+    }
+    do {
+      let changed = conflictReviewChanged
+      if changed, openNotes.find(reference) != nil {
+        _ = try openNotes.reloadIfOpen(reference) { target in
+          try makeOpenSession(target, using: root)
         }
         dismissClippings()
       }
-
-      let remaining = try root.conflicts(request.reference)
-      openNotes.find(request.reference)?.conflictCount = remaining.count
-      refreshLibrary()
-      conflictReview = remaining.first.map {
-        ConflictReviewRequest(
-          reference: request.reference,
-          conflict: $0)
-      }
+      conflictReview = nil
+      conflictReviewChanged = false
+      if changed { refreshLibrary() }
     } catch {
       errorMessage = error.localizedDescription
     }
