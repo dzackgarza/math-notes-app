@@ -1651,8 +1651,6 @@ struct ContentView: View {
         name: request.title,
         details: request.details)
       showingNewNotebook = false
-      libraryQuery = ""
-      libraryScope = .folder
       libraryFolder = reference
       libraryNotebookOpen = true
       refreshLibrary()
