@@ -273,7 +273,6 @@ final class OpenNotesState {
   func closeAll(
     save: (OpenNotebookSession) throws -> Void
   ) throws {
-    try requireNoCapture("changing notes folders")
     try saveAll(save: save)
     release(Set(opened.map(\.id)))
   }

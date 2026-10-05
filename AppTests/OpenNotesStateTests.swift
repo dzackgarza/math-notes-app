@@ -148,6 +148,24 @@ final class OpenNotesStateTests: XCTestCase {
     XCTAssertThrowsError(try state.close(0, save: { _ in }))
   }
 
+  func testCloseAllAllowsCaptureWhenChangingNotesFolders() throws {
+    let state = OpenNotesState()
+    let a = session(["A"], seed: 34)
+    let b = session(["B"], seed: 35)
+    state.show(a)
+    state.show(b)
+    a.captureActive = true
+
+    var saves: [NotebookReference] = []
+    try state.closeAll { note in
+      saves.append(note.reference)
+    }
+
+    XCTAssertEqual(saves, [a.reference, b.reference])
+    XCTAssertTrue(state.opened.isEmpty)
+    XCTAssertTrue(state.inLibrary)
+  }
+
   func testShowLibraryAttemptsToSaveEveryOpenNote() throws {
     let state = OpenNotesState()
     let a = session(["A"], seed: 10)
