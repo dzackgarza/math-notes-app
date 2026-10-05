@@ -1445,22 +1445,25 @@ struct ContentView: View {
       case let .rename(entry):
         try closeOpenEntries(at: entry.path, using: root)
         let currentParent = FolderReference(path: Array(entry.path.dropLast()))
-        _ = try root.moveEntry(
+        let destination = try root.moveEntry(
           path: entry.path,
           toParent: currentParent,
           name: name)
+        followLibraryMove(from: entry.path, to: destination)
       case let .move(entry):
         try closeOpenEntries(at: entry.path, using: root)
-        _ = try root.moveEntry(
+        let destination = try root.moveEntry(
           path: entry.path,
           toParent: parent,
           name: entry.name)
+        followLibraryMove(from: entry.path, to: destination)
       case let .restore(entry):
         try closeOpenEntries(at: entry.path, using: root)
-        _ = try root.moveEntry(
+        let destination = try root.moveEntry(
           path: entry.path,
           toParent: parent,
           name: entry.name)
+        followLibraryMove(from: entry.path, to: destination)
       }
       libraryMutation = nil
       refreshLibrary()
@@ -1469,11 +1472,27 @@ struct ContentView: View {
     }
   }
 
+  private func libraryFolderIsInside(_ path: [String]) -> Bool {
+    libraryNotebookOpen &&
+      libraryFolder.path.count >= path.count &&
+      Array(libraryFolder.path.prefix(path.count)) == path
+  }
+
+  private func followLibraryMove(from source: [String], to destination: [String]) {
+    guard libraryFolderIsInside(source) else { return }
+    libraryFolder = FolderReference(
+      path: destination + Array(libraryFolder.path.dropFirst(source.count)))
+  }
+
   private func moveLibraryEntryToTrash(_ entry: LibraryEntryTarget) {
     guard let root else { return }
     do {
       try closeOpenEntries(at: entry.path, using: root)
       _ = try root.moveToTrash(path: entry.path)
+      if libraryFolderIsInside(entry.path) {
+        libraryFolder = FolderReference(path: [])
+        libraryNotebookOpen = false
+      }
       refreshLibrary()
     } catch {
       handleOpenNotesError(error)
