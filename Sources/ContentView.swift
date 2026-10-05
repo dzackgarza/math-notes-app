@@ -1626,6 +1626,7 @@ struct ContentView: View {
 
   private func prepareNewNotebook() {
     guard let root else { return }
+    libraryNotice = nil
     do {
       try openNotes.saveAll { note in
         try saveSession(note, using: root)
@@ -1659,6 +1660,7 @@ struct ContentView: View {
 
   private func prepareNewNote() {
     guard let root else { return }
+    libraryNotice = nil
     do {
       try openNotes.saveAll { note in
         try saveSession(note, using: root)
