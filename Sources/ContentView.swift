@@ -284,6 +284,7 @@ struct ContentView: View {
               showingFolderPicker = true
             }
             .buttonStyle(.borderedProminent)
+            .disabled(!restoredRoot)
           }
         }
       }
