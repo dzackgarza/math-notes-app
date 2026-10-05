@@ -64,6 +64,7 @@ struct NewNotebookSheet: View {
   private let openedForm: NewNotebookFormState
   @State private var newTag = ""
   @State private var showingDiscardConfirmation = false
+  @FocusState private var titleFocused: Bool
 
   init(
     folders: [FolderReference],
@@ -157,6 +158,8 @@ struct NewNotebookSheet: View {
     Section("Notebook") {
       TextField("Notebook title", text: $form.title)
         .textInputAutocapitalization(.sentences)
+        .focused($titleFocused)
+        .task { titleFocused = true }
         .nativeFieldSurface()
 
       TextEditor(text: $form.description)

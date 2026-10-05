@@ -174,6 +174,8 @@ struct NewNoteSheet: View {
   @State private var namingTemplate = false
   @State private var templateName = ""
   @State private var showingDiscardConfirmation = false
+  @FocusState private var titleFocused: Bool
+  @FocusState private var templateNameFocused: Bool
 
   init(
     folders: [FolderReference],
@@ -265,6 +267,8 @@ struct NewNoteSheet: View {
     Section("Note") {
       TextField("Title", text: $form.title)
         .textInputAutocapitalization(.sentences)
+        .focused($titleFocused)
+        .task { titleFocused = true }
         .nativeFieldSurface()
     }
 
@@ -325,6 +329,8 @@ struct NewNoteSheet: View {
         if namingTemplate {
           HStack {
             TextField("Template name", text: $templateName)
+              .focused($templateNameFocused)
+              .task { templateNameFocused = true }
               .nativeFieldSurface()
             Button("Save template") {
               saveTemplate()

@@ -13,6 +13,7 @@ struct GoToPageSheet: View {
   let onCancel: () -> Void
 
   @State private var pageNumber: String
+  @FocusState private var pageFocused: Bool
 
   init(
     request: GoToPageRequest,
@@ -30,6 +31,8 @@ struct GoToPageSheet: View {
       Form {
         TextField("1 to \(request.pageCount)", text: $pageNumber)
           .keyboardType(.numberPad)
+          .focused($pageFocused)
+          .task { pageFocused = true }
       }
       .navigationTitle("Go to page")
       .navigationBarTitleDisplayMode(.inline)

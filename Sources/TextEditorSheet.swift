@@ -16,6 +16,7 @@ struct TextEditorSheet: View {
   @State private var content: String
   @State private var width: String
   @State private var rtl: Bool
+  @FocusState private var contentFocused: Bool
 
   init(
     request: EditorTextRequest,
@@ -35,6 +36,8 @@ struct TextEditorSheet: View {
       Form {
         Section("Text") {
           TextEditor(text: $content)
+            .focused($contentFocused)
+            .task { contentFocused = true }
             .frame(minHeight: 140)
             .environment(\.layoutDirection, rtl ? .rightToLeft : .leftToRight)
         }

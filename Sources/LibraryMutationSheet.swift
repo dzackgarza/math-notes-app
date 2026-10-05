@@ -69,6 +69,7 @@ struct LibraryMutationSheet: View {
 
   @State private var name: String
   @State private var parent: FolderReference
+  @FocusState private var nameFocused: Bool
 
   init(
     request: LibraryMutationRequest,
@@ -89,6 +90,8 @@ struct LibraryMutationSheet: View {
           Section("Name") {
             TextField("Name", text: $name)
               .textInputAutocapitalization(.sentences)
+              .focused($nameFocused)
+              .task { nameFocused = true }
           }
         }
 

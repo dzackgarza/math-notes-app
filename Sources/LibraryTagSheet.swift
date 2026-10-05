@@ -6,6 +6,7 @@ struct LibraryTagSheet: View {
 
   @State private var name = ""
   @State private var color = LibraryMetadataFile.tagColors[0]
+  @FocusState private var nameFocused: Bool
 
   var body: some View {
     NavigationStack {
@@ -13,6 +14,8 @@ struct LibraryTagSheet: View {
         Section("Tag") {
           TextField("Tag name", text: $name)
             .textInputAutocapitalization(.never)
+            .focused($nameFocused)
+            .task { nameFocused = true }
         }
 
         Section("Color") {
