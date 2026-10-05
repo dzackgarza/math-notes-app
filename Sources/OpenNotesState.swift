@@ -286,9 +286,6 @@ final class OpenNotesState {
         && Array(session.reference.path.prefix(path.count)) == path
     }
     guard !targets.isEmpty else { return }
-    guard !targets.contains(where: { captureActive(for: $0) }) else {
-      throw OpenNotesStateError.captureInProgress("moving this note")
-    }
 
     var firstFailure: OpenNotesStateError?
     for session in targets {

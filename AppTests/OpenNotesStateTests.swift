@@ -211,6 +211,24 @@ final class OpenNotesStateTests: XCTestCase {
     XCTAssertTrue(state.active === c)
   }
 
+  func testCloseUnderAllowsCaptureWhenRelocatingEntries() throws {
+    let state = OpenNotesState()
+    let a = session(["Folder", "A"], seed: 36)
+    let b = session(["Other", "B"], seed: 37)
+    state.show(a)
+    state.show(b)
+    a.captureActive = true
+
+    var saves: [NotebookReference] = []
+    try state.closeUnder(["Folder"]) { note in
+      saves.append(note.reference)
+    }
+
+    XCTAssertEqual(saves, [a.reference])
+    XCTAssertEqual(state.opened.map(\.reference), [b.reference])
+    XCTAssertTrue(state.active === b)
+  }
+
   func testPerNoteViewStateSurvivesTabSwitches() throws {
     let state = OpenNotesState()
     let a = session(["A"], seed: 16)
