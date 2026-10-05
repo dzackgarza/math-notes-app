@@ -2191,20 +2191,16 @@ struct ContentView: View {
     guard let root else { return }
     do {
       try openNotes.requireNoCapture("comparing versions")
+      var conflicts = try root.conflicts(reference)
       if saveOpen, let session, session.reference == reference {
         do {
           try saveSession(session, using: root)
-        } catch let storageError as NotebookStorageError {
-          switch storageError {
-          case .externalChanges:
-            break
-          default:
-            throw storageError
-          }
+        } catch {
+          conflicts = try root.conflicts(reference)
+          if conflicts.isEmpty { throw error }
         }
       }
 
-      let conflicts = try root.conflicts(reference)
       openNotes.find(reference)?.conflictCount = conflicts.count
       guard let conflict = conflicts.first else {
         conflictReview = nil
