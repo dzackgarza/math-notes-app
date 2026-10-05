@@ -1607,7 +1607,6 @@ struct ContentView: View {
     paper: String?
   ) {
     guard let root else { return }
-    libraryDetails = nil
     do {
       switch request.target {
       case let .note(reference, current):
@@ -1627,6 +1626,7 @@ struct ContentView: View {
             tags: tags),
           for: reference)
       }
+      libraryDetails = nil
       refreshLibrary()
     } catch {
       errorMessage = error.localizedDescription
