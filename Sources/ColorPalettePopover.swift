@@ -14,6 +14,7 @@ struct ColorPalettePopover: View {
 
   @Environment(\.dismiss) private var dismiss
   @State private var showingPaletteEditor = false
+  @State private var pendingSavedPenRemoval: Int?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
@@ -84,7 +85,7 @@ struct ColorPalettePopover: View {
               "Saved pen \(formatSize(preset.size)) pt \(hex(preset.rgb))")
             .contextMenu {
               Button("Remove saved pen", systemImage: "trash", role: .destructive) {
-                removeSaved(index)
+                pendingSavedPenRemoval = index
               }
             }
           }
@@ -100,6 +101,23 @@ struct ColorPalettePopover: View {
         initialRGB: currentSettings.rgb,
         onPersist: onPersist)
         .presentationCompactAdaptation(.popover)
+    }
+    .confirmationDialog(
+      "Saved pen",
+      isPresented: Binding(
+        get: { pendingSavedPenRemoval != nil },
+        set: { if !$0 { pendingSavedPenRemoval = nil } }),
+      titleVisibility: .hidden
+    ) {
+      Button("Remove saved pen", role: .destructive) {
+        if let index = pendingSavedPenRemoval {
+          removeSaved(index)
+        }
+        pendingSavedPenRemoval = nil
+      }
+      Button("Cancel", role: .cancel) {
+        pendingSavedPenRemoval = nil
+      }
     }
   }
 
