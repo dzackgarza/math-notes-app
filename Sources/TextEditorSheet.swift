@@ -16,6 +16,7 @@ struct TextEditorSheet: View {
   @State private var content: String
   @State private var width: String
   @State private var rtl: Bool
+  @State private var validationMessage: String?
   @FocusState private var contentFocused: Bool
 
   init(
@@ -48,6 +49,10 @@ struct TextEditorSheet: View {
           Text("Use 0 for the full text width.")
             .font(.caption)
             .foregroundStyle(.secondary)
+          if let validationMessage {
+            Text(validationMessage)
+              .foregroundStyle(.red)
+          }
           Toggle("Right to left", isOn: $rtl)
         }
       }
@@ -59,14 +64,16 @@ struct TextEditorSheet: View {
         }
         ToolbarItem(placement: .confirmationAction) {
           Button("Done") {
-            guard let widthValue else { return }
+            guard let widthValue else {
+              validationMessage = "Use a width from 0 to 100000 pt."
+              return
+            }
             onSave(
               EngineTextProperties(
                 content: content,
                 width: widthValue,
                 rtl: rtl))
           }
-          .disabled(widthValue == nil)
         }
       }
     }
