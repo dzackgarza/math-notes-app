@@ -908,6 +908,17 @@ struct LibraryThumbnail: View {
         ProgressView()
       }
     }
+    .overlay(alignment: .topTrailing) {
+      if item.conflicts > 0 {
+        Image(systemName: "exclamationmark.triangle.fill")
+          .font(.system(size: 14))
+          .foregroundStyle(NativeTheme.warning)
+          .padding(4)
+          .background(NativeTheme.leaf, in: Circle())
+          .padding(4)
+          .accessibilityLabel("Conflicting versions")
+      }
+    }
     .task(id: item.modified) {
       image = nil
       missing = false
