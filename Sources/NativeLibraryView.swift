@@ -729,11 +729,9 @@ struct NativeLibraryView: View {
 
   private func noteMetadataLine(_ item: LibraryNotebookItem) -> String {
     var parts: [String] = []
-    if !query.isEmpty || scope != .folder,
-      let notebook = item.reference.path.dropLast().last,
-      !notebook.isEmpty
-    {
-      parts.append(notebook)
+    if scope != .trash && (!query.isEmpty || scope != .folder) {
+      let parent = FolderReference(path: Array(item.reference.path.dropLast()))
+      parts.append(parent.name)
     }
     parts.append(libraryModifiedLabel(item.modified))
     return parts.joined(separator: " · ")
