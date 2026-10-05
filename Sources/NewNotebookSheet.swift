@@ -93,25 +93,21 @@ struct NewNotebookSheet: View {
       CreationSheetLayout {
         notebookFormFields
       } preview: {
-        VStack(alignment: .leading, spacing: 12) {
-          Text("Preview")
-            .font(NativeTheme.headline)
-          NotebookCoverArt(
-            color: NativeTheme.color(form.coverColor),
-            style: form.coverStyle,
-            title: form.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-              ? "Untitled notebook"
-              : form.title
-          ) {
-            CreationPaperPreview(
-              template: form.paper,
-              pageSize: .a4,
-              orientation: .portrait,
-              render: renderPreview)
-          }
-          .aspectRatio(0.7, contentMode: .fit)
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
+        NotebookCoverArt(
+          color: NativeTheme.color(form.coverColor),
+          style: form.coverStyle,
+          title: form.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? "Untitled notebook"
+            : form.title
+        ) {
+          CreationPaperPreview(
+            template: form.paper,
+            pageSize: .a4,
+            orientation: .portrait,
+            render: renderPreview)
         }
+        .aspectRatio(0.7, contentMode: .fit)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
       .scrollContentBackground(.hidden)
       .background(NativeTheme.leaf)
