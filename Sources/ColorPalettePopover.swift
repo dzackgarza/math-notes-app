@@ -33,7 +33,8 @@ struct ColorPalettePopover: View {
               supportsOpacity: false)
               .labelsHidden()
               .frame(width: 44, height: 44)
-              .accessibilityLabel("Color \(hex(rgb))")
+              .accessibilityLabel("Color wheel")
+              .accessibilityValue(hex(rgb))
               .accessibilityAddTraits(.isSelected)
           } else {
             Button {
@@ -220,6 +221,7 @@ private struct PaletteEditorPopover: View {
       }
 
       ColorPicker("New color", selection: $newColor, supportsOpacity: false)
+        .accessibilityLabel("Color wheel")
 
       Button("Add color", systemImage: "plus") {
         var next = library
