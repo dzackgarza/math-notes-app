@@ -845,50 +845,82 @@ final class NotesRootAccess {
 
   func library(
     in parent: FolderReference,
+    overview: Bool = false,
     sort: LibrarySort,
     direction: LibrarySortDirection
   ) throws -> LibraryListing {
     try coordinatedRead(at: url) { root in
-      let directory = parent.path.reduce(root) { partial, component in
-        partial.appendingPathComponent(component, isDirectory: true)
-      }
-      let favoritePaths = try LibraryMetadataFile.favoritePaths(
-        in: LibraryMetadataFile.read(at: root))
-      let children = try FileManager.default.contentsOfDirectory(
-        at: directory,
-        includingPropertiesForKeys: [.isDirectoryKey],
-        options: [.skipsHiddenFiles])
+      let fileManager = FileManager.default
+      let metadata = try LibraryMetadataFile.read(at: root)
+      let favoritePaths = try LibraryMetadataFile.favoritePaths(in: metadata)
       var folders: [LibraryFolderItem] = []
       var notebooks: [LibraryNotebookItem] = []
 
-      for child in children {
-        let name = child.lastPathComponent
-        guard !name.hasPrefix("."),
-          try child.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true
-        else { continue }
+      func children(of directory: URL) throws -> [URL] {
+        try fileManager.contentsOfDirectory(
+          at: directory,
+          includingPropertiesForKeys: [.isDirectoryKey],
+          options: [.skipsHiddenFiles])
+          .filter { child in
+            !child.lastPathComponent.hasPrefix(".") &&
+              (try? child.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+          }
+      }
 
-        let path = parent.path + [name]
-        if FileManager.default.fileExists(
-          atPath: child.appendingPathComponent("notebook.json").path)
-        {
-          notebooks.append(
-            LibraryNotebookItem(
-              reference: NotebookReference(path: path),
-              modified: try Self.notebookModification(at: child),
-              favorite: favoritePaths.contains(path.joined(separator: "/")),
-              conflicts: try combinedConflictCount(
-                NotebookReference(path: path),
-                at: child),
-              details: try LibraryMetadataFile.noteDetails(
-                in: LibraryMetadataFile.read(at: root), path: path)))
-        } else {
-          folders.append(
-            LibraryFolderItem(
-              reference: FolderReference(path: path),
-              modified: try Self.latestNotebookModification(in: child),
-              noteCount: try Self.directNotebookCount(in: child),
-              details: try LibraryMetadataFile.folderDetails(
-                in: LibraryMetadataFile.read(at: root), path: path)))
+      func notebookItem(_ child: URL, path: [String]) throws -> LibraryNotebookItem {
+        let reference = NotebookReference(path: path)
+        return LibraryNotebookItem(
+          reference: reference,
+          modified: try Self.notebookModification(at: child),
+          favorite: favoritePaths.contains(path.joined(separator: "/")),
+          conflicts: try combinedConflictCount(reference, at: child),
+          details: try LibraryMetadataFile.noteDetails(in: metadata, path: path))
+      }
+
+      if overview {
+        func visit(_ directory: URL, path: [String]) throws {
+          var directNotes: [(URL, [String])] = []
+          var nested: [(URL, [String])] = []
+          for child in try children(of: directory) {
+            let childPath = path + [child.lastPathComponent]
+            if fileManager.fileExists(
+              atPath: child.appendingPathComponent("notebook.json").path)
+            {
+              directNotes.append((child, childPath))
+            } else {
+              nested.append((child, childPath))
+            }
+          }
+
+          if !path.isEmpty || !directNotes.isEmpty {
+            var modified: Date?
+            for (note, _) in directNotes {
+              let candidate = try Self.notebookModification(at: note)
+              if modified == nil || candidate > modified! { modified = candidate }
+            }
+            folders.append(
+              LibraryFolderItem(
+                reference: FolderReference(path: path),
+                modified: modified,
+                noteCount: directNotes.count,
+                details: try LibraryMetadataFile.folderDetails(in: metadata, path: path)))
+          }
+
+          for (child, childPath) in nested {
+            try visit(child, path: childPath)
+          }
+        }
+        try visit(root, path: [])
+      } else {
+        let directory = parent.path.reduce(root) { partial, component in
+          partial.appendingPathComponent(component, isDirectory: true)
+        }
+        for child in try children(of: directory) {
+          let path = parent.path + [child.lastPathComponent]
+          guard fileManager.fileExists(
+            atPath: child.appendingPathComponent("notebook.json").path)
+          else { continue }
+          notebooks.append(try notebookItem(child, path: path))
         }
       }
 
@@ -910,14 +942,14 @@ final class NotesRootAccess {
         }
       case .modified:
         folders.sort {
-          switch ($0.modified, $1.modified) {
-          case let (left?, right?) where left != right:
+          let left = $0.modified ?? .distantPast
+          let right = $1.modified ?? .distantPast
+          if left != right {
             return ascending ? left < right : left > right
-          default:
-            return ascending
-              ? nameOrder($0.reference.name, $1.reference.name)
-              : nameOrder($1.reference.name, $0.reference.name)
           }
+          return ascending
+            ? nameOrder($0.reference.name, $1.reference.name)
+            : nameOrder($1.reference.name, $0.reference.name)
         }
         notebooks.sort {
           if $0.modified != $1.modified {
@@ -941,6 +973,7 @@ final class NotesRootAccess {
     guard !needle.isEmpty else {
       return try library(
         in: FolderReference(path: []),
+        overview: true,
         sort: sort,
         direction: direction)
     }

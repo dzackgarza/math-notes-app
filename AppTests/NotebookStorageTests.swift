@@ -999,6 +999,54 @@ final class NotebookStorageTests: XCTestCase {
   }
 
   @MainActor
+  func testLibraryOverviewMatchesWebFlatFolderModel() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let root = NotesRootAccess(testURL: directory)
+    let myNotes = FolderReference(path: [])
+    let defaults = LibraryFolderDetails(
+      description: "",
+      paper: "blank",
+      coverColor: "#24324A",
+      coverStyle: "classic",
+      tags: [])
+    let course = try root.createFolder(parent: myNotes, name: "Course", details: defaults)
+    let week = try root.createFolder(parent: course, name: "Week 1", details: defaults)
+    let (rootNote, _) = try root.createNote(
+      title: "Inbox", parent: myNotes, template: "blank",
+      pageSize: INK_PAGE_A4, orientation: INK_PORTRAIT)
+    let (courseNote, _) = try root.createNote(
+      title: "Lecture", parent: course, template: "blank",
+      pageSize: INK_PAGE_A4, orientation: INK_PORTRAIT)
+    let (weekNote, _) = try root.createNote(
+      title: "Exercises", parent: week, template: "blank",
+      pageSize: INK_PAGE_A4, orientation: INK_PORTRAIT)
+
+    let overview = try root.library(
+      in: myNotes, overview: true, sort: .name, direction: .ascending)
+    XCTAssertEqual(
+      overview.folders.map(\.reference),
+      [course, week, myNotes])
+    XCTAssertEqual(overview.folders.map(\.noteCount), [1, 1, 1])
+    XCTAssertTrue(overview.notebooks.isEmpty)
+
+    let rootOpen = try root.library(in: myNotes, sort: .name, direction: .ascending)
+    XCTAssertTrue(rootOpen.folders.isEmpty)
+    XCTAssertEqual(rootOpen.notebooks.map(\.reference), [rootNote])
+
+    let courseOpen = try root.library(in: course, sort: .name, direction: .ascending)
+    XCTAssertTrue(courseOpen.folders.isEmpty)
+    XCTAssertEqual(courseOpen.notebooks.map(\.reference), [courseNote])
+
+    let weekOpen = try root.library(in: week, sort: .name, direction: .ascending)
+    XCTAssertTrue(weekOpen.folders.isEmpty)
+    XCTAssertEqual(weekOpen.notebooks.map(\.reference), [weekNote])
+  }
+
+  @MainActor
   func testLibrarySearchMatchesWebMetadataAndDirectNotePredicates() throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)

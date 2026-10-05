@@ -13,6 +13,7 @@ enum LibraryScope: String {
 struct NativeLibraryView: View {
   let root: NotesRootAccess
   let folder: FolderReference
+  let notebookOpen: Bool
   let listing: LibraryListing
   let folderDetails: LibraryFolderDetails?
   @Binding var query: String
@@ -92,15 +93,15 @@ struct NativeLibraryView: View {
               .padding(20)
           }
           ContentUnavailableView {
-            if folder.path.isEmpty {
+            if !notebookOpen {
               Label("No Notebooks", systemImage: "books.vertical")
             } else {
               Label("No Notes", systemImage: "pencil")
             }
           } description: {
-            Text(folder.path.isEmpty ? "Your notebooks appear here." : "This notebook has no notes yet.")
+            Text(!notebookOpen ? "Your notebooks appear here." : "This notebook has no notes yet.")
           } actions: {
-            if folder.path.isEmpty {
+            if !notebookOpen {
               Button("Create notebook", action: createNotebook)
                 .buttonStyle(.borderedProminent)
             } else {
@@ -156,7 +157,7 @@ struct NativeLibraryView: View {
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .safeAreaInset(edge: .top, spacing: 0) {
-        if folder.path.isEmpty {
+        if !notebookOpen {
           Text(libraryHeading)
             .font(NativeTheme.volumeTitle)
             .foregroundStyle(NativeTheme.ink)
@@ -174,19 +175,19 @@ struct NativeLibraryView: View {
     .font(NativeTheme.body)
     .toolbarBackground(NativeTheme.board, for: .navigationBar)
     .toolbarBackground(.visible, for: .navigationBar)
-    .navigationTitle(folder.path.isEmpty ? "" : folder.name)
+    .navigationTitle(!notebookOpen ? "" : folder.name)
     .navigationBarTitleDisplayMode(.inline)
     .modifier(
       LibrarySearchModifier(
-        enabled: librarySearchEnabled(folderPath: folder.path),
+        enabled: !notebookOpen,
         query: $query,
         searchPresented: $searchPresented,
         refreshSearch: refreshSearch))
-    .onChange(of: folder.path) { _, path in
-      if !path.isEmpty { searchPresented = false }
+    .onChange(of: notebookOpen) { _, open in
+      if open { searchPresented = false }
     }
     .toolbar {
-      if scope == .folder && !folder.path.isEmpty {
+      if scope == .folder && notebookOpen {
         ToolbarItem(placement: .topBarLeading) {
           Button(action: goUp) {
             Label("Library", systemImage: "chevron.left")
@@ -196,13 +197,13 @@ struct NativeLibraryView: View {
       }
 
       ToolbarItemGroup(placement: .topBarTrailing) {
-        if folder.path.isEmpty {
+        if !notebookOpen {
           filterMenu
         }
 
         sortMenu
 
-        if folder.path.isEmpty {
+        if !notebookOpen {
           Button(action: createNotebook) {
             Label("New notebook", systemImage: "folder.badge.plus")
           }
@@ -567,7 +568,7 @@ struct NativeLibraryView: View {
   private var visibleFolderDetails: LibraryFolderDetails? {
     guard scope == .folder,
       query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-      !folder.path.isEmpty,
+      notebookOpen,
       let folderDetails,
       !folderDetails.description.isEmpty || !folderDetails.tags.isEmpty
     else { return nil }

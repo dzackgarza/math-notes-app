@@ -121,6 +121,7 @@ struct ContentView: View {
   @EnvironmentObject private var sceneDelegate: MathNotesSceneDelegate
   @State private var root: NotesRootAccess?
   @State private var libraryFolder = FolderReference(path: [])
+  @State private var libraryNotebookOpen = false
   @State private var libraryListing = LibraryListing(folders: [], notebooks: [])
   @State private var libraryFolderDetails: LibraryFolderDetails?
   @State private var libraryQuery = ""
@@ -1029,6 +1030,7 @@ struct ContentView: View {
     NativeLibraryView(
       root: root,
       folder: libraryFolder,
+      notebookOpen: libraryNotebookOpen,
       listing: libraryListing,
       folderDetails: libraryFolderDetails,
       query: $libraryQuery,
@@ -1043,6 +1045,7 @@ struct ContentView: View {
         libraryQuery = ""
         libraryScope = .folder
         libraryFolder = folder
+        libraryNotebookOpen = true
         refreshLibrary()
       },
       openNotebook: openNotebook,
@@ -1051,12 +1054,14 @@ struct ContentView: View {
         libraryTag = nil
         libraryScope = .folder
         libraryFolder = FolderReference(path: [])
+        libraryNotebookOpen = false
         refreshLibrary()
       },
       selectScope: { next in
         libraryQuery = ""
         libraryTag = nil
         libraryFolder = FolderReference(path: [])
+        libraryNotebookOpen = false
         if next == .recent {
           librarySort = .modified
           librarySortDirection = .descending
@@ -1077,6 +1082,7 @@ struct ContentView: View {
         libraryTag = tag
         libraryQuery = ""
         libraryFolder = FolderReference(path: [])
+        libraryNotebookOpen = false
         libraryScope = .tag
         refreshLibrary()
       },
@@ -1250,6 +1256,7 @@ struct ContentView: View {
     dismissClippings()
     conflictReview = nil
     libraryFolder = FolderReference(path: [])
+    libraryNotebookOpen = false
     libraryQuery = ""
     libraryScope = .folder
     libraryTags = []
@@ -1314,7 +1321,7 @@ struct ContentView: View {
       }
       let queryIsEmpty = libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       libraryFolderDetails =
-        libraryScope == .folder && queryIsEmpty && !libraryFolder.path.isEmpty
+        libraryScope == .folder && queryIsEmpty && libraryNotebookOpen
         ? try root.folderDetails(for: libraryFolder)
         : nil
       if libraryScope == .tag, let libraryTag {
@@ -1360,6 +1367,7 @@ struct ContentView: View {
       } else {
         libraryListing = try root.library(
           in: libraryFolder,
+          overview: !libraryNotebookOpen,
           sort: librarySort,
           direction: librarySortDirection)
       }
@@ -1371,12 +1379,14 @@ struct ContentView: View {
       if recountTags { libraryTagCounts = [:] }
       if libraryScope == .folder,
         libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-        !libraryFolder.path.isEmpty
+        libraryNotebookOpen
       {
         libraryFolder = FolderReference(path: [])
+        libraryNotebookOpen = false
         do {
           libraryListing = try root.library(
             in: libraryFolder,
+            overview: true,
             sort: librarySort,
             direction: librarySortDirection)
           return
@@ -1542,6 +1552,8 @@ struct ContentView: View {
       showingNewTag = false
       libraryTag = name
       libraryQuery = ""
+      libraryFolder = FolderReference(path: [])
+      libraryNotebookOpen = false
       libraryScope = .tag
       refreshLibrary()
     } catch {
@@ -1572,6 +1584,7 @@ struct ContentView: View {
       libraryQuery = ""
       libraryScope = .folder
       libraryFolder = reference
+      libraryNotebookOpen = true
       refreshLibrary()
     } catch {
       errorMessage = error.localizedDescription
