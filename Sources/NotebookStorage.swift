@@ -1031,12 +1031,31 @@ final class NotesRootAccess {
               folders.append(
                 LibraryFolderItem(
                   reference: FolderReference(path: childPath),
-                  modified: try Self.latestNotebookModification(in: child),
+                  modified: try Self.latestDirectNotebookModification(in: child),
                   noteCount: directNoteNames.count,
                   details: details))
             }
             try visit(child, path: childPath)
           }
+        }
+      }
+
+      let rootNoteNames = try Self.directNotebookNames(in: root)
+      if !rootNoteNames.isEmpty {
+        let rootDetails = try LibraryMetadataFile.folderDetails(in: metadata, path: [])
+        if Self.matchesSearch(
+          needle,
+          name: FolderReference(path: []).name,
+          description: rootDetails.description,
+          tags: rootDetails.tags,
+          additionalNames: rootNoteNames)
+        {
+          folders.append(
+            LibraryFolderItem(
+              reference: FolderReference(path: []),
+              modified: try Self.latestDirectNotebookModification(in: root),
+              noteCount: rootNoteNames.count,
+              details: rootDetails))
         }
       }
 
@@ -1059,14 +1078,14 @@ final class NotesRootAccess {
         }
       case .modified:
         folders.sort {
-          switch ($0.modified, $1.modified) {
-          case let (left?, right?) where left != right:
+          let left = $0.modified ?? .distantPast
+          let right = $1.modified ?? .distantPast
+          if left != right {
             return ascending ? left < right : left > right
-          default:
-            return ascending
-              ? nameOrder($0.reference.name, $1.reference.name)
-              : nameOrder($1.reference.name, $0.reference.name)
           }
+          return ascending
+            ? nameOrder($0.reference.name, $1.reference.name)
+            : nameOrder($1.reference.name, $0.reference.name)
         }
         notebooks.sort {
           if $0.modified != $1.modified {
@@ -1181,32 +1200,29 @@ final class NotesRootAccess {
     }
 
     var folderItems: [LibraryFolderItem] = []
-    for reference in try folders() where !reference.path.isEmpty {
+    for reference in try folders() {
+      let directory = urlForPath(reference.path)
+      let directNoteNames = try coordinatedRead(at: directory) {
+        try Self.directNotebookNames(in: $0)
+      }
+      if reference.path.isEmpty && directNoteNames.isEmpty { continue }
+
       let details = try folderDetails(for: reference)
       guard details.tags.contains(tag) else { continue }
-      let descendantNames = allNotebooks.lazy
-        .filter {
-          $0.reference.path.count > reference.path.count &&
-          Array($0.reference.path.prefix(reference.path.count)) == reference.path
-        }
-        .map(\.reference.name)
       guard needle.isEmpty ||
         reference.name.localizedCaseInsensitiveContains(needle) ||
         details.description.localizedCaseInsensitiveContains(needle) ||
         details.tags.contains(where: { $0.localizedCaseInsensitiveContains(needle) }) ||
-        descendantNames.contains(where: { $0.localizedCaseInsensitiveContains(needle) })
+        directNoteNames.contains(where: { $0.localizedCaseInsensitiveContains(needle) })
       else { continue }
 
-      let directory = urlForPath(reference.path)
       folderItems.append(
         LibraryFolderItem(
           reference: reference,
           modified: try coordinatedRead(at: directory) {
-            try Self.latestNotebookModification(in: $0)
+            try Self.latestDirectNotebookModification(in: $0)
           },
-          noteCount: try coordinatedRead(at: directory) {
-            try Self.directNotebookCount(in: $0)
-          },
+          noteCount: directNoteNames.count,
           details: details))
     }
 
@@ -1223,14 +1239,14 @@ final class NotesRootAccess {
       }
     case .modified:
       folderItems.sort {
-        switch ($0.modified, $1.modified) {
-        case let (left?, right?) where left != right:
+        let left = $0.modified ?? .distantPast
+        let right = $1.modified ?? .distantPast
+        if left != right {
           return ascending ? left < right : left > right
-        default:
-          return ascending
-            ? nameOrder($0.reference.name, $1.reference.name)
-            : nameOrder($1.reference.name, $0.reference.name)
         }
+        return ascending
+          ? nameOrder($0.reference.name, $1.reference.name)
+          : nameOrder($1.reference.name, $0.reference.name)
       }
     }
     return LibraryListing(folders: folderItems, notebooks: notebooks)
@@ -2687,6 +2703,23 @@ final class NotesRootAccess {
           atPath: child.appendingPathComponent("notebook.json").path)
       }
       .map(\.lastPathComponent)
+  }
+
+  private static func latestDirectNotebookModification(in directory: URL) throws -> Date? {
+    var latest: Date?
+    for child in try FileManager.default.contentsOfDirectory(
+      at: directory,
+      includingPropertiesForKeys: [.isDirectoryKey],
+      options: [.skipsHiddenFiles])
+    {
+      guard !child.lastPathComponent.hasPrefix("."),
+        FileManager.default.fileExists(
+          atPath: child.appendingPathComponent("notebook.json").path)
+      else { continue }
+      let candidate = try notebookModification(at: child)
+      if latest == nil || candidate > latest! { latest = candidate }
+    }
+    return latest
   }
 
   private static func directNotebookCount(in directory: URL) throws -> Int {

@@ -1075,6 +1075,29 @@ final class NotebookStorageTests: XCTestCase {
       template: "blank",
       pageSize: INK_PAGE_A4,
       orientation: INK_PORTRAIT)
+    try root.saveFolderDetails(
+      LibraryFolderDetails(
+        description: "Root shelf",
+        paper: "blank",
+        coverColor: "#24324A",
+        coverStyle: "classic",
+        tags: ["Root"]),
+      for: FolderReference(path: []))
+    let week = try root.createFolder(
+      parent: course,
+      name: "Week",
+      details: LibraryFolderDetails(
+        description: "",
+        paper: "blank",
+        coverColor: "#24324A",
+        coverStyle: "classic",
+        tags: []))
+    _ = try root.createNote(
+      title: "Deep Result",
+      parent: week,
+      template: "blank",
+      pageSize: INK_PAGE_A4,
+      orientation: INK_PORTRAIT)
     try root.saveNoteDetails(
       LibraryNoteDetails(
         favorite: false,
@@ -1090,10 +1113,27 @@ final class NotebookStorageTests: XCTestCase {
     XCTAssertEqual(try search("Analysis").notebooks.map(\.reference), [measure])
     XCTAssertEqual(try search("Geometry").folders.map(\.reference), [course])
     XCTAssertEqual(try search("Research").folders.map(\.reference), [course])
+    XCTAssertEqual(try search("Root shelf").folders.map(\.reference), [FolderReference(path: [])])
+
+    let rootDirectName = try search("Measure")
+    XCTAssertEqual(rootDirectName.folders.map(\.reference), [FolderReference(path: [])])
+    XCTAssertEqual(rootDirectName.notebooks.map(\.reference), [measure])
 
     let directName = try search("Spectral")
     XCTAssertEqual(directName.folders.map(\.reference), [course])
     XCTAssertEqual(directName.notebooks.map(\.reference), [spectral])
+
+    XCTAssertEqual(
+      try root.taggedLibrary(
+        tag: "Root", query: "Measure", sort: .name, direction: .ascending).folders.map(\.reference),
+      [FolderReference(path: [])])
+    XCTAssertEqual(
+      try root.taggedLibrary(
+        tag: "Research", query: "Spectral", sort: .name, direction: .ascending).folders.map(\.reference),
+      [course])
+    XCTAssertTrue(
+      try root.taggedLibrary(
+        tag: "Research", query: "Deep", sort: .name, direction: .ascending).folders.isEmpty)
 
     _ = try root.moveToTrash(path: measure.path)
     XCTAssertEqual(
