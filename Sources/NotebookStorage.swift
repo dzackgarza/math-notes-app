@@ -1673,13 +1673,7 @@ final class NotesRootAccess {
     pageSize: InkPageSize,
     orientation: InkOrientation
   ) throws -> (NotebookReference, EngineDocument) {
-    let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !name.isEmpty else {
-      throw NotebookStorageError.invalidName("Enter a note title.")
-    }
-    guard !name.contains("/"), !name.contains("\\"), !name.hasPrefix(".") else {
-      throw NotebookStorageError.invalidName("A note title cannot start with a dot or contain / or \\.")
-    }
+    let name = try validatedLibraryName(title)
 
     try ensureBuiltinTemplates()
     let reference = NotebookReference(path: parent.path + [name])

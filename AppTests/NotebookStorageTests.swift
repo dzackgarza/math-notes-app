@@ -790,10 +790,18 @@ final class NotebookStorageTests: XCTestCase {
 
   func testLibraryNameValidationMatchesTheWebRules() throws {
     XCTAssertEqual(try validatedLibraryName("  Stable pairs  "), "Stable pairs")
-    XCTAssertThrowsError(try validatedLibraryName(""))
-    XCTAssertThrowsError(try validatedLibraryName(".trash"))
-    XCTAssertThrowsError(try validatedLibraryName("A/B"))
-    XCTAssertThrowsError(try validatedLibraryName("A\\B"))
+    XCTAssertThrowsError(try validatedLibraryName("")) { error in
+      XCTAssertEqual(error.localizedDescription, "Enter a name.")
+    }
+    XCTAssertThrowsError(try validatedLibraryName(".trash")) { error in
+      XCTAssertEqual(error.localizedDescription, "A name cannot start with a dot.")
+    }
+    XCTAssertThrowsError(try validatedLibraryName("A/B")) { error in
+      XCTAssertEqual(error.localizedDescription, "A name cannot contain / or \\.")
+    }
+    XCTAssertThrowsError(try validatedLibraryName("A\\B")) { error in
+      XCTAssertEqual(error.localizedDescription, "A name cannot contain / or \\.")
+    }
   }
 
   func testLibraryFavoriteMetadataPersistsAndFollowsMoves() throws {
