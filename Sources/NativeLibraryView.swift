@@ -588,7 +588,6 @@ struct NativeLibraryView: View {
     Button("Move", systemImage: "folder") {
       moveEntry(entry)
     }
-    Divider()
     Button("Move to trash", systemImage: "trash", role: .destructive) {
       trashEntry(entry)
     }
@@ -601,6 +600,11 @@ struct NativeLibraryView: View {
         restoreEntry(LibraryEntryTarget(path: item.reference.path, kind: .note))
       }
     } else {
+      if item.conflicts > 0 {
+        Button("Compare conflicting versions", systemImage: "exclamationmark.triangle") {
+          reviewConflicts(item.reference)
+        }
+      }
       Button(
         item.favorite ? "Remove favorite" : "Add favorite",
         systemImage: item.favorite ? "star.fill" : "star")
@@ -610,12 +614,6 @@ struct NativeLibraryView: View {
       Button("Details and tags", systemImage: "tag") {
         editNoteDetails(item.reference)
       }
-      if item.conflicts > 0 {
-        Button("Compare conflicting versions", systemImage: "exclamationmark.triangle") {
-          reviewConflicts(item.reference)
-        }
-      }
-      Divider()
       entryActions(LibraryEntryTarget(path: item.reference.path, kind: .note))
     }
   }
@@ -626,7 +624,6 @@ struct NativeLibraryView: View {
       editFolderDetails(reference)
     }
     if !reference.path.isEmpty {
-      Divider()
       entryActions(LibraryEntryTarget(path: reference.path, kind: .folder))
     }
   }
