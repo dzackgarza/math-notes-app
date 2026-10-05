@@ -26,7 +26,7 @@ struct ColorPalettePopover: View {
       ) {
         ForEach(Array(library.palette.enumerated()), id: \.offset) { index, rgb in
           let selected = rgb == currentSettings.rgb
-          if !selectionActive && selected {
+          if !selectionActive && selected && [.pen, .marker, .highlighter].contains(tool) {
             ColorPicker(
               "",
               selection: currentSwatchBinding(index: index),
