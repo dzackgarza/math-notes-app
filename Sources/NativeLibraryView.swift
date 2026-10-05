@@ -27,6 +27,7 @@ struct NativeLibraryView: View {
   let openFolder: (FolderReference) -> Void
   let openNotebook: (NotebookReference) -> Void
   let goUp: () -> Void
+  let showSearch: () -> Void
   let selectScope: (LibraryScope) -> Void
   let filterScope: (LibraryScope) -> Void
   let setSort: (LibrarySort) -> Void
@@ -464,7 +465,7 @@ struct NativeLibraryView: View {
         systemImage: "magnifyingglass",
         selected: searchPresented || !query.isEmpty
       ) {
-        selectScope(.folder)
+        showSearch()
         searchPresented = true
       }
       sidebarRow("Recent", systemImage: "clock", selected: scope == .recent) {

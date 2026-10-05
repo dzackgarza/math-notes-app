@@ -1067,6 +1067,13 @@ struct ContentView: View {
         libraryNotebookOpen = false
         refreshLibrary()
       },
+      showSearch: {
+        libraryTag = nil
+        libraryScope = .folder
+        libraryFolder = FolderReference(path: [])
+        libraryNotebookOpen = false
+        refreshLibrary()
+      },
       selectScope: { next in
         libraryQuery = ""
         libraryTag = nil
