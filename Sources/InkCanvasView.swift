@@ -24,6 +24,7 @@ final class InkCanvasView: UIView {
   private var fingerTouch: UITouch?
   private let onInteractionBegan: () -> Void
   private let onInteractionEnded: () -> Void
+  private let onPencilStrokeChanged: (Bool) -> Void
 
   private var metalLayer: CAMetalLayer {
     layer as! CAMetalLayer
@@ -32,7 +33,8 @@ final class InkCanvasView: UIView {
   init(
     document: EngineDocument,
     onInteractionBegan: @escaping () -> Void = {},
-    onInteractionEnded: @escaping () -> Void = {}
+    onInteractionEnded: @escaping () -> Void = {},
+    onPencilStrokeChanged: @escaping (Bool) -> Void = { _ in }
   ) {
     guard let device = MTLCreateSystemDefaultDevice(),
           let queue = device.makeCommandQueue()
@@ -43,6 +45,7 @@ final class InkCanvasView: UIView {
     self.queue = queue
     self.onInteractionBegan = onInteractionBegan
     self.onInteractionEnded = onInteractionEnded
+    self.onPencilStrokeChanged = onPencilStrokeChanged
 
     super.init(frame: .zero)
 
@@ -181,6 +184,9 @@ final class InkCanvasView: UIView {
   }
 
   override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+    if touches.contains(where: { $0.type == .pencil }) {
+      onPencilStrokeChanged(true)
+    }
     onInteractionBegan()
     _ = sendFingerTouches(touches, event: event)
     sendPencilTouches(touches, event: event)
@@ -194,6 +200,9 @@ final class InkCanvasView: UIView {
   override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
     let fingerHandled = sendFingerTouches(touches, event: event)
     let pencilHandled = sendPencilTouches(touches, event: event)
+    if touches.contains(where: { $0.type == .pencil }) {
+      onPencilStrokeChanged(false)
+    }
     if fingerHandled || pencilHandled {
       onInteractionEnded()
     }
@@ -202,6 +211,9 @@ final class InkCanvasView: UIView {
   override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
     _ = sendFingerTouches(touches, event: event)
     sendPencilTouches(touches, event: event)
+    if touches.contains(where: { $0.type == .pencil }) {
+      onPencilStrokeChanged(false)
+    }
   }
 
   override func touchesEstimatedPropertiesUpdated(_ touches: Set<UITouch>) {

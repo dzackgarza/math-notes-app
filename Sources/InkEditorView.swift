@@ -107,7 +107,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       self?.onFocusRequested()
       self?.becomeFirstResponder()
     },
-    onInteractionEnded: { [weak self] in self?.canvasInteractionEnded() })
+    onInteractionEnded: { [weak self] in self?.canvasInteractionEnded() },
+    onPencilStrokeChanged: { [weak self] active in
+      self?.setPencilStrokeActive(active)
+    })
   private let selectionBar = UIStackView()
   private var editFigureButton: UIButton?
   private var selectionColorButton: UIButton?
@@ -525,6 +528,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     }
     scrollView.panGestureRecognizer.minimumNumberOfTouches = enabled ? 2 : 1
     canvasView.setFingerDrawing(enabled)
+  }
+
+  func setPencilStrokeActive(_ active: Bool) {
+    scrollView.panGestureRecognizer.isEnabled = !active
   }
 
   func viewForZooming(in scrollView: UIScrollView) -> UIView? {

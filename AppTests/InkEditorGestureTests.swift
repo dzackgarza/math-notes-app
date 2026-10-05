@@ -75,6 +75,18 @@ final class InkEditorGestureTests: XCTestCase {
     XCTAssertEqual(scroll?.panGestureRecognizer.minimumNumberOfTouches, 1)
   }
 
+  func testPencilStrokeSuppressesPalmScrollPan() {
+    let controller = InkEditorViewController(document: EngineDocument(seed: 107))
+    controller.loadViewIfNeeded()
+    let scroll = findScrollView(in: controller.view)
+
+    XCTAssertEqual(scroll?.panGestureRecognizer.isEnabled, true)
+    controller.setPencilStrokeActive(true)
+    XCTAssertEqual(scroll?.panGestureRecognizer.isEnabled, false)
+    controller.setPencilStrokeActive(false)
+    XCTAssertEqual(scroll?.panGestureRecognizer.isEnabled, true)
+  }
+
   func testEditorRegistersApplePencilInteraction() {
     let controller = InkEditorViewController(document: EngineDocument(seed: 102))
     controller.loadViewIfNeeded()
