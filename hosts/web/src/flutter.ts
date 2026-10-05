@@ -82,6 +82,7 @@ function flutterStamp(timeStamp: number): number {
 }
 const consumed = new WeakSet<PointerEvent>();
 const sampleIds = { next: 0 };
+let missingRawPointerDownCount = 0;
 // With ?root=opfs: the last pen events the browser sent and the last stamps
 // Flutter delivered, for a workflow whose stroke went missing (#72).
 function logPointer(line: string): void {
@@ -165,10 +166,14 @@ function writing<A extends Arguments, R>(task: (...args: A) => Promise<R>): (...
 }
 
 // `fingerDraws` makes a touch draw with the selected tool.
-function acceptPen(canvas: Canvas, element: HTMLCanvasElement, stamp: number, fingerDraws: boolean): boolean {
+function acceptPen(canvas: Canvas, element: HTMLCanvasElement, stamp: number, fingerDraws: boolean, pointerDown: boolean): boolean {
   const event = rawEvents.get(stamp);
   logPointer(`flutter ${stamp} ${!event ? "no browser event" : consumed.has(event) ? "consumed" : event.type}`);
-  if (!event || consumed.has(event)) return false;
+  if (!event) {
+    if (pointerDown) missingRawPointerDownCount++;
+    return false;
+  }
+  if (consumed.has(event)) return false;
   consumed.add(event);
   const bounds = element.getBoundingClientRect();
   canvas.input(penSamples(event, bounds, capabilities(event.pointerType), sampleIds, fingerDraws));
@@ -265,6 +270,7 @@ const api = {
   readMetadata: reading(readMetadata), writeMetadata: writing(writeMetadata),
   readPens: reading(readPens), writePens: writing(writePens),
   penPreview, acceptPen, cancelStroke, mountCanvas,
+  get missingRawPointerDowns() { return missingRawPointerDownCount; },
 };
 
 declare global {

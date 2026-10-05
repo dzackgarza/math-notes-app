@@ -2100,7 +2100,13 @@ test("Flutter tool popovers set size, opacity, and the brush of each pen type", 
     return (await capture(page, bounds)).filter((rgb) => brightness(rgb) < 600).length;
   };
   const at = (y: number) => ({ x: box.x + 240, y: box.y + y });
-  const write = (y: number, force = 0.6) => penStroke(cdp, line(box.x + 140, box.x + 340, box.y + y), force);
+  const write = async (y: number, force = 0.6) => {
+    await penStroke(cdp, line(box.x + 140, box.x + 340, box.y + y), force);
+    expect(
+      await page.evaluate(() => window.mathNotes.missingRawPointerDowns),
+      `the stroke at y=${y} has a matching raw pointerdown`,
+    ).toBe(0);
+  };
 
   // The pen is selected, so a tap on it opens its popover.
   await tool("Pen").click();
