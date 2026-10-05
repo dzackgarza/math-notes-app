@@ -50,6 +50,7 @@ private struct NotebookEditorPane: View {
   @Binding var eraserMode: EditorEraserMode
   @Binding var selectorMode: EditorSelectorMode
   @Binding var spaceMode: EditorSpaceMode
+  @Binding var previousPencilTool: EditorTool?
   let onFocus: () -> Void
   let onViewportChanged: (EditorLinkedViewport) -> Void
   let onEditCommitted: () -> Void
@@ -77,6 +78,7 @@ private struct NotebookEditorPane: View {
       eraserMode: $eraserMode,
       selectorMode: $selectorMode,
       spaceMode: $spaceMode,
+      previousPencilTool: $previousPencilTool,
       activeLayerID: $viewState.activeLayerID,
       bookmarkMode: $viewState.bookmarkMode,
       currentPage: $viewState.currentPage,
@@ -147,6 +149,7 @@ struct ContentView: View {
   @State private var eraserMode: EditorEraserMode = .stroke
   @State private var selectorMode: EditorSelectorMode = .freehand
   @State private var spaceMode: EditorSpaceMode = .reflow
+  @State private var previousPencilTool: EditorTool?
   @State private var penLibrary = EditorPenLibrary.defaults
   @State private var sharePayload: SharePayload?
   @State private var exportPayload: ExportPayload?
@@ -750,6 +753,7 @@ struct ContentView: View {
       eraserMode: $eraserMode,
       selectorMode: $selectorMode,
       spaceMode: $spaceMode,
+      previousPencilTool: $previousPencilTool,
       onFocus: { openNotes.focusRight(right) },
       onViewportChanged: { openNotes.setLinkedViewport($0) },
       onEditCommitted: {

@@ -1691,6 +1691,7 @@ struct InkEditorView: View {
   @Binding var eraserMode: EditorEraserMode
   @Binding var selectorMode: EditorSelectorMode
   @Binding var spaceMode: EditorSpaceMode
+  @Binding var previousPencilTool: EditorTool?
   @Binding var activeLayerID: String?
   @Binding var bookmarkMode: Bool
   @Binding var currentPage: Int
@@ -1707,7 +1708,6 @@ struct InkEditorView: View {
   @State private var drawing = false
   @State private var figureSource = ""
   @State private var selectionActive = false
-  @State private var previousPencilTool: EditorTool?
   let onFocus: () -> Void
   let onViewportChanged: (EditorLinkedViewport) -> Void
   let onFitStateChanged: (Bool) -> Void
