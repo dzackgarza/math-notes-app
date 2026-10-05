@@ -849,7 +849,7 @@ final class NotesRootAccess {
       return folders.sorted { left, right in
         if left.path.isEmpty { return true }
         if right.path.isEmpty { return false }
-        return left.id.localizedStandardCompare(right.id) == .orderedAscending
+        return left.name.localizedCompare(right.name) == .orderedAscending
       }
     }
   }
