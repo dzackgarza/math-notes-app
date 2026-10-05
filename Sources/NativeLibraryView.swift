@@ -113,20 +113,32 @@ struct NativeLibraryView: View {
         }
       } else if grid {
         ScrollView {
-          if let details = visibleFolderDetails {
-            folderMetadataHeader(details)
-              .padding(.horizontal, 20)
-              .padding(.top, 20)
-          }
-          LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: 170, maximum: 240), spacing: 20)],
-            spacing: 24
-          ) {
-            ForEach(listing.folders) { item in
-              folderCard(item)
+          VStack(alignment: .leading, spacing: 12) {
+            if let details = visibleFolderDetails {
+              folderMetadataHeader(details)
             }
-            ForEach(listing.notebooks) { item in
-              notebookCard(item)
+            if !listing.folders.isEmpty {
+              librarySectionHeading(count: listing.folders.count, noun: "notebook")
+              LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 170, maximum: 240), spacing: 20)],
+                spacing: 24
+              ) {
+                ForEach(listing.folders) { item in
+                  folderCard(item)
+                }
+              }
+            }
+            if !listing.notebooks.isEmpty {
+              librarySectionHeading(count: listing.notebooks.count, noun: "note")
+                .padding(.top, listing.folders.isEmpty ? 0 : 8)
+              LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 170, maximum: 240), spacing: 20)],
+                spacing: 24
+              ) {
+                ForEach(listing.notebooks) { item in
+                  notebookCard(item)
+                }
+              }
             }
           }
           .padding(20)
@@ -137,14 +149,14 @@ struct NativeLibraryView: View {
             folderMetadataHeader(details)
           }
           if !listing.folders.isEmpty {
-            Section("Folders") {
+            Section(libraryCountLabel(listing.folders.count, noun: "notebook")) {
               ForEach(listing.folders) { item in
                 folderRow(item)
               }
             }
           }
           if !listing.notebooks.isEmpty {
-            Section("Notes") {
+            Section(libraryCountLabel(listing.notebooks.count, noun: "note")) {
               ForEach(listing.notebooks) { item in
                 notebookRow(item)
               }
@@ -229,6 +241,16 @@ struct NativeLibraryView: View {
         }
       }
     }
+  }
+
+  private func libraryCountLabel(_ count: Int, noun: String) -> String {
+    "\(count) \(noun)\(count == 1 ? "" : "s")"
+  }
+
+  private func librarySectionHeading(count: Int, noun: String) -> some View {
+    Text(libraryCountLabel(count, noun: noun))
+      .font(NativeTheme.callout)
+      .foregroundStyle(NativeTheme.graphite)
   }
 
   private var libraryHeading: String {
