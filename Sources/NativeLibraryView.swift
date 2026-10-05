@@ -581,9 +581,7 @@ struct NativeLibraryView: View {
   }
 
   private var visibleFolderDetails: LibraryFolderDetails? {
-    guard scope == .folder,
-      query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-      notebookOpen,
+    guard notebookOpen,
       let folderDetails,
       !folderDetails.description.isEmpty || !folderDetails.tags.isEmpty
     else { return nil }

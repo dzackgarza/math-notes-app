@@ -1052,17 +1052,12 @@ struct ContentView: View {
       sortDirection: librarySortDirection,
       grid: libraryGrid,
       openFolder: { folder in
-        libraryQuery = ""
-        libraryScope = .folder
         libraryFolder = folder
         libraryNotebookOpen = true
         refreshLibrary()
       },
       openNotebook: openNotebook,
       goUp: {
-        libraryQuery = ""
-        libraryTag = nil
-        libraryScope = .folder
         libraryFolder = FolderReference(path: [])
         libraryNotebookOpen = false
         refreshLibrary()
@@ -1369,11 +1364,16 @@ struct ContentView: View {
         }
       }
       let queryIsEmpty = libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-      libraryFolderDetails =
-        libraryScope == .folder && queryIsEmpty && libraryNotebookOpen
+      libraryFolderDetails = libraryNotebookOpen
         ? try root.folderDetails(for: libraryFolder)
         : nil
-      if libraryScope == .tag, let libraryTag {
+      if libraryNotebookOpen {
+        libraryListing = try root.library(
+          in: libraryFolder,
+          overview: false,
+          sort: librarySort,
+          direction: librarySortDirection)
+      } else if libraryScope == .tag, let libraryTag {
         libraryListing = try root.taggedLibrary(
           tag: libraryTag,
           query: libraryQuery,
@@ -1426,12 +1426,15 @@ struct ContentView: View {
     } catch {
       libraryFolderDetails = nil
       if recountTags { libraryTagCounts = [:] }
-      if libraryScope == .folder,
-        libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-        libraryNotebookOpen
-      {
+      if libraryNotebookOpen {
         libraryFolder = FolderReference(path: [])
         libraryNotebookOpen = false
+        refreshLibrary(recountTags: false)
+        return
+      }
+      if libraryScope == .folder,
+        libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      {
         do {
           libraryListing = try root.library(
             in: libraryFolder,
