@@ -82,77 +82,132 @@ private struct ConflictComparisonView: UIViewRepresentable {
 
   func makeCoordinator() -> Coordinator { Coordinator() }
 
-  func makeUIView(context: Context) -> UIScrollView {
+  func makeUIView(context: Context) -> UIStackView {
+    let stack = UIStackView()
+    stack.axis = .horizontal
+    stack.spacing = 12
+    stack.distribution = .fillEqually
+
+    let leftImage = left.flatMap(UIImage.init(data:))
+    let rightImage = right.flatMap(UIImage.init(data:))
+    let synchronized = leftImage != nil && rightImage != nil
+    let leftPane = pane(image: leftImage, summary: leftSummary)
+    let rightPane = pane(image: rightImage, summary: rightSummary)
+    stack.addArrangedSubview(leftPane.scroll)
+    stack.addArrangedSubview(rightPane.scroll)
+    context.coordinator.install(
+      left: leftPane,
+      right: rightPane,
+      synchronized: synchronized)
+    return stack
+  }
+
+  func updateUIView(_ stack: UIStackView, context: Context) {}
+
+  private func pane(
+    image: UIImage?,
+    summary: String
+  ) -> Coordinator.Pane {
     let scroll = UIScrollView()
     scroll.minimumZoomScale = 1
-    scroll.maximumZoomScale = 5
-    scroll.bouncesZoom = true
-    scroll.delegate = context.coordinator
+    scroll.maximumZoomScale = image == nil ? 1 : 5
+    scroll.bouncesZoom = image != nil
+    scroll.backgroundColor = NativeTheme.leafUI
+    scroll.layer.cornerRadius = 10
+    scroll.clipsToBounds = true
 
-    let content = UIStackView()
-    content.axis = .horizontal
-    content.spacing = 12
-    content.distribution = .fillEqually
+    let content = UIView()
     content.translatesAutoresizingMaskIntoConstraints = false
     scroll.addSubview(content)
-    context.coordinator.content = content
-
-    content.addArrangedSubview(pane(image: left, summary: leftSummary))
-    content.addArrangedSubview(pane(image: right, summary: rightSummary))
-
     NSLayoutConstraint.activate([
       content.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor),
       content.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor),
       content.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor),
       content.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor),
       content.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor),
-      content.heightAnchor.constraint(equalTo: scroll.frameLayoutGuide.heightAnchor),
+      content.heightAnchor.constraint(greaterThanOrEqualTo: scroll.frameLayoutGuide.heightAnchor),
     ])
-    return scroll
-  }
 
-  func updateUIView(_ scroll: UIScrollView, context: Context) {}
-
-  private func pane(image: Data?, summary: String) -> UIView {
-    let container = UIView()
-    container.backgroundColor = NativeTheme.leafUI
-    container.layer.cornerRadius = 10
-    container.clipsToBounds = true
-
-    if let image, let uiImage = UIImage(data: image) {
-      let view = UIImageView(image: uiImage)
+    if let image {
+      content.heightAnchor.constraint(equalTo: scroll.frameLayoutGuide.heightAnchor).isActive = true
+      let view = UIImageView(image: image)
       view.contentMode = .scaleAspectFit
       view.translatesAutoresizingMaskIntoConstraints = false
-      container.addSubview(view)
+      content.addSubview(view)
       NSLayoutConstraint.activate([
-        view.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
-        view.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
-        view.topAnchor.constraint(equalTo: container.topAnchor, constant: 8),
-        view.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -8),
+        view.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 8),
+        view.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -8),
+        view.topAnchor.constraint(equalTo: content.topAnchor, constant: 8),
+        view.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -8),
       ])
     } else {
       let label = UILabel()
       label.text = summary
       label.numberOfLines = 0
-      label.font = UIFont(name: NativeTheme.interfaceRegularName, size: 18) ?? .preferredFont(forTextStyle: .body)
+      label.font = UIFont(name: NativeTheme.interfaceRegularName, size: 18)
+        ?? .preferredFont(forTextStyle: .body)
       label.textColor = NativeTheme.inkUI
       label.translatesAutoresizingMaskIntoConstraints = false
-      container.addSubview(label)
+      content.addSubview(label)
       NSLayoutConstraint.activate([
-        label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16),
-        label.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16),
-        label.topAnchor.constraint(equalTo: container.topAnchor, constant: 16),
-        label.bottomAnchor.constraint(lessThanOrEqualTo: container.bottomAnchor, constant: -16),
+        label.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 16),
+        label.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -16),
+        label.topAnchor.constraint(equalTo: content.topAnchor, constant: 16),
+        label.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -16),
       ])
     }
-    return container
+    return Coordinator.Pane(scroll: scroll, content: content)
   }
 
   final class Coordinator: NSObject, UIScrollViewDelegate {
-    weak var content: UIView?
+    struct Pane {
+      let scroll: UIScrollView
+      let content: UIView
+    }
+
+    private var left: Pane?
+    private var right: Pane?
+    private var synchronized = false
+    private var applyingSync = false
+
+    func install(left: Pane, right: Pane, synchronized: Bool) {
+      self.left = left
+      self.right = right
+      self.synchronized = synchronized
+      left.scroll.delegate = self
+      right.scroll.delegate = self
+    }
 
     func viewForZooming(in scrollView: UIScrollView) -> UIView? {
-      content
+      pane(for: scrollView)?.content
+    }
+
+    func scrollViewDidZoom(_ scrollView: UIScrollView) {
+      synchronize(from: scrollView)
+    }
+
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+      synchronize(from: scrollView)
+    }
+
+    private func pane(for scrollView: UIScrollView) -> Pane? {
+      if left?.scroll === scrollView { return left }
+      if right?.scroll === scrollView { return right }
+      return nil
+    }
+
+    private func other(than scrollView: UIScrollView) -> UIScrollView? {
+      if left?.scroll === scrollView { return right?.scroll }
+      if right?.scroll === scrollView { return left?.scroll }
+      return nil
+    }
+
+    private func synchronize(from source: UIScrollView) {
+      guard synchronized, !applyingSync, let target = other(than: source) else { return }
+      applyingSync = true
+      target.setZoomScale(source.zoomScale, animated: false)
+      target.contentOffset = source.contentOffset
+      applyingSync = false
     }
   }
 }
