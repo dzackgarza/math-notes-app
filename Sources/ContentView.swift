@@ -1234,7 +1234,9 @@ struct ContentView: View {
           in: folder,
           overview: false,
           sort: .name,
-          direction: .ascending).notebooks
+          direction: .ascending).notebooks.sorted { left, right in
+            left.reference.name.localizedCompare(right.reference.name) == .orderedAscending
+          }
       }
       openNotePickerPurpose = purpose
       showingOpenNotePicker = true
