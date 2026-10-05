@@ -1473,14 +1473,7 @@ struct ContentView: View {
         folders = allFolders
       case let .move(entry):
         initialParent = FolderReference(path: Array(entry.path.dropLast()))
-        if entry.kind == .folder {
-          folders = allFolders.filter { candidate in
-            !(candidate.path.count >= entry.path.count &&
-              Array(candidate.path.prefix(entry.path.count)) == entry.path)
-          }
-        } else {
-          folders = allFolders
-        }
+        folders = allFolders
       case .restore:
         initialParent = FolderReference(path: [])
         folders = allFolders
