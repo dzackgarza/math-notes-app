@@ -358,8 +358,8 @@ struct ContentView: View {
       PDFExportSheet(
         request: request,
         onExport: { firstPage, pageCount, layerIDs in
+          pdfExport = nil
           guard let exportSession = openNotes.opened.first(where: { $0.id == request.sessionID }) else {
-            pdfExport = nil
             return
           }
           finishPDFExport(
@@ -2409,7 +2409,6 @@ struct ContentView: View {
         .appendingPathComponent(safeName)
         .appendingPathExtension("pdf")
       try data.write(to: url, options: .atomic)
-      pdfExport = nil
       DispatchQueue.main.async {
         switch destination {
         case .share:
