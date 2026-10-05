@@ -1108,7 +1108,7 @@ struct ContentView: View {
       toggleFavorite: toggleFavorite,
       editNoteDetails: prepareNoteDetails,
       editFolderDetails: prepareFolderDetails,
-      reviewConflicts: { prepareConflicts($0) },
+      reviewConflicts: reviewLibraryConflicts,
       refreshSearch: { refreshLibrary(recountTags: false) },
       showSettings: {
         settingsFromLibrary = true
@@ -1846,6 +1846,25 @@ struct ContentView: View {
         })
       dismissClippings()
       conflictReview = nil
+    } catch {
+      handleOpenNotesError(error)
+    }
+  }
+
+  private func reviewLibraryConflicts(_ reference: NotebookReference) {
+    guard let root else { return }
+    do {
+      _ = try openNotes.open(
+        reference,
+        save: { note in
+          try saveSession(note, using: root)
+        },
+        load: { reference in
+          try makeOpenSession(reference, using: root)
+        })
+      dismissClippings()
+      conflictReview = nil
+      prepareConflicts(reference)
     } catch {
       handleOpenNotesError(error)
     }
