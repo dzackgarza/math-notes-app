@@ -39,6 +39,7 @@ struct LinkSelectionSheet: View {
         TextField("https://… or ../../Note/pages/0001.svg", text: $destination)
           .textInputAutocapitalization(.never)
           .autocorrectionDisabled()
+          .nativeFieldSurface()
           .focused($destinationFocused)
           .task { destinationFocused = true }
         Button("Cancel", role: .cancel, action: onCancel)

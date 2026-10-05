@@ -63,7 +63,6 @@ struct ConflictReviewSheet: View {
               onChoice(.both)
             }
             .buttonStyle(.borderedProminent)
-            .tint(NativeTheme.ribbon)
           }
         }
       }

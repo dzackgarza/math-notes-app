@@ -138,6 +138,7 @@ struct LayersSheet: View {
           })
       ) {
         TextField("Layer name", text: $layerName)
+          .nativeFieldSurface()
         Button("Cancel", role: .cancel) {
           addingLayer = false
           namingLayerID = nil
