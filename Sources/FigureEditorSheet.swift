@@ -243,7 +243,7 @@ struct FigureEditorSheet: View {
 
     source = nextSource
     do {
-      let persistent = message.event == "autosave" || message.event == "save"
+      let persistent = message.event == "save"
       try onDraft(nextSource, persistent)
       errorMessage = nil
       if message.event == "save", closing {

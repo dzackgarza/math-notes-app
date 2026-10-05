@@ -2192,10 +2192,12 @@ struct ContentView: View {
     guard let session else { return }
     try session.document.saveFigureDraft(id: id, source: source)
     documentRevision &+= 1
-    session.markUnsaved()
     if persistent {
+      session.markUnsaved()
       guard let root else { return }
       try saveSession(session, using: root)
+    } else {
+      scheduleNotebookSave(session)
     }
   }
 
