@@ -2,6 +2,12 @@ import XCTest
 @testable import MathNotes
 
 final class NewNotebookSheetTests: XCTestCase {
+  func testPaperStylesMatchWebCreationChoices() {
+    XCTAssertEqual(
+      NewNotebookFormState.paperStyles,
+      ["dotted", "grid-medium", "lined-medium", "blank", "grid-fine"])
+  }
+
   func testFormStartsFromNotebookDefaultsWithoutInheritingText() {
     let root = FolderReference(path: [])
     let course = FolderReference(path: ["Course"])

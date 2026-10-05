@@ -8,7 +8,7 @@ struct NewNotebookRequest {
 }
 
 struct NewNotebookFormState: Equatable {
-  static let paperStyles = ["dotted", "grid-medium", "blank", "lined-medium"]
+  static let paperStyles = ["dotted", "grid-medium", "lined-medium", "blank", "grid-fine"]
   static let coverColorOrder = ["#24324A", "#5B2328", "#2F4A3A", "#A87B2C"]
   static let coverColors = [
     "#24324A": "Navy",
@@ -272,6 +272,7 @@ struct NewNotebookSheet: View {
     case "grid-medium": "Grid"
     case "blank": "Plain"
     case "lined-medium": "Lined"
+    case "grid-fine": "Graph"
     default: paper.replacingOccurrences(of: "-", with: " ").capitalized
     }
   }
