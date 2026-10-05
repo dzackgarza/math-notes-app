@@ -39,14 +39,14 @@ struct LibraryTagSheet: View {
           }
         }
       }
-      .navigationTitle("New Tag")
+      .navigationTitle("New tag")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel", action: onCancel)
         }
         ToolbarItem(placement: .confirmationAction) {
-          Button("Add Tag") {
+          Button("Add tag") {
             onAdd(name.trimmingCharacters(in: .whitespacesAndNewlines), color)
           }
           .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)

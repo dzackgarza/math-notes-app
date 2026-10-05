@@ -84,7 +84,7 @@ struct LibraryDetailsSheet: View {
         }
 
         if request.target.paper != nil {
-          Section("Default Paper") {
+          Section("Default paper") {
             Picker("Paper", selection: $paper) {
               Text("Dot").tag("dotted")
               Text("Graph").tag("grid-medium")
@@ -95,7 +95,7 @@ struct LibraryDetailsSheet: View {
           }
         }
       }
-      .navigationTitle("\(request.target.title) Details")
+      .navigationTitle(request.target.paper == nil ? request.target.title : "\(request.target.title) details")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {

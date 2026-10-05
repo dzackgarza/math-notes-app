@@ -117,7 +117,7 @@ struct NewNotebookSheet: View {
       .foregroundStyle(NativeTheme.ink)
       .font(NativeTheme.body)
       .tint(NativeTheme.ink)
-      .navigationTitle("New Notebook")
+      .navigationTitle("New notebook")
       .interactiveDismissDisabled(isDirty)
       .background {
         if isDirty {

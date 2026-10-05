@@ -88,7 +88,7 @@ struct LayersSheet: View {
               .disabled(index == 0)
               .accessibilityLabel(layerActionAccessibilityLabel("Down", layerName: layer.name))
 
-              Button("Merge Down") {
+              Button("Merge down") {
                 removeLayer(index: index, mergeDown: true)
               }
               .disabled(index == 0 || layers[index - 1].locked)
@@ -125,7 +125,7 @@ struct LayersSheet: View {
         }
       }
       .alert(
-        addingLayer ? "New Layer" : "Rename Layer",
+        addingLayer ? "New layer" : "Rename layer",
         isPresented: Binding(
           get: { addingLayer || namingLayerID != nil },
           set: { shown in
@@ -152,7 +152,7 @@ struct LayersSheet: View {
           set: { shown in if !shown { deleteLayerID = nil } }),
         titleVisibility: .visible
       ) {
-        Button("Delete Layer", role: .destructive) {
+        Button("Delete", role: .destructive) {
           if let id = deleteLayerID,
             let index = layers.firstIndex(where: { $0.id == id })
           {
@@ -172,7 +172,7 @@ struct LayersSheet: View {
   private var deleteTitle: String {
     guard let id = deleteLayerID,
       let layer = layers.first(where: { $0.id == id })
-    else { return "Delete Layer?" }
+    else { return "Delete layer?" }
     return "Delete \(layer.name)?"
   }
 

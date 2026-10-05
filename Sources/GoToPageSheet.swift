@@ -31,7 +31,7 @@ struct GoToPageSheet: View {
         TextField("1 to \(request.pageCount)", text: $pageNumber)
           .keyboardType(.numberPad)
       }
-      .navigationTitle("Go to Page")
+      .navigationTitle("Go to page")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {

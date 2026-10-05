@@ -348,7 +348,7 @@ struct NewNoteSheet: View {
   }
 
   var newNoteTitle: String {
-    "New Note in \(form.parent.name)"
+    "New note in \(form.parent.name)"
   }
 
   var isDirty: Bool {
