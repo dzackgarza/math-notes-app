@@ -34,6 +34,7 @@ struct ClippingsSheet: View {
   let onClose: () -> Void
 
   @State private var items: [ClippingPreview]
+  @State private var dropTargeted = false
 
   init(
     request: ClippingsRequest,
@@ -141,14 +142,20 @@ struct ClippingsSheet: View {
       }
     }
     .frame(width: 340)
-    .dropDestination(for: String.self) { values, _ in
-      guard availability.canAcceptDrop,
-        let svg = values.first, svg.contains("<svg"), onSave(svg)
-      else { return false }
-      if let refreshed = onRefresh() { items = refreshed }
-      return true
-    }
-    .background(NativeTheme.board)
+    .dropDestination(
+      for: String.self,
+      action: { values, _ in
+        guard availability.canAcceptDrop,
+          let svg = values.first, svg.contains("<svg"), onSave(svg)
+        else { return false }
+        if let refreshed = onRefresh() { items = refreshed }
+        return true
+      },
+      isTargeted: { dropTargeted = $0 })
+    .background(
+      dropTargeted && availability.canAcceptDrop
+        ? NativeTheme.selectedFill
+        : NativeTheme.board)
     .clipShape(RoundedRectangle(cornerRadius: 16))
     .shadow(radius: 10)
     .padding(8)
