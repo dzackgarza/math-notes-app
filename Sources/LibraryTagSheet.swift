@@ -14,6 +14,7 @@ struct LibraryTagSheet: View {
         Section("Tag") {
           TextField("Tag name", text: $name)
             .textInputAutocapitalization(.never)
+            .nativeFieldSurface()
             .focused($nameFocused)
             .task { nameFocused = true }
         }

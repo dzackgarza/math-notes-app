@@ -31,6 +31,7 @@ struct GoToPageSheet: View {
       Form {
         TextField("1 to \(request.pageCount)", text: $pageNumber)
           .keyboardType(.numberPad)
+          .nativeFieldSurface()
           .focused($pageFocused)
           .task { pageFocused = true }
       }

@@ -65,8 +65,10 @@ struct PDFExportSheet: View {
         Section("Pages") {
           TextField("First page", text: $firstPage)
             .keyboardType(.numberPad)
+            .nativeFieldSurface()
           TextField("Last page", text: $lastPage)
             .keyboardType(.numberPad)
+            .nativeFieldSurface()
         }
 
         Section("Layers") {

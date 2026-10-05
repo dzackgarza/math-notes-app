@@ -144,6 +144,7 @@ struct NewNotebookSheet: View {
           Button("Create") {
             onCreate(finalizedForm.request)
           }
+          .buttonStyle(.borderedProminent)
           .disabled(form.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
       }
@@ -205,7 +206,7 @@ struct NewNotebookSheet: View {
               .overlay {
                 if form.coverColor == color {
                   Circle()
-                    .stroke(NativeTheme.ink, lineWidth: 2)
+                    .stroke(NativeTheme.ribbon, lineWidth: 2)
                     .padding(-4)
                 }
               }

@@ -260,6 +260,7 @@ struct NewNoteSheet: View {
           Button("Create") {
             onCreate(finalizedForm.request)
           }
+          .buttonStyle(.borderedProminent)
           .disabled(form.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
       }

@@ -56,6 +56,7 @@ struct TextEditorSheet: View {
         Section("Text box") {
           TextField("Width (pt)", text: $width)
             .keyboardType(.decimalPad)
+            .nativeFieldSurface()
           Text("Use 0 for the full text width.")
             .font(NativeTheme.footnote)
             .foregroundStyle(NativeTheme.graphite)

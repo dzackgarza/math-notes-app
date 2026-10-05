@@ -89,6 +89,7 @@ struct LibraryMutationSheet: View {
           Section("Name") {
             TextField("Name", text: $name)
               .textInputAutocapitalization(.sentences)
+              .nativeFieldSurface()
               .focused($nameFocused)
               .task { nameFocused = true }
           }
