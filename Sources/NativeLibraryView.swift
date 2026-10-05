@@ -455,7 +455,7 @@ struct NativeLibraryView: View {
       sidebarRow(
         "Library",
         systemImage: "books.vertical",
-        selected: scope == .folder && query.isEmpty && !searchPresented
+        selected: scope == .folder && query.isEmpty
       ) {
         searchPresented = false
         selectScope(.folder)
@@ -463,7 +463,7 @@ struct NativeLibraryView: View {
       sidebarRow(
         "Search",
         systemImage: "magnifyingglass",
-        selected: searchPresented || !query.isEmpty
+        selected: scope == .folder && !query.isEmpty
       ) {
         showSearch()
         searchPresented = true
