@@ -66,27 +66,19 @@ struct NativeLibraryView: View {
         }
       } else if !notebookOpen && scope == .recent && listing.notebooks.isEmpty {
         ContentUnavailableView {
-          Label("No Recent Notes", systemImage: "clock")
-        } description: {
-          Text("Notes appear here after they are created or edited.")
+          Label("No recent notes.", systemImage: "clock")
         }
       } else if !notebookOpen && scope == .favorites && listing.notebooks.isEmpty {
         ContentUnavailableView {
-          Label("No Favorites", systemImage: "star")
-        } description: {
-          Text("Add a note to Favorites from its menu.")
+          Label("No favorite notes.", systemImage: "star")
         }
       } else if !notebookOpen && scope == .trash && listing.notebooks.isEmpty {
         ContentUnavailableView {
-          Label("Trash is Empty", systemImage: "trash")
-        } description: {
-          Text("Notes moved to Trash appear here until restored in Files or Math Notes.")
+          Label("The trash is empty.", systemImage: "trash")
         }
       } else if !notebookOpen && scope == .tag && listing.folders.isEmpty && listing.notebooks.isEmpty {
         ContentUnavailableView {
-          Label("No Tagged Notes", systemImage: "tag")
-        } description: {
-          Text("Nothing has the tag \(selectedTag ?? "").")
+          Label("Nothing has the tag \(selectedTag ?? "").", systemImage: "tag")
         }
       } else if listing.folders.isEmpty && listing.notebooks.isEmpty {
         VStack(alignment: .leading, spacing: 0) {
