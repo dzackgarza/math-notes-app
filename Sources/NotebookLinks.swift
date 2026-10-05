@@ -15,8 +15,8 @@ enum NotebookLinkError: LocalizedError {
     switch self {
     case .empty:
       "Choose a link destination."
-    case let .unsupportedScheme(scheme):
-      "The \(scheme) link protocol is not supported."
+    case .unsupportedScheme:
+      "This link protocol is not supported."
     case .invalidDestination:
       "The link must name a notebook page."
     case .outsideNotesRoot:

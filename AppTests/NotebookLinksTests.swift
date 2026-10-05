@@ -56,7 +56,10 @@ final class NotebookLinksTests: XCTestCase {
       try NotebookLink.resolve(
         source: NotebookReference(path: ["A"]),
         sourceFile: "pages/0001.svg",
-        href: "file:///tmp/notes.svg"))
+        href: "file:///tmp/notes.svg")
+    ) { error in
+      XCTAssertEqual(error.localizedDescription, "This link protocol is not supported.")
+    }
   }
 
   func testRelativeLinkCannotEscapeTheNotesRoot() {
