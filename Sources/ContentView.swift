@@ -1228,9 +1228,13 @@ struct ContentView: View {
   private func prepareOpenNotePicker(_ purpose: OpenNotePickerPurpose) {
     guard let root else { return }
     do {
-      openNoteChoices = try root.allNotes(
-        sort: .name,
-        direction: .ascending).notebooks
+      openNoteChoices = try root.folders().flatMap { folder in
+        try root.library(
+          in: folder,
+          overview: false,
+          sort: .name,
+          direction: .ascending).notebooks
+      }
       openNotePickerPurpose = purpose
       showingOpenNotePicker = true
     } catch {
