@@ -2001,7 +2001,6 @@ struct ContentView: View {
       pendingLink = pending
       bookmarkPickerPurpose = .link
       bookmarks = BookmarksRequest(
-        title: "Link destination",
         destinations: try bookmarkDestinations(document))
     } catch {
       errorMessage = error.localizedDescription
