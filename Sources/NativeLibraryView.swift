@@ -28,9 +28,11 @@ struct NativeLibraryView: View {
   let openNotebook: (NotebookReference) -> Void
   let goUp: () -> Void
   let selectScope: (LibraryScope) -> Void
+  let filterScope: (LibraryScope) -> Void
   let setSort: (LibrarySort) -> Void
   let setSortDirection: (LibrarySortDirection) -> Void
   let selectTag: (String) -> Void
+  let filterTag: (String) -> Void
   let createTag: () -> Void
   let toggleLayout: () -> Void
   let createNote: () -> Void
@@ -272,8 +274,7 @@ struct NativeLibraryView: View {
   private var filterMenu: some View {
     Menu {
       Button {
-        searchPresented = false
-        selectScope(.folder)
+        filterScope(.folder)
       } label: {
         if scope == .folder {
           Label("All", systemImage: "checkmark")
@@ -284,8 +285,7 @@ struct NativeLibraryView: View {
       .accessibilityAddTraits(scope == .folder ? .isSelected : [])
 
       Button {
-        searchPresented = false
-        selectScope(.recent)
+        filterScope(.recent)
       } label: {
         if scope == .recent {
           Label("Recent", systemImage: "checkmark")
@@ -296,8 +296,7 @@ struct NativeLibraryView: View {
       .accessibilityAddTraits(scope == .recent ? .isSelected : [])
 
       Button {
-        searchPresented = false
-        selectScope(.favorites)
+        filterScope(.favorites)
       } label: {
         if scope == .favorites {
           Label("Favorites", systemImage: "checkmark")
@@ -308,8 +307,7 @@ struct NativeLibraryView: View {
       .accessibilityAddTraits(scope == .favorites ? .isSelected : [])
 
       Button {
-        searchPresented = false
-        selectScope(.trash)
+        filterScope(.trash)
       } label: {
         if scope == .trash {
           Label("Trash", systemImage: "checkmark")
@@ -324,8 +322,7 @@ struct NativeLibraryView: View {
         Section("Tags") {
           ForEach(tags) { tag in
             Button {
-              searchPresented = false
-              selectTag(tag.name)
+              filterTag(tag.name)
             } label: {
               HStack {
                 Image(systemName: "circle.fill")

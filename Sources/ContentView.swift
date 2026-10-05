@@ -1079,6 +1079,15 @@ struct ContentView: View {
         libraryScope = next
         refreshLibrary()
       },
+      filterScope: { next in
+        libraryTag = nil
+        if next == .recent {
+          librarySort = .modified
+          librarySortDirection = .descending
+        }
+        libraryScope = next
+        refreshLibrary()
+      },
       setSort: { sort in
         librarySort = sort
         librarySortDirection = sort == .name ? .ascending : .descending
@@ -1093,6 +1102,11 @@ struct ContentView: View {
         libraryQuery = ""
         libraryFolder = FolderReference(path: [])
         libraryNotebookOpen = false
+        libraryScope = .tag
+        refreshLibrary()
+      },
+      filterTag: { tag in
+        libraryTag = tag
         libraryScope = .tag
         refreshLibrary()
       },
