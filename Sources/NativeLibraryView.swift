@@ -883,6 +883,7 @@ struct LibraryThumbnail: View {
   let item: LibraryNotebookItem
 
   @State private var image: UIImage?
+  @State private var missing = false
   @State private var failed = false
 
   var body: some View {
@@ -899,21 +900,28 @@ struct LibraryThumbnail: View {
         Image(systemName: "exclamationmark.triangle")
           .foregroundStyle(NativeTheme.graphite)
           .accessibilityLabel("Thumbnail failed")
+      } else if missing {
+        Image(systemName: "doc")
+          .foregroundStyle(NativeTheme.graphite)
+          .accessibilityLabel("No thumbnail for \(item.reference.name)")
       } else {
         ProgressView()
       }
     }
     .task(id: item.modified) {
       image = nil
+      missing = false
       failed = false
       do {
-        if let data = try root.thumbnail(item.reference),
-          let rendered = UIImage(data: data)
-        {
-          image = rendered
-        } else {
-          image = nil
+        guard let data = try root.thumbnail(item.reference) else {
+          missing = true
+          return
         }
+        guard let rendered = UIImage(data: data) else {
+          failed = true
+          return
+        }
+        image = rendered
       } catch {
         image = nil
         failed = true
