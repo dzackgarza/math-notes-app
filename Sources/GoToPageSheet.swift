@@ -45,7 +45,6 @@ struct GoToPageSheet: View {
             guard let page = parsedPage else { return }
             onGo(page)
           }
-          .disabled(parsedPage == nil)
         }
       }
     }
