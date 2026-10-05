@@ -991,7 +991,7 @@ struct LibraryNotebookCover: View {
     NotebookCoverArt(
       color: coverColor,
       style: item.details.coverStyle,
-      title: titled ? (item.reference.path.last ?? item.reference.name) : nil
+      title: titled ? item.reference.name : nil
     ) {
       Group {
         if let thumbnail {
@@ -1006,7 +1006,7 @@ struct LibraryNotebookCover: View {
     }
     .task(id: item.modified) {
       do {
-        let listing = try root.library(in: item.reference, sort: .modified, direction: .descending)
+        let listing = try root.library(in: item.reference, sort: .name, direction: .ascending)
         if let first = listing.notebooks.first, let data = try root.thumbnail(first.reference) {
           thumbnail = UIImage(data: data)
         } else {
