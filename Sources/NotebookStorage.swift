@@ -1201,10 +1201,11 @@ final class NotesRootAccess {
     for item in allNotebooks {
       let details = try noteDetails(for: item.reference)
       guard details.tags.contains(tag) else { continue }
-      if needle.isEmpty ||
-        item.reference.name.localizedCaseInsensitiveContains(needle) ||
-        details.description.localizedCaseInsensitiveContains(needle) ||
-        details.tags.contains(where: { $0.localizedCaseInsensitiveContains(needle) })
+      if needle.isEmpty || Self.matchesSearch(
+        needle,
+        name: item.reference.name,
+        description: details.description,
+        tags: details.tags)
       {
         notebooks.append(item)
       }
@@ -1220,11 +1221,12 @@ final class NotesRootAccess {
 
       let details = try folderDetails(for: reference)
       guard details.tags.contains(tag) else { continue }
-      guard needle.isEmpty ||
-        reference.name.localizedCaseInsensitiveContains(needle) ||
-        details.description.localizedCaseInsensitiveContains(needle) ||
-        details.tags.contains(where: { $0.localizedCaseInsensitiveContains(needle) }) ||
-        directNoteNames.contains(where: { $0.localizedCaseInsensitiveContains(needle) })
+      guard needle.isEmpty || Self.matchesSearch(
+        needle,
+        name: reference.name,
+        description: details.description,
+        tags: details.tags,
+        additionalNames: directNoteNames)
       else { continue }
 
       folderItems.append(
@@ -2697,10 +2699,11 @@ final class NotesRootAccess {
     tags: [String],
     additionalNames: [String] = []
   ) -> Bool {
-    name.localizedCaseInsensitiveContains(needle) ||
-      description.localizedCaseInsensitiveContains(needle) ||
-      tags.contains(where: { $0.localizedCaseInsensitiveContains(needle) }) ||
-      additionalNames.contains(where: { $0.localizedCaseInsensitiveContains(needle) })
+    let lower = needle.lowercased()
+    return name.lowercased().contains(lower) ||
+      description.lowercased().contains(lower) ||
+      tags.contains(where: { $0.lowercased().contains(lower) }) ||
+      additionalNames.contains(where: { $0.lowercased().contains(lower) })
   }
 
   private static func directNotebookNames(in directory: URL) throws -> [String] {
