@@ -78,6 +78,9 @@ enum NotebookLink {
     }
 
     var resolved = source.path + Array(split(sourceFile).dropLast())
+    if components.path.isEmpty, let currentFile = split(sourceFile).last {
+      resolved.append(currentFile)
+    }
     for part in split(components.path) {
       switch part {
       case ".":

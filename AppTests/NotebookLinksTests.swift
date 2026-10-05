@@ -29,6 +29,17 @@ final class NotebookLinksTests: XCTestCase {
       .page(reference: note, file: "pages/0004.svg", id: "b-proof"))
   }
 
+  func testFragmentOnlyLinkStaysOnTheCurrentPage() throws {
+    let note = NotebookReference(path: ["Algebra"])
+
+    XCTAssertEqual(
+      try NotebookLink.resolve(
+        source: note,
+        sourceFile: "pages/0001.svg",
+        href: "#b-proof"),
+      .page(reference: note, file: "pages/0001.svg", id: "b-proof"))
+  }
+
   func testCrossNotebookLinkRoundTripsWithoutAnAbsoluteRoot() throws {
     let source = NotebookReference(path: ["Seminar", "Day 1"])
     let target = NotebookReference(path: ["References", "K3 notes"])
