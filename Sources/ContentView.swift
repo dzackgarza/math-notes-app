@@ -53,6 +53,9 @@ private struct NotebookEditorPane: View {
   @Binding var penLibrary: EditorPenLibrary
   @Binding var tool: EditorTool
   @Binding var drawingTool: EditorTool
+  @Binding var eraserMode: EditorEraserMode
+  @Binding var selectorMode: EditorSelectorMode
+  @Binding var spaceMode: EditorSpaceMode
   let onFocus: () -> Void
   let onViewportChanged: (EditorLinkedViewport) -> Void
   let onEditCommitted: () -> Void
@@ -77,6 +80,9 @@ private struct NotebookEditorPane: View {
       penLibrary: $penLibrary,
       tool: $tool,
       drawingTool: $drawingTool,
+      eraserMode: $eraserMode,
+      selectorMode: $selectorMode,
+      spaceMode: $spaceMode,
       activeLayerID: $viewState.activeLayerID,
       bookmarkMode: $viewState.bookmarkMode,
       currentPage: $viewState.currentPage,
@@ -144,6 +150,9 @@ struct ContentView: View {
   @State private var libraryNotice: String?
   @State private var selectedTool: EditorTool = .pen
   @State private var selectedDrawingTool: EditorTool = .pen
+  @State private var eraserMode: EditorEraserMode = .stroke
+  @State private var selectorMode: EditorSelectorMode = .freehand
+  @State private var spaceMode: EditorSpaceMode = .reflow
   @State private var penLibrary = EditorPenLibrary.defaults
   @State private var sharePayload: SharePayload?
   @State private var exportPayload: ExportPayload?
@@ -744,6 +753,9 @@ struct ContentView: View {
       penLibrary: $penLibrary,
       tool: $selectedTool,
       drawingTool: $selectedDrawingTool,
+      eraserMode: $eraserMode,
+      selectorMode: $selectorMode,
+      spaceMode: $spaceMode,
       onFocus: { openNotes.focusRight(right) },
       onViewportChanged: { openNotes.setLinkedViewport($0) },
       onEditCommitted: {

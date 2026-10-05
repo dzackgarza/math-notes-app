@@ -1688,6 +1688,9 @@ struct InkEditorView: View {
   @Binding var penLibrary: EditorPenLibrary
   @Binding var tool: EditorTool
   @Binding var drawingTool: EditorTool
+  @Binding var eraserMode: EditorEraserMode
+  @Binding var selectorMode: EditorSelectorMode
+  @Binding var spaceMode: EditorSpaceMode
   @Binding var activeLayerID: String?
   @Binding var bookmarkMode: Bool
   @Binding var currentPage: Int
@@ -1700,9 +1703,6 @@ struct InkEditorView: View {
   let linkedViewport: EditorLinkedViewport?
   let fingerDraws: Bool
   let hiddenTools: Set<String>
-  @State private var selectorMode: EditorSelectorMode = .freehand
-  @State private var eraserMode: EditorEraserMode = .stroke
-  @State private var spaceMode: EditorSpaceMode = .reflow
   @State private var textRequest: EditorTextRequest?
   @State private var drawing = false
   @State private var figureSource = ""
