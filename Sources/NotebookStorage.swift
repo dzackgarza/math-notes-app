@@ -957,12 +957,16 @@ final class NotesRootAccess {
         }
       case .modified:
         folders.sort {
-          let left = $0.modified ?? .distantPast
-          let right = $1.modified ?? .distantPast
-          return ascending ? left < right : left > right
+          Self.libraryModifiedPrecedes(
+            leftDate: $0.modified, leftName: $0.reference.name,
+            rightDate: $1.modified, rightName: $1.reference.name,
+            ascending: ascending)
         }
         notebooks.sort {
-          ascending ? $0.modified < $1.modified : $0.modified > $1.modified
+          Self.libraryModifiedPrecedes(
+            leftDate: $0.modified, leftName: $0.reference.name,
+            rightDate: $1.modified, rightName: $1.reference.name,
+            ascending: ascending)
         }
       }
       return LibraryListing(folders: folders, notebooks: notebooks)
@@ -1087,12 +1091,16 @@ final class NotesRootAccess {
         }
       case .modified:
         folders.sort {
-          let left = $0.modified ?? .distantPast
-          let right = $1.modified ?? .distantPast
-          return ascending ? left < right : left > right
+          Self.libraryModifiedPrecedes(
+            leftDate: $0.modified, leftName: $0.reference.name,
+            rightDate: $1.modified, rightName: $1.reference.name,
+            ascending: ascending)
         }
         notebooks.sort {
-          ascending ? $0.modified < $1.modified : $0.modified > $1.modified
+          Self.libraryModifiedPrecedes(
+            leftDate: $0.modified, leftName: $0.reference.name,
+            rightDate: $1.modified, rightName: $1.reference.name,
+            ascending: ascending)
         }
       }
       return LibraryListing(folders: folders, notebooks: notebooks)
@@ -1155,7 +1163,10 @@ final class NotesRootAccess {
         }
       case .modified:
         notebooks.sort {
-          ascending ? $0.modified < $1.modified : $0.modified > $1.modified
+          Self.libraryModifiedPrecedes(
+            leftDate: $0.modified, leftName: $0.reference.name,
+            rightDate: $1.modified, rightName: $1.reference.name,
+            ascending: ascending)
         }
       }
       return LibraryListing(folders: [], notebooks: notebooks)
@@ -1238,9 +1249,10 @@ final class NotesRootAccess {
       }
     case .modified:
       folderItems.sort {
-        let left = $0.modified ?? .distantPast
-        let right = $1.modified ?? .distantPast
-        return ascending ? left < right : left > right
+        Self.libraryModifiedPrecedes(
+          leftDate: $0.modified, leftName: $0.reference.name,
+          rightDate: $1.modified, rightName: $1.reference.name,
+          ascending: ascending)
       }
     }
     return LibraryListing(folders: folderItems, notebooks: notebooks)
@@ -1313,7 +1325,10 @@ final class NotesRootAccess {
         }
       case .modified:
         notebooks.sort {
-          ascending ? $0.modified < $1.modified : $0.modified > $1.modified
+          Self.libraryModifiedPrecedes(
+            leftDate: $0.modified, leftName: $0.reference.name,
+            rightDate: $1.modified, rightName: $1.reference.name,
+            ascending: ascending)
         }
       }
       return LibraryListing(folders: [], notebooks: notebooks)
@@ -2702,6 +2717,19 @@ final class NotesRootAccess {
 
   private static func libraryNamePrecedes(_ left: String, _ right: String) -> Bool {
     left.lowercased().compare(right.lowercased(), options: .literal) == .orderedAscending
+  }
+
+  private static func libraryModifiedPrecedes(
+    leftDate: Date?,
+    leftName: String,
+    rightDate: Date?,
+    rightName: String,
+    ascending: Bool
+  ) -> Bool {
+    if let leftDate, let rightDate, leftDate != rightDate {
+      return ascending ? leftDate < rightDate : leftDate > rightDate
+    }
+    return libraryNamePrecedes(leftName, rightName)
   }
 
   private static func matchesSearch(
