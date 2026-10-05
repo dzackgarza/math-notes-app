@@ -44,27 +44,31 @@ final class OpenNotesStateTests: XCTestCase {
   func testAutosaveDebouncesAndExplicitSaveCancelsPendingWork() async throws {
     let note = session(["A"], seed: 35)
     var saves = 0
+    let fired = expectation(description: "debounced autosave fires")
 
-    note.scheduleAutosave(after: .milliseconds(20)) {
+    note.scheduleAutosave(after: .zero) {
       saves += 1
       try? note.performSave {}
     }
-    note.scheduleAutosave(after: .milliseconds(20)) {
+    note.scheduleAutosave(after: .zero) {
       saves += 1
       try? note.performSave {}
+      fired.fulfill()
     }
     XCTAssertEqual(note.saveStatus, .pending)
 
-    try await Task.sleep(for: .milliseconds(60))
+    await fulfillment(of: [fired], timeout: 1)
     XCTAssertEqual(saves, 1)
     XCTAssertEqual(note.saveStatus, .saved)
 
-    note.scheduleAutosave(after: .milliseconds(50)) {
+    let canceled = expectation(description: "explicit save cancels pending autosave")
+    canceled.isInverted = true
+    note.scheduleAutosave(after: .seconds(60)) {
       saves += 1
-      try? note.performSave {}
+      canceled.fulfill()
     }
     try note.performSave {}
-    try await Task.sleep(for: .milliseconds(80))
+    await fulfillment(of: [canceled], timeout: 0.05)
     XCTAssertEqual(saves, 1)
     XCTAssertEqual(note.saveStatus, .saved)
   }
