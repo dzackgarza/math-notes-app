@@ -139,7 +139,8 @@ struct NewNotebookSheet: View {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel", action: requestCancel)
         }
-        ToolbarItem(placement: .confirmationAction) {
+        ToolbarItemGroup(placement: .bottomBar) {
+          Spacer()
           Button("Create") {
             onCreate(finalizedForm.request)
           }
