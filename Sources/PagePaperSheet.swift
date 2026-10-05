@@ -53,7 +53,7 @@ struct PagePaperRequest: Identifiable {
 struct PagePaperSheet: View {
   let request: PagePaperRequest
   let onTemplate: (String) -> Bool
-  let onPageSize: (InkPageSize, InkOrientation, Double, Double) -> Void
+  let onPageSize: (InkPageSize, InkOrientation, Double, Double) -> Bool
   let onDone: () -> Void
 
   @State private var selectedTemplate: String?
@@ -63,7 +63,7 @@ struct PagePaperSheet: View {
   init(
     request: PagePaperRequest,
     onTemplate: @escaping (String) -> Bool,
-    onPageSize: @escaping (InkPageSize, InkOrientation, Double, Double) -> Void,
+    onPageSize: @escaping (InkPageSize, InkOrientation, Double, Double) -> Bool,
     onDone: @escaping () -> Void
   ) {
     self.request = request
@@ -104,16 +104,17 @@ struct PagePaperSheet: View {
               get: { size == .custom ? nil : size },
               set: { value in
                 guard let value else { return }
+                let previous = size
                 size = value
+                if !apply(size: value, orientation: orientation) {
+                  size = previous
+                }
               })
           ) {
             Text("A4").tag(Optional(PageSizeChoice.a4))
             Text("Letter").tag(Optional(PageSizeChoice.letter))
           }
           .pickerStyle(.segmented)
-          .onChange(of: size) { _, value in
-            apply(size: value, orientation: orientation)
-          }
 
           if size == .custom {
             Text(
@@ -124,15 +125,23 @@ struct PagePaperSheet: View {
         }
 
         Section("Orientation") {
-          Picker("Orientation", selection: $orientation) {
+          Picker(
+            "Orientation",
+            selection: Binding(
+              get: { orientation },
+              set: { value in
+                let previous = orientation
+                orientation = value
+                if !apply(size: size, orientation: value) {
+                  orientation = previous
+                }
+              })
+          ) {
             ForEach(PageOrientationChoice.allCases) { value in
               Text(value.rawValue).tag(value)
             }
           }
           .pickerStyle(.segmented)
-          .onChange(of: orientation) { _, value in
-            apply(size: size, orientation: value)
-          }
         }
       }
       .scrollContentBackground(.hidden)
@@ -147,7 +156,7 @@ struct PagePaperSheet: View {
     }
   }
 
-  private func apply(size: PageSizeChoice, orientation: PageOrientationChoice) {
+  private func apply(size: PageSizeChoice, orientation: PageOrientationChoice) -> Bool {
     onPageSize(
       size.engineValue,
       orientation.engineValue,

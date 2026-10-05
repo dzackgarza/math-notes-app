@@ -2465,8 +2465,8 @@ struct ContentView: View {
     _ orientation: InkOrientation,
     _ width: Double,
     _ height: Double
-  ) {
-    guard let session else { return }
+  ) -> Bool {
+    guard let session else { return false }
     do {
       try session.document.setPageSize(
         size,
@@ -2475,8 +2475,10 @@ struct ContentView: View {
         height: height)
       documentRevision &+= 1
       scheduleNotebookSave(session)
+      return true
     } catch {
       errorMessage = error.localizedDescription
+      return false
     }
   }
 
