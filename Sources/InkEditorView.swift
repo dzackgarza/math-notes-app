@@ -140,8 +140,12 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private var hostFocused = true
   private var hostLinked = false
   private var fingerDrawing = false
+  private var pencilStrokeActive = false
   private var pageEditMenuInteraction: UIEditMenuInteraction?
   private var pageLongPress: UILongPressGestureRecognizer?
+  private var directTap: UITapGestureRecognizer?
+  private var undoTap: UITapGestureRecognizer?
+  private var redoTap: UITapGestureRecognizer?
   private var applyingLinkedViewport = false
   private var lastAppliedLinkedViewport: EditorLinkedViewport?
   private var requestedLinkedViewport: EditorLinkedViewport?
@@ -316,6 +320,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     canvasView.addGestureRecognizer(pageLongPress)
     canvasView.addInteraction(UIDragInteraction(delegate: self))
     let directTap = UITapGestureRecognizer(target: self, action: #selector(handleDirectTap))
+    self.directTap = directTap
     directTap.cancelsTouchesInView = false
     directTap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
     canvasView.addGestureRecognizer(directTap)
@@ -326,12 +331,14 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     canvasView.addGestureRecognizer(pencilTap)
 
     let undoTap = UITapGestureRecognizer(target: self, action: #selector(handleUndoTap))
+    self.undoTap = undoTap
     undoTap.cancelsTouchesInView = false
     undoTap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
     undoTap.numberOfTouchesRequired = 2
     canvasView.addGestureRecognizer(undoTap)
 
     let redoTap = UITapGestureRecognizer(target: self, action: #selector(handleRedoTap))
+    self.redoTap = redoTap
     redoTap.cancelsTouchesInView = false
     redoTap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
     redoTap.numberOfTouchesRequired = 3
@@ -523,7 +530,14 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   func setPencilStrokeActive(_ active: Bool) {
+    pencilStrokeActive = active
     scrollView.panGestureRecognizer.isEnabled = !active
+    scrollView.pinchGestureRecognizer?.isEnabled = !active
+    pageLongPress?.isEnabled = !active && !fingerDrawing
+    directTap?.isEnabled = !active
+    undoTap?.isEnabled = !active
+    redoTap?.isEnabled = !active
+    if active { pageEditMenuInteraction?.dismissMenu() }
   }
 
   func viewForZooming(in scrollView: UIScrollView) -> UIView? {
@@ -570,6 +584,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   ) -> [UIDragItem] {
     onFocusRequested()
     let copyHandle = interaction.view === selectionCopyDragHandle
+    guard !pencilStrokeActive else { return [] }
     guard !fingerDrawing || copyHandle else { return [] }
     guard !figureCaptureActive, !figureCompleting else { return [] }
     if !copyHandle {
@@ -804,7 +819,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     reportSelection(true)
     selectionBar.isHidden = false
     let selectedFigure = try? canvasView.selectedFigure()
-    editFigureButton?.isHidden = selectedFigure == nil
+    editFigureButton?.isHidden = selectedFigure == nil || figureCaptureActive || figureCompleting
     if selectedFigure != reportedFigureID {
       reportedFigureID = selectedFigure
       if let selectedFigure {
@@ -1032,6 +1047,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         try canvasView.beginFigure(page: page)
         figureCaptureActive = true
         updateSaveClippingVisibility()
+        refreshSelectionBar()
         figurePreviewGeneration &+= 1
         onFigureSourceChanged("")
         onFigureCaptureChanged(true)
@@ -1061,9 +1077,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
           self.syncDrawingSuppression()
           self.onFigureSourceChanged(generated.source)
           self.onFigureCaptureChanged(false)
+          self.refreshSelectionBar()
           if !id.isEmpty {
             self.onEditCommitted()
-            self.refreshSelectionBar()
             self.onEditFigure(id)
           }
         } catch {
