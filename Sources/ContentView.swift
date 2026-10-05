@@ -1299,11 +1299,8 @@ struct ContentView: View {
     conflictReview = nil
     libraryFolder = FolderReference(path: [])
     libraryNotebookOpen = false
-    libraryQuery = ""
-    libraryScope = .folder
     libraryTags = []
     libraryTagCounts = [:]
-    libraryTag = nil
     libraryListing = LibraryListing(folders: [], notebooks: [])
     libraryFolderDetails = nil
     root = newRoot
