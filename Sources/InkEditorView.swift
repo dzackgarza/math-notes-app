@@ -1238,6 +1238,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   private func configureBottomPull() {
+    addPageFooter.mj_h = 96
     addPageFooter.stateLabel?.textColor = NativeTheme.inkUI
     addPageFooter.stateLabel?.font = UIFont(
       name: NativeTheme.interfaceRegularName, size: 16)
