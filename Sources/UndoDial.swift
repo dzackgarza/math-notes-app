@@ -32,6 +32,7 @@ struct UndoDialButton: View {
   let undo: () -> Bool
   let redo: () -> Bool
 
+  @Environment(\.isEnabled) private var isEnabled
   @State private var active = false
   @State private var moved = false
   @State private var accumulator = UndoDialStepAccumulator(angle: 0)
@@ -65,6 +66,7 @@ struct UndoDialButton: View {
       .accessibilityLabel("Undo")
       .accessibilityAddTraits(.isButton)
       .accessibilityAction {
+        guard isEnabled else { return }
         _ = undo()
       }
   }
@@ -86,6 +88,7 @@ struct UndoDialButton: View {
   }
 
   private func updateDrag(_ value: DragGesture.Value) {
+    guard isEnabled else { return }
     if !active {
       active = true
       moved = false
@@ -112,6 +115,10 @@ struct UndoDialButton: View {
   }
 
   private func endDrag(_ value: DragGesture.Value) {
+    guard isEnabled else {
+      active = false
+      return
+    }
     if active, !moved {
       _ = undo()
     }
