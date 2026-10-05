@@ -2369,16 +2369,14 @@ struct ContentView: View {
     guard let root else { return }
     do {
       try saveSession(session, using: root)
-      let total = try session.document.pageCount()
       let data = try session.document.exportPDF(
         title: session.reference.name,
         firstPage: firstPage,
         pageCount: pageCount,
         layerIDs: layerIDs)
       let safeName = session.reference.name.replacingOccurrences(of: "/", with: "-")
-      let baseName = firstPage == 0 && pageCount == total ? safeName : "\(safeName)-pages-\(firstPage + 1)-\(firstPage + pageCount)"
       let url = FileManager.default.temporaryDirectory
-        .appendingPathComponent(baseName)
+        .appendingPathComponent(safeName)
         .appendingPathExtension("pdf")
       try data.write(to: url, options: .atomic)
       pdfExport = nil
