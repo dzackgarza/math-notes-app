@@ -200,7 +200,7 @@ struct NativeLibraryView: View {
       if open { searchPresented = false }
     }
     .toolbar {
-      if scope == .folder && notebookOpen {
+      if notebookOpen {
         ToolbarItem(placement: .topBarLeading) {
           Button(action: goUp) {
             Label("Library", systemImage: "chevron.left")
