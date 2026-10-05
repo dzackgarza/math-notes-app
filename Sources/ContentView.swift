@@ -1268,6 +1268,7 @@ struct ContentView: View {
     reloadPenLibrary()
     newRoot.onChange = {
       Task { @MainActor in
+        guard openNotes.inLibrary else { return }
         refreshLibrary()
         reloadPenLibrary()
       }
