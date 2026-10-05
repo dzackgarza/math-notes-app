@@ -809,7 +809,7 @@ struct NativeLibraryView: View {
             .frame(width: 44, height: 58)
 
           VStack(alignment: .leading, spacing: 4) {
-            Text(item.reference.path.last ?? item.reference.name)
+            Text(item.reference.name)
               .font(NativeTheme.headline)
             notebookSummary(item)
             LibraryTagChips(tags: item.details.tags, knownTags: tags)
