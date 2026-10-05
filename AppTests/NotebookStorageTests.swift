@@ -1089,6 +1089,9 @@ final class NotebookStorageTests: XCTestCase {
       overview.folders.map(\.reference),
       [course, week, myNotes])
     XCTAssertEqual(overview.folders.map(\.noteCount), [1, 1, 1])
+    XCTAssertEqual(
+      overview.folders.map(\.coverNote),
+      [courseNote, weekNote, rootNote])
     XCTAssertTrue(overview.notebooks.isEmpty)
 
     let rootOpen = try root.library(in: myNotes, sort: .name, direction: .ascending)

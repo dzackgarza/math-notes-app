@@ -26,6 +26,7 @@ struct LibraryFolderItem: Identifiable {
   let reference: FolderReference
   let modified: Date?
   let noteCount: Int
+  let coverNote: NotebookReference?
   let details: LibraryFolderDetails
 
   var id: String { reference.id }
@@ -914,6 +915,9 @@ final class NotesRootAccess {
                 reference: FolderReference(path: path),
                 modified: modified,
                 noteCount: directNotes.count,
+                coverNote: Self.coverNotebookReference(
+                  folderPath: path,
+                  names: directNotes.map { $0.1.last! }),
                 details: try LibraryMetadataFile.folderDetails(in: metadata, path: path)))
           }
 
@@ -1034,6 +1038,9 @@ final class NotesRootAccess {
                   reference: FolderReference(path: childPath),
                   modified: try Self.latestDirectNotebookModification(in: child),
                   noteCount: directNoteNames.count,
+                  coverNote: Self.coverNotebookReference(
+                    folderPath: childPath,
+                    names: directNoteNames),
                   details: details))
             }
             try visit(child, path: childPath)
@@ -1056,6 +1063,7 @@ final class NotesRootAccess {
               reference: FolderReference(path: []),
               modified: try Self.latestDirectNotebookModification(in: root),
               noteCount: rootNoteNames.count,
+              coverNote: Self.coverNotebookReference(folderPath: [], names: rootNoteNames),
               details: rootDetails))
         }
       }
@@ -1211,6 +1219,9 @@ final class NotesRootAccess {
             try Self.latestDirectNotebookModification(in: $0)
           },
           noteCount: directNoteNames.count,
+          coverNote: Self.coverNotebookReference(
+            folderPath: reference.path,
+            names: directNoteNames),
           details: details))
     }
 
@@ -2705,6 +2716,14 @@ final class NotesRootAccess {
       description.lowercased().contains(lower) ||
       tags.contains(where: { $0.lowercased().contains(lower) }) ||
       additionalNames.contains(where: { $0.lowercased().contains(lower) })
+  }
+
+  private static func coverNotebookReference(
+    folderPath: [String],
+    names: [String]
+  ) -> NotebookReference? {
+    guard let name = names.min(by: libraryNamePrecedes) else { return nil }
+    return NotebookReference(path: folderPath + [name])
   }
 
   private static func directNotebookNames(in directory: URL) throws -> [String] {

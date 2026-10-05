@@ -1015,14 +1015,13 @@ struct LibraryNotebookCover: View {
         }
       }
     }
-    .task(id: item.modified) {
+    .task(id: thumbnailKey) {
       thumbnail = nil
       thumbnailMissing = false
       thumbnailFailed = false
+      guard let coverNote = item.coverNote else { return }
       do {
-        let listing = try root.library(in: item.reference, sort: .name, direction: .ascending)
-        guard let first = listing.notebooks.first else { return }
-        guard let data = try root.thumbnail(first.reference) else {
+        guard let data = try root.thumbnail(coverNote) else {
           thumbnailMissing = true
           return
         }
@@ -1037,6 +1036,10 @@ struct LibraryNotebookCover: View {
       }
     }
     .accessibilityLabel("\(item.reference.name) notebook cover")
+  }
+
+  private var thumbnailKey: String {
+    "\(item.coverNote?.id ?? "")@\(item.modified?.timeIntervalSince1970 ?? 0)"
   }
 
   private var coverColor: Color {
