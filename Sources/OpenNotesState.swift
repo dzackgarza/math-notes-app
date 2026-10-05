@@ -287,20 +287,8 @@ final class OpenNotesState {
     }
     guard !targets.isEmpty else { return }
 
-    var firstFailure: OpenNotesStateError?
     for session in targets {
-      do {
-        try save(session)
-      } catch {
-        if firstFailure == nil {
-          firstFailure = .saveFailed(
-            reference: session.reference,
-            underlying: error)
-        }
-      }
-    }
-    if let firstFailure {
-      throw firstFailure
+      try saveOne(session, save: save)
     }
     release(Set(targets.map(\.id)))
   }

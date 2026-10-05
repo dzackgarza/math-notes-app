@@ -211,6 +211,24 @@ final class OpenNotesStateTests: XCTestCase {
     XCTAssertTrue(state.active === c)
   }
 
+  func testCloseUnderStopsAtTheFirstSaveFailure() throws {
+    let state = OpenNotesState()
+    let a = session(["Folder", "A"], seed: 38)
+    let b = session(["Folder", "B"], seed: 39)
+    state.show(a)
+    state.show(b)
+
+    var saves: [NotebookReference] = []
+    XCTAssertThrowsError(
+      try state.closeUnder(["Folder"]) { note in
+        saves.append(note.reference)
+        if note === a { throw TestFailure.expected }
+      })
+
+    XCTAssertEqual(saves, [a.reference])
+    XCTAssertEqual(state.opened.map(\.reference), [a.reference, b.reference])
+  }
+
   func testCloseUnderAllowsCaptureWhenRelocatingEntries() throws {
     let state = OpenNotesState()
     let a = session(["Folder", "A"], seed: 36)
