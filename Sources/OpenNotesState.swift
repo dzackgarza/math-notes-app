@@ -267,6 +267,7 @@ final class OpenNotesState {
       throw OpenNotesStateError.captureInProgress("closing this note")
     }
     try saveOne(target, save: save)
+    if index < tab { tab -= 1 }
     release([target.id])
   }
 
@@ -415,22 +416,8 @@ final class OpenNotesState {
       closeSplit()
     }
 
-    let previousIndex = tab
-    let selectedID = selected?.id
     opened.removeAll { ids.contains($0.id) }
-
-    guard !opened.isEmpty else {
-      tab = 0
-      inLibrary = true
-      return
-    }
-
-    if let selectedID,
-      let selectedIndex = opened.firstIndex(where: { $0.id == selectedID })
-    {
-      tab = selectedIndex
-    } else {
-      tab = min(previousIndex, opened.count - 1)
-    }
+    tab = opened.isEmpty ? 0 : min(tab, opened.count - 1)
+    if opened.isEmpty { inLibrary = true }
   }
 }

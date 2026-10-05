@@ -211,6 +211,27 @@ final class OpenNotesStateTests: XCTestCase {
     XCTAssertTrue(state.active === c)
   }
 
+  func testCloseUnderClampsTheTabIndexLikeWebRelease() throws {
+    let state = OpenNotesState()
+    let removed = session(["Folder", "A"], seed: 40)
+    let middle = session(["Other", "B"], seed: 41)
+    let selected = session(["Other", "C"], seed: 42)
+    let right = session(["Other", "D"], seed: 43)
+    state.show(removed)
+    state.show(middle)
+    state.show(selected)
+    state.show(right)
+    _ = try state.open(
+      selected.reference,
+      save: { _ in },
+      load: { _ in selected })
+
+    try state.closeUnder(["Folder"], save: { _ in })
+
+    XCTAssertEqual(state.opened.map(\.reference), [middle.reference, selected.reference, right.reference])
+    XCTAssertTrue(state.active === right)
+  }
+
   func testCloseUnderStopsAtTheFirstSaveFailure() throws {
     let state = OpenNotesState()
     let a = session(["Folder", "A"], seed: 38)
