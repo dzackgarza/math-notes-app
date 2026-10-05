@@ -1731,12 +1731,6 @@ struct ContentView: View {
   private func showLibraryNotice(_ message: String) {
     libraryNotice = message
     UIAccessibility.post(notification: .announcement, argument: message)
-    Task { @MainActor in
-      try? await Task.sleep(for: .seconds(4))
-      if libraryNotice == message {
-        libraryNotice = nil
-      }
-    }
   }
 
   private func consumeIncomingDocument() {
