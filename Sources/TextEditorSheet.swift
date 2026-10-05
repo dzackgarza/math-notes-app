@@ -36,11 +36,21 @@ struct TextEditorSheet: View {
     NavigationStack {
       Form {
         Section("Text") {
-          TextEditor(text: $content)
-            .focused($contentFocused)
-            .task { contentFocused = true }
-            .frame(minHeight: 140)
-            .environment(\.layoutDirection, rtl ? .rightToLeft : .leftToRight)
+          ZStack(alignment: .topLeading) {
+            if content.isEmpty {
+              Text("Text")
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 8)
+                .allowsHitTesting(false)
+            }
+            TextEditor(text: $content)
+              .focused($contentFocused)
+              .task { contentFocused = true }
+              .frame(minHeight: 140)
+              .accessibilityLabel("Text")
+              .environment(\.layoutDirection, rtl ? .rightToLeft : .leftToRight)
+          }
         }
 
         Section("Text box") {
