@@ -720,7 +720,7 @@ struct NativeLibraryView: View {
 
   private func noteMetadataLine(_ item: LibraryNotebookItem) -> String {
     var parts: [String] = []
-    if scope != .trash && (!query.isEmpty || scope != .folder) {
+    if !notebookOpen && scope != .trash && (!query.isEmpty || scope != .folder) {
       let parent = FolderReference(path: Array(item.reference.path.dropLast()))
       parts.append(parent.name)
     }
