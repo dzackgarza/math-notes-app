@@ -1277,9 +1277,14 @@ struct ContentView: View {
     reloadPenLibrary()
     newRoot.onChange = {
       Task { @MainActor in
-        guard openNotes.inLibrary else { return }
-        refreshLibrary()
-        reloadPenLibrary()
+        if openNotes.inLibrary {
+          refreshLibrary()
+          reloadPenLibrary()
+        } else {
+          for note in openNotes.opened {
+            note.conflictCount = (try? newRoot.conflictCount(note.reference)) ?? note.conflictCount
+          }
+        }
       }
     }
     refreshLibrary()
