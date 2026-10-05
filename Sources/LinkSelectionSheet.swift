@@ -11,7 +11,9 @@ struct LinkSelectionSheet: View {
   let onChoose: (LinkSelectionChoice) -> Void
   let onCancel: () -> Void
 
+  @State private var showingDestination = false
   @State private var destination = ""
+  @FocusState private var destinationFocused: Bool
 
   var body: some View {
     NavigationStack {
@@ -23,21 +25,25 @@ struct LinkSelectionSheet: View {
           Button("Another notebook", systemImage: "books.vertical") {
             onChoose(.anotherNotebook)
           }
-        }
-
-        Section("URL or relative notebook path") {
-          TextField("https://… or ../../Note/pages/0001.svg", text: $destination)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-
-          Button("Link", systemImage: "link") {
-            onChoose(.href(destination.trimmingCharacters(in: .whitespacesAndNewlines)))
+          Button("URL or relative notebook path", systemImage: "link") {
+            destination = ""
+            showingDestination = true
           }
-          .disabled(destination.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
       }
       .navigationTitle("Link selected content")
       .navigationBarTitleDisplayMode(.inline)
+      .alert("Link destination", isPresented: $showingDestination) {
+        TextField("https://… or ../../Note/pages/0001.svg", text: $destination)
+          .textInputAutocapitalization(.never)
+          .autocorrectionDisabled()
+          .focused($destinationFocused)
+          .task { destinationFocused = true }
+        Button("Cancel", role: .cancel, action: onCancel)
+        Button("Link") {
+          onChoose(.href(destination.trimmingCharacters(in: .whitespacesAndNewlines)))
+        }
+      }
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel", action: onCancel)

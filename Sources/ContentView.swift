@@ -1943,8 +1943,12 @@ struct ContentView: View {
       showingLinkChooser = false
       prepareOpenNotePicker(.linkTarget)
     case let .href(href):
-      if applyPendingLink(href) {
-        showingLinkChooser = false
+      showingLinkChooser = false
+      let destination = href.trimmingCharacters(in: .whitespacesAndNewlines)
+      if destination.isEmpty {
+        pendingLink = nil
+      } else if !applyPendingLink(destination) {
+        pendingLink = nil
       }
     }
   }
