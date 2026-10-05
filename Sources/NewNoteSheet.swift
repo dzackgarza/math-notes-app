@@ -279,20 +279,6 @@ struct NewNoteSheet: View {
         }
       }
       .pickerStyle(.segmented)
-
-      Picker("Page size", selection: $form.pageSize) {
-        ForEach(NewNotePageSize.allCases) { size in
-          Text(size.label).tag(size)
-        }
-      }
-      .pickerStyle(.segmented)
-
-      Picker("Orientation", selection: $form.orientation) {
-        ForEach(NewNoteOrientation.allCases) { value in
-          Text(value.label).tag(value)
-        }
-      }
-      .pickerStyle(.segmented)
     }
 
     Section("Tags") {
@@ -308,6 +294,22 @@ struct NewNoteSheet: View {
           Text(folder.name).tag(folder)
         }
       }
+    }
+
+    Section {
+      Picker("Page size", selection: $form.pageSize) {
+        ForEach(NewNotePageSize.allCases) { size in
+          Text(size.label).tag(size)
+        }
+      }
+      .pickerStyle(.segmented)
+
+      Picker("Orientation", selection: $form.orientation) {
+        ForEach(NewNoteOrientation.allCases) { value in
+          Text(value.label).tag(value)
+        }
+      }
+      .pickerStyle(.segmented)
     }
 
     Section("Starting template") {
