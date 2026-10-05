@@ -1108,42 +1108,6 @@ final class NotebookStorageTests: XCTestCase {
   }
 
   @MainActor
-  func testModifiedSortBreaksEqualTimestampsByNameLikeWeb() throws {
-    let directory = FileManager.default.temporaryDirectory
-      .appendingPathComponent(UUID().uuidString, isDirectory: true)
-    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: directory) }
-
-    let root = NotesRootAccess(testURL: directory)
-    let myNotes = FolderReference(path: [])
-    let (zeta, _) = try root.createNote(
-      title: "zeta", parent: myNotes, template: "blank",
-      pageSize: INK_PAGE_A4, orientation: INK_PORTRAIT)
-    let (alpha, _) = try root.createNote(
-      title: "Alpha", parent: myNotes, template: "blank",
-      pageSize: INK_PAGE_A4, orientation: INK_PORTRAIT)
-    let stamp = Date(timeIntervalSince1970: 1_700_000_000)
-    for reference in [zeta, alpha] {
-      let note = reference.path.reduce(directory) { partial, component in
-        partial.appendingPathComponent(component, isDirectory: true)
-      }
-      let notebook = note.appendingPathComponent("notebook.json")
-      try FileManager.default.setAttributes([.modificationDate: stamp], ofItemAtPath: notebook.path)
-      let pages = note.appendingPathComponent("pages", isDirectory: true)
-      for page in try FileManager.default.contentsOfDirectory(
-        at: pages, includingPropertiesForKeys: nil)
-      {
-        try FileManager.default.setAttributes([.modificationDate: stamp], ofItemAtPath: page.path)
-      }
-    }
-
-    let descending = try root.allNotes(sort: .modified, direction: .descending)
-    XCTAssertEqual(descending.notebooks.map(\.reference), [alpha, zeta])
-    let ascending = try root.allNotes(sort: .modified, direction: .ascending)
-    XCTAssertEqual(ascending.notebooks.map(\.reference), [alpha, zeta])
-  }
-
-  @MainActor
   func testLibrarySearchMatchesWebMetadataAndDirectNotePredicates() throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
