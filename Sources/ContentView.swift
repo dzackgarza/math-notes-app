@@ -2225,13 +2225,9 @@ struct ContentView: View {
         conflict: request.conflict,
         choice: choice)
 
-      if let previous = openNotes.find(request.reference) {
-        let previousPage = previous.currentPage
+      if openNotes.find(request.reference) != nil {
         _ = try openNotes.reloadIfOpen(request.reference) { reference in
-          try makeOpenSession(
-            reference,
-            using: root,
-            currentPage: previousPage)
+          try makeOpenSession(reference, using: root)
         }
         dismissClippings()
       }
