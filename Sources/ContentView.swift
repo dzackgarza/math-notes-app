@@ -1759,8 +1759,6 @@ struct ContentView: View {
         await Task.yield()
       }
 
-      selectedTool = .pen
-      selectedDrawingTool = .pen
       dismissClippings()
       conflictReview = nil
       openNotes.show(
@@ -1821,8 +1819,6 @@ struct ContentView: View {
         orientation: request.orientation)
       try root.completeNewNoteCreation(reference, tags: request.tags)
       showingNewNote = false
-      selectedTool = .pen
-      selectedDrawingTool = .pen
       dismissClippings()
       conflictReview = nil
       openNotes.show(
