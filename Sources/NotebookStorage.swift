@@ -936,7 +936,7 @@ final class NotesRootAccess {
       }
 
       let nameOrder: (String, String) -> Bool = {
-        $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        Self.libraryNamePrecedes($0, $1)
       }
       let ascending = direction == .ascending
       switch sort {
@@ -1072,7 +1072,7 @@ final class NotesRootAccess {
 
       try visit(root, path: [])
       let nameOrder: (String, String) -> Bool = {
-        $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        Self.libraryNamePrecedes($0, $1)
       }
       let ascending = direction == .ascending
       switch sort {
@@ -1155,7 +1155,7 @@ final class NotesRootAccess {
 
       try visit(root, path: [])
       let nameOrder: (String, String) -> Bool = {
-        $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        Self.libraryNamePrecedes($0, $1)
       }
       let ascending = direction == .ascending
       switch sort {
@@ -1240,7 +1240,7 @@ final class NotesRootAccess {
     }
 
     let nameOrder: (String, String) -> Bool = {
-      $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+      Self.libraryNamePrecedes($0, $1)
     }
     let ascending = direction == .ascending
     switch sort {
@@ -1320,7 +1320,7 @@ final class NotesRootAccess {
 
       try visit(trash, path: [".trash"])
       let nameOrder: (String, String) -> Bool = {
-        $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+        Self.libraryNamePrecedes($0, $1)
       }
       let ascending = direction == .ascending
       switch sort {
@@ -2690,6 +2690,10 @@ final class NotesRootAccess {
       if modified > latest { latest = modified }
     }
     return latest
+  }
+
+  private static func libraryNamePrecedes(_ left: String, _ right: String) -> Bool {
+    left.lowercased().compare(right.lowercased(), options: .literal) == .orderedAscending
   }
 
   private static func matchesSearch(
