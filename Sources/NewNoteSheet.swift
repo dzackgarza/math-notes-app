@@ -243,7 +243,7 @@ struct NewNoteSheet: View {
         titleVisibility: .visible
       ) {
         Button("Discard", role: .destructive, action: onCancel)
-        Button("Keep Editing", role: .cancel) {}
+        Button("Keep editing", role: .cancel) {}
       }
       .navigationBarTitleDisplayMode(.inline)
       .toolbarBackground(NativeTheme.leaf, for: .navigationBar)
