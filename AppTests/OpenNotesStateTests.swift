@@ -425,7 +425,7 @@ final class OpenNotesStateTests: XCTestCase {
       try state.reloadIfOpen(
         reference.reference,
         save: { _ in },
-        load: { ref in self.session(ref.path, seed: 30) })
+        load: { ref in self.session(ref.path, seed: 30) }))
 
     XCTAssertFalse(state.splitOpen)
     XCTAssertTrue(state.active === replacement)
@@ -492,7 +492,7 @@ final class OpenNotesStateTests: XCTestCase {
       try state.reloadIfOpen(
         first.reference,
         save: { _ in },
-        load: { reference in self.session(reference.path, seed: 20) })
+        load: { reference in self.session(reference.path, seed: 20) }))
 
     XCTAssertNotEqual(first.id, replacement.id)
     XCTAssertTrue(state.active === replacement)
