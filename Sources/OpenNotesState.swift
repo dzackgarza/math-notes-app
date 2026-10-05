@@ -65,6 +65,7 @@ final class OpenNotebookSession: Identifiable {
   var documentRevision = 0
   var conflictCount: Int
   var saveStatus = NotebookSaveStatus.saved
+  @ObservationIgnored private var autosaveTask: Task<Void, Never>?
 
   init(
     id: UUID = UUID(),
@@ -83,7 +84,31 @@ final class OpenNotebookSession: Identifiable {
     saveStatus = .pending
   }
 
+  func scheduleAutosave(
+    after delay: Duration = .seconds(1),
+    _ operation: @escaping @MainActor () -> Void
+  ) {
+    markUnsaved()
+    autosaveTask?.cancel()
+    autosaveTask = Task { @MainActor [weak self] in
+      do {
+        try await Task.sleep(for: delay)
+      } catch {
+        return
+      }
+      guard let self, !Task.isCancelled else { return }
+      self.autosaveTask = nil
+      operation()
+    }
+  }
+
+  func cancelAutosave() {
+    autosaveTask?.cancel()
+    autosaveTask = nil
+  }
+
   func performSave(_ operation: () throws -> Void) throws {
+    cancelAutosave()
     saveStatus = .saving
     do {
       try operation()

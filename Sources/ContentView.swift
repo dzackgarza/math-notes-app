@@ -758,8 +758,7 @@ struct ContentView: View {
       onFocus: { openNotes.focusRight(right) },
       onViewportChanged: { openNotes.setLinkedViewport($0) },
       onEditCommitted: {
-        note.markUnsaved()
-        saveNotebook(note)
+        scheduleNotebookSave(note)
       },
       onSaveRequested: { saveNotebook(note) },
       onPensChanged: persistPenLibrary,
@@ -2435,8 +2434,7 @@ struct ContentView: View {
     do {
       try root.applyTemplate(name: name, to: session.document)
       documentRevision &+= 1
-      session.markUnsaved()
-      try saveSession(session, using: root)
+      scheduleNotebookSave(session)
     } catch {
       errorMessage = error.localizedDescription
     }
@@ -2448,7 +2446,7 @@ struct ContentView: View {
     _ width: Double,
     _ height: Double
   ) {
-    guard let root, let session else { return }
+    guard let session else { return }
     do {
       try session.document.setPageSize(
         size,
@@ -2456,8 +2454,7 @@ struct ContentView: View {
         width: width,
         height: height)
       documentRevision &+= 1
-      session.markUnsaved()
-      try saveSession(session, using: root)
+      scheduleNotebookSave(session)
     } catch {
       errorMessage = error.localizedDescription
     }
@@ -2472,14 +2469,12 @@ struct ContentView: View {
     currentPage = page
     documentRevision &+= 1
     pageNavigationRevision &+= 1
-    session?.markUnsaved()
-    saveOpenNotebook()
+    if let session { scheduleNotebookSave(session) }
   }
 
   private func layerEdited() {
     documentRevision &+= 1
-    session?.markUnsaved()
-    saveOpenNotebook()
+    if let session { scheduleNotebookSave(session) }
   }
 
   private func showDeletedPageToast(
@@ -2507,8 +2502,7 @@ struct ContentView: View {
       toast.viewState.currentPage = min(max(step.page, 0), max(0, count - 1))
       toast.session.documentRevision &+= 1
       toast.viewState.pageNavigationRevision &+= 1
-      toast.session.markUnsaved()
-      saveNotebook(toast.session)
+      scheduleNotebookSave(toast.session)
     } catch {
       errorMessage = error.localizedDescription
     }
@@ -2520,15 +2514,15 @@ struct ContentView: View {
     do {
       try action(session.document)
       documentRevision &+= 1
-      session.markUnsaved()
-      saveOpenNotebook()
+      scheduleNotebookSave(session)
     } catch {
       errorMessage = error.localizedDescription
     }
   }
 
-  private func saveOpenNotebook() {
-    guard let session else { return }
-    saveNotebook(session)
+  private func scheduleNotebookSave(_ note: OpenNotebookSession) {
+    note.scheduleAutosave {
+      saveNotebook(note)
+    }
   }
 }

@@ -41,6 +41,34 @@ final class OpenNotesStateTests: XCTestCase {
     XCTAssertEqual(note.saveStatus, .pending)
   }
 
+  func testAutosaveDebouncesAndExplicitSaveCancelsPendingWork() async throws {
+    let note = session(["A"], seed: 35)
+    var saves = 0
+
+    note.scheduleAutosave(after: .milliseconds(20)) {
+      saves += 1
+      try? note.performSave {}
+    }
+    note.scheduleAutosave(after: .milliseconds(20)) {
+      saves += 1
+      try? note.performSave {}
+    }
+    XCTAssertEqual(note.saveStatus, .pending)
+
+    try await Task.sleep(for: .milliseconds(60))
+    XCTAssertEqual(saves, 1)
+    XCTAssertEqual(note.saveStatus, .saved)
+
+    note.scheduleAutosave(after: .milliseconds(50)) {
+      saves += 1
+      try? note.performSave {}
+    }
+    try note.performSave {}
+    try await Task.sleep(for: .milliseconds(80))
+    XCTAssertEqual(saves, 1)
+    XCTAssertEqual(note.saveStatus, .saved)
+  }
+
   func testOpeningAnAlreadyOpenNoteSelectsItWithoutDuplicatingIt() throws {
     let state = OpenNotesState()
     let first = session(["A"], seed: 1)
