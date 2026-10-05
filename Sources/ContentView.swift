@@ -1047,8 +1047,10 @@ struct ContentView: View {
       },
       openNotebook: openNotebook,
       goUp: {
-        guard !libraryFolder.path.isEmpty else { return }
-        libraryFolder = FolderReference(path: Array(libraryFolder.path.dropLast()))
+        libraryQuery = ""
+        libraryTag = nil
+        libraryScope = .folder
+        libraryFolder = FolderReference(path: [])
         refreshLibrary()
       },
       selectScope: { next in

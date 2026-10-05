@@ -189,8 +189,9 @@ struct NativeLibraryView: View {
       if scope == .folder && !folder.path.isEmpty {
         ToolbarItem(placement: .topBarLeading) {
           Button(action: goUp) {
-            Label("Up", systemImage: "chevron.left")
+            Label("Library", systemImage: "chevron.left")
           }
+          .accessibilityLabel("Back to library")
         }
       }
 
