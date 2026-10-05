@@ -42,7 +42,6 @@ struct EditableTagEditor: View {
           .nativeFieldSurface()
           .onSubmit(addPendingTag)
         Button("Add tag", action: addPendingTag)
-          .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
       }
     }
   }
