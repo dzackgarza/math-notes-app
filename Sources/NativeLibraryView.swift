@@ -302,18 +302,24 @@ struct NativeLibraryView: View {
 
       if !tags.isEmpty {
         Divider()
-        ForEach(tags) { tag in
-          Button {
-            searchPresented = false
-            selectTag(tag.name)
-          } label: {
-            if scope == .tag && selectedTag == tag.name {
-              Label(tag.name, systemImage: "checkmark")
-            } else {
-              Text(tag.name)
+        Section("Tags") {
+          ForEach(tags) { tag in
+            Button {
+              searchPresented = false
+              selectTag(tag.name)
+            } label: {
+              HStack {
+                Image(systemName: "circle.fill")
+                  .font(.system(size: 12))
+                  .foregroundStyle(NativeTheme.color(tag.color))
+                Text(tag.name)
+                if scope == .tag && selectedTag == tag.name {
+                  Image(systemName: "checkmark")
+                }
+              }
             }
+            .accessibilityAddTraits(scope == .tag && selectedTag == tag.name ? .isSelected : [])
           }
-          .accessibilityAddTraits(scope == .tag && selectedTag == tag.name ? .isSelected : [])
         }
       }
     } label: {
