@@ -955,20 +955,10 @@ final class NotesRootAccess {
         folders.sort {
           let left = $0.modified ?? .distantPast
           let right = $1.modified ?? .distantPast
-          if left != right {
-            return ascending ? left < right : left > right
-          }
-          return ascending
-            ? nameOrder($0.reference.name, $1.reference.name)
-            : nameOrder($1.reference.name, $0.reference.name)
+          return ascending ? left < right : left > right
         }
         notebooks.sort {
-          if $0.modified != $1.modified {
-            return ascending ? $0.modified < $1.modified : $0.modified > $1.modified
-          }
-          return ascending
-            ? nameOrder($0.reference.name, $1.reference.name)
-            : nameOrder($1.reference.name, $0.reference.name)
+          ascending ? $0.modified < $1.modified : $0.modified > $1.modified
         }
       }
       return LibraryListing(folders: folders, notebooks: notebooks)
@@ -1091,20 +1081,10 @@ final class NotesRootAccess {
         folders.sort {
           let left = $0.modified ?? .distantPast
           let right = $1.modified ?? .distantPast
-          if left != right {
-            return ascending ? left < right : left > right
-          }
-          return ascending
-            ? nameOrder($0.reference.name, $1.reference.name)
-            : nameOrder($1.reference.name, $0.reference.name)
+          return ascending ? left < right : left > right
         }
         notebooks.sort {
-          if $0.modified != $1.modified {
-            return ascending ? $0.modified < $1.modified : $0.modified > $1.modified
-          }
-          return ascending
-            ? nameOrder($0.reference.name, $1.reference.name)
-            : nameOrder($1.reference.name, $0.reference.name)
+          ascending ? $0.modified < $1.modified : $0.modified > $1.modified
         }
       }
       return LibraryListing(folders: folders, notebooks: notebooks)
@@ -1167,12 +1147,7 @@ final class NotesRootAccess {
         }
       case .modified:
         notebooks.sort {
-          if $0.modified != $1.modified {
-            return ascending ? $0.modified < $1.modified : $0.modified > $1.modified
-          }
-          return ascending
-            ? nameOrder($0.reference.name, $1.reference.name)
-            : nameOrder($1.reference.name, $0.reference.name)
+          ascending ? $0.modified < $1.modified : $0.modified > $1.modified
         }
       }
       return LibraryListing(folders: [], notebooks: notebooks)
@@ -1254,12 +1229,7 @@ final class NotesRootAccess {
       folderItems.sort {
         let left = $0.modified ?? .distantPast
         let right = $1.modified ?? .distantPast
-        if left != right {
-          return ascending ? left < right : left > right
-        }
-        return ascending
-          ? nameOrder($0.reference.name, $1.reference.name)
-          : nameOrder($1.reference.name, $0.reference.name)
+        return ascending ? left < right : left > right
       }
     }
     return LibraryListing(folders: folderItems, notebooks: notebooks)
@@ -1332,12 +1302,7 @@ final class NotesRootAccess {
         }
       case .modified:
         notebooks.sort {
-          if $0.modified != $1.modified {
-            return ascending ? $0.modified < $1.modified : $0.modified > $1.modified
-          }
-          return ascending
-            ? nameOrder($0.reference.name, $1.reference.name)
-            : nameOrder($1.reference.name, $0.reference.name)
+          ascending ? $0.modified < $1.modified : $0.modified > $1.modified
         }
       }
       return LibraryListing(folders: [], notebooks: notebooks)
