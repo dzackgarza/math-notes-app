@@ -914,7 +914,7 @@ struct LibraryThumbnail: View {
           .font(.system(size: 14))
           .foregroundStyle(NativeTheme.warning)
           .padding(4)
-          .background(NativeTheme.leaf, in: Circle())
+          .background(NativeTheme.board, in: Circle())
           .padding(4)
           .accessibilityLabel("Conflicting versions")
       }
@@ -1000,6 +1000,7 @@ struct LibraryNotebookCover: View {
   @State private var thumbnail: UIImage?
   @State private var thumbnailMissing = false
   @State private var thumbnailFailed = false
+  @State private var thumbnailConflicts = false
 
   var body: some View {
     NotebookCoverArt(
@@ -1025,11 +1026,23 @@ struct LibraryNotebookCover: View {
           Color.clear
         }
       }
+      .overlay(alignment: .topTrailing) {
+        if thumbnailConflicts {
+          Image(systemName: "exclamationmark.triangle.fill")
+            .font(.system(size: 14))
+            .foregroundStyle(NativeTheme.warning)
+            .padding(4)
+            .background(NativeTheme.board, in: Circle())
+            .padding(4)
+            .accessibilityLabel("Conflicting versions")
+        }
+      }
     }
     .task(id: thumbnailKey) {
       thumbnail = nil
       thumbnailMissing = false
       thumbnailFailed = false
+      thumbnailConflicts = false
       guard let coverNote = item.coverNote else { return }
       do {
         guard let data = try root.thumbnail(coverNote) else {
@@ -1041,6 +1054,7 @@ struct LibraryNotebookCover: View {
           return
         }
         thumbnail = rendered
+        thumbnailConflicts = try root.conflictCount(coverNote) > 0
       } catch {
         thumbnail = nil
         thumbnailFailed = true
