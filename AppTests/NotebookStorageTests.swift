@@ -782,6 +782,12 @@ final class NotebookStorageTests: XCTestCase {
     XCTAssertEqual(try root.load(reference).pageCount(), 1)
   }
 
+  func testEntryExistsMessageMatchesWebValidation() {
+    XCTAssertEqual(
+      NotebookStorageError.entryExists("Stable pairs").localizedDescription,
+      "“Stable pairs” already exists here.")
+  }
+
   func testLibraryNameValidationMatchesTheWebRules() throws {
     XCTAssertEqual(try validatedLibraryName("  Stable pairs  "), "Stable pairs")
     XCTAssertThrowsError(try validatedLibraryName(""))

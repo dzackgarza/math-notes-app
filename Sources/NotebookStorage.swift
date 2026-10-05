@@ -650,7 +650,7 @@ enum NotebookStorageError: LocalizedError {
     case let .invalidName(message):
       return message
     case let .entryExists(name):
-      return "\(name) already exists in that folder."
+      return "“\(name)” already exists here."
     case let .missingTemplate(name):
       return "Template \(name) has no pages/0001.svg."
     case let .externalChanges(paths):
