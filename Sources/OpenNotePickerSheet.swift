@@ -13,8 +13,9 @@ struct OpenNotePickerSheet: View {
 
   private var filteredNotes: [LibraryNotebookItem] {
     guard !query.isEmpty else { return notes }
+    let needle = query.lowercased()
     return notes.filter { item in
-      item.reference.name.localizedCaseInsensitiveContains(query)
+      item.reference.name.lowercased().contains(needle)
     }
   }
 
