@@ -1662,12 +1662,12 @@ struct ContentView: View {
 
   private func createNewNotebook(_ request: NewNotebookRequest) {
     guard let root else { return }
+    showingNewNotebook = false
     do {
       let reference = try root.createFolder(
         parent: request.parent,
         name: request.title,
         details: request.details)
-      showingNewNotebook = false
       libraryFolder = reference
       libraryNotebookOpen = true
       refreshLibrary()
@@ -1866,6 +1866,7 @@ struct ContentView: View {
 
   private func createNewNote(_ request: NewNoteRequest) {
     guard let root else { return }
+    showingNewNote = false
     do {
       let (reference, document) = try root.createNote(
         title: request.title,
@@ -1874,7 +1875,6 @@ struct ContentView: View {
         pageSize: request.pageSize,
         orientation: request.orientation)
       try root.completeNewNoteCreation(reference, tags: request.tags)
-      showingNewNote = false
       dismissClippings()
       conflictReview = nil
       openNotes.show(
