@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 func librarySearchEnabled(folderPath: [String]) -> Bool {
@@ -15,7 +16,9 @@ struct LibrarySearchModifier: ViewModifier {
     if enabled {
       content
         .searchable(
-          text: $query,
+          text: Binding(
+            get: { query },
+            set: { query = $0.trimmingCharacters(in: .whitespacesAndNewlines) }),
           isPresented: $searchPresented,
           placement: .navigationBarDrawer(displayMode: .always),
           prompt: "Search notebooks and notes")
