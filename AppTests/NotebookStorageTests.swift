@@ -1013,6 +1013,50 @@ final class NotebookStorageTests: XCTestCase {
   }
 
   @MainActor
+  func testThumbnailTreatsDisappearedNoteAsAbsent() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let root = NotesRootAccess(testURL: directory)
+    let (reference, _) = try root.createNote(
+      title: "Transient", parent: FolderReference(path: []), template: "blank",
+      pageSize: INK_PAGE_A4, orientation: INK_PORTRAIT)
+    XCTAssertNotNil(try root.thumbnail(reference))
+
+    let noteURL = reference.path.reduce(directory) { partial, component in
+      partial.appendingPathComponent(component, isDirectory: true)
+    }
+    try FileManager.default.removeItem(at: noteURL)
+
+    XCTAssertNil(try root.thumbnail(reference))
+  }
+
+  @MainActor
+  func testThumbnailTreatsDisappearedFirstPageAsAbsent() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let root = NotesRootAccess(testURL: directory)
+    let (reference, _) = try root.createNote(
+      title: "Transient", parent: FolderReference(path: []), template: "blank",
+      pageSize: INK_PAGE_A4, orientation: INK_PORTRAIT)
+    XCTAssertNotNil(try root.thumbnail(reference))
+
+    let pageURL = reference.path.reduce(directory) { partial, component in
+      partial.appendingPathComponent(component, isDirectory: true)
+    }
+      .appendingPathComponent("pages", isDirectory: true)
+      .appendingPathComponent("0001.svg")
+    try FileManager.default.removeItem(at: pageURL)
+
+    XCTAssertNil(try root.thumbnail(reference))
+  }
+
+  @MainActor
   func testLibraryOverviewMatchesWebFlatFolderModel() throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)

@@ -1503,18 +1503,34 @@ final class NotesRootAccess {
   @MainActor
   func thumbnail(_ reference: NotebookReference) throws -> Data? {
     let notebookURL = urlForNotebook(reference)
-    let stamp = try coordinatedRead(at: notebookURL) { coordinatedNotebook in
-      try Self.thumbnailStamp(at: coordinatedNotebook)
+    let stamp: String?
+    do {
+      stamp = try coordinatedRead(at: notebookURL) { coordinatedNotebook in
+        try Self.thumbnailStamp(at: coordinatedNotebook)
+      }
+    } catch {
+      guard Self.isMissingFileError(error) else { throw error }
+      thumbnailCache.removeValue(forKey: reference.id)
+      return nil
     }
-    guard let stamp else { return nil }
+    guard let stamp else {
+      thumbnailCache.removeValue(forKey: reference.id)
+      return nil
+    }
     if let cached = thumbnailCache[reference.id], cached.stamp == stamp {
       return cached.data
     }
 
-    let document = try load(reference)
-    let data = try document.pagePNG(index: 0, width: 240)
-    thumbnailCache[reference.id] = (stamp: stamp, data: data)
-    return data
+    do {
+      let document = try load(reference)
+      let data = try document.pagePNG(index: 0, width: 240)
+      thumbnailCache[reference.id] = (stamp: stamp, data: data)
+      return data
+    } catch {
+      guard Self.isMissingFileError(error) else { throw error }
+      thumbnailCache.removeValue(forKey: reference.id)
+      return nil
+    }
   }
 
 
@@ -2579,14 +2595,14 @@ final class NotesRootAccess {
 
   private static func thumbnailStamp(at notebookURL: URL) throws -> String? {
     let indexURL = notebookURL.appendingPathComponent("notebook.json")
-    let indexData = try Data(contentsOf: indexURL)
+    guard let indexData = try dataIfPresent(at: indexURL) else { return nil }
     let index = try JSONDecoder().decode(NotebookIndex.self, from: indexData)
     guard let firstPage = index.pages?.first?.file else { return nil }
 
     let pageURL = firstPage.split(separator: "/").reduce(notebookURL) { partial, component in
       partial.appendingPathComponent(String(component))
     }
-    let pageData = try Data(contentsOf: pageURL)
+    guard let pageData = try dataIfPresent(at: pageURL) else { return nil }
     var stamps = [try fileStamp(path: firstPage, url: pageURL)]
 
     let imageParser = PageImageParser()
@@ -2618,6 +2634,22 @@ final class NotesRootAccess {
       stamps.append(try fileStamp(path: path, url: assetURL))
     }
     return stamps.joined(separator: "\n")
+  }
+
+  private static func dataIfPresent(at url: URL) throws -> Data? {
+    do {
+      return try Data(contentsOf: url)
+    } catch {
+      guard isMissingFileError(error) else { throw error }
+      return nil
+    }
+  }
+
+  private static func isMissingFileError(_ error: Error) -> Bool {
+    let cocoa = error as NSError
+    return cocoa.domain == NSCocoaErrorDomain
+      && (cocoa.code == CocoaError.Code.fileNoSuchFile.rawValue
+        || cocoa.code == CocoaError.Code.fileReadNoSuchFile.rawValue)
   }
 
   private static func fileStamp(path: String, url: URL) throws -> String {
