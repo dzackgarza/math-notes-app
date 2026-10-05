@@ -60,7 +60,7 @@ struct OpenNotePickerSheet: View {
       }
       .navigationTitle(title)
       .navigationBarTitleDisplayMode(.inline)
-      .searchable(text: $query, prompt: "Search notes")
+      .searchable(text: $query, prompt: "Search")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel", action: onCancel)
