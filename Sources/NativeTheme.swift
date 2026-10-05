@@ -15,6 +15,7 @@ enum NativeTheme {
   static let ribbon = color("#9E2A2B")
   static let selectedFill = ribbon.opacity(31.0 / 255.0)
   static let paper = color("#FBFAF6")
+  static let paperEdge = color("#C9CDC3")
   static let warning = color("#7A4E00")
   static let separator = ink.opacity(0.16)
 

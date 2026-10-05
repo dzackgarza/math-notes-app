@@ -43,8 +43,14 @@ struct PageOverviewSheet: View {
         }
         .padding(20)
       }
+      .background(NativeTheme.leaf)
+      .foregroundStyle(NativeTheme.ink)
+      .font(NativeTheme.body)
+      .tint(NativeTheme.ink)
       .navigationTitle("Pages")
       .navigationBarTitleDisplayMode(.inline)
+      .toolbarBackground(NativeTheme.leaf, for: .navigationBar)
+      .toolbarBackground(.visible, for: .navigationBar)
       .toolbar {
         ToolbarItem(placement: .confirmationAction) {
           Button("Done", action: onDone)
@@ -64,13 +70,13 @@ struct PageOverviewSheet: View {
           revision: thumbnailRevision)
           .aspectRatio(0.7, contentMode: .fit)
           .frame(maxWidth: .infinity)
-          .background(.background)
+          .background(NativeTheme.paper)
           .overlay {
             RoundedRectangle(cornerRadius: 4)
               .stroke(
                 pageCount > 1 && index == currentPage
-                  ? Color.accentColor
-                  : Color.secondary.opacity(0.35),
+                  ? NativeTheme.ribbon
+                  : NativeTheme.paperEdge,
                 lineWidth: pageCount > 1 && index == currentPage ? 3 : 1)
           }
           .clipShape(RoundedRectangle(cornerRadius: 4))
@@ -86,8 +92,8 @@ struct PageOverviewSheet: View {
 
       HStack(spacing: 4) {
         Text("\(index + 1)")
-          .font(.caption)
-          .foregroundStyle(.secondary)
+          .font(NativeTheme.body)
+          .foregroundStyle(NativeTheme.ink)
 
         Menu {
           Button("Duplicate", systemImage: "plus.square.on.square") {
