@@ -85,7 +85,7 @@ struct PagePaperSheet: View {
               onTemplate(template)
             } label: {
               HStack {
-                Text(templateLabel(template))
+                Text(Self.displayLabel(template))
                   .foregroundStyle(.primary)
                 Spacer()
                 if selectedTemplate == template {
@@ -147,16 +147,21 @@ struct PagePaperSheet: View {
       request.pageSize.height)
   }
 
-  private func templateLabel(_ template: String) -> String {
+  static func displayLabel(_ template: String) -> String {
     switch template {
     case "blank": "Plain paper"
+    case "dotted": "Dot paper"
     case "lined-medium": "Lined paper"
     case "grid-medium": "Grid paper"
     case "grid-fine": "Graph paper"
     case "lined-wide": "Lined paper, wide"
     case "lined-narrow": "Lined paper, narrow"
     case "grid-coarse": "Grid paper, coarse"
-    default: template.replacingOccurrences(of: "-", with: " ").capitalized
+    default: template
     }
+  }
+
+  static func sortedTemplates(_ templates: [String]) -> [String] {
+    templates.sorted { displayLabel($0) < displayLabel($1) }
   }
 }

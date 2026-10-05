@@ -14,6 +14,17 @@ final class NewNoteSheetTests: XCTestCase {
     XCTAssertEqual(NewNotePaperStyle.summaryLabel("grid-medium"), "Grid paper")
     XCTAssertEqual(NewNotePaperStyle.summaryLabel("lined-wide"), "Lined paper, wide")
     XCTAssertEqual(NewNotePaperStyle.summaryLabel("grid-coarse"), "Grid paper, coarse")
+    XCTAssertEqual(NewNotePaperStyle.summaryLabel("custom-template"), "custom-template")
+  }
+
+  func testPagePaperLabelsAndOrderMatchWebSheet() {
+    XCTAssertEqual(PagePaperSheet.displayLabel("dotted"), "Dot paper")
+    XCTAssertEqual(PagePaperSheet.displayLabel("custom-template"), "custom-template")
+    XCTAssertEqual(
+      PagePaperSheet.sortedTemplates([
+        "blank", "lined-wide", "dotted", "grid-fine", "grid-medium", "grid-coarse"
+      ]),
+      ["dotted", "grid-fine", "grid-medium", "grid-coarse", "lined-wide", "blank"])
   }
 
   func testUnlistedFolderPaperDefaultIsPreservedUntilChanged() {

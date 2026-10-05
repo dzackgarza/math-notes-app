@@ -2316,7 +2316,7 @@ struct ContentView: View {
     guard let root else { return }
     do {
       pagePaper = PagePaperRequest(
-        templates: try root.templateNames(),
+        templates: PagePaperSheet.sortedTemplates(try root.templateNames()),
         template: try root.templateName(for: session.reference),
         pageSize: try session.document.pageSize())
     } catch {

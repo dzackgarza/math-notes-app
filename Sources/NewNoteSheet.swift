@@ -73,7 +73,7 @@ enum NewNotePaperStyle {
     case "lined-wide": "Lined paper, wide"
     case "lined-narrow": "Lined paper, narrow"
     case "grid-coarse": "Grid paper, coarse"
-    default: name.replacingOccurrences(of: "-", with: " ").capitalized
+    default: name
     }
   }
 }
