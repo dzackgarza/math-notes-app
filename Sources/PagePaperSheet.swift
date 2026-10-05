@@ -52,7 +52,7 @@ struct PagePaperRequest: Identifiable {
 
 struct PagePaperSheet: View {
   let request: PagePaperRequest
-  let onTemplate: (String) -> Void
+  let onTemplate: (String) -> Bool
   let onPageSize: (InkPageSize, InkOrientation, Double, Double) -> Void
   let onDone: () -> Void
 
@@ -62,7 +62,7 @@ struct PagePaperSheet: View {
 
   init(
     request: PagePaperRequest,
-    onTemplate: @escaping (String) -> Void,
+    onTemplate: @escaping (String) -> Bool,
     onPageSize: @escaping (InkPageSize, InkOrientation, Double, Double) -> Void,
     onDone: @escaping () -> Void
   ) {
@@ -81,8 +81,9 @@ struct PagePaperSheet: View {
         Section("Paper style") {
           ForEach(request.templates, id: \.self) { template in
             Button {
-              selectedTemplate = template
-              onTemplate(template)
+              if onTemplate(template) {
+                selectedTemplate = template
+              }
             } label: {
               HStack {
                 Text(Self.displayLabel(template))

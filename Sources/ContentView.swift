@@ -2447,14 +2447,16 @@ struct ContentView: View {
     }
   }
 
-  private func applyPageTemplate(_ name: String) {
-    guard let root, let session else { return }
+  private func applyPageTemplate(_ name: String) -> Bool {
+    guard let root, let session else { return false }
     do {
       try root.applyTemplate(name: name, to: session.document)
       documentRevision &+= 1
       scheduleNotebookSave(session)
+      return true
     } catch {
       errorMessage = error.localizedDescription
+      return false
     }
   }
 
