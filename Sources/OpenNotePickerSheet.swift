@@ -12,10 +12,9 @@ struct OpenNotePickerSheet: View {
   @State private var query = ""
 
   private var filteredNotes: [LibraryNotebookItem] {
-    let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !needle.isEmpty else { return notes }
+    guard !query.isEmpty else { return notes }
     return notes.filter { item in
-      item.reference.name.localizedCaseInsensitiveContains(needle)
+      item.reference.name.localizedCaseInsensitiveContains(query)
     }
   }
 
