@@ -1494,6 +1494,7 @@ struct ContentView: View {
     parent: FolderReference
   ) {
     guard let root else { return }
+    libraryMutation = nil
     do {
       switch request.mode {
       case let .rename(entry):
@@ -1519,7 +1520,6 @@ struct ContentView: View {
           name: entry.name)
         followLibraryMove(from: entry.path, to: destination)
       }
-      libraryMutation = nil
       refreshLibrary()
     } catch {
       handleOpenNotesError(error)
