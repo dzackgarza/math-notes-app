@@ -683,6 +683,20 @@ private final class RootFilePresenter: NSObject, NSFilePresenter {
   func presentedSubitemDidChange(at url: URL) {
     onChange?()
   }
+
+  func accommodatePresentedSubitemDeletion(
+    at url: URL,
+    completionHandler: @escaping ((any Error)?) -> Void
+  ) {
+    completionHandler(nil)
+    DispatchQueue.main.async { [weak self] in
+      self?.onChange?()
+    }
+  }
+
+  func presentedSubitem(at oldURL: URL, didMoveTo newURL: URL) {
+    onChange?()
+  }
 }
 
 final class NotesRootAccess {
