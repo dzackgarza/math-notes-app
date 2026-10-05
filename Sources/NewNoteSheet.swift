@@ -310,43 +310,40 @@ struct NewNoteSheet: View {
       }
     }
 
-    if !startingTemplates.isEmpty || namingTemplate {
-      Section("Starting template") {
-        ForEach(startingTemplates) { settings in
-          Button {
-            newTag = ""
-            form.apply(settings)
-          } label: {
-            VStack(alignment: .leading, spacing: 2) {
-              Text(settings.name)
-              Text(templateSummary(settings))
-                .font(NativeTheme.footnote)
-                .foregroundStyle(NativeTheme.graphite)
-            }
+    Section("Starting template") {
+      ForEach(startingTemplates) { settings in
+        Button {
+          newTag = ""
+          form.apply(settings)
+        } label: {
+          VStack(alignment: .leading, spacing: 2) {
+            Text(settings.name)
+            Text(templateSummary(settings))
+              .font(NativeTheme.footnote)
+              .foregroundStyle(NativeTheme.graphite)
           }
         }
+      }
 
-        if namingTemplate {
-          HStack {
-            TextField("Template name", text: $templateName)
-              .focused($templateNameFocused)
-              .task { templateNameFocused = true }
-              .nativeFieldSurface()
-            Button("Save template") {
-              saveTemplate()
-            }
-            .disabled(templateName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+      if namingTemplate {
+        HStack {
+          TextField("Template name", text: $templateName)
+            .focused($templateNameFocused)
+            .task { templateNameFocused = true }
+            .nativeFieldSurface()
+          Button("Save template") {
+            saveTemplate()
           }
+          .disabled(templateName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+      } else {
+        Button("Save as template") {
+          namingTemplate = true
         }
       }
     }
 
     Section {
-      if !namingTemplate {
-        Button("Save as template") {
-          namingTemplate = true
-        }
-      }
       Button("Save as draft") {
         onSaveDraft(finalizedForm.draft)
       }
