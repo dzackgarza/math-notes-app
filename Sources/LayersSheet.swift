@@ -143,7 +143,6 @@ struct LayersSheet: View {
         Button("Save") {
           saveLayerName()
         }
-        .disabled(layerName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
       }
       .confirmationDialog(
         deleteTitle,
@@ -178,7 +177,6 @@ struct LayersSheet: View {
 
   private func saveLayerName() {
     let name = layerName.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !name.isEmpty else { return }
     if addingLayer {
       do {
         try document.addLayer(name: name)
