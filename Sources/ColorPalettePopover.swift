@@ -297,6 +297,5 @@ private func hex(_ rgb: UInt32) -> String {
 }
 
 private func formatSize(_ size: Float) -> String {
-  let value = Double(size)
-  return value.rounded() == value ? "\(Int(value))" : String(format: "%.1f", value)
+  String(format: "%.1f", Double(size))
 }
