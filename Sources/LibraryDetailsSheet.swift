@@ -70,7 +70,7 @@ struct LibraryDetailsSheet: View {
           ZStack(alignment: .topLeading) {
             if description.isEmpty {
               Text("Description")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(NativeTheme.graphite)
                 .padding(.horizontal, 5)
                 .padding(.vertical, 8)
                 .allowsHitTesting(false)
@@ -85,8 +85,8 @@ struct LibraryDetailsSheet: View {
               }
           }
           Text("\(description.count) / 500")
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            .font(NativeTheme.footnote)
+            .foregroundStyle(NativeTheme.graphite)
         }
 
         Section("Tags") {
@@ -105,6 +105,8 @@ struct LibraryDetailsSheet: View {
           }
         }
       }
+      .scrollContentBackground(.hidden)
+      .nativeSheetSurface()
       .navigationTitle(request.target.paper == nil ? request.target.title : "\(request.target.title) details")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {

@@ -42,6 +42,8 @@ struct LibraryTagSheet: View {
           }
         }
       }
+      .scrollContentBackground(.hidden)
+      .nativeSheetSurface()
       .navigationTitle("New tag")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {

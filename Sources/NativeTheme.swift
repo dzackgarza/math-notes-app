@@ -82,4 +82,14 @@ extension View {
       .tint(NativeTheme.ink)
       .presentationBackground(NativeTheme.leaf)
   }
+
+  func nativeSheetSurface() -> some View {
+    foregroundStyle(NativeTheme.ink)
+      .font(NativeTheme.body)
+      .tint(NativeTheme.ink)
+      .background(NativeTheme.leaf)
+      .toolbarBackground(NativeTheme.leaf, for: .navigationBar)
+      .toolbarBackground(.visible, for: .navigationBar)
+      .presentationBackground(NativeTheme.leaf)
+  }
 }

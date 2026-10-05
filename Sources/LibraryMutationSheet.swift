@@ -104,6 +104,8 @@ struct LibraryMutationSheet: View {
           }
         }
       }
+      .scrollContentBackground(.hidden)
+      .nativeSheetSurface()
       .navigationTitle(request.mode.title)
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {

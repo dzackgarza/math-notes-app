@@ -31,6 +31,8 @@ struct LinkSelectionSheet: View {
           }
         }
       }
+      .scrollContentBackground(.hidden)
+      .nativeSheetSurface()
       .navigationTitle("Link selected content")
       .navigationBarTitleDisplayMode(.inline)
       .alert("Link destination", isPresented: $showingDestination) {

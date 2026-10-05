@@ -36,6 +36,8 @@ struct EditorSettingsSheet: View {
           }
         }
       }
+      .scrollContentBackground(.hidden)
+      .nativeSheetSurface()
       .navigationTitle("Settings")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {

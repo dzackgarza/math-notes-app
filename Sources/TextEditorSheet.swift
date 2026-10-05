@@ -39,7 +39,7 @@ struct TextEditorSheet: View {
           ZStack(alignment: .topLeading) {
             if content.isEmpty {
               Text("Text")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(NativeTheme.graphite)
                 .padding(.horizontal, 5)
                 .padding(.vertical, 8)
                 .allowsHitTesting(false)
@@ -57,8 +57,8 @@ struct TextEditorSheet: View {
           TextField("Width (pt)", text: $width)
             .keyboardType(.decimalPad)
           Text("Use 0 for the full text width.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
+            .font(NativeTheme.footnote)
+            .foregroundStyle(NativeTheme.graphite)
           if let validationMessage {
             Text(validationMessage)
               .foregroundStyle(.red)
@@ -66,6 +66,8 @@ struct TextEditorSheet: View {
           Toggle("Right to left", isOn: $rtl)
         }
       }
+      .scrollContentBackground(.hidden)
+      .nativeSheetSurface()
       .navigationTitle(request.existing ? "Edit text" : "Insert text")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {

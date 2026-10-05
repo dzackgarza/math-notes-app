@@ -31,7 +31,7 @@ struct LayersSheet: View {
               HStack {
                 Image(systemName: activeLayerID == layer.id ? "checkmark.circle.fill" : "circle")
                 Text(layer.name)
-                  .foregroundStyle(.primary)
+                  .foregroundStyle(NativeTheme.ink)
                 Spacer()
                 if layer.hidden {
                   Image(systemName: "eye.slash")
@@ -104,6 +104,8 @@ struct LayersSheet: View {
           }
         }
       }
+      .scrollContentBackground(.hidden)
+      .nativeSheetSurface()
       .navigationTitle("Layers")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {

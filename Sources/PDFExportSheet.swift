@@ -85,6 +85,8 @@ struct PDFExportSheet: View {
           }
         }
       }
+      .scrollContentBackground(.hidden)
+      .nativeSheetSurface()
       .navigationTitle(request.destination.title)
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {

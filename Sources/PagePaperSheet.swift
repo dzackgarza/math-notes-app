@@ -86,7 +86,7 @@ struct PagePaperSheet: View {
             } label: {
               HStack {
                 Text(Self.displayLabel(template))
-                  .foregroundStyle(.primary)
+                  .foregroundStyle(NativeTheme.ink)
                 Spacer()
                 if selectedTemplate == template {
                   Image(systemName: "checkmark")
@@ -117,8 +117,8 @@ struct PagePaperSheet: View {
           if size == .custom {
             Text(
               "Custom: \(Int(request.pageSize.width.rounded())) × \(Int(request.pageSize.height.rounded())) pt")
-              .font(.caption)
-              .foregroundStyle(.secondary)
+              .font(NativeTheme.footnote)
+              .foregroundStyle(NativeTheme.graphite)
           }
         }
 
@@ -134,6 +134,8 @@ struct PagePaperSheet: View {
           }
         }
       }
+      .scrollContentBackground(.hidden)
+      .nativeSheetSurface()
       .navigationTitle("Paper for new pages")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
