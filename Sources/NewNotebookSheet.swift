@@ -41,7 +41,7 @@ struct NewNotebookFormState: Equatable {
 
   var request: NewNotebookRequest {
     NewNotebookRequest(
-      title: title,
+      title: title.trimmingCharacters(in: .whitespacesAndNewlines),
       parent: parent,
       details: LibraryFolderDetails(
         description: description,

@@ -95,6 +95,23 @@ final class NewNoteSheetTests: XCTestCase {
     XCTAssertEqual(state.orientation, .portrait)
   }
 
+  func testRequestTrimsTitleLikeWebCreationSheet() {
+    var state = NewNoteFormState(
+      folders: [FolderReference(path: [])],
+      templates: ["blank"],
+      initialParent: FolderReference(path: []),
+      folderDefaults: LibraryFolderDetails(
+        description: "",
+        paper: "blank",
+        coverColor: "#24324A",
+        coverStyle: "classic",
+        tags: []),
+      draft: nil)
+    state.title = "  Derived categories  "
+
+    XCTAssertEqual(state.request.title, "Derived categories")
+  }
+
   func testStartingTemplateReplacesSettingsButKeepsTitle() {
     var state = NewNoteFormState(
       folders: [FolderReference(path: [])],

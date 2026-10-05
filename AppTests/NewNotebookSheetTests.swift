@@ -36,7 +36,7 @@ final class NewNotebookSheetTests: XCTestCase {
         coverColor: "#24324A",
         coverStyle: "classic",
         tags: []))
-    state.title = "Topology"
+    state.title = "  Topology  "
     state.description = "Seminar notes"
     state.parent = course
     state.paper = "lined-medium"

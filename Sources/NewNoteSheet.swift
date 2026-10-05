@@ -126,7 +126,7 @@ struct NewNoteFormState: Equatable {
 
   var request: NewNoteRequest {
     NewNoteRequest(
-      title: title,
+      title: title.trimmingCharacters(in: .whitespacesAndNewlines),
       parent: parent,
       template: template,
       tags: tags,
