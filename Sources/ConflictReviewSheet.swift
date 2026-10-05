@@ -18,7 +18,7 @@ struct ConflictReviewSheet: View {
     NavigationStack {
       VStack(spacing: 12) {
         Text("\(request.conflict.provider): \(request.conflict.original)")
-          .font(.headline)
+          .font(NativeTheme.headline)
           .frame(maxWidth: .infinity, alignment: .leading)
 
         HStack {
@@ -27,7 +27,7 @@ struct ConflictReviewSheet: View {
           Text(request.conflict.copyBytes == nil ? "Local edit" : "Conflict copy")
             .frame(maxWidth: .infinity)
         }
-        .font(.subheadline.weight(.semibold))
+        .font(NativeTheme.subhead)
 
         ConflictComparisonView(
           left: request.conflict.left,
@@ -63,10 +63,13 @@ struct ConflictReviewSheet: View {
               onChoice(.both)
             }
             .buttonStyle(.borderedProminent)
+            .tint(NativeTheme.ribbon)
           }
         }
       }
       .padding(16)
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .nativeSheetSurface()
       .navigationTitle("Compare conflicting versions")
       .navigationBarTitleDisplayMode(.inline)
     }
@@ -116,7 +119,7 @@ private struct ConflictComparisonView: UIViewRepresentable {
 
   private func pane(image: Data?, summary: String) -> UIView {
     let container = UIView()
-    container.backgroundColor = .secondarySystemBackground
+    container.backgroundColor = NativeTheme.leafUI
     container.layer.cornerRadius = 10
     container.clipsToBounds = true
 
@@ -135,8 +138,8 @@ private struct ConflictComparisonView: UIViewRepresentable {
       let label = UILabel()
       label.text = summary
       label.numberOfLines = 0
-      label.font = .preferredFont(forTextStyle: .body)
-      label.textColor = .label
+      label.font = UIFont(name: NativeTheme.interfaceRegularName, size: 18) ?? .preferredFont(forTextStyle: .body)
+      label.textColor = NativeTheme.inkUI
       label.translatesAutoresizingMaskIntoConstraints = false
       container.addSubview(label)
       NSLayoutConstraint.activate([

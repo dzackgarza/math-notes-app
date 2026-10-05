@@ -43,7 +43,7 @@ struct BookmarksSheet: View {
                 destination.mark.id.isEmpty
                   ? "Page \(destination.mark.page + 1)"
                   : "Bookmark on page \(destination.mark.page + 1)")
-                .foregroundStyle(.primary)
+                .foregroundStyle(NativeTheme.ink)
 
               if let preview = destination.preview,
                 let image = UIImage(data: preview)
@@ -59,6 +59,8 @@ struct BookmarksSheet: View {
         }
         .buttonStyle(.plain)
       }
+      .scrollContentBackground(.hidden)
+      .nativeSheetSurface()
       .navigationTitle(request.title)
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
