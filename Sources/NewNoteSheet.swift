@@ -358,7 +358,7 @@ struct NewNoteSheet: View {
   }
 
   var isDirty: Bool {
-    form != openedForm || !newTag.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    form != openedForm || finalizedTagValues(form.tags, pendingInput: newTag) != form.tags
   }
 
   private func requestCancel() {
