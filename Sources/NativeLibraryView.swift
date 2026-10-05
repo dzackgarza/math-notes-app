@@ -58,31 +58,31 @@ struct NativeLibraryView: View {
       Divider()
         .overlay(NativeTheme.separator)
       Group {
-      if !query.isEmpty && listing.folders.isEmpty && listing.notebooks.isEmpty {
+      if !notebookOpen && !query.isEmpty && listing.folders.isEmpty && listing.notebooks.isEmpty {
         ContentUnavailableView {
           Label("No Results", systemImage: "magnifyingglass")
         } description: {
           Text("Nothing matches “\(query)”.")
         }
-      } else if scope == .recent && listing.notebooks.isEmpty {
+      } else if !notebookOpen && scope == .recent && listing.notebooks.isEmpty {
         ContentUnavailableView {
           Label("No Recent Notes", systemImage: "clock")
         } description: {
           Text("Notes appear here after they are created or edited.")
         }
-      } else if scope == .favorites && listing.notebooks.isEmpty {
+      } else if !notebookOpen && scope == .favorites && listing.notebooks.isEmpty {
         ContentUnavailableView {
           Label("No Favorites", systemImage: "star")
         } description: {
           Text("Add a note to Favorites from its menu.")
         }
-      } else if scope == .trash && listing.notebooks.isEmpty {
+      } else if !notebookOpen && scope == .trash && listing.notebooks.isEmpty {
         ContentUnavailableView {
           Label("Trash is Empty", systemImage: "trash")
         } description: {
           Text("Notes moved to Trash appear here until restored in Files or Math Notes.")
         }
-      } else if scope == .tag && listing.folders.isEmpty && listing.notebooks.isEmpty {
+      } else if !notebookOpen && scope == .tag && listing.folders.isEmpty && listing.notebooks.isEmpty {
         ContentUnavailableView {
           Label("No Tagged Notes", systemImage: "tag")
         } description: {
