@@ -117,6 +117,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private var selectionCopyDragHandle: UIButton?
   private var clippingsPanelOpen = false
   private let figureGenerator = FigureTikZGenerator()
+  private var canvasFeedback: UICanvasFeedbackGenerator?
   private var figureCaptureActive = false
   private var figureCompleting = false
   private var figurePreviewGeneration = 0
@@ -308,6 +309,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       canvasView.topAnchor.constraint(equalTo: scrollView.frameLayoutGuide.topAnchor),
       canvasView.bottomAnchor.constraint(equalTo: scrollView.frameLayoutGuide.bottomAnchor),
     ])
+    canvasFeedback = UICanvasFeedbackGenerator(view: canvasView)
 
     configureBottomPull()
     configureSelectionBar()
@@ -1063,6 +1065,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       figureCompleting = true
       updateSaveClippingVisibility()
       figurePreviewGeneration &+= 1
+      canvasFeedback?.prepare()
       syncDrawingSuppression()
       Task { @MainActor [weak self] in
         guard let self else { return }
@@ -1079,6 +1082,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
           self.onFigureCaptureChanged(false)
           self.refreshSelectionBar()
           if !id.isEmpty {
+            self.canvasFeedback?.pathCompleted(at: CGPoint(x: self.canvasView.bounds.midX, y: self.canvasView.bounds.midY))
             self.onEditCommitted()
             self.onEditFigure(id)
           }
