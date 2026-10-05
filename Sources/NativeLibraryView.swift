@@ -810,6 +810,7 @@ struct NativeLibraryView: View {
       .buttonStyle(.plain)
       .hoverEffect(.highlight)
       .frame(maxWidth: .infinity, alignment: .leading)
+      .accessibilityLabel("Open \(item.reference.name)")
 
       folderActionsButton(item)
     }
@@ -839,6 +840,7 @@ struct NativeLibraryView: View {
         .buttonStyle(.plain)
         .hoverEffect(.highlight)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityLabel("Open \(item.reference.name)")
       }
 
       noteActionsButton(item)
