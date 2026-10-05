@@ -1949,13 +1949,9 @@ struct ContentView: View {
 
   private func closeSplit() {
     let closingView = openNotes.secondaryView
-    do {
-      try openNotes.closeSplitIfAllowed()
-      if let closingView, clippingViewState === closingView {
-        dismissClippings()
-      }
-    } catch {
-      handleOpenNotesError(error)
+    openNotes.closeSplit()
+    if let closingView, clippingViewState === closingView {
+      dismissClippings()
     }
   }
 

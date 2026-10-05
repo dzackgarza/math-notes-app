@@ -357,11 +357,6 @@ final class OpenNotesState {
     rightFocused = right
   }
 
-  func closeSplitIfAllowed() throws {
-    try requireNoCapture("closing split view")
-    closeSplit()
-  }
-
   func closeSplit() {
     secondaryReference = nil
     secondaryView = nil

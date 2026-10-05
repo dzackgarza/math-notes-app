@@ -359,7 +359,7 @@ final class OpenNotesStateTests: XCTestCase {
     XCTAssertTrue(state.active === a)
   }
 
-  func testReferenceCaptureBlocksClosingAndStructuralChanges() throws {
+  func testReferenceCaptureBlocksDocumentChangesButNotPaneClose() throws {
     let state = OpenNotesState()
     let note = session(["A"], seed: 27)
     state.show(note)
@@ -369,8 +369,10 @@ final class OpenNotesStateTests: XCTestCase {
     XCTAssertThrowsError(try state.close(0, save: { _ in }))
     XCTAssertThrowsError(try state.showLibrary(save: { _ in }))
     XCTAssertThrowsError(try state.toggleSplit())
-    XCTAssertThrowsError(try state.closeSplitIfAllowed())
     XCTAssertTrue(state.splitOpen)
+
+    state.closeSplit()
+    XCTAssertFalse(state.splitOpen)
   }
 
   func testLibraryHidesFocusedSplitStateWithoutClosingTheSplit() throws {
