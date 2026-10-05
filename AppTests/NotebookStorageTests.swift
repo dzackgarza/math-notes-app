@@ -1174,6 +1174,7 @@ final class NotebookStorageTests: XCTestCase {
     XCTAssertEqual(try search("Analysis").notebooks.map(\.reference), [measure])
     XCTAssertEqual(try search("Geometry").folders.map(\.reference), [course])
     XCTAssertEqual(try search("Research").folders.map(\.reference), [course])
+    XCTAssertEqual(try search("Course").folders.map(\.reference), [course, week])
     XCTAssertEqual(try search("Root shelf").folders.map(\.reference), [FolderReference(path: [])])
 
     let rootDirectName = try search("Measure")

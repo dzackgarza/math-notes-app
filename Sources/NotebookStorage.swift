@@ -1028,7 +1028,7 @@ final class NotesRootAccess {
             let directNoteNames = try Self.directNotebookNames(in: child)
             if Self.matchesSearch(
               needle,
-              name: name,
+              name: FolderReference(path: childPath).name,
               description: details.description,
               tags: details.tags,
               additionalNames: directNoteNames)
