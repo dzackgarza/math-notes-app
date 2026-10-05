@@ -97,12 +97,17 @@ struct PagePaperSheet: View {
         }
 
         Section("Page size") {
-          Picker("Page size", selection: $size) {
-            Text("A4").tag(PageSizeChoice.a4)
-            Text("Letter").tag(PageSizeChoice.letter)
-            if size == .custom {
-              Text("Custom").tag(PageSizeChoice.custom)
-            }
+          Picker(
+            "Page size",
+            selection: Binding<PageSizeChoice?>(
+              get: { size == .custom ? nil : size },
+              set: { value in
+                guard let value else { return }
+                size = value
+              })
+          ) {
+            Text("A4").tag(Optional(PageSizeChoice.a4))
+            Text("Letter").tag(Optional(PageSizeChoice.letter))
           }
           .pickerStyle(.segmented)
           .onChange(of: size) { _, value in
