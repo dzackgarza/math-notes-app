@@ -9,13 +9,7 @@ private enum OpenNotePickerPurpose {
   case reference
   case linkTarget
 
-  var title: String {
-    switch self {
-    case .tab: "Open note"
-    case .reference: "Choose Reference"
-    case .linkTarget: "Choose Linked Note"
-    }
-  }
+  var title: String { "Open note" }
 }
 
 private enum BookmarkPickerPurpose {
