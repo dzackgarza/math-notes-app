@@ -282,6 +282,26 @@ final class OpenNotesState {
     }
   }
 
+  func savePending(
+    save: (OpenNotebookSession) throws -> Void
+  ) throws {
+    var firstFailure: OpenNotesStateError?
+    for session in opened where session.saveStatus == .pending {
+      do {
+        try save(session)
+      } catch {
+        if firstFailure == nil {
+          firstFailure = .saveFailed(
+            reference: session.reference,
+            underlying: error)
+        }
+      }
+    }
+    if let firstFailure {
+      throw firstFailure
+    }
+  }
+
   func close(
     _ index: Int,
     save: (OpenNotebookSession) throws -> Void

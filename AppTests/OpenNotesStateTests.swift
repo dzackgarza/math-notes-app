@@ -73,6 +73,51 @@ final class OpenNotesStateTests: XCTestCase {
     XCTAssertEqual(note.saveStatus, .saved)
   }
 
+  func testSavePendingOnlyFlushesPendingSessions() throws {
+    let state = OpenNotesState()
+    let saved = session(["Saved"], seed: 36)
+    let pending = session(["Pending"], seed: 37)
+    let failed = session(["Failed"], seed: 38)
+    state.show(saved)
+    state.show(pending)
+    state.show(failed)
+    pending.markUnsaved()
+    XCTAssertThrowsError(try failed.performSave { throw TestFailure.expected })
+
+    var savedPaths: [[String]] = []
+    try state.savePending { note in
+      savedPaths.append(note.reference.path)
+      try note.performSave {}
+    }
+
+    XCTAssertEqual(savedPaths, [["Pending"]])
+    XCTAssertEqual(saved.saveStatus, .saved)
+    XCTAssertEqual(pending.saveStatus, .saved)
+    XCTAssertEqual(failed.saveStatus, .failed)
+  }
+
+  func testSavePendingAttemptsEveryPendingSessionAfterAFailure() throws {
+    let state = OpenNotesState()
+    let first = session(["First"], seed: 39)
+    let second = session(["Second"], seed: 40)
+    state.show(first)
+    state.show(second)
+    first.markUnsaved()
+    second.markUnsaved()
+
+    var attempted: [[String]] = []
+    XCTAssertThrowsError(
+      try state.savePending { note in
+        attempted.append(note.reference.path)
+        if note.id == first.id { throw TestFailure.expected }
+        try note.performSave {}
+      })
+
+    XCTAssertEqual(attempted, [["First"], ["Second"]])
+    XCTAssertEqual(first.saveStatus, .pending)
+    XCTAssertEqual(second.saveStatus, .saved)
+  }
+
   func testOpeningAnAlreadyOpenNoteSelectsItWithoutDuplicatingIt() throws {
     let state = OpenNotesState()
     let first = session(["A"], seed: 1)

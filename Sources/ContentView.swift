@@ -120,6 +120,7 @@ private struct PendingPDFImport {
 
 @MainActor
 struct ContentView: View {
+  @Environment(\.scenePhase) private var scenePhase
   @EnvironmentObject private var sceneDelegate: MathNotesSceneDelegate
   @State private var root: NotesRootAccess?
   @State private var libraryFolder = FolderReference(path: [])
@@ -559,6 +560,9 @@ struct ContentView: View {
     }
     .onChange(of: sceneDelegate.incomingDocument) { _, _ in
       consumeIncomingDocument()
+    }
+    .onChange(of: scenePhase) { _, phase in
+      if phase == .background { flushPendingSaves() }
     }
     .overlay(alignment: .bottom) {
       if let toast = deletedPageToast, !openNotes.inLibrary {
@@ -1192,6 +1196,17 @@ struct ContentView: View {
         }
       }
       errorMessage = underlying.localizedDescription
+    }
+  }
+
+  private func flushPendingSaves() {
+    guard let root else { return }
+    do {
+      try openNotes.savePending { note in
+        try saveSession(note, using: root)
+      }
+    } catch {
+      handleOpenNotesError(error)
     }
   }
 
