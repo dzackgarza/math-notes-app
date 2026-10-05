@@ -196,6 +196,7 @@ private struct PaletteEditorPopover: View {
   @Binding var library: EditorPenLibrary
   let onPersist: (EditorPenLibrary) -> Void
 
+  @State private var colors: [UInt32]
   @State private var newColor: Color
 
   init(
@@ -205,6 +206,7 @@ private struct PaletteEditorPopover: View {
   ) {
     _library = library
     self.onPersist = onPersist
+    _colors = State(initialValue: library.wrappedValue.palette)
     _newColor = State(initialValue: color(initialRGB))
   }
 
@@ -213,12 +215,12 @@ private struct PaletteEditorPopover: View {
       Text("Colors")
         .font(NativeTheme.headline)
 
-      if !library.palette.isEmpty {
+      if !colors.isEmpty {
         LazyVGrid(
           columns: [GridItem(.adaptive(minimum: 44), spacing: 4)],
           spacing: 4
         ) {
-          ForEach(Array(library.palette.enumerated()), id: \.offset) { index, rgb in
+          ForEach(Array(colors.enumerated()), id: \.offset) { index, rgb in
             Button {
               removeColor(index)
             } label: {
@@ -242,22 +244,25 @@ private struct PaletteEditorPopover: View {
         .accessibilityLabel("Color wheel")
 
       Button("Add color", systemImage: "plus") {
-        var next = library
-        next.palette.append(rgbValue(newColor, fallback: 0x1A1A1A))
-        library = next
-        onPersist(next)
+        colors.append(rgbValue(newColor, fallback: 0x1A1A1A))
       }
       .buttonStyle(.bordered)
     }
     .padding(16)
     .frame(width: 280)
     .nativePopoverSurface()
+    .onDisappear(perform: commit)
   }
 
   private func removeColor(_ index: Int) {
-    guard library.palette.indices.contains(index) else { return }
+    guard colors.indices.contains(index) else { return }
+    colors.remove(at: index)
+  }
+
+  private func commit() {
+    guard colors != library.palette else { return }
     var next = library
-    next.palette.remove(at: index)
+    next.palette = colors
     library = next
     onPersist(next)
   }
