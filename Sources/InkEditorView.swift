@@ -1238,6 +1238,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   private func configureBottomPull() {
+    addPageFooter.stateLabel?.textColor = NativeTheme.inkUI
+    addPageFooter.stateLabel?.font = UIFont(
+      name: NativeTheme.interfaceRegularName, size: 16)
     addPageFooter.setTitle("Pull and hold to add a page", for: .idle)
     addPageFooter.setTitle("Hold to add a page", for: .pulling)
     addPageFooter.setTitle("Adding page…", for: .refreshing)
