@@ -727,13 +727,6 @@ final class NotesRootAccess {
       throw NotebookStorageError.cannotAccessRoot
     }
 
-    do {
-      try Self.saveBookmark(for: selectedURL)
-    } catch {
-      selectedURL.stopAccessingSecurityScopedResource()
-      throw error
-    }
-
     url = selectedURL
     presenter = RootFilePresenter(url: selectedURL)
     presenter.onChange = { [weak self] in self?.onChange?() }
@@ -785,6 +778,10 @@ final class NotesRootAccess {
 
   static func forgetSavedRoot() {
     UserDefaults.standard.removeObject(forKey: bookmarkKey)
+  }
+
+  func persistAsSavedRoot() throws {
+    try Self.saveBookmark(for: url)
   }
 
   func notebooks() throws -> [NotebookReference] {

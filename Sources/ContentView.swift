@@ -1146,7 +1146,7 @@ struct ContentView: View {
 
   private func selectRoot(_ url: URL) {
     do {
-      installRoot(try NotesRootAccess(selectedURL: url))
+      installRoot(try NotesRootAccess(selectedURL: url), persistBookmark: true)
     } catch {
       errorMessage = error.localizedDescription
     }
@@ -1269,7 +1269,10 @@ struct ContentView: View {
     }
   }
 
-  private func installRoot(_ newRoot: NotesRootAccess) {
+  private func installRoot(
+    _ newRoot: NotesRootAccess,
+    persistBookmark: Bool = false
+  ) {
     if let root {
       do {
         try openNotes.closeAll { session in
@@ -1281,6 +1284,15 @@ struct ContentView: View {
       }
     } else {
       openNotes.reset()
+    }
+
+    if persistBookmark {
+      do {
+        try newRoot.persistAsSavedRoot()
+      } catch {
+        errorMessage = error.localizedDescription
+        return
+      }
     }
 
     dismissClippings()
