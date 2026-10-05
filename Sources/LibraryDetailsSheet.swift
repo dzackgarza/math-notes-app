@@ -67,13 +67,23 @@ struct LibraryDetailsSheet: View {
     NavigationStack {
       Form {
         Section("Description") {
-          TextEditor(text: $description)
-            .frame(minHeight: 100)
-            .onChange(of: description) { _, value in
-              if value.count > 500 {
-                description = String(value.prefix(500))
-              }
+          ZStack(alignment: .topLeading) {
+            if description.isEmpty {
+              Text("Description")
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 8)
+                .allowsHitTesting(false)
             }
+            TextEditor(text: $description)
+              .frame(minHeight: 100)
+              .accessibilityLabel("Description")
+              .onChange(of: description) { _, value in
+                if value.count > 500 {
+                  description = String(value.prefix(500))
+                }
+              }
+          }
           Text("\(description.count) / 500")
             .font(.caption)
             .foregroundStyle(.secondary)
