@@ -987,6 +987,8 @@ struct LibraryNotebookCover: View {
   let titled: Bool
 
   @State private var thumbnail: UIImage?
+  @State private var thumbnailMissing = false
+  @State private var thumbnailFailed = false
 
   var body: some View {
     NotebookCoverArt(
@@ -1000,21 +1002,38 @@ struct LibraryNotebookCover: View {
             .resizable()
             .scaledToFit()
             .background(NativeTheme.paper)
+        } else if thumbnailFailed {
+          Image(systemName: "exclamationmark.triangle")
+            .foregroundStyle(NativeTheme.graphite)
+            .accessibilityLabel("Thumbnail failed")
+        } else if thumbnailMissing {
+          Image(systemName: "doc")
+            .foregroundStyle(NativeTheme.graphite)
+            .accessibilityLabel("No thumbnail")
         } else {
           Color.clear
         }
       }
     }
     .task(id: item.modified) {
+      thumbnail = nil
+      thumbnailMissing = false
+      thumbnailFailed = false
       do {
         let listing = try root.library(in: item.reference, sort: .name, direction: .ascending)
-        if let first = listing.notebooks.first, let data = try root.thumbnail(first.reference) {
-          thumbnail = UIImage(data: data)
-        } else {
-          thumbnail = nil
+        guard let first = listing.notebooks.first else { return }
+        guard let data = try root.thumbnail(first.reference) else {
+          thumbnailMissing = true
+          return
         }
+        guard let rendered = UIImage(data: data) else {
+          thumbnailFailed = true
+          return
+        }
+        thumbnail = rendered
       } catch {
         thumbnail = nil
+        thumbnailFailed = true
       }
     }
     .accessibilityLabel("\(item.reference.name) notebook cover")
