@@ -1286,13 +1286,14 @@ struct ContentView: View {
       openNotes.reset()
     }
 
-    if persistBookmark {
-      do {
+    do {
+      try newRoot.prepareRoot()
+      if persistBookmark {
         try newRoot.persistAsSavedRoot()
-      } catch {
-        errorMessage = error.localizedDescription
-        return
       }
+    } catch {
+      errorMessage = error.localizedDescription
+      return
     }
 
     dismissClippings()

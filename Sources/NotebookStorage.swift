@@ -1572,6 +1572,12 @@ final class NotesRootAccess {
   }
 
   @MainActor
+  func prepareRoot() throws {
+    try ensureBuiltinTemplates()
+    try ensurePenFile()
+  }
+
+  @MainActor
   private func ensurePenFile() throws {
     guard try !itemExists(at: [".pens.json"]) else { return }
     let data = try EditorPenLibrary.defaultJSON()
