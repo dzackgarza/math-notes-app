@@ -738,7 +738,7 @@ struct NativeLibraryView: View {
         }
         .buttonStyle(.plain)
         .hoverEffect(.highlight)
-        .accessibilityLabel("\(item.reference.name) actions")
+        .accessibilityLabel("Open \(item.reference.name)")
       } else {
         Button {
           openNotebook(item.reference)
@@ -829,7 +829,7 @@ struct NativeLibraryView: View {
         .buttonStyle(.plain)
         .hoverEffect(.highlight)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityLabel("\(item.reference.name) actions")
+        .accessibilityLabel("Open \(item.reference.name)")
       } else {
         Button {
           openNotebook(item.reference)
