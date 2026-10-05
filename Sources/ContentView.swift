@@ -276,9 +276,9 @@ struct ContentView: View {
           ContentUnavailableView {
             Label("Choose notes folder", systemImage: "folder")
           } description: {
-            Text("Math Notes edits notebooks directly in a folder you choose in Files.")
+            Text("Your notes live in a folder on this device.")
           } actions: {
-            Button("Choose folder") {
+            Button("Choose notes folder") {
               showingFolderPicker = true
             }
             .buttonStyle(.borderedProminent)
