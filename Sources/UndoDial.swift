@@ -145,7 +145,7 @@ private struct UndoDialIndicator: View {
           endAngle: .radians(angle - sweep),
           clockwise: true)
         sector.closeSubpath()
-        context.fill(sector, with: .color(Color.accentColor.opacity(0.18)))
+        context.fill(sector, with: .color(NativeTheme.selectedFill))
       }
 
       for index in 0..<32 {
@@ -159,7 +159,7 @@ private struct UndoDialIndicator: View {
           y: center.y + 33 * scale * cos(tickAngle)))
         context.stroke(
           tick,
-          with: .color(Color.secondary),
+          with: .color(NativeTheme.tertiary),
           style: StrokeStyle(lineWidth: 1.5 * scale, lineCap: .round))
       }
     }
