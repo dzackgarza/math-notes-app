@@ -1109,7 +1109,6 @@ struct ContentView: View {
       editNoteDetails: prepareNoteDetails,
       editFolderDetails: prepareFolderDetails,
       reviewConflicts: { prepareConflicts($0) },
-      refresh: { refreshLibrary() },
       refreshSearch: { refreshLibrary(recountTags: false) },
       showSettings: {
         settingsFromLibrary = true

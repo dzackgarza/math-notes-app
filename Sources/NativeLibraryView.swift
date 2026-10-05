@@ -44,7 +44,6 @@ struct NativeLibraryView: View {
   let editNoteDetails: (NotebookReference) -> Void
   let editFolderDetails: (FolderReference) -> Void
   let reviewConflicts: (NotebookReference) -> Void
-  let refresh: () -> Void
   let refreshSearch: () -> Void
   let showSettings: () -> Void
 
@@ -108,7 +107,6 @@ struct NativeLibraryView: View {
               Button("Create note", action: createNote)
                 .buttonStyle(.borderedProminent)
             }
-            Button("Rescan", action: refresh)
           }
         }
       } else if grid {
@@ -236,9 +234,6 @@ struct NativeLibraryView: View {
           .accessibilityLabel("\(folder.name) notebook actions")
         }
 
-        Button(action: refresh) {
-          Label("Rescan", systemImage: "arrow.clockwise")
-        }
       }
     }
   }
