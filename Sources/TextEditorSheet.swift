@@ -45,6 +45,7 @@ struct TextEditorSheet: View {
                 .allowsHitTesting(false)
             }
             TextEditor(text: $content)
+              .font(.custom("Noto Sans", size: 18))
               .focused($contentFocused)
               .task { contentFocused = true }
               .frame(minHeight: 140)

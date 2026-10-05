@@ -17,6 +17,8 @@ targets:
       - Sources
       - path: Resources/Fonts
         buildPhase: resources
+      - path: core/assets/fonts/NotoSans-Regular.ttf
+        buildPhase: resources
       - path: Resources/TikZRuntime
         type: folder
       - path: Resources/TikZEditor
@@ -47,6 +49,7 @@ targets:
           - AlegreyaSans-Medium.ttf
           - AlegreyaSans-ExtraBold.ttf
           - Alegreya-Variable.ttf
+          - NotoSans-Regular.ttf
         UISupportedInterfaceOrientations~ipad:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown
