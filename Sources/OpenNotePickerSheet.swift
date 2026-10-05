@@ -16,8 +16,6 @@ struct OpenNotePickerSheet: View {
     guard !needle.isEmpty else { return notes }
     return notes.filter { item in
       item.reference.name.localizedCaseInsensitiveContains(needle)
-        || item.reference.path.dropLast().joined(separator: " / ")
-          .localizedCaseInsensitiveContains(needle)
     }
   }
 
@@ -41,14 +39,12 @@ struct OpenNotePickerSheet: View {
                   .clipShape(RoundedRectangle(cornerRadius: 5))
 
                 VStack(alignment: .leading, spacing: 3) {
-                  Text(item.reference.name)
+                  Text(item.conflicts > 0 ? "⚠ \(item.reference.name)" : item.reference.name)
                     .foregroundStyle(.primary)
-                  let folder = item.reference.path.dropLast().joined(separator: " / ")
-                  if !folder.isEmpty {
-                    Text(folder)
-                      .font(.caption)
-                      .foregroundStyle(.secondary)
-                  }
+                  let folder = FolderReference(path: Array(item.reference.path.dropLast()))
+                  Text(folder.name)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
                 Spacer()
                 if opened.contains(item.reference) {
