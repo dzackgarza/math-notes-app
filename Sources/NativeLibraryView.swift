@@ -62,7 +62,7 @@ struct NativeLibraryView: View {
         ContentUnavailableView {
           Label("No Results", systemImage: "magnifyingglass")
         } description: {
-          Text("Nothing matches “\(query)”.")
+          Text("Nothing matches \"\(query)\".")
         }
       } else if !notebookOpen && scope == .recent && listing.notebooks.isEmpty {
         ContentUnavailableView {
