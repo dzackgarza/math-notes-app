@@ -216,15 +216,11 @@ struct NewNoteSheet: View {
       CreationSheetLayout {
         noteFormFields
       } preview: {
-        VStack(alignment: .leading, spacing: 12) {
-          Text("Preview")
-            .font(NativeTheme.headline)
-          CreationPaperPreview(
-            template: form.template,
-            pageSize: form.pageSize,
-            orientation: form.orientation,
-            render: renderPreview)
-        }
+        CreationPaperPreview(
+          template: form.template,
+          pageSize: form.pageSize,
+          orientation: form.orientation,
+          render: renderPreview)
       }
       .scrollContentBackground(.hidden)
       .background(NativeTheme.leaf)
