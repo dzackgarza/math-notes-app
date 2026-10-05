@@ -145,6 +145,22 @@ struct PenEditorPopover: View {
   }
 
   private func commit() {
+    let current = library.settings(for: tool)
+    let settingsChanged =
+      current.brush != settings.brush ||
+      current.rgb != settings.rgb ||
+      current.size != settings.size ||
+      current.opacity != settings.opacity
+    let savedChanged = saved.count != library.saved.count ||
+      zip(saved, library.saved).contains { pair in
+        let (left, right) = pair
+        return left.brush != right.brush ||
+          left.rgb != right.rgb ||
+          left.size != right.size ||
+          left.opacity != right.opacity
+      }
+    guard settingsChanged || savedChanged else { return }
+
     var next = library
     next.setSettings(settings, for: tool)
     next.saved = saved
