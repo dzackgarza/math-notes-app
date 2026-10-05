@@ -158,15 +158,25 @@ struct NewNotebookSheet: View {
         .task { titleFocused = true }
         .nativeFieldSurface()
 
-      TextEditor(text: $form.description)
-        .scrollContentBackground(.hidden)
-        .frame(minHeight: 72)
-        .nativeFieldSurface()
-        .onChange(of: form.description) { _, value in
-          if value.count > 500 {
-            form.description = String(value.prefix(500))
-          }
+      ZStack(alignment: .topLeading) {
+        if form.description.isEmpty {
+          Text("Description")
+            .foregroundStyle(NativeTheme.graphite)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 12)
+            .allowsHitTesting(false)
         }
+        TextEditor(text: $form.description)
+          .scrollContentBackground(.hidden)
+          .frame(minHeight: 72)
+          .nativeFieldSurface()
+          .accessibilityLabel("Description")
+          .onChange(of: form.description) { _, value in
+            if value.count > 500 {
+              form.description = String(value.prefix(500))
+            }
+          }
+      }
       Text("Description (optional) · \(form.description.count) / 500")
         .font(NativeTheme.footnote)
         .foregroundStyle(NativeTheme.graphite)
