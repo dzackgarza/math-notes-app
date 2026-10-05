@@ -681,14 +681,14 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       label: "Recolor selection", systemImage: "paintpalette")
     selectionColorButton = selectionColor
     selectionBar.addArrangedSubview(selectionColor)
-    let editFigure = selectionButton(
-      label: "Edit figure", systemImage: "scribble.variable", action: #selector(editSelectedFigure))
-    editFigureButton = editFigure
-    selectionBar.addArrangedSubview(editFigure)
+    let deleteSelection = selectionButton(
+      label: "Delete selection", systemImage: "trash", action: #selector(deleteSelection))
+    deleteSelection.tintColor = NativeTheme.ribbonUI
+    selectionBar.addArrangedSubview(deleteSelection)
+    selectionBar.addArrangedSubview(selectionButton(
+      label: "Link selected content", systemImage: "link", action: #selector(linkSelection)))
     selectionBar.addArrangedSubview(selectionButton(
       label: "Bookmark selection", systemImage: "bookmark", action: #selector(bookmarkSelection)))
-    selectionBar.addArrangedSubview(selectionButton(
-      label: "Link selection", systemImage: "link", action: #selector(linkSelection)))
     selectionBar.addArrangedSubview(selectionButton(
       label: "Remove bookmark or link", systemImage: "link.badge.minus", action: #selector(ungroupSelection)))
     let saveClipping = selectionButton(
@@ -696,10 +696,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     saveClipping.isHidden = true
     saveClippingButton = saveClipping
     selectionBar.addArrangedSubview(saveClipping)
-    let deleteSelection = selectionButton(
-      label: "Delete selection", systemImage: "trash", action: #selector(deleteSelection))
-    deleteSelection.tintColor = NativeTheme.ribbonUI
-    selectionBar.addArrangedSubview(deleteSelection)
+    let editFigure = selectionButton(
+      label: "Edit figure", systemImage: "scribble.variable", action: #selector(editSelectedFigure))
+    editFigureButton = editFigure
+    selectionBar.addArrangedSubview(editFigure)
     selectionBar.addArrangedSubview(selectionButton(
       label: "Clear selection", systemImage: "xmark", action: #selector(clearSelection)))
     view.addSubview(selectionBar)
