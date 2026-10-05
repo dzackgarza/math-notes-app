@@ -21,8 +21,7 @@ enum LibraryMutationMode {
   var title: String {
     switch self {
     case .rename: "Rename"
-    case .move: "Move"
-    case .restore: "Restore"
+    case .move, .restore: "Choose notebook"
     }
   }
 
