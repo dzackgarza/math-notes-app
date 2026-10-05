@@ -389,24 +389,26 @@ final class OpenNotesStateTests: XCTestCase {
     XCTAssertNil(state.focusedSession)
     XCTAssertNil(state.focusedView)
   }
-  func testReloadingAReferenceReplacesBothControllerIdentities() throws {
+  func testReloadingAReferenceClosesTheSplitAndSelectsTheReplacement() throws {
     let state = OpenNotesState()
-    let first = session(["A"], seed: 28)
-    state.show(first)
+    let left = session(["Left"], seed: 28)
+    let reference = session(["Reference"], seed: 29)
+    state.show(left)
     try state.toggleSplit()
-    state.secondaryView?.currentPage = 4
-    let firstSecondaryID = try XCTUnwrap(state.secondaryView?.id)
+    _ = try state.showReference(
+      reference.reference,
+      save: { _ in },
+      load: { _ in reference })
 
     let replacement = try XCTUnwrap(
-      try state.reloadIfOpen(first.reference) { reference in
-        self.session(reference.path, seed: 29)
+      try state.reloadIfOpen(reference.reference) { ref in
+        self.session(ref.path, seed: 30)
       })
 
-    XCTAssertNotEqual(first.id, replacement.id)
-    let replacementSecondary = try XCTUnwrap(state.secondaryView)
-    XCTAssertNotEqual(firstSecondaryID, replacementSecondary.id)
-    XCTAssertEqual(replacementSecondary.currentPage, 4)
-    XCTAssertTrue(state.secondary === replacement)
+    XCTAssertFalse(state.splitOpen)
+    XCTAssertTrue(state.active === replacement)
+    XCTAssertEqual(state.opened.map(\.reference), [left.reference, reference.reference])
+    XCTAssertNotEqual(reference.id, replacement.id)
   }
 
   func testLinkedViewsAndSplitAxisRemainWorkspaceState() throws {
@@ -431,18 +433,24 @@ final class OpenNotesStateTests: XCTestCase {
     XCTAssertNil(state.linkedViewport)
   }
 
-  func testReloadReplacesTheControllerIdentityAtTheSameTab() throws {
+  func testReloadMovesTheResolvedNoteToTheSelectedLastTab() throws {
     let state = OpenNotesState()
     let first = session(["A"], seed: 18)
+    let second = session(["B"], seed: 19)
     state.show(first)
+    state.show(second)
+    _ = try state.open(
+      first.reference,
+      save: { _ in },
+      load: { _ in first })
 
     let replacement = try XCTUnwrap(
       try state.reloadIfOpen(first.reference) { reference in
-        self.session(reference.path, seed: 19)
+        self.session(reference.path, seed: 20)
       })
 
     XCTAssertNotEqual(first.id, replacement.id)
     XCTAssertTrue(state.active === replacement)
-    XCTAssertEqual(state.opened.count, 1)
+    XCTAssertEqual(state.opened.map(\.reference), [second.reference, first.reference])
   }
 }

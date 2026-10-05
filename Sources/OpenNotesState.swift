@@ -298,19 +298,10 @@ final class OpenNotesState {
     _ reference: NotebookReference,
     load: (NotebookReference) throws -> OpenNotebookSession
   ) throws -> OpenNotebookSession? {
-    guard let index = opened.firstIndex(where: { $0.reference == reference }) else {
-      return nil
-    }
-    guard !captureActive(for: opened[index]) else {
-      throw OpenNotesStateError.captureInProgress("reloading this note")
-    }
+    guard let current = find(reference) else { return nil }
+    release([current.id])
     let replacement = try load(reference)
-    opened[index] = replacement
-    if secondaryReference == reference {
-      let currentPage = secondaryView?.currentPage ?? replacement.primaryView.currentPage
-      secondaryView = OpenNotebookViewState(currentPage: currentPage)
-      linkedViewport = nil
-    }
+    show(replacement)
     return replacement
   }
 
