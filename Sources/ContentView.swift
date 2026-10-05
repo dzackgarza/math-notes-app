@@ -1569,11 +1569,6 @@ struct ContentView: View {
     do {
       try root.addLibraryTag(name: name, color: color)
       showingNewTag = false
-      libraryTag = name
-      libraryQuery = ""
-      libraryFolder = FolderReference(path: [])
-      libraryNotebookOpen = false
-      libraryScope = .tag
       refreshLibrary()
     } catch {
       errorMessage = error.localizedDescription
