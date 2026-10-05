@@ -206,10 +206,14 @@ struct FigureEditorSheet: View {
           }
           ToolbarItem(placement: .topBarTrailing) {
             Button(closing ? "Saving…" : "Save and close") {
-              closing = true
-              saveRevision &+= 1
+              if ready {
+                closing = true
+                saveRevision &+= 1
+              } else {
+                dismiss()
+              }
             }
-            .disabled(closing || !ready)
+            .disabled(closing)
           }
         }
         .safeAreaInset(edge: .bottom) {
