@@ -24,33 +24,38 @@ struct LayersSheet: View {
         ForEach(Array(layers.indices.reversed()), id: \.self) { index in
           let layer = layers[index]
           Section {
-            Button {
-              guard !layer.hidden, !layer.locked else { return }
-              activeLayerID = layer.id
-            } label: {
-              HStack {
-                Image(systemName: activeLayerID == layer.id ? "checkmark.circle.fill" : "circle")
-                Text(layer.name)
-                  .foregroundStyle(NativeTheme.ink)
-                Spacer()
-                if layer.hidden {
-                  Image(systemName: "eye.slash")
+            HStack(spacing: 8) {
+              Button {
+                guard !layer.hidden, !layer.locked else { return }
+                activeLayerID = layer.id
+              } label: {
+                HStack {
+                  Image(systemName: activeLayerID == layer.id ? "checkmark.circle.fill" : "circle")
+                  Text(layer.name)
+                    .foregroundStyle(NativeTheme.ink)
+                  Spacer()
+                  if layer.hidden {
+                    Image(systemName: "eye.slash")
+                  }
+                  if layer.locked {
+                    Image(systemName: "lock")
+                  }
                 }
-                if layer.locked {
-                  Image(systemName: "lock")
-                }
+                .frame(maxWidth: .infinity, alignment: .leading)
               }
-            }
-            .disabled(layer.hidden || layer.locked)
-            .accessibilityAddTraits(activeLayerID == layer.id ? .isSelected : [])
+              .disabled(layer.hidden || layer.locked)
+              .accessibilityAddTraits(activeLayerID == layer.id ? .isSelected : [])
 
-            FlowWrapLayout(horizontalSpacing: 8, verticalSpacing: 4) {
               Button("Rename") {
                 layerName = layer.name
                 namingLayerID = layer.id
               }
               .accessibilityLabel(layerActionAccessibilityLabel("Rename", layerName: layer.name))
               .frame(minWidth: 44, minHeight: 44)
+            }
+            .buttonStyle(.borderless)
+
+            FlowWrapLayout(horizontalSpacing: 8, verticalSpacing: 4) {
               Button(layer.hidden ? "Show" : "Hide") {
                 mutate {
                   try document.setLayer(
@@ -75,10 +80,7 @@ struct LayersSheet: View {
               .accessibilityLabel(
                 layerActionAccessibilityLabel(layer.locked ? "Unlock" : "Lock", layerName: layer.name))
               .frame(minWidth: 44, minHeight: 44)
-            }
-            .buttonStyle(.borderless)
 
-            FlowWrapLayout(horizontalSpacing: 8, verticalSpacing: 4) {
               Button("Up") {
                 mutate { try document.moveLayer(from: index, to: index + 1) }
               }
