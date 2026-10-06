@@ -96,7 +96,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private let onSelectionChanged: (Bool) -> Void
   private let onUndo: () -> Void
   private let onRedo: () -> Void
-  private let onPencilAction: (UIPencilPreferredAction) -> Void
+  private let onPencilAction: (UIPencilPreferredAction, CGPoint?) -> Void
   private let onFigureCaptureChanged: (Bool) -> Void
   private let onFigureSourceChanged: (String) -> Void
   private let onEditFigure: (String) -> Void
@@ -179,7 +179,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     onSelectionChanged: @escaping (Bool) -> Void = { _ in },
     onUndo: @escaping () -> Void = {},
     onRedo: @escaping () -> Void = {},
-    onPencilAction: @escaping (UIPencilPreferredAction) -> Void = { _ in },
+    onPencilAction: @escaping (UIPencilPreferredAction, CGPoint?) -> Void = { _, _ in },
     onFigureCaptureChanged: @escaping (Bool) -> Void = { _ in },
     onFigureSourceChanged: @escaping (String) -> Void = { _ in },
     onEditFigure: @escaping (String) -> Void = { _ in },
@@ -1134,7 +1134,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   ) {
     guard hostActive, hostFocused else { return }
     onFocusRequested()
-    onPencilAction(UIPencilInteraction.preferredTapAction)
+    onPencilAction(UIPencilInteraction.preferredTapAction, tap.hoverPose?.location)
   }
 
   func pencilInteraction(
@@ -1143,7 +1143,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   ) {
     guard hostActive, hostFocused, squeeze.phase == .ended else { return }
     onFocusRequested()
-    onPencilAction(UIPencilInteraction.preferredSqueezeAction)
+    onPencilAction(UIPencilInteraction.preferredSqueezeAction, squeeze.hoverPose?.location)
   }
 
   @discardableResult
@@ -1597,7 +1597,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let onSelectionChanged: (Bool) -> Void
   let onUndo: () -> Void
   let onRedo: () -> Void
-  let onPencilAction: (UIPencilPreferredAction) -> Void
+  let onPencilAction: (UIPencilPreferredAction, CGPoint?) -> Void
   let onFigureCaptureChanged: (Bool) -> Void
   let onFigureSourceChanged: (String) -> Void
   let onEditFigure: (String) -> Void
@@ -1686,6 +1686,7 @@ struct InkEditorView: View {
   @State private var drawing = false
   @State private var figureSource = ""
   @State private var selectionActive = false
+  @State private var pencilPaletteAnchor: CGPoint?
   let onFocus: () -> Void
   let onViewportChanged: (EditorLinkedViewport) -> Void
   let onFitStateChanged: (Bool) -> Void
@@ -1791,6 +1792,27 @@ struct InkEditorView: View {
         showClippings: onShowClippings,
         recolorSelection: { rgb in pageCommand = .recolorSelection(rgb) },
         onPensChanged: onPensChanged)
+
+      if let pencilPaletteAnchor {
+        Color.clear
+          .frame(width: 1, height: 1)
+          .position(pencilPaletteAnchor)
+          .popover(
+            isPresented: Binding(
+              get: { self.pencilPaletteAnchor != nil },
+              set: { if !$0 { self.pencilPaletteAnchor = nil } }),
+            arrowEdge: .top
+          ) {
+            ColorPalettePopover(
+              tool: $tool,
+              drawingTool: $drawingTool,
+              library: $penLibrary,
+              selectionActive: selectionActive,
+              onRecolorSelection: { rgb in pageCommand = .recolorSelection(rgb) },
+              onPersist: onPensChanged)
+              .presentationCompactAdaptation(.popover)
+          }
+      }
 
       if drawing || !figureSource.isEmpty {
         VStack(alignment: .leading, spacing: 10) {
@@ -1933,7 +1955,7 @@ struct InkEditorView: View {
     }
   }
 
-  private func applyPencilAction(_ action: UIPencilPreferredAction) {
+  private func applyPencilAction(_ action: UIPencilPreferredAction, at point: CGPoint?) {
     switch action {
     case .switchEraser:
       if tool == .eraser, let previousPencilTool, previousPencilTool != .eraser {
@@ -1950,6 +1972,8 @@ struct InkEditorView: View {
       let current = tool
       tool = previousPencilTool
       self.previousPencilTool = current
+    case .showColorPalette, .showContextualPalette:
+      pencilPaletteAnchor = point ?? CGPoint(x: 88, y: 88)
     default:
       break
     }
