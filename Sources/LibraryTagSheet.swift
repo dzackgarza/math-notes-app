@@ -20,7 +20,7 @@ struct LibraryTagSheet: View {
         }
 
         Section("Color") {
-          FlowWrapLayout(horizontalSpacing: 10, verticalSpacing: 6) {
+          FlowWrapLayout(horizontalSpacing: 0, verticalSpacing: 0) {
             ForEach(LibraryMetadataFile.tagColors, id: \.self) { value in
               Button {
                 color = value
