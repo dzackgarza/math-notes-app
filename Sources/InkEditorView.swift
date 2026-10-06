@@ -2020,11 +2020,14 @@ struct InkEditorView: View {
             Button("Complete") {
               toggleDrawingMode()
             }
+            .frame(minWidth: 36, minHeight: 36)
           } else {
             Button {
               closeModeBanner()
             } label: {
               Image(systemName: "xmark")
+                .frame(width: 36, height: 36)
+                .contentShape(Rectangle())
             }
             .accessibilityLabel("Close \(mode)")
           }
