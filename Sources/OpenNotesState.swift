@@ -19,6 +19,7 @@ struct EditorLinkedViewport: Equatable {
 enum NotebookSaveStatus: Equatable {
   case saved
   case pending
+  case recoverable
   case saving
   case failed
 
@@ -26,6 +27,7 @@ enum NotebookSaveStatus: Equatable {
     switch self {
     case .saved: "Saved"
     case .pending: "Unsaved changes"
+    case .recoverable: "Pending file save"
     case .saving: "Saving…"
     case .failed: "Save failed"
     }
@@ -64,19 +66,21 @@ final class OpenNotebookSession: Identifiable {
   let primaryView: OpenNotebookViewState
   var documentRevision = 0
   var conflictCount: Int
-  var saveStatus = NotebookSaveStatus.saved
+  var saveStatus: NotebookSaveStatus
   @ObservationIgnored private var autosaveTask: Task<Void, Never>?
 
   init(
     id: UUID = UUID(),
     reference: NotebookReference,
     document: EngineDocument,
-    conflictCount: Int = 0
+    conflictCount: Int = 0,
+    saveStatus: NotebookSaveStatus = .saved
   ) {
     self.id = id
     self.reference = reference
     self.document = document
     self.conflictCount = conflictCount
+    self.saveStatus = saveStatus
     self.primaryView = OpenNotebookViewState()
   }
 
@@ -86,9 +90,18 @@ final class OpenNotebookSession: Identifiable {
 
   func scheduleAutosave(
     after delay: Duration = .seconds(1),
+    checkpoint: (() throws -> Void)? = nil,
     _ operation: @escaping @MainActor () -> Void
   ) {
     markUnsaved()
+    if let checkpoint {
+      do {
+        try checkpoint()
+        saveStatus = .recoverable
+      } catch {
+        saveStatus = .failed
+      }
+    }
     autosaveTask?.cancel()
     autosaveTask = Task { @MainActor [weak self] in
       do {
@@ -286,7 +299,9 @@ final class OpenNotesState {
     save: (OpenNotebookSession) throws -> Void
   ) throws {
     var firstFailure: OpenNotesStateError?
-    for session in opened where session.saveStatus == .pending {
+    for session in opened
+      where session.saveStatus == .pending || session.saveStatus == .recoverable
+    {
       do {
         try save(session)
       } catch {

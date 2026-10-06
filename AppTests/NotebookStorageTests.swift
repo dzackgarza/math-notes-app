@@ -782,6 +782,105 @@ final class NotebookStorageTests: XCTestCase {
     XCTAssertEqual(try root.load(reference).pageCount(), 1)
   }
 
+  @MainActor
+  func testPendingEditsRecoverAfterRelaunchAndRetireAfterSave() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let recovery = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+      try? FileManager.default.removeItem(at: directory)
+      try? FileManager.default.removeItem(at: recovery)
+    }
+
+    let root = NotesRootAccess(testURL: directory, recoveryURL: recovery)
+    let (reference, document) = try root.createNote(
+      title: "Recovered edits",
+      parent: FolderReference(path: []),
+      template: "blank",
+      pageSize: INK_PAGE_A4,
+      orientation: INK_PORTRAIT)
+    try document.insertPage(at: 1)
+    try root.checkpointRecovery(document, notebook: reference)
+    XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: recovery.path).count, 1)
+
+    let relaunched = NotesRootAccess(testURL: directory, recoveryURL: recovery)
+    let recovered = try relaunched.load(reference)
+    XCTAssertEqual(try recovered.pageCount(), 2)
+    XCTAssertTrue(relaunched.hasRecoveredChanges(reference))
+
+    try relaunched.save(recovered, notebook: reference)
+    XCTAssertFalse(relaunched.hasRecoveredChanges(reference))
+    XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: recovery.path), [])
+    XCTAssertEqual(try NotesRootAccess(testURL: directory, recoveryURL: recovery).load(reference).pageCount(), 2)
+  }
+
+  @MainActor
+  func testLaterCheckpointCanRevertEarlierPendingEdits() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let recovery = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+      try? FileManager.default.removeItem(at: directory)
+      try? FileManager.default.removeItem(at: recovery)
+    }
+
+    let root = NotesRootAccess(testURL: directory, recoveryURL: recovery)
+    let (reference, document) = try root.createNote(
+      title: "Reverted recovery",
+      parent: FolderReference(path: []),
+      template: "blank",
+      pageSize: INK_PAGE_A4,
+      orientation: INK_PORTRAIT)
+    try document.insertPage(at: 1)
+    try root.checkpointRecovery(document, notebook: reference)
+    try document.deletePage(at: 1)
+    try root.checkpointRecovery(document, notebook: reference)
+
+    let relaunched = NotesRootAccess(testURL: directory, recoveryURL: recovery)
+    XCTAssertEqual(try relaunched.load(reference).pageCount(), 1)
+  }
+
+  @MainActor
+  func testMultiplePendingRecoveryRecordsAreRejected() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let recovery = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+      try? FileManager.default.removeItem(at: directory)
+      try? FileManager.default.removeItem(at: recovery)
+    }
+
+    let root = NotesRootAccess(testURL: directory, recoveryURL: recovery)
+    let (reference, document) = try root.createNote(
+      title: "Duplicate recovery",
+      parent: FolderReference(path: []),
+      template: "blank",
+      pageSize: INK_PAGE_A4,
+      orientation: INK_PORTRAIT)
+    try document.insertPage(at: 1)
+    try root.checkpointRecovery(document, notebook: reference)
+    let files = try FileManager.default.contentsOfDirectory(
+      at: recovery, includingPropertiesForKeys: nil)
+    let original = try XCTUnwrap(files.first)
+    try FileManager.default.copyItem(
+      at: original,
+      to: recovery.appendingPathComponent(UUID().uuidString).appendingPathExtension("json"))
+
+    let relaunched = NotesRootAccess(testURL: directory, recoveryURL: recovery)
+    XCTAssertThrowsError(try relaunched.load(reference)) { error in
+      guard case NotebookStorageError.multipleRecoveries(let name) = error else {
+        return XCTFail("Unexpected error: \(error)")
+      }
+      XCTAssertEqual(name, reference.name)
+    }
+  }
+
   func testEntryExistsMessageMatchesWebValidation() {
     XCTAssertEqual(
       NotebookStorageError.entryExists("Stable pairs").localizedDescription,

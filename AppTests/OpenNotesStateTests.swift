@@ -41,6 +41,22 @@ final class OpenNotesStateTests: XCTestCase {
     XCTAssertEqual(note.saveStatus, .pending)
   }
 
+  func testAutosaveCheckpointMakesPendingEditsRecoverable() throws {
+    let note = session(["A"], seed: 35)
+    var checkpoints = 0
+
+    note.scheduleAutosave(
+      after: .seconds(60),
+      checkpoint: { checkpoints += 1 }
+    ) {}
+
+    XCTAssertEqual(checkpoints, 1)
+    XCTAssertEqual(note.saveStatus, .recoverable)
+    XCTAssertEqual(note.saveStatus.label, "Pending file save")
+    try note.performSave {}
+    XCTAssertEqual(note.saveStatus, .saved)
+  }
+
   func testAutosaveDebouncesAndExplicitSaveCancelsPendingWork() async throws {
     let note = session(["A"], seed: 35)
     var saves = 0
@@ -81,7 +97,11 @@ final class OpenNotesStateTests: XCTestCase {
     state.show(saved)
     state.show(pending)
     state.show(failed)
-    pending.markUnsaved()
+    pending.scheduleAutosave(
+      after: .seconds(60),
+      checkpoint: {}
+    ) {}
+    XCTAssertEqual(pending.saveStatus, .recoverable)
     XCTAssertThrowsError(try failed.performSave { throw TestFailure.expected })
 
     var savedPaths: [[String]] = []

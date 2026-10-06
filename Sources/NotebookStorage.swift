@@ -641,6 +641,8 @@ enum NotebookStorageError: LocalizedError {
   case externalChanges([String])
   case conflictChanged
   case invalidConflictAction(String)
+  case invalidRecovery(String)
+  case multipleRecoveries(String)
 
   var errorDescription: String? {
     switch self {
@@ -660,8 +662,55 @@ enum NotebookStorageError: LocalizedError {
       return "A version changed during comparison. Reopen the conflict before choosing."
     case let .invalidConflictAction(message):
       return message
+    case let .invalidRecovery(message):
+      return "Pending edit recovery is invalid: \(message)"
+    case let .multipleRecoveries(name):
+      return "\(name) has pending edits from multiple app sessions. Keep the recovery records before resolving the conflict."
     }
   }
+}
+
+private struct NotebookRecoveryChange: Codable {
+  enum Kind: String, Codable {
+    case write
+    case delete
+  }
+
+  let path: String
+  let kind: Kind
+  let data: Data?
+  let base: Data?
+
+  init(change: EngineFileChange, base: Data?) {
+    path = change.path
+    self.base = base
+    switch change.kind {
+    case let .write(data):
+      kind = .write
+      self.data = data
+    case .delete:
+      kind = .delete
+      data = nil
+    }
+  }
+
+  var engineChange: EngineFileChange {
+    switch kind {
+    case .write:
+      EngineFileChange(path: path, kind: .write(data ?? Data()))
+    case .delete:
+      EngineFileChange(path: path, kind: .delete)
+    }
+  }
+}
+
+private struct NotebookRecoveryRecord: Codable {
+  let id: UUID
+  let rootPath: String
+  let rootBookmark: Data?
+  let notebookPath: [String]
+  let notebookBookmark: Data?
+  let changes: [NotebookRecoveryChange]
 }
 
 private final class RootFilePresenter: NSObject, NSFilePresenter {
@@ -707,15 +756,20 @@ final class NotesRootAccess {
   var onChange: (() -> Void)?
 
   private let presenter: RootFilePresenter
+  private let recoveryDirectory: URL
   private var accessing = true
   private var thumbnailCache: [String: (stamp: String, data: Data)] = [:]
   private var notebookBases: [NotebookReference: [String: Data]] = [:]
+  private var recoveredChanges: [NotebookReference: [EngineFileChange]] = [:]
+  private var recoveryFiles: [NotebookReference: URL] = [:]
   private var pendingDeleteConflicts:
     [NotebookReference: [String: PendingDeleteConflictState]] = [:]
 
 #if DEBUG
-  init(testURL: URL) {
+  init(testURL: URL, recoveryURL: URL? = nil) {
     url = testURL
+    recoveryDirectory = recoveryURL
+      ?? testURL.appendingPathComponent(".math-notes-recovery", isDirectory: true)
     presenter = RootFilePresenter(url: testURL)
     accessing = false
     presenter.onChange = { [weak self] in self?.onChange?() }
@@ -729,6 +783,7 @@ final class NotesRootAccess {
     }
 
     url = selectedURL
+    recoveryDirectory = Self.defaultRecoveryDirectory()
     presenter = RootFilePresenter(url: selectedURL)
     presenter.onChange = { [weak self] in self?.onChange?() }
     NSFileCoordinator.addFilePresenter(presenter)
@@ -749,6 +804,7 @@ final class NotesRootAccess {
     }
 
     url = restoredURL
+    recoveryDirectory = Self.defaultRecoveryDirectory()
     presenter = RootFilePresenter(url: restoredURL)
     presenter.onChange = { [weak self] in self?.onChange?() }
     NSFileCoordinator.addFilePresenter(presenter)
@@ -779,6 +835,15 @@ final class NotesRootAccess {
 
   static func forgetSavedRoot() {
     UserDefaults.standard.removeObject(forKey: bookmarkKey)
+  }
+
+  private static func defaultRecoveryDirectory() -> URL {
+    let base = FileManager.default.urls(
+      for: .applicationSupportDirectory, in: .userDomainMask).first
+      ?? FileManager.default.temporaryDirectory
+    return base
+      .appendingPathComponent("Math Notes", isDirectory: true)
+      .appendingPathComponent("Recovery", isDirectory: true)
   }
 
   func persistAsSavedRoot() throws {
@@ -1796,23 +1861,199 @@ final class NotesRootAccess {
     return index
   }
 
+  private func recoveryRootBookmark() -> Data? {
+    guard accessing else { return nil }
+    return try? url.bookmarkData(
+      options: .minimalBookmark,
+      includingResourceValuesForKeys: nil,
+      relativeTo: nil)
+  }
+
+  private func recoveryRootMatches(_ record: NotebookRecoveryRecord) -> Bool {
+    let current = url.standardizedFileURL.path
+    guard let bookmark = record.rootBookmark else {
+      return record.rootPath == current
+    }
+    var stale = false
+    guard let resolved = try? URL(
+      resolvingBookmarkData: bookmark,
+      bookmarkDataIsStale: &stale)
+    else { return false }
+    return resolved.standardizedFileURL.path == current
+  }
+
+  private func recoveryNotebookMatches(
+    _ record: NotebookRecoveryRecord,
+    reference: NotebookReference
+  ) -> Bool {
+    guard let bookmark = record.notebookBookmark else {
+      return record.notebookPath == reference.path
+    }
+    var stale = false
+    guard let resolved = try? URL(
+      resolvingBookmarkData: bookmark,
+      bookmarkDataIsStale: &stale)
+    else { return false }
+    return resolved.standardizedFileURL.path == urlForNotebook(reference).standardizedFileURL.path
+  }
+
+  private func recoveryRecord(
+    for reference: NotebookReference
+  ) throws -> (file: URL, record: NotebookRecoveryRecord)? {
+    if let known = recoveryFiles[reference],
+      FileManager.default.fileExists(atPath: known.path)
+    {
+      do {
+        let record = try JSONDecoder().decode(
+          NotebookRecoveryRecord.self, from: Data(contentsOf: known))
+        guard recoveryRootMatches(record), recoveryNotebookMatches(record, reference: reference) else {
+          recoveryFiles.removeValue(forKey: reference)
+          return nil
+        }
+        return (known, record)
+      } catch {
+        throw NotebookStorageError.invalidRecovery(error.localizedDescription)
+      }
+    }
+
+    var isDirectory: ObjCBool = false
+    guard FileManager.default.fileExists(
+      atPath: recoveryDirectory.path, isDirectory: &isDirectory),
+      isDirectory.boolValue
+    else { return nil }
+
+    var matches: [(URL, NotebookRecoveryRecord)] = []
+    for file in try FileManager.default.contentsOfDirectory(
+      at: recoveryDirectory,
+      includingPropertiesForKeys: [.isRegularFileKey],
+      options: [.skipsHiddenFiles])
+      where file.pathExtension == "json"
+    {
+      let record: NotebookRecoveryRecord
+      do {
+        record = try JSONDecoder().decode(
+          NotebookRecoveryRecord.self, from: Data(contentsOf: file))
+      } catch {
+        throw NotebookStorageError.invalidRecovery(error.localizedDescription)
+      }
+      if recoveryRootMatches(record), recoveryNotebookMatches(record, reference: reference) {
+        matches.append((file, record))
+      }
+    }
+
+    guard matches.count <= 1 else {
+      throw NotebookStorageError.multipleRecoveries(reference.name)
+    }
+    guard let match = matches.first else { return nil }
+    recoveryFiles[reference] = match.0
+    return (match.0, match.1)
+  }
+
+  private static func mergedRecoveryChanges(
+    _ older: [EngineFileChange],
+    _ newer: [EngineFileChange]
+  ) -> [EngineFileChange] {
+    var byPath = Dictionary(uniqueKeysWithValues: older.map { ($0.path, $0) })
+    for change in newer { byPath[change.path] = change }
+    return orderedNotebookChanges(Array(byPath.values))
+  }
+
+  @MainActor
+  func checkpointRecovery(
+    _ document: EngineDocument,
+    notebook reference: NotebookReference
+  ) throws {
+    let changes = Self.mergedRecoveryChanges(
+      recoveredChanges[reference] ?? [],
+      try document.dirtyFiles())
+    guard !changes.isEmpty else { return }
+    try writeRecovery(changes, notebook: reference, base: notebookBases[reference] ?? [:])
+    try document.markSaved()
+  }
+
+  private func recoveryNotebookBookmark(_ reference: NotebookReference) -> Data? {
+    try? urlForNotebook(reference).bookmarkData(
+      options: .minimalBookmark,
+      includingResourceValuesForKeys: nil,
+      relativeTo: nil)
+  }
+
+  private func writeRecovery(
+    _ changes: [EngineFileChange],
+    notebook reference: NotebookReference,
+    base: [String: Data]
+  ) throws {
+    try FileManager.default.createDirectory(
+      at: recoveryDirectory,
+      withIntermediateDirectories: true)
+    let existing = try recoveryRecord(for: reference)
+    let record = NotebookRecoveryRecord(
+      id: existing?.record.id ?? UUID(),
+      rootPath: url.standardizedFileURL.path,
+      rootBookmark: existing?.record.rootBookmark ?? recoveryRootBookmark(),
+      notebookPath: reference.path,
+      notebookBookmark: existing?.record.notebookBookmark ?? recoveryNotebookBookmark(reference),
+      changes: changes.map {
+        NotebookRecoveryChange(change: $0, base: base[$0.path])
+      })
+    let file = existing?.file
+      ?? recoveryDirectory.appendingPathComponent(record.id.uuidString).appendingPathExtension("json")
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    try encoder.encode(record).write(to: file, options: .atomic)
+    recoveryFiles[reference] = file
+    recoveredChanges[reference] = changes
+  }
+
+  private func clearRecovery(_ reference: NotebookReference) throws {
+    let file = recoveryFiles[reference] ?? (try recoveryRecord(for: reference)?.file)
+    if let file, FileManager.default.fileExists(atPath: file.path) {
+      try FileManager.default.removeItem(at: file)
+    }
+    recoveryFiles.removeValue(forKey: reference)
+    recoveredChanges.removeValue(forKey: reference)
+  }
+
+  func hasRecoveredChanges(_ reference: NotebookReference) -> Bool {
+    !(recoveredChanges[reference]?.isEmpty ?? true)
+  }
+
   @MainActor
   func load(_ reference: NotebookReference) throws -> EngineDocument {
     let notebookURL = urlForNotebook(reference)
     let snapshot = try coordinatedRead(at: notebookURL) { coordinatedURL in
       try Self.readSnapshot(at: coordinatedURL)
     }
+    let recovery = try recoveryRecord(for: reference)
+
+    var restored = snapshot.base
+    if let recovery {
+      for change in recovery.record.changes {
+        switch change.engineChange.kind {
+        case let .write(data): restored[change.path] = data
+        case .delete: restored.removeValue(forKey: change.path)
+        }
+      }
+    }
+    guard let notebookJSON = restored["notebook.json"] else {
+      throw NotebookStorageError.invalidRecovery("The recovered notebook has no notebook.json.")
+    }
+    let index = try JSONDecoder().decode(NotebookIndex.self, from: notebookJSON)
 
     let document = EngineDocument(seed: UInt64.random(in: 1...UInt64.max))
-    try document.loadNotebook(snapshot.notebookJSON)
-    for file in snapshot.pages {
-      try document.loadPage(path: file.path, data: file.data)
+    try document.loadNotebook(notebookJSON)
+    for (path, data) in restored.sorted(by: { $0.key < $1.key })
+      where path.hasPrefix("pages/") && path.hasSuffix(".svg")
+    {
+      try document.loadPage(path: path, data: data)
     }
-    for file in snapshot.assets {
-      try document.loadAsset(path: file.path, data: file.data)
+    for (path, data) in restored.sorted(by: { $0.key < $1.key })
+      where path.hasPrefix("assets/")
+    {
+      try document.loadAsset(path: path, data: data)
     }
 
-    if let template = snapshot.template {
+    if let template = index.template {
       let pageURL = url
         .appendingPathComponent(".templates", isDirectory: true)
         .appendingPathComponent(template, isDirectory: true)
@@ -1824,7 +2065,22 @@ final class NotesRootAccess {
       }
     }
 
-    notebookBases[reference] = snapshot.base
+    var base = snapshot.base
+    if let recovery {
+      for change in recovery.record.changes {
+        if let saved = change.base {
+          base[change.path] = saved
+        } else {
+          base.removeValue(forKey: change.path)
+        }
+      }
+      recoveredChanges[reference] = recovery.record.changes.map(\.engineChange)
+      recoveryFiles[reference] = recovery.file
+    } else {
+      recoveredChanges.removeValue(forKey: reference)
+      recoveryFiles.removeValue(forKey: reference)
+    }
+    notebookBases[reference] = base
     return document
   }
 
@@ -2120,11 +2376,14 @@ final class NotesRootAccess {
 
   @MainActor
   func save(_ document: EngineDocument, notebook reference: NotebookReference) throws {
-    let changes = orderedNotebookChanges(try document.dirtyFiles())
+    let changes = Self.mergedRecoveryChanges(
+      recoveredChanges[reference] ?? [],
+      try document.dirtyFiles())
     guard !changes.isEmpty else { return }
 
     let notebookURL = urlForNotebook(reference)
     let base = notebookBases[reference] ?? [:]
+    try writeRecovery(changes, notebook: reference, base: base)
     var safe: [EngineFileChange] = []
     var conflicts: [EngineFileChange] = []
     var nextPending = pendingDeleteConflicts[reference] ?? [:]
@@ -2198,10 +2457,12 @@ final class NotesRootAccess {
     }
     notebookBases[reference] = nextBase
 
-    if conflicts.isEmpty || conflicts.allSatisfy({
+    let localChangesAreDurable = conflicts.isEmpty || conflicts.allSatisfy {
       if case .write = $0.kind { return true }
       return false
-    }) {
+    }
+    if localChangesAreDurable {
+      try clearRecovery(reference)
       try document.markSaved()
     }
     guard conflicts.isEmpty else {

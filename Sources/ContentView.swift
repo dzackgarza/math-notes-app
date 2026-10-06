@@ -1190,7 +1190,8 @@ struct ContentView: View {
     let session = OpenNotebookSession(
       reference: reference,
       document: document,
-      conflictCount: try root.conflictCount(reference))
+      conflictCount: try root.conflictCount(reference),
+      saveStatus: root.hasRecoveredChanges(reference) ? .recoverable : .saved)
     session.currentPage = min(currentPage, max(0, pageCount - 1))
     return session
   }
@@ -2562,7 +2563,12 @@ struct ContentView: View {
   }
 
   private func scheduleNotebookSave(_ note: OpenNotebookSession) {
-    note.scheduleAutosave {
+    note.scheduleAutosave(
+      checkpoint: {
+        guard let root else { throw NotebookStorageError.cannotAccessRoot }
+        try root.checkpointRecovery(note.document, notebook: note.reference)
+      }
+    ) {
       saveNotebook(note)
     }
   }
