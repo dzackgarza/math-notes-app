@@ -817,6 +817,37 @@ final class NotebookStorageTests: XCTestCase {
   }
 
   @MainActor
+  func testRecoveryCanOpenWhenNotebookIndexIsTemporarilyMissing() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let recovery = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+      try? FileManager.default.removeItem(at: directory)
+      try? FileManager.default.removeItem(at: recovery)
+    }
+
+    let root = NotesRootAccess(testURL: directory, recoveryURL: recovery)
+    let (reference, document) = try root.createNote(
+      title: "Missing index recovery",
+      parent: FolderReference(path: []),
+      template: "blank",
+      pageSize: INK_PAGE_A4,
+      orientation: INK_PORTRAIT)
+    try document.insertPage(at: 1)
+    try root.checkpointRecovery(document, notebook: reference)
+    let indexURL = directory
+      .appendingPathComponent(reference.name, isDirectory: true)
+      .appendingPathComponent("notebook.json")
+    try FileManager.default.removeItem(at: indexURL)
+
+    let relaunched = NotesRootAccess(testURL: directory, recoveryURL: recovery)
+    XCTAssertEqual(try relaunched.load(reference).pageCount(), 2)
+    XCTAssertTrue(relaunched.hasRecoveredChanges(reference))
+  }
+
+  @MainActor
   func testLaterCheckpointCanRevertEarlierPendingEdits() throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)

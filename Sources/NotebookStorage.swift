@@ -2021,10 +2021,15 @@ final class NotesRootAccess {
   @MainActor
   func load(_ reference: NotebookReference) throws -> EngineDocument {
     let notebookURL = urlForNotebook(reference)
-    let snapshot = try coordinatedRead(at: notebookURL) { coordinatedURL in
-      try Self.readSnapshot(at: coordinatedURL)
-    }
     let recovery = try recoveryRecord(for: reference)
+    let recoveredNotebookJSON = recovery?.record.changes.first {
+      $0.path == "notebook.json" && $0.kind == .write
+    }?.data
+    let snapshot = try coordinatedRead(at: notebookURL) { coordinatedURL in
+      try Self.readSnapshot(
+        at: coordinatedURL,
+        recoveredNotebookJSON: recoveredNotebookJSON)
+    }
 
     var restored = snapshot.base
     if let recovery {
@@ -3057,9 +3062,19 @@ final class NotesRootAccess {
     return latest
   }
 
-  private static func readSnapshot(at notebookURL: URL) throws -> Snapshot {
-    let notebookJSON = try Data(
-      contentsOf: notebookURL.appendingPathComponent("notebook.json"))
+  private static func readSnapshot(
+    at notebookURL: URL,
+    recoveredNotebookJSON: Data? = nil
+  ) throws -> Snapshot {
+    let indexURL = notebookURL.appendingPathComponent("notebook.json")
+    let notebookJSON: Data
+    if FileManager.default.fileExists(atPath: indexURL.path) {
+      notebookJSON = try Data(contentsOf: indexURL)
+    } else if let recoveredNotebookJSON {
+      notebookJSON = recoveredNotebookJSON
+    } else {
+      notebookJSON = try Data(contentsOf: indexURL)
+    }
     let template = try? JSONDecoder().decode(
       NotebookIndex.self,
       from: notebookJSON).template
