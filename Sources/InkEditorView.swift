@@ -71,16 +71,7 @@ private struct NotebookEditorDropDelegate: DropDelegate {
       return true
     }
 
-    guard let provider = info.itemProviders(for: [.plainText]).first else {
-      return false
-    }
-    provider.loadObject(ofClass: NSString.self) { object, _ in
-      guard let string = object as? NSString else { return }
-      Task { @MainActor in
-        _ = onDropSelection(string as String, location)
-      }
-    }
-    return true
+    return false
   }
 }
 
@@ -2080,7 +2071,7 @@ struct InkEditorView: View {
     .onDrop(
       of: [
         notebookSelectionDragType, notebookSelectionCopyDragType,
-        notebookClippingDragType, .plainText,
+        notebookClippingDragType,
       ],
       delegate: NotebookEditorDropDelegate(
         canDrop: { !drawing },
