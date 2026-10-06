@@ -958,8 +958,13 @@ struct NotebookCoverArt<Page: View>: View {
   }
 
   var body: some View {
+    let coverShape = UnevenRoundedRectangle(
+      topLeadingRadius: 2,
+      bottomLeadingRadius: 2,
+      bottomTrailingRadius: 6,
+      topTrailingRadius: 6)
     ZStack(alignment: .leading) {
-      RoundedRectangle(cornerRadius: 6)
+      coverShape
         .fill(color)
       Rectangle()
         .fill(edgeColor)
@@ -980,7 +985,7 @@ struct NotebookCoverArt<Page: View>: View {
       }
       .padding(title == nil ? 6 : 10)
     }
-    .clipShape(RoundedRectangle(cornerRadius: 6))
+    .clipShape(coverShape)
     .shadow(
       color: NativeTheme.ink.opacity(title == nil ? 0.12 : 0.18),
       radius: title == nil ? 4 : 9,
