@@ -38,6 +38,7 @@ struct ConflictReviewSheet: View {
 
         FlowWrapLayout(horizontalSpacing: 12, verticalSpacing: 8) {
           Button("Cancel", action: onCancel)
+            .frame(minWidth: 44, minHeight: 44)
             .fixedSize()
           Button(
             request.conflict.originalBytes == nil
@@ -46,6 +47,7 @@ struct ConflictReviewSheet: View {
           ) {
             onChoice(.original)
           }
+          .frame(minWidth: 44, minHeight: 44)
           .fixedSize()
           Button(
             request.conflict.originalBytes == nil
@@ -54,6 +56,7 @@ struct ConflictReviewSheet: View {
           ) {
             onChoice(.copy)
           }
+          .frame(minWidth: 44, minHeight: 44)
           .fixedSize()
           if request.conflict.page
             && request.conflict.originalBytes != nil
@@ -62,6 +65,7 @@ struct ConflictReviewSheet: View {
               onChoice(.both)
             }
             .buttonStyle(.borderedProminent)
+            .frame(minWidth: 44, minHeight: 44)
             .fixedSize()
           }
         }
