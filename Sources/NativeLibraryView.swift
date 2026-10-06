@@ -1090,7 +1090,7 @@ struct LibraryTagChips: View {
 
   var body: some View {
     if !tags.isEmpty {
-      FlowWrapLayout(horizontalSpacing: 8, verticalSpacing: 4) {
+      FlowWrapLayout(horizontalSpacing: 8, verticalSpacing: 0) {
         ForEach(tags, id: \.self) { tag in
           HStack(spacing: 4) {
             Circle()
