@@ -828,6 +828,7 @@ struct ContentView: View {
                 .padding(.vertical, 7)
             }
             .buttonStyle(.plain)
+            .frame(minHeight: 44)
             .accessibilityLabel(note.reference.name)
             .accessibilityAddTraits(selected ? .isSelected : [])
 
@@ -837,7 +838,8 @@ struct ContentView: View {
               Image(systemName: "xmark")
                 .font(.system(size: 14))
                 .foregroundStyle(NativeTheme.graphite)
-                .padding(7)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Close \(note.reference.name)")
