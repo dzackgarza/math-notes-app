@@ -9,6 +9,7 @@ struct PencilSampleValues: Equatable {
   var altitude: Float
   var azimuth: Float
   var roll: Float
+  var hoverHeight: Float
   var has: UInt32
   var phase: UInt8
 }
@@ -30,6 +31,7 @@ struct PencilSampleFactory {
       altitude: Float(touch.altitudeAngle),
       azimuth: Float(touch.azimuthAngle(in: view)),
       roll: Float(touch.rollAngle),
+      hoverHeight: 0,
       has: pencilCapabilities,
       phase: phase(for: touch.phase))
   }
@@ -42,8 +44,30 @@ struct PencilSampleFactory {
       altitude: 0,
       azimuth: 0,
       roll: 0,
+      hoverHeight: 0,
       has: 0,
       phase: phase(for: touch.phase))
+  }
+
+  static func hoverValues(
+    location: CGPoint,
+    timeMs: Double,
+    altitude: CGFloat,
+    azimuth: CGFloat,
+    roll: CGFloat,
+    hoverHeight: CGFloat
+  ) -> PencilSampleValues {
+    PencilSampleValues(
+      location: location,
+      timeMs: timeMs,
+      pressure: 0,
+      altitude: Float(altitude),
+      azimuth: Float(azimuth),
+      roll: Float(roll),
+      hoverHeight: Float(min(max(hoverHeight, 0), 1)),
+      has: UInt32(INK_HAS_ALTITUDE) | UInt32(INK_HAS_AZIMUTH) |
+        UInt32(INK_HAS_ROLL) | UInt32(INK_HAS_HOVER_HEIGHT),
+      phase: UInt8(INK_PHASE_HOVER.rawValue))
   }
 
   private static func phase(for phase: UITouch.Phase) -> UInt8 {
@@ -70,7 +94,7 @@ struct PencilSampleFactory {
     sample.altitude = values.altitude
     sample.azimuth = values.azimuth
     sample.roll = values.roll
-    sample.hover_height = 0
+    sample.hover_height = values.hoverHeight
     sample.buttons = 0
     sample.has = values.has
     sample.id = id

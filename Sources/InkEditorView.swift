@@ -1165,6 +1165,12 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
 
     switch recognizer.state {
     case .began, .changed:
+      canvasView.sendPencilHover(
+        location: recognizer.location(in: canvasView),
+        altitude: recognizer.altitudeAngle,
+        azimuth: recognizer.azimuthAngle(in: canvasView),
+        roll: recognizer.rollAngle,
+        hoverHeight: recognizer.zOffset)
       let settings: InkToolSettings
       switch appliedTool {
       case .pen:

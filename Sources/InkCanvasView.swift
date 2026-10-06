@@ -227,6 +227,28 @@ final class InkCanvasView: UIView {
     onInteractionChanged(touch.location(in: self))
   }
 
+  func sendPencilHover(
+    location: CGPoint,
+    altitude: CGFloat,
+    azimuth: CGFloat,
+    roll: CGFloat,
+    hoverHeight: CGFloat
+  ) {
+    guard !drawingSuppressed, let canvas else { return }
+    let id = sampleIDs.issue(estimationIndex: nil, trackEstimate: false)
+    var sample = PencilSampleFactory.make(
+      values: PencilSampleFactory.hoverValues(
+        location: location,
+        timeMs: ProcessInfo.processInfo.systemUptime * 1000,
+        altitude: altitude,
+        azimuth: azimuth,
+        roll: roll,
+        hoverHeight: hoverHeight),
+      id: id,
+      predicted: false)
+    check(ink_input(canvas, &sample, 1), operation: "ink_input")
+  }
+
   override func touchesEstimatedPropertiesUpdated(_ touches: Set<UITouch>) {
     guard !drawingSuppressed, let canvas else { return }
 
