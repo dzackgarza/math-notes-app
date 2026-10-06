@@ -7,6 +7,8 @@ import UniformTypeIdentifiers
 
 private let notebookSelectionDragType = UTType(
   exportedAs: "dev.zack.mathnotes.selection-drag")
+let notebookSelectionCopyDragType = UTType(
+  exportedAs: "dev.zack.mathnotes.selection-copy-drag")
 let notebookClippingDragType = UTType(
   exportedAs: "dev.zack.mathnotes.clipping-drag")
 
@@ -36,6 +38,18 @@ private struct NotebookEditorDropDelegate: DropDelegate {
     if let provider = info.itemProviders(for: [notebookSelectionDragType]).first {
       provider.loadDataRepresentation(
         forTypeIdentifier: notebookSelectionDragType.identifier
+      ) { data, _ in
+        guard let data, let svg = String(data: data, encoding: .utf8) else { return }
+        Task { @MainActor in
+          _ = onDropSelection(svg, location)
+        }
+      }
+      return true
+    }
+
+    if let provider = info.itemProviders(for: [notebookSelectionCopyDragType]).first {
+      provider.loadDataRepresentation(
+        forTypeIdentifier: notebookSelectionCopyDragType.identifier
       ) { data, _ in
         guard let data, let svg = String(data: data, encoding: .utf8) else { return }
         Task { @MainActor in
@@ -624,14 +638,14 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     do {
       guard let svg = try canvasView.copySelection(), !svg.isEmpty else { return [] }
       let provider = NSItemProvider(object: svg as NSString)
-      if !copyHandle {
-        provider.registerDataRepresentation(
-          forTypeIdentifier: notebookSelectionDragType.identifier,
-          visibility: .ownProcess
-        ) { completion in
-          completion(Data(svg.utf8), nil)
-          return nil
-        }
+      provider.registerDataRepresentation(
+        forTypeIdentifier: copyHandle
+          ? notebookSelectionCopyDragType.identifier
+          : notebookSelectionDragType.identifier,
+        visibility: .ownProcess
+      ) { completion in
+        completion(Data(svg.utf8), nil)
+        return nil
       }
       return [UIDragItem(itemProvider: provider)]
     } catch {
@@ -2064,7 +2078,10 @@ struct InkEditorView: View {
       }
     }
     .onDrop(
-      of: [notebookSelectionDragType, notebookClippingDragType, .plainText],
+      of: [
+        notebookSelectionDragType, notebookSelectionCopyDragType,
+        notebookClippingDragType, .plainText,
+      ],
       delegate: NotebookEditorDropDelegate(
         canDrop: { !drawing },
         onFocus: onFocus,

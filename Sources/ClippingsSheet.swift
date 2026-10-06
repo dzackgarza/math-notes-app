@@ -165,16 +165,26 @@ struct ClippingsSheet: View {
       }
     }
     .frame(width: 240)
-    .dropDestination(
-      for: String.self,
-      action: { values, _ in
-        guard availability.canAcceptDrop,
-          let svg = values.first, svg.contains("<svg"), onSave(svg)
-        else { return false }
-        if let refreshed = onRefresh() { items = refreshed }
-        return true
-      },
-      isTargeted: { dropTargeted = $0 })
+    .onDrop(
+      of: [notebookSelectionCopyDragType],
+      isTargeted: $dropTargeted
+    ) { providers in
+      guard availability.canAcceptDrop, let provider = providers.first else {
+        return false
+      }
+      provider.loadDataRepresentation(
+        forTypeIdentifier: notebookSelectionCopyDragType.identifier
+      ) { data, _ in
+        guard let data, let svg = String(data: data, encoding: .utf8),
+          svg.contains("<svg")
+        else { return }
+        Task { @MainActor in
+          guard onSave(svg) else { return }
+          if let refreshed = onRefresh() { items = refreshed }
+        }
+      }
+      return true
+    }
     .background(
       dropTargeted && availability.canAcceptDrop
         ? NativeTheme.selectedFill
