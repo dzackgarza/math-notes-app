@@ -497,7 +497,6 @@ struct NativeLibraryView: View {
         }
       }
 
-      Spacer(minLength: 8)
       sidebarRow("Settings", systemImage: "gearshape", selected: false) {
         showSettings()
       }
