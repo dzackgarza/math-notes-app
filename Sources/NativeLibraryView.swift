@@ -938,17 +938,20 @@ struct LibraryThumbnail: View {
 @MainActor
 struct NotebookCoverArt<Page: View>: View {
   let color: Color
+  let edgeColor: Color
   let style: String
   let title: String?
   let page: Page
 
   init(
     color: Color,
+    edgeColor: Color,
     style: String,
     title: String?,
     @ViewBuilder page: () -> Page
   ) {
     self.color = color
+    self.edgeColor = edgeColor
     self.style = style
     self.title = title
     self.page = page()
@@ -959,7 +962,7 @@ struct NotebookCoverArt<Page: View>: View {
       RoundedRectangle(cornerRadius: 6)
         .fill(color)
       Rectangle()
-        .fill(color.opacity(0.55))
+        .fill(edgeColor)
         .frame(width: style == "spine" ? 12 : 4)
       VStack(spacing: title == nil ? 0 : 10) {
         page
@@ -999,6 +1002,7 @@ struct LibraryNotebookCover: View {
   var body: some View {
     NotebookCoverArt(
       color: coverColor,
+      edgeColor: NativeTheme.coverEdge(item.details.coverColor),
       style: item.details.coverStyle,
       title: titled ? item.reference.name : nil
     ) {

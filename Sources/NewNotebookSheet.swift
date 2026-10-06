@@ -95,6 +95,7 @@ struct NewNotebookSheet: View {
       } preview: {
         NotebookCoverArt(
           color: NativeTheme.color(form.coverColor),
+          edgeColor: NativeTheme.coverEdge(form.coverColor),
           style: form.coverStyle,
           title: form.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? "Untitled notebook"

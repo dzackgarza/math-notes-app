@@ -54,6 +54,18 @@ enum NativeTheme {
       green: Double((rgb >> 8) & 0xFF) / 255,
       blue: Double(rgb & 0xFF) / 255)
   }
+
+  static func coverEdge(_ value: String) -> Color {
+    let hex = value.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+    guard hex.count == 6, let rgb = UInt64(hex, radix: 16) else { return ink }
+    let inkRGB: UInt64 = 0x1C2430
+    func mixed(_ shift: UInt64) -> Double {
+      let cover = Double((rgb >> shift) & 0xFF)
+      let ink = Double((inkRGB >> shift) & 0xFF)
+      return (cover * 0.65 + ink * 0.35) / 255
+    }
+    return Color(red: mixed(16), green: mixed(8), blue: mixed(0))
+  }
 }
 
 private struct NativeFieldSurface: ViewModifier {
