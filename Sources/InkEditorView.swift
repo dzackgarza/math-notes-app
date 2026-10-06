@@ -75,6 +75,10 @@ private struct NotebookEditorDropDelegate: DropDelegate {
   }
 }
 
+func alignmentFeedbackNeeded(previous: Int?, current: Int) -> Bool {
+  previous != current
+}
+
 struct PencilPreferredActionResult: Equatable {
   var tool: EditorTool
   var previousTool: EditorTool?
@@ -159,8 +163,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private lazy var canvasView = InkCanvasView(
     document: document,
     onInteractionBegan: { [weak self] in
-      self?.onFocusRequested()
-      self?.becomeFirstResponder()
+      self?.canvasInteractionBegan()
     },
     onInteractionChanged: { [weak self] point in self?.canvasInteractionChanged(at: point) },
     onInteractionEnded: { [weak self] in self?.canvasInteractionEnded() },
@@ -860,18 +863,23 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     }
   }
 
+  private func canvasInteractionBegan() {
+    onFocusRequested()
+    becomeFirstResponder()
+    lastAlignmentStep = nil
+    canvasFeedback?.prepare()
+  }
+
   private func canvasInteractionChanged(at point: CGPoint) {
     do {
       guard let step = try canvasView.alignmentStep() else {
         lastAlignmentStep = nil
         return
       }
-      if let previous = lastAlignmentStep, previous != step {
+      if alignmentFeedbackNeeded(previous: lastAlignmentStep, current: step) {
         canvasFeedback?.alignmentOccurred(at: point)
-      } else if lastAlignmentStep == nil {
-        canvasFeedback?.prepare()
+        lastAlignmentStep = step
       }
-      lastAlignmentStep = step
     } catch {
       lastAlignmentStep = nil
       onError(error)
