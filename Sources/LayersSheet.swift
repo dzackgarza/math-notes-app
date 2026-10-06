@@ -44,7 +44,7 @@ struct LayersSheet: View {
             .disabled(layer.hidden || layer.locked)
             .accessibilityAddTraits(activeLayerID == layer.id ? .isSelected : [])
 
-            HStack {
+            FlowWrapLayout(horizontalSpacing: 8, verticalSpacing: 4) {
               Button("Rename") {
                 layerName = layer.name
                 namingLayerID = layer.id
@@ -75,7 +75,7 @@ struct LayersSheet: View {
             }
             .buttonStyle(.borderless)
 
-            HStack {
+            FlowWrapLayout(horizontalSpacing: 8, verticalSpacing: 4) {
               Button("Up") {
                 mutate { try document.moveLayer(from: index, to: index + 1) }
               }
