@@ -82,6 +82,7 @@ struct PageOverviewSheet: View {
           .clipShape(RoundedRectangle(cornerRadius: 4))
       }
       .buttonStyle(.plain)
+      .hoverEffect(.highlight)
       .accessibilityLabel("Page \(index + 1)")
       .accessibilityAddTraits(pageCount > 1 && index == currentPage ? .isSelected : [])
       .draggable(String(index))
