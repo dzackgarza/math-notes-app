@@ -106,9 +106,10 @@ struct NativeLibraryView: View {
         }
       } else if grid {
         ScrollView {
-          VStack(alignment: .leading, spacing: 12) {
+          VStack(alignment: .leading, spacing: 0) {
             if let details = visibleFolderDetails {
               folderMetadataHeader(details)
+                .padding(.bottom, 16)
             }
             if !listing.folders.isEmpty {
               librarySectionHeading(count: listing.folders.count, noun: "notebook")
@@ -120,10 +121,10 @@ struct NativeLibraryView: View {
                   folderCard(item)
                 }
               }
+              .padding(.bottom, 24)
             }
             if !listing.notebooks.isEmpty {
               librarySectionHeading(count: listing.notebooks.count, noun: "note")
-                .padding(.top, listing.folders.isEmpty ? 0 : 8)
               LazyVGrid(
                 columns: [GridItem(.adaptive(minimum: 170, maximum: 220), spacing: 20)],
                 spacing: 24
@@ -132,6 +133,7 @@ struct NativeLibraryView: View {
                   notebookCard(item)
                 }
               }
+              .padding(.bottom, 24)
             }
           }
           .padding(20)
@@ -241,6 +243,8 @@ struct NativeLibraryView: View {
     Text(libraryCountLabel(count, noun: noun))
       .font(NativeTheme.callout)
       .foregroundStyle(NativeTheme.graphite)
+      .padding(.top, 8)
+      .padding(.bottom, 12)
   }
 
   private var libraryHeading: String {
