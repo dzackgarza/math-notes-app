@@ -92,6 +92,8 @@ struct ClippingsSheet: View {
               }
             }
             .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .contentShape(Rectangle())
             .disabled(!availability.canInsert)
             .draggable(item.id)
             .accessibilityLabel("Insert clipping \(item.index + 1)")
