@@ -1038,6 +1038,7 @@ struct ContentView: View {
         }
       }
       .disabled(!availability.pageMutation)
+      Divider()
       Button("Select page", systemImage: "square.dashed") {
         editorPageCommand = .select(currentPage)
       }
