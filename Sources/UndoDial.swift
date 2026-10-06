@@ -46,7 +46,7 @@ struct UndoDialButton: View {
       .font(.system(size: 22))
       .frame(width: buttonSize, height: buttonSize)
       .contentShape(Rectangle())
-      .foregroundStyle(Color.primary)
+      .foregroundStyle(isEnabled ? NativeTheme.ink : NativeTheme.tertiary)
       .background(Color.clear, in: RoundedRectangle(cornerRadius: 10))
       .overlay {
         if active {
