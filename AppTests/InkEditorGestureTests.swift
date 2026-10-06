@@ -5,6 +5,15 @@ import XCTest
 
 @MainActor
 final class InkEditorGestureTests: XCTestCase {
+  func testModeBannerAccessibilityCombinesBookmarkHint() {
+    XCTAssertEqual(
+      modeBannerAccessibilityLabel(mode: "Add bookmark", showsBookmarkHint: true),
+      "Add bookmark\nTap the line to mark.")
+    XCTAssertEqual(
+      modeBannerAccessibilityLabel(mode: "Follow links", showsBookmarkHint: false),
+      "Follow links")
+  }
+
   func testPageCounterTextIsOneBasedAndClamped() {
     XCTAssertEqual(editorPageCounterText(currentPage: 0, pageCount: 3), "1 / 3")
     XCTAssertEqual(editorPageCounterText(currentPage: 2, pageCount: 3), "3 / 3")

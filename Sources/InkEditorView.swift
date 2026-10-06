@@ -1734,6 +1734,10 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   }
 }
 
+func modeBannerAccessibilityLabel(mode: String, showsBookmarkHint: Bool) -> String {
+  showsBookmarkHint ? "\(mode)\nTap the line to mark." : mode
+}
+
 func editorPageCounterText(currentPage: Int, pageCount: Int) -> String {
   let total = max(1, pageCount)
   let page = min(max(currentPage, 0), total - 1)
@@ -1936,13 +1940,17 @@ struct InkEditorView: View {
 
       if let mode = modeBannerLabel {
         HStack(spacing: 10) {
-          Text(mode)
-            .font(NativeTheme.subhead)
-          if bookmarkMode && !drawing {
-            Text("Tap the line to mark.")
-              .font(NativeTheme.callout)
-              .foregroundStyle(NativeTheme.graphite)
+          HStack(spacing: 10) {
+            Text(mode)
+              .font(NativeTheme.subhead)
+            if bookmarkMode && !drawing {
+              Text("Tap the line to mark.")
+                .font(NativeTheme.callout)
+                .foregroundStyle(NativeTheme.graphite)
+            }
           }
+          .accessibilityElement(children: .ignore)
+          .accessibilityLabel(modeBannerAccessibilityLabel(mode: mode, showsBookmarkHint: bookmarkMode && !drawing))
           if drawing {
             Button("Complete") {
               toggleDrawingMode()
