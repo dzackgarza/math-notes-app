@@ -913,11 +913,10 @@ struct LibraryThumbnail: View {
     .overlay(alignment: .topTrailing) {
       if item.conflicts > 0 {
         Image(systemName: "exclamationmark.triangle.fill")
-          .font(.system(size: 14))
+          .font(.system(size: 18))
           .foregroundStyle(NativeTheme.warning)
           .padding(4)
           .background(NativeTheme.board, in: Circle())
-          .padding(4)
           .accessibilityLabel("Conflicting versions")
       }
     }
@@ -1040,11 +1039,10 @@ struct LibraryNotebookCover: View {
       .overlay(alignment: .topTrailing) {
         if thumbnailConflicts {
           Image(systemName: "exclamationmark.triangle.fill")
-            .font(.system(size: 14))
+            .font(.system(size: 18))
             .foregroundStyle(NativeTheme.warning)
             .padding(4)
             .background(NativeTheme.board, in: Circle())
-            .padding(4)
             .accessibilityLabel("Conflicting versions")
         }
       }
