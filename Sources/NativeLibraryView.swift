@@ -437,12 +437,13 @@ struct NativeLibraryView: View {
   }
 
   private var librarySidebar: some View {
-    VStack(alignment: .leading, spacing: 4) {
+    VStack(alignment: .leading, spacing: 0) {
       Text("Math Notes")
         .font(NativeTheme.title)
         .foregroundStyle(NativeTheme.ink)
-        .padding(.horizontal, 10)
-        .padding(.bottom, 8)
+        .padding(.horizontal, 12)
+        .padding(.top, 4)
+        .padding(.bottom, 16)
 
       sidebarRow(
         "Library",
@@ -477,12 +478,16 @@ struct NativeLibraryView: View {
         Text("Tags")
           .font(NativeTheme.footnote)
           .foregroundStyle(NativeTheme.graphite)
-          .padding(.horizontal, 10)
-          .padding(.top, 12)
+          .padding(.horizontal, 12)
+          .padding(.top, 20)
+          .padding(.bottom, 4)
+      } else {
+        Color.clear
+          .frame(height: 12)
       }
 
       ScrollView {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 0) {
           ForEach(tags) { tag in
             sidebarTagRow(tag)
           }
@@ -498,7 +503,8 @@ struct NativeLibraryView: View {
       }
     }
     .padding(.horizontal, 12)
-    .padding(.vertical, 16)
+    .padding(.top, 16)
+    .padding(.bottom, 12)
     .frame(width: 220)
     .frame(maxHeight: .infinity, alignment: .topLeading)
     .background(NativeTheme.board)
@@ -528,7 +534,7 @@ struct NativeLibraryView: View {
         }
       }
       .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-      .padding(.horizontal, 10)
+      .padding(.horizontal, 12)
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
@@ -559,7 +565,7 @@ struct NativeLibraryView: View {
           .foregroundStyle(NativeTheme.graphite)
       }
       .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-      .padding(.horizontal, 10)
+      .padding(.horizontal, 12)
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
