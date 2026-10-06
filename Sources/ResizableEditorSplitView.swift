@@ -103,7 +103,7 @@ struct ResizableEditorSplitView<Primary: View, Secondary: View>: View {
   }
 
   private static var dividerThickness: CGFloat { 12 }
-  private static var minimumFraction: Double { 0.2 }
-  private static var maximumFraction: Double { 0.8 }
+  private static var minimumFraction: Double { 0.0 }
+  private static var maximumFraction: Double { 1.0 }
   private static var coordinateSpace: String { "editor-split" }
 }
