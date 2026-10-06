@@ -573,6 +573,12 @@ struct ContentView: View {
             undoDeletedPage(toast)
           }
         }
+        .accessibilityElement(children: .contain)
+        .onAppear {
+          UIAccessibility.post(
+            notification: .announcement,
+            argument: "Page \(toast.number) deleted")
+        }
         .padding(.leading, 16)
         .padding(.trailing, 8)
         .padding(.vertical, 6)
