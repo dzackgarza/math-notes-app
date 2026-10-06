@@ -2084,19 +2084,10 @@ struct ContentView: View {
   @discardableResult
   private func applyPendingLink(_ href: String) -> Bool {
     guard let pending = pendingLink else { return false }
-    do {
-      _ = try NotebookLink.resolve(
-        source: pending.sourceReference,
-        sourceFile: pending.sourceFile,
-        href: href)
-      pending.viewState.editorPageCommand = .linkSelection(href)
-      pendingLink = nil
-      bookmarkPickerPurpose = .navigate
-      return true
-    } catch {
-      errorMessage = error.localizedDescription
-      return false
-    }
+    pending.viewState.editorPageCommand = .linkSelection(href)
+    pendingLink = nil
+    bookmarkPickerPurpose = .navigate
+    return true
   }
 
   private func followLink(
