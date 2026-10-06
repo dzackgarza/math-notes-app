@@ -1640,9 +1640,11 @@ final class NotesRootAccess {
     }
     let recovery = try recoveryRecord(for: reference)
     let effectiveStamp: String
-    if let recovery {
-      let recoveryBytes = try Data(contentsOf: recovery.file)
-      effectiveStamp = "\(stamp)\nrecovery:\(Self.stableCacheKey(recoveryBytes))"
+    if let recovery,
+      let recoveryStamp = try Self.thumbnailRecoveryStamp(
+        at: notebookURL, record: recovery.record)
+    {
+      effectiveStamp = "\(stamp)\nrecovery:\(recoveryStamp)"
     } else {
       effectiveStamp = stamp
     }
@@ -3028,6 +3030,92 @@ final class NotesRootAccess {
         references.append(href)
       }
     }
+  }
+
+  private static func thumbnailRecoveryStamp(
+    at notebookURL: URL,
+    record: NotebookRecoveryRecord
+  ) throws -> String? {
+    let changes = Dictionary(uniqueKeysWithValues: record.changes.map { ($0.path, $0) })
+    let indexURL = notebookURL.appendingPathComponent("notebook.json")
+    guard let diskIndexData = try dataIfPresent(at: indexURL) else { return nil }
+    let diskIndex = try JSONDecoder().decode(NotebookIndex.self, from: diskIndexData)
+    let recoveredIndexData: Data?
+    if let indexChange = changes["notebook.json"] {
+      switch indexChange.kind {
+      case .write: recoveredIndexData = indexChange.data
+      case .delete: recoveredIndexData = nil
+      }
+    } else {
+      recoveredIndexData = diskIndexData
+    }
+    guard let recoveredIndexData else {
+      return diskIndex.pages?.first?.file == nil ? nil : "missing-index"
+    }
+    let recoveredIndex = try JSONDecoder().decode(NotebookIndex.self, from: recoveredIndexData)
+    let diskFirst = diskIndex.pages?.first?.file
+    guard let first = recoveredIndex.pages?.first?.file else {
+      return diskFirst == nil ? nil : "missing-first-page"
+    }
+
+    var relevant = first != diskFirst
+    let pageURL = first.split(separator: "/").reduce(notebookURL) { partial, component in
+      partial.appendingPathComponent(String(component))
+    }
+    let pageData: Data?
+    if let pageChange = changes[first] {
+      relevant = true
+      switch pageChange.kind {
+      case .write: pageData = pageChange.data
+      case .delete: pageData = nil
+      }
+    } else {
+      pageData = try dataIfPresent(at: pageURL)
+    }
+    guard let pageData else { return relevant ? "first-page-missing" : nil }
+
+    var parts: [String] = ["first:\(first)"]
+    if let pageChange = changes[first] {
+      switch pageChange.kind {
+      case let .write(data):
+        parts.append("page:\(stableCacheKey(data ?? Data()))")
+      case .delete:
+        parts.append("page:deleted")
+      }
+    } else {
+      parts.append(try fileStamp(path: first, url: pageURL))
+    }
+
+    let imageParser = PageImageParser()
+    let parser = XMLParser(data: pageData)
+    parser.delegate = imageParser
+    parser.shouldResolveExternalEntities = false
+    _ = parser.parse()
+    let pageDirectory = pageURL.deletingLastPathComponent()
+    let rootPath = notebookURL.standardizedFileURL.path
+    var seen: Set<String> = []
+    for href in imageParser.references {
+      guard let components = URLComponents(string: href), components.scheme == nil,
+        let resolved = URL(string: href, relativeTo: pageDirectory)?.standardizedFileURL
+      else { continue }
+      let assetPath = resolved.path
+      guard assetPath.hasPrefix(rootPath + "/") else { continue }
+      let relative = String(assetPath.dropFirst(rootPath.count + 1))
+      guard seen.insert(relative).inserted else { continue }
+      if let assetChange = changes[relative] {
+        relevant = true
+        switch assetChange.kind {
+        case let .write(data):
+          parts.append("\(relative):\(stableCacheKey(data ?? Data()))")
+        case .delete:
+          parts.append("\(relative):deleted")
+        }
+      } else if FileManager.default.fileExists(atPath: resolved.path) {
+        parts.append(try fileStamp(path: relative, url: resolved))
+      }
+    }
+    guard relevant else { return nil }
+    return stableCacheKey(parts.sorted().joined(separator: "\n"))
   }
 
   private static func thumbnailStamp(at notebookURL: URL) throws -> String? {

@@ -1231,7 +1231,7 @@ final class NotebookStorageTests: XCTestCase {
   }
 
   @MainActor
-  func testThumbnailCacheKeyIncludesPendingRecovery() throws {
+  func testThumbnailCacheIgnoresRecoveryOutsideTheFirstPage() throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     let cache = FileManager.default.temporaryDirectory
@@ -1262,10 +1262,53 @@ final class NotebookStorageTests: XCTestCase {
     let after = try FileManager.default.subpathsOfDirectory(atPath: cache.path)
       .filter { $0.hasSuffix(".png") }
     XCTAssertEqual(after.count, 1)
-    XCTAssertNotEqual(after, before)
+    XCTAssertEqual(after, before)
     XCTAssertEqual(
       try relaunched.load(reference).pageSize().orientation,
       INK_LANDSCAPE)
+  }
+
+  @MainActor
+  func testThumbnailCacheKeyIncludesRecoveredFirstPageEdit() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let cache = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+      try? FileManager.default.removeItem(at: directory)
+      try? FileManager.default.removeItem(at: cache)
+    }
+
+    let root = NotesRootAccess(testURL: directory, thumbnailCacheURL: cache)
+    let (reference, document) = try root.createNote(
+      title: "Recovered first page",
+      parent: FolderReference(path: []),
+      template: "blank",
+      pageSize: INK_PAGE_A4,
+      orientation: INK_PORTRAIT)
+    XCTAssertNotNil(try root.thumbnail(reference))
+    let before = try FileManager.default.subpathsOfDirectory(atPath: cache.path)
+      .filter { $0.hasSuffix(".png") }
+    XCTAssertEqual(before.count, 1)
+
+    let canvas = InkCanvasView(document: document)
+    canvas.frame = CGRect(x: 0, y: 0, width: 1024, height: 1024)
+    canvas.layoutIfNeeded()
+    canvas.setViewTransform(.identity)
+    let page = try document.pageRect(index: 0)
+    try canvas.editText(
+      EngineTextProperties(content: "pending", width: 144, rtl: false),
+      at: CGPoint(x: page.minX + 72, y: page.minY + 72),
+      existing: false)
+    try root.checkpointRecovery(document, notebook: reference)
+
+    let relaunched = NotesRootAccess(testURL: directory, thumbnailCacheURL: cache)
+    XCTAssertNotNil(try relaunched.thumbnail(reference))
+    let after = try FileManager.default.subpathsOfDirectory(atPath: cache.path)
+      .filter { $0.hasSuffix(".png") }
+    XCTAssertEqual(after.count, 1)
+    XCTAssertNotEqual(after, before)
   }
 
   @MainActor
