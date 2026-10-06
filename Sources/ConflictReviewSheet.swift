@@ -36,9 +36,9 @@ struct ConflictReviewSheet: View {
           rightSummary: request.conflict.rightSummary)
           .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-        HStack(spacing: 12) {
+        FlowWrapLayout(horizontalSpacing: 12, verticalSpacing: 8) {
           Button("Cancel", action: onCancel)
-          Spacer()
+            .fixedSize()
           Button(
             request.conflict.originalBytes == nil
               ? "Keep deletion"
@@ -46,6 +46,7 @@ struct ConflictReviewSheet: View {
           ) {
             onChoice(.original)
           }
+          .fixedSize()
           Button(
             request.conflict.originalBytes == nil
               ? "Restore conflict copy"
@@ -53,6 +54,7 @@ struct ConflictReviewSheet: View {
           ) {
             onChoice(.copy)
           }
+          .fixedSize()
           if request.conflict.page
             && request.conflict.originalBytes != nil
           {
@@ -60,8 +62,10 @@ struct ConflictReviewSheet: View {
               onChoice(.both)
             }
             .buttonStyle(.borderedProminent)
+            .fixedSize()
           }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
       }
       .padding(16)
       .frame(maxWidth: .infinity, maxHeight: .infinity)

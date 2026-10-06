@@ -13,7 +13,7 @@ struct EditableTagEditor: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       if !tags.isEmpty {
-        TagWrapLayout(horizontalSpacing: 8, verticalSpacing: 4) {
+        FlowWrapLayout(horizontalSpacing: 8, verticalSpacing: 4) {
           ForEach(tags, id: \.self) { tag in
             Button {
               tags.removeAll { $0 == tag }

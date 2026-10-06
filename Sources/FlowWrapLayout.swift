@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct TagWrapLayout: Layout {
+struct FlowWrapLayout: Layout {
   let horizontalSpacing: CGFloat
   let verticalSpacing: CGFloat
 
