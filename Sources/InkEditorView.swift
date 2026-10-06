@@ -75,6 +75,42 @@ private struct NotebookEditorDropDelegate: DropDelegate {
   }
 }
 
+struct PencilPreferredActionResult: Equatable {
+  var tool: EditorTool
+  var previousTool: EditorTool?
+  var paletteAnchor: CGPoint?
+}
+
+func applyPreferredPencilAction(
+  _ action: UIPencilPreferredAction,
+  tool: EditorTool,
+  previousTool: EditorTool?,
+  point: CGPoint?
+) -> PencilPreferredActionResult {
+  var result = PencilPreferredActionResult(
+    tool: tool, previousTool: previousTool, paletteAnchor: nil)
+  switch action {
+  case .switchEraser:
+    if tool == .eraser, let previousTool, previousTool != .eraser {
+      result.tool = previousTool
+      result.previousTool = tool
+    } else if tool != .eraser {
+      result.tool = .eraser
+      result.previousTool = tool
+    }
+  case .switchPrevious:
+    if let previousTool, previousTool != tool {
+      result.tool = previousTool
+      result.previousTool = tool
+    }
+  case .showColorPalette, .showContextualPalette:
+    result.paletteAnchor = point ?? CGPoint(x: 88, y: 88)
+  default:
+    break
+  }
+  return result
+}
+
 enum EditorPageCommand: Equatable {
   case select(Int)
   case clear(Int)
@@ -2142,26 +2178,12 @@ struct InkEditorView: View {
   }
 
   private func applyPencilAction(_ action: UIPencilPreferredAction, at point: CGPoint?) {
-    switch action {
-    case .switchEraser:
-      if tool == .eraser, let previousPencilTool, previousPencilTool != .eraser {
-        let current = tool
-        tool = previousPencilTool
-        self.previousPencilTool = current
-      } else if tool != .eraser {
-        let current = tool
-        tool = .eraser
-        previousPencilTool = current
-      }
-    case .switchPrevious:
-      guard let previousPencilTool, previousPencilTool != tool else { return }
-      let current = tool
-      tool = previousPencilTool
-      self.previousPencilTool = current
-    case .showColorPalette, .showContextualPalette:
-      pencilPaletteAnchor = point ?? CGPoint(x: 88, y: 88)
-    default:
-      break
+    let result = applyPreferredPencilAction(
+      action, tool: tool, previousTool: previousPencilTool, point: point)
+    tool = result.tool
+    previousPencilTool = result.previousTool
+    if let paletteAnchor = result.paletteAnchor {
+      pencilPaletteAnchor = paletteAnchor
     }
   }
 
