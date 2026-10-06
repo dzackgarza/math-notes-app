@@ -2109,8 +2109,19 @@ final class NotesRootAccess {
     }
   }
 
-  private static func conflictCount(at notebookURL: URL) throws -> Int {
-    let data = try Data(contentsOf: notebookURL.appendingPathComponent("notebook.json"))
+  private static func conflictCount(
+    at notebookURL: URL,
+    recoveredNotebookJSON: Data? = nil
+  ) throws -> Int {
+    let indexURL = notebookURL.appendingPathComponent("notebook.json")
+    let data: Data
+    if FileManager.default.fileExists(atPath: indexURL.path) {
+      data = try Data(contentsOf: indexURL)
+    } else if let recoveredNotebookJSON {
+      data = recoveredNotebookJSON
+    } else {
+      data = try Data(contentsOf: indexURL)
+    }
     let index = try JSONDecoder().decode(NotebookIndex.self, from: data)
     let pages = (index.pages ?? []).map(\.file)
     let named = try namedConflicts(at: notebookURL, listedPages: pages).count
@@ -2140,8 +2151,16 @@ final class NotesRootAccess {
 
   func conflictCount(_ reference: NotebookReference) throws -> Int {
     let notebookURL = urlForNotebook(reference)
+    let recovery = try recoveryRecord(for: reference)
+    let recoveredNotebookJSON = recovery?.record.changes.first {
+      $0.path == "notebook.json" && $0.kind == .write
+    }?.data
     return try coordinatedRead(at: notebookURL) { coordinatedNotebook in
-      try combinedConflictCount(reference, at: coordinatedNotebook)
+      let stored = try Self.conflictCount(
+        at: coordinatedNotebook,
+        recoveredNotebookJSON: recoveredNotebookJSON)
+      let pending = try pendingDeleteConflictCount(reference, at: coordinatedNotebook)
+      return stored + pending
     }
   }
 

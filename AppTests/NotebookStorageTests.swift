@@ -845,6 +845,7 @@ final class NotebookStorageTests: XCTestCase {
     let relaunched = NotesRootAccess(testURL: directory, recoveryURL: recovery)
     XCTAssertEqual(try relaunched.load(reference).pageCount(), 2)
     XCTAssertTrue(relaunched.hasRecoveredChanges(reference))
+    XCTAssertEqual(try relaunched.conflictCount(reference), 0)
   }
 
   @MainActor
