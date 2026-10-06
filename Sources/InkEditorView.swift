@@ -112,6 +112,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       self?.setPencilStrokeActive(active)
     })
   private let selectionBar = UIStackView()
+  private let pencilHoverIndicator = UIView()
   private var editFigureButton: UIButton?
   private var saveClippingButton: UIButton?
   private var selectionCopyDragHandle: UIButton?
@@ -310,6 +311,16 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       canvasView.bottomAnchor.constraint(equalTo: scrollView.frameLayoutGuide.bottomAnchor),
     ])
     canvasFeedback = UICanvasFeedbackGenerator(view: canvasView)
+
+    pencilHoverIndicator.isHidden = true
+    pencilHoverIndicator.isUserInteractionEnabled = false
+    pencilHoverIndicator.layer.borderWidth = 1.5
+    pencilHoverIndicator.accessibilityElementsHidden = true
+    view.addSubview(pencilHoverIndicator)
+
+    let pencilHover = UIHoverGestureRecognizer(target: self, action: #selector(handlePencilHover))
+    pencilHover.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.pencil.rawValue)]
+    canvasView.addGestureRecognizer(pencilHover)
 
     configureBottomPull()
     configureSelectionBar()
@@ -533,6 +544,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
 
   func setPencilStrokeActive(_ active: Bool) {
     pencilStrokeActive = active
+    if active { pencilHoverIndicator.isHidden = true }
     scrollView.panGestureRecognizer.isEnabled = !active
     scrollView.pinchGestureRecognizer?.isEnabled = !active
     pageLongPress?.isEnabled = !active && !fingerDrawing
@@ -1126,6 +1138,55 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     guard recognizer.state == .ended else { return }
     onFocusRequested()
     onRedo()
+  }
+
+  @objc private func handlePencilHover(_ recognizer: UIHoverGestureRecognizer) {
+    guard hostActive, !pencilStrokeActive else {
+      pencilHoverIndicator.isHidden = true
+      return
+    }
+
+    switch recognizer.state {
+    case .began, .changed:
+      let settings: InkToolSettings
+      switch appliedTool {
+      case .pen:
+        settings = appliedPens.pen
+      case .marker:
+        settings = appliedPens.marker
+      case .highlighter:
+        settings = appliedPens.highlighter
+      default:
+        pencilHoverIndicator.isHidden = true
+        return
+      }
+
+      let rgb = settings.rgb
+      let color = UIColor(
+        red: CGFloat((rgb >> 16) & 0xFF) / 255,
+        green: CGFloat((rgb >> 8) & 0xFF) / 255,
+        blue: CGFloat(rgb & 0xFF) / 255,
+        alpha: 1)
+      let base = min(max(CGFloat(settings.size) * scrollView.zoomScale, 6), 48)
+      let altitude = max(recognizer.altitudeAngle, 0.15)
+      let major = min(max(base / max(sin(altitude), 0.25), base), 48)
+      let location = recognizer.location(in: view)
+
+      pencilHoverIndicator.transform = .identity
+      pencilHoverIndicator.bounds = CGRect(x: 0, y: 0, width: major, height: base)
+      pencilHoverIndicator.center = location
+      pencilHoverIndicator.layer.cornerRadius = base / 2
+      pencilHoverIndicator.layer.borderColor = color.withAlphaComponent(0.85).cgColor
+      pencilHoverIndicator.backgroundColor = color.withAlphaComponent(0.12)
+      pencilHoverIndicator.alpha = 1 - 0.7 * min(max(recognizer.zOffset, 0), 1)
+      pencilHoverIndicator.transform = CGAffineTransform(
+        rotationAngle: recognizer.azimuthAngle(in: view))
+      pencilHoverIndicator.isHidden = false
+    case .ended, .cancelled, .failed:
+      pencilHoverIndicator.isHidden = true
+    default:
+      break
+    }
   }
 
   func pencilInteraction(

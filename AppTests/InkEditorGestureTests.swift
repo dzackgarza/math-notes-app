@@ -96,6 +96,19 @@ final class InkEditorGestureTests: XCTestCase {
       1)
   }
 
+  func testPencilHoverPreviewRejectsPointerHover() throws {
+    let controller = InkEditorViewController(document: EngineDocument(seed: 108))
+    controller.loadViewIfNeeded()
+
+    let hover = try XCTUnwrap(
+      gestureRecognizers(in: controller.view)
+        .compactMap { $0 as? UIHoverGestureRecognizer }
+        .first)
+    XCTAssertEqual(
+      hover.allowedTouchTypes,
+      [NSNumber(value: UITouch.TouchType.pencil.rawValue)])
+  }
+
   func testFittedPageClearsFloatingToolRailAndDeskMargins() throws {
     let document = EngineDocument(seed: 104)
     let controller = InkEditorViewController(document: document)
