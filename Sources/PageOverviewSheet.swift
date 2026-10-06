@@ -70,8 +70,7 @@ struct PageOverviewSheet: View {
           document: document,
           index: index,
           revision: thumbnailRevision)
-          .aspectRatio(0.7, contentMode: .fit)
-          .frame(maxWidth: .infinity)
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
           .background(NativeTheme.paper)
           .overlay {
             RoundedRectangle(cornerRadius: 4)
