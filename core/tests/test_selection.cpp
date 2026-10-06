@@ -182,6 +182,47 @@ TEST_CASE("The lasso selects a stroke more than 90% inside it") {
   CHECK_FALSE(lasso(250));  // 75%
 }
 
+TEST_CASE("A ruled selection move reports its live whole-line alignment step") {
+  ink_test::Session canvas;
+  ink_test::SetTool(canvas.get(), INK_BRUSH_MARKER, 0x1A1A1A, 2);
+  Gesture(canvas.get(), Line({100, 100}, {300, 100}, 20), 0);
+
+  ink_canvas_set_selector(canvas.get(), INK_SELECTOR_RULED, 1);
+  Gesture(canvas.get(), Line({80, 100}, {320, 100}, 8), 1000);
+  InkSelectionInfo info{};
+  REQUIRE(ink_canvas_selection(canvas.get(), &info) == INK_OK);
+  REQUIRE(info.count == 1);
+
+  int32_t active = -1, step = -1;
+  REQUIRE(ink_canvas_alignment_step(canvas.get(), &active, &step) == INK_OK);
+  CHECK(active == 0);
+  CHECK(step == 0);
+
+  InkPenSample begin{.x = info.x + info.width / 2, .y = info.y + info.height / 2,
+                     .time = 2000, .pressure = 0.5f, .tool = INK_TOOL_PEN,
+                     .phase = uint8_t(INK_PHASE_BEGIN)};
+  REQUIRE(ink_input(canvas.get(), &begin, 1) == INK_OK);
+  REQUIRE(ink_canvas_alignment_step(canvas.get(), &active, &step) == INK_OK);
+  CHECK(active == 1);
+  CHECK(step == 0);
+
+  InkPenSample move = begin;
+  move.y += 120;
+  move.time += 10;
+  move.phase = uint8_t(INK_PHASE_MOVE);
+  REQUIRE(ink_input(canvas.get(), &move, 1) == INK_OK);
+  REQUIRE(ink_canvas_alignment_step(canvas.get(), &active, &step) == INK_OK);
+  CHECK(active == 1);
+  CHECK(step != 0);
+
+  move.time += 10;
+  move.phase = uint8_t(INK_PHASE_END);
+  REQUIRE(ink_input(canvas.get(), &move, 1) == INK_OK);
+  REQUIRE(ink_canvas_alignment_step(canvas.get(), &active, &step) == INK_OK);
+  CHECK(active == 0);
+  CHECK(step == 0);
+}
+
 TEST_CASE("The oval selects what the ellipse in the dragged rectangle covers") {
   ink_test::Session canvas;
   ink_test::SetTool(canvas.get(), INK_BRUSH_MARKER, 0x1A1A1A, 2);

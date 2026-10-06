@@ -183,6 +183,15 @@ const Selection *Editor::CurrentSelection() {
   return nullptr;
 }
 
+std::optional<int> Editor::AlignmentStep() {
+  const Selection *selection = CurrentSelection();
+  if (!selection || selection->line_spacing <= 0 || !transform_ ||
+      transform_->hit.kind != HandleKind::kMove || !transform_->live.IsTranslation()) {
+    return std::nullopt;
+  }
+  return int(std::lround(transform_->live.f / selection->line_spacing));
+}
+
 void Editor::ClearSelection() {
   if (!selection_) return;
   selection_.reset();

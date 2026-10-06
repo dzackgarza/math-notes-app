@@ -107,6 +107,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       self?.onFocusRequested()
       self?.becomeFirstResponder()
     },
+    onInteractionChanged: { [weak self] point in self?.canvasInteractionChanged(at: point) },
     onInteractionEnded: { [weak self] in self?.canvasInteractionEnded() },
     onPencilStrokeChanged: { [weak self] active in
       self?.setPencilStrokeActive(active)
@@ -124,6 +125,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private var figurePreviewGeneration = 0
   private var reportedFigureID: String?
   private var reportedSelectionActive = false
+  private var lastAlignmentStep: Int?
   private var documentSize: CGSize
   private var setInitialZoom = false
   private var appliedTool: EditorTool = .pen
@@ -808,7 +810,26 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     }
   }
 
+  private func canvasInteractionChanged(at point: CGPoint) {
+    do {
+      guard let step = try canvasView.alignmentStep() else {
+        lastAlignmentStep = nil
+        return
+      }
+      if let previous = lastAlignmentStep, previous != step {
+        canvasFeedback?.alignmentOccurred(at: point)
+      } else if lastAlignmentStep == nil {
+        canvasFeedback?.prepare()
+      }
+      lastAlignmentStep = step
+    } catch {
+      lastAlignmentStep = nil
+      onError(error)
+    }
+  }
+
   private func canvasInteractionEnded() {
+    lastAlignmentStep = nil
     if figureCaptureActive {
       refreshFigurePreview()
       refreshSelectionBar()

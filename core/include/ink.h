@@ -320,6 +320,9 @@ typedef struct InkSelectionInfo {
 } InkSelectionInfo;
 
 InkStatus ink_canvas_selection(InkCanvas *canvas, InkSelectionInfo *out);
+/* During a move of a ruled selection, sets `active` to 1 and `step` to the
+   current whole-line snap step. Otherwise sets both to 0. */
+InkStatus ink_canvas_alignment_step(InkCanvas *canvas, int32_t *active, int32_t *step);
 /* Selects every element of page `index`'s visible, unlocked layers. */
 InkStatus ink_canvas_select_all(InkCanvas *canvas, size_t index);
 InkStatus ink_canvas_clear_selection(InkCanvas *canvas);

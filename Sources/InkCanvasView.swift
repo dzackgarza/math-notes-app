@@ -23,6 +23,7 @@ final class InkCanvasView: UIView {
   private var fingerDrawing = false
   private var fingerTouch: UITouch?
   private let onInteractionBegan: () -> Void
+  private let onInteractionChanged: (CGPoint) -> Void
   private let onInteractionEnded: () -> Void
   private let onPencilStrokeChanged: (Bool) -> Void
 
@@ -33,6 +34,7 @@ final class InkCanvasView: UIView {
   init(
     document: EngineDocument,
     onInteractionBegan: @escaping () -> Void = {},
+    onInteractionChanged: @escaping (CGPoint) -> Void = { _ in },
     onInteractionEnded: @escaping () -> Void = {},
     onPencilStrokeChanged: @escaping (Bool) -> Void = { _ in }
   ) {
@@ -44,6 +46,7 @@ final class InkCanvasView: UIView {
     self.device = device
     self.queue = queue
     self.onInteractionBegan = onInteractionBegan
+    self.onInteractionChanged = onInteractionChanged
     self.onInteractionEnded = onInteractionEnded
     self.onPencilStrokeChanged = onPencilStrokeChanged
 
@@ -190,16 +193,19 @@ final class InkCanvasView: UIView {
     onInteractionBegan()
     _ = sendFingerTouches(touches, event: event)
     sendPencilTouches(touches, event: event)
+    reportInteractionChange(touches)
   }
 
   override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
     _ = sendFingerTouches(touches, event: event)
     sendPencilTouches(touches, event: event)
+    reportInteractionChange(touches)
   }
 
   override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
     let fingerHandled = sendFingerTouches(touches, event: event)
     let pencilHandled = sendPencilTouches(touches, event: event)
+    reportInteractionChange(touches)
     if touches.contains(where: { $0.type == .pencil }) {
       onPencilStrokeChanged(false)
     }
@@ -214,6 +220,11 @@ final class InkCanvasView: UIView {
     if touches.contains(where: { $0.type == .pencil }) {
       onPencilStrokeChanged(false)
     }
+  }
+
+  private func reportInteractionChange(_ touches: Set<UITouch>) {
+    guard let touch = touches.first(where: { $0.type == .pencil }) ?? touches.first else { return }
+    onInteractionChanged(touch.location(in: self))
   }
 
   override func touchesEstimatedPropertiesUpdated(_ touches: Set<UITouch>) {
@@ -362,6 +373,16 @@ final class InkCanvasView: UIView {
   func selectionPage() -> Int? {
     guard let info = selectionInfo(), info.page >= 0 else { return nil }
     return Int(info.page)
+  }
+
+  func alignmentStep() throws -> Int? {
+    guard let canvas else { return nil }
+    var active: Int32 = 0
+    var step: Int32 = 0
+    try require(
+      ink_canvas_alignment_step(canvas, &active, &step),
+      operation: "Read ruled alignment step")
+    return active == 0 ? nil : Int(step)
   }
 
   private func selectionInfo() -> InkSelectionInfo? {

@@ -136,6 +136,9 @@ class Editor {
 
   // The selection; null when there is none or the document changed under it.
   const Selection *CurrentSelection();
+  // During a move of a ruled selection, the current whole-line snap step.
+  // Null for every other gesture.
+  std::optional<int> AlignmentStep();
   void ClearSelection();
   void BookmarkSelection();
   void LinkSelection(const std::string &href);

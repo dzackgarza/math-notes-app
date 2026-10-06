@@ -995,6 +995,20 @@ InkStatus ink_canvas_selection(InkCanvas *canvas, InkSelectionInfo *out) {
   });
 }
 
+InkStatus ink_canvas_alignment_step(InkCanvas *canvas, int32_t *active, int32_t *step) {
+  return Call([&] {
+    if (!canvas) return NullArgument("canvas");
+    if (!active || !step) return NullArgument("alignment output");
+    *active = 0;
+    *step = 0;
+    if (std::optional<int> value = canvas->editor.AlignmentStep()) {
+      *active = 1;
+      *step = int32_t(*value);
+    }
+    return INK_OK;
+  });
+}
+
 InkStatus ink_canvas_select_all(InkCanvas *canvas, size_t index) {
   return Call([&] {
     if (!canvas) return NullArgument("canvas");
