@@ -572,6 +572,7 @@ struct ContentView: View {
           Button("Undo") {
             undoDeletedPage(toast)
           }
+          .frame(minWidth: 44, minHeight: 44)
         }
         .accessibilityElement(children: .contain)
         .onAppear {
