@@ -774,6 +774,9 @@ final class NotesRootAccess {
   private let presenter: RootFilePresenter
   private let recoveryDirectory: URL
   private let thumbnailCacheDirectory: URL
+#if DEBUG
+  private let thumbnailRendererOverride: (@MainActor (EngineDocument) throws -> Data)?
+#endif
   private var accessing = true
   private var thumbnailCache: [String: (stamp: String, data: Data)] = [:]
   private var notebookBases: [NotebookReference: [String: Data]] = [:]
@@ -786,13 +789,15 @@ final class NotesRootAccess {
   init(
     testURL: URL,
     recoveryURL: URL? = nil,
-    thumbnailCacheURL: URL? = nil
+    thumbnailCacheURL: URL? = nil,
+    thumbnailRenderer: (@MainActor (EngineDocument) throws -> Data)? = nil
   ) {
     url = testURL
     recoveryDirectory = recoveryURL
       ?? testURL.appendingPathComponent(".math-notes-recovery", isDirectory: true)
     thumbnailCacheDirectory = thumbnailCacheURL
       ?? testURL.appendingPathComponent(".math-notes-thumbnails", isDirectory: true)
+    thumbnailRendererOverride = thumbnailRenderer
     presenter = RootFilePresenter(url: testURL)
     accessing = false
     presenter.onChange = { [weak self] in self?.onChange?() }
@@ -808,6 +813,9 @@ final class NotesRootAccess {
     url = selectedURL
     recoveryDirectory = Self.defaultRecoveryDirectory()
     thumbnailCacheDirectory = Self.defaultThumbnailCacheDirectory(for: selectedURL)
+#if DEBUG
+    thumbnailRendererOverride = nil
+#endif
     presenter = RootFilePresenter(url: selectedURL)
     presenter.onChange = { [weak self] in self?.onChange?() }
     NSFileCoordinator.addFilePresenter(presenter)
@@ -830,6 +838,9 @@ final class NotesRootAccess {
     url = restoredURL
     recoveryDirectory = Self.defaultRecoveryDirectory()
     thumbnailCacheDirectory = Self.defaultThumbnailCacheDirectory(for: restoredURL)
+#if DEBUG
+    thumbnailRendererOverride = nil
+#endif
     presenter = RootFilePresenter(url: restoredURL)
     presenter.onChange = { [weak self] in self?.onChange?() }
     NSFileCoordinator.addFilePresenter(presenter)
@@ -1658,7 +1669,7 @@ final class NotesRootAccess {
 
     do {
       let document = try load(reference)
-      let data = try document.pagePNG(index: 0, width: 240)
+      let data = try renderThumbnail(document)
       try storeCachedThumbnail(data, reference: reference, stamp: effectiveStamp)
       thumbnailCache[reference.id] = (stamp: effectiveStamp, data: data)
       return data
@@ -1667,6 +1678,16 @@ final class NotesRootAccess {
       thumbnailCache.removeValue(forKey: reference.id)
       return nil
     }
+  }
+
+  @MainActor
+  private func renderThumbnail(_ document: EngineDocument) throws -> Data {
+#if DEBUG
+    if let thumbnailRendererOverride {
+      return try thumbnailRendererOverride(document)
+    }
+#endif
+    return try document.pagePNG(index: 0, width: 240)
   }
 
   private func cachedThumbnail(
