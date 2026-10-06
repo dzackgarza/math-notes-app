@@ -1107,7 +1107,9 @@ struct LibraryTagChips: View {
   }
 
   private func tagColor(_ name: String) -> Color {
-    guard let tag = knownTags.first(where: { $0.name == name }) else { return NativeTheme.graphite }
+    guard let tag = knownTags.first(where: { $0.name == name }) else {
+      return NativeTheme.color("#8E8E93")
+    }
     return NativeTheme.color(tag.color)
   }
 }
