@@ -656,6 +656,19 @@ struct ContentView: View {
             .accessibilityLabel("Notebook save")
             .accessibilityValue(
               viewState?.captureActive == true ? "Drawing in progress" : session.saveStatus.label)
+            .onChange(of: session.saveStatus) { _, status in
+              guard viewState?.captureActive != true else { return }
+              UIAccessibility.post(
+                notification: .announcement,
+                argument: "Notebook save, \(status.label)")
+            }
+            .onChange(of: viewState?.captureActive) { _, active in
+              UIAccessibility.post(
+                notification: .announcement,
+                argument: active == true
+                  ? "Notebook save, Drawing in progress"
+                  : "Notebook save, \(session.saveStatus.label)")
+            }
         }
         ToolbarItem(placement: .topBarTrailing) {
           Button {
