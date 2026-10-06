@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import InkEngine
 
@@ -757,6 +758,7 @@ final class NotesRootAccess {
 
   private let presenter: RootFilePresenter
   private let recoveryDirectory: URL
+  private let thumbnailCacheDirectory: URL
   private var accessing = true
   private var thumbnailCache: [String: (stamp: String, data: Data)] = [:]
   private var notebookBases: [NotebookReference: [String: Data]] = [:]
@@ -766,10 +768,16 @@ final class NotesRootAccess {
     [NotebookReference: [String: PendingDeleteConflictState]] = [:]
 
 #if DEBUG
-  init(testURL: URL, recoveryURL: URL? = nil) {
+  init(
+    testURL: URL,
+    recoveryURL: URL? = nil,
+    thumbnailCacheURL: URL? = nil
+  ) {
     url = testURL
     recoveryDirectory = recoveryURL
       ?? testURL.appendingPathComponent(".math-notes-recovery", isDirectory: true)
+    thumbnailCacheDirectory = thumbnailCacheURL
+      ?? testURL.appendingPathComponent(".math-notes-thumbnails", isDirectory: true)
     presenter = RootFilePresenter(url: testURL)
     accessing = false
     presenter.onChange = { [weak self] in self?.onChange?() }
@@ -784,6 +792,7 @@ final class NotesRootAccess {
 
     url = selectedURL
     recoveryDirectory = Self.defaultRecoveryDirectory()
+    thumbnailCacheDirectory = Self.defaultThumbnailCacheDirectory(for: selectedURL)
     presenter = RootFilePresenter(url: selectedURL)
     presenter.onChange = { [weak self] in self?.onChange?() }
     NSFileCoordinator.addFilePresenter(presenter)
@@ -805,6 +814,7 @@ final class NotesRootAccess {
 
     url = restoredURL
     recoveryDirectory = Self.defaultRecoveryDirectory()
+    thumbnailCacheDirectory = Self.defaultThumbnailCacheDirectory(for: restoredURL)
     presenter = RootFilePresenter(url: restoredURL)
     presenter.onChange = { [weak self] in self?.onChange?() }
     NSFileCoordinator.addFilePresenter(presenter)
@@ -844,6 +854,26 @@ final class NotesRootAccess {
     return base
       .appendingPathComponent("Math Notes", isDirectory: true)
       .appendingPathComponent("Recovery", isDirectory: true)
+  }
+
+  private static func defaultThumbnailCacheDirectory(for root: URL) -> URL {
+    let base = FileManager.default.urls(
+      for: .cachesDirectory, in: .userDomainMask).first
+      ?? FileManager.default.temporaryDirectory
+    return base
+      .appendingPathComponent("Math Notes", isDirectory: true)
+      .appendingPathComponent("Thumbnails", isDirectory: true)
+      .appendingPathComponent(stableCacheKey(root.standardizedFileURL.path), isDirectory: true)
+  }
+
+  private static func stableCacheKey(_ value: String) -> String {
+    stableCacheKey(Data(value.utf8))
+  }
+
+  private static func stableCacheKey(_ data: Data) -> String {
+    SHA256.hash(data: data)
+      .map { String(format: "%02x", $0) }
+      .joined()
   }
 
   func persistAsSavedRoot() throws {
@@ -1593,20 +1623,75 @@ final class NotesRootAccess {
       thumbnailCache.removeValue(forKey: reference.id)
       return nil
     }
-    if let cached = thumbnailCache[reference.id], cached.stamp == stamp {
+    let recovery = try recoveryRecord(for: reference)
+    let effectiveStamp: String
+    if let recovery {
+      let recoveryBytes = try Data(contentsOf: recovery.file)
+      effectiveStamp = "\(stamp)\nrecovery:\(Self.stableCacheKey(recoveryBytes))"
+    } else {
+      effectiveStamp = stamp
+    }
+    if let cached = thumbnailCache[reference.id], cached.stamp == effectiveStamp {
       return cached.data
+    }
+    if let data = try cachedThumbnail(reference, stamp: effectiveStamp) {
+      thumbnailCache[reference.id] = (stamp: effectiveStamp, data: data)
+      return data
     }
 
     do {
       let document = try load(reference)
       let data = try document.pagePNG(index: 0, width: 240)
-      thumbnailCache[reference.id] = (stamp: stamp, data: data)
+      try storeCachedThumbnail(data, reference: reference, stamp: effectiveStamp)
+      thumbnailCache[reference.id] = (stamp: effectiveStamp, data: data)
       return data
     } catch {
       guard Self.isMissingFileError(error) else { throw error }
       thumbnailCache.removeValue(forKey: reference.id)
       return nil
     }
+  }
+
+  private func cachedThumbnail(
+    _ reference: NotebookReference,
+    stamp: String
+  ) throws -> Data? {
+    let file = thumbnailCacheFile(reference, stamp: stamp)
+    guard FileManager.default.fileExists(atPath: file.path) else { return nil }
+    let data = try Data(contentsOf: file)
+    return data.isEmpty ? nil : data
+  }
+
+  private func storeCachedThumbnail(
+    _ data: Data,
+    reference: NotebookReference,
+    stamp: String
+  ) throws {
+    let directory = thumbnailCacheNoteDirectory(reference)
+    if FileManager.default.fileExists(atPath: directory.path) {
+      try FileManager.default.removeItem(at: directory)
+    }
+    try FileManager.default.createDirectory(
+      at: directory,
+      withIntermediateDirectories: true)
+    try data.write(
+      to: thumbnailCacheFile(reference, stamp: stamp),
+      options: .atomic)
+  }
+
+  private func thumbnailCacheNoteDirectory(_ reference: NotebookReference) -> URL {
+    thumbnailCacheDirectory.appendingPathComponent(
+      Self.stableCacheKey(reference.id),
+      isDirectory: true)
+  }
+
+  private func thumbnailCacheFile(
+    _ reference: NotebookReference,
+    stamp: String
+  ) -> URL {
+    thumbnailCacheNoteDirectory(reference)
+      .appendingPathComponent(Self.stableCacheKey(stamp))
+      .appendingPathExtension("png")
   }
 
 

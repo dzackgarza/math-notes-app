@@ -1144,6 +1144,76 @@ final class NotebookStorageTests: XCTestCase {
   }
 
   @MainActor
+  func testThumbnailPersistsInAppCacheAcrossRootInstances() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let cache = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+      try? FileManager.default.removeItem(at: directory)
+      try? FileManager.default.removeItem(at: cache)
+    }
+
+    let root = NotesRootAccess(testURL: directory, thumbnailCacheURL: cache)
+    let (reference, document) = try root.createNote(
+      title: "Cached thumbnail",
+      parent: FolderReference(path: []),
+      template: "blank",
+      pageSize: INK_PAGE_A4,
+      orientation: INK_PORTRAIT)
+    try document.insertPage(at: 1)
+    try root.save(document, notebook: reference)
+    let first = try XCTUnwrap(root.thumbnail(reference))
+
+    let cachedFiles = try FileManager.default.subpathsOfDirectory(atPath: cache.path)
+      .filter { $0.hasSuffix(".png") }
+    XCTAssertEqual(cachedFiles.count, 1)
+
+    let secondPage = reference.path.reduce(directory) { partial, component in
+      partial.appendingPathComponent(component, isDirectory: true)
+    }
+      .appendingPathComponent("pages", isDirectory: true)
+      .appendingPathComponent("0002.svg")
+    try Data("not svg".utf8).write(to: secondPage, options: .atomic)
+
+    let relaunched = NotesRootAccess(testURL: directory, thumbnailCacheURL: cache)
+    XCTAssertEqual(try relaunched.thumbnail(reference), first)
+  }
+
+  @MainActor
+  func testThumbnailCacheKeyIncludesPendingRecovery() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let cache = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+      try? FileManager.default.removeItem(at: directory)
+      try? FileManager.default.removeItem(at: cache)
+    }
+
+    let root = NotesRootAccess(testURL: directory, thumbnailCacheURL: cache)
+    let (reference, document) = try root.createNote(
+      title: "Recovered thumbnail",
+      parent: FolderReference(path: []),
+      template: "blank",
+      pageSize: INK_PAGE_A4,
+      orientation: INK_PORTRAIT)
+    let before = try XCTUnwrap(root.thumbnail(reference))
+
+    try document.setPageSize(INK_PAGE_LETTER, orientation: INK_LANDSCAPE)
+    try root.checkpointRecovery(document, notebook: reference)
+
+    let relaunched = NotesRootAccess(testURL: directory, thumbnailCacheURL: cache)
+    let after = try XCTUnwrap(relaunched.thumbnail(reference))
+    XCTAssertNotEqual(after, before)
+    XCTAssertEqual(
+      try relaunched.load(reference).pageSize().orientation,
+      INK_LANDSCAPE)
+  }
+
+  @MainActor
   func testThumbnailTreatsDisappearedNoteAsAbsent() throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
