@@ -778,7 +778,7 @@ struct NativeLibraryView: View {
           }
           Text(item.reference.name)
             .font(NativeTheme.headline)
-            .lineLimit(2)
+            .lineLimit(1)
         }
 
         Text(noteMetadataLine(item))
