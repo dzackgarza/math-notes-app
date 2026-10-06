@@ -2006,7 +2006,12 @@ final class NotesRootAccess {
   }
 
   private func clearRecovery(_ reference: NotebookReference) throws {
-    let file = recoveryFiles[reference] ?? (try recoveryRecord(for: reference)?.file)
+    let file: URL?
+    if let known = recoveryFiles[reference] {
+      file = known
+    } else {
+      file = try recoveryRecord(for: reference)?.file
+    }
     if let file, FileManager.default.fileExists(atPath: file.path) {
       try FileManager.default.removeItem(at: file)
     }
