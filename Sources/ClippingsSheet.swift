@@ -85,11 +85,10 @@ struct ClippingsSheet: View {
                   .resizable()
                   .scaledToFit()
                   .frame(maxWidth: .infinity)
-                  .frame(height: 72)
               } else {
                 Image(systemName: "doc")
                   .frame(maxWidth: .infinity)
-                  .frame(height: 72)
+                  .frame(minHeight: 44)
               }
             }
             .buttonStyle(.plain)
