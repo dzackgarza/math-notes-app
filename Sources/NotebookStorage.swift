@@ -705,6 +705,13 @@ private struct NotebookRecoveryChange: Codable {
   }
 }
 
+private struct NotebookRecoveryIdentity: Decodable {
+  let rootPath: String
+  let rootBookmark: Data?
+  let notebookPath: [String]
+  let notebookBookmark: Data?
+}
+
 private struct NotebookRecoveryRecord: Codable {
   let id: UUID
   let rootPath: String
@@ -712,6 +719,14 @@ private struct NotebookRecoveryRecord: Codable {
   let notebookPath: [String]
   let notebookBookmark: Data?
   let changes: [NotebookRecoveryChange]
+
+  var identity: NotebookRecoveryIdentity {
+    NotebookRecoveryIdentity(
+      rootPath: rootPath,
+      rootBookmark: rootBookmark,
+      notebookPath: notebookPath,
+      notebookBookmark: notebookBookmark)
+  }
 }
 
 private final class RootFilePresenter: NSObject, NSFilePresenter {
@@ -1954,10 +1969,10 @@ final class NotesRootAccess {
       relativeTo: nil)
   }
 
-  private func recoveryRootMatches(_ record: NotebookRecoveryRecord) -> Bool {
+  private func recoveryRootMatches(_ identity: NotebookRecoveryIdentity) -> Bool {
     let current = url.standardizedFileURL.path
-    guard let bookmark = record.rootBookmark else {
-      return record.rootPath == current
+    guard let bookmark = identity.rootBookmark else {
+      return identity.rootPath == current
     }
     var stale = false
     guard let resolved = try? URL(
@@ -1968,11 +1983,11 @@ final class NotesRootAccess {
   }
 
   private func recoveryNotebookMatches(
-    _ record: NotebookRecoveryRecord,
+    _ identity: NotebookRecoveryIdentity,
     reference: NotebookReference
   ) -> Bool {
-    guard let bookmark = record.notebookBookmark else {
-      return record.notebookPath == reference.path
+    guard let bookmark = identity.notebookBookmark else {
+      return identity.notebookPath == reference.path
     }
     var stale = false
     guard let resolved = try? URL(
@@ -1991,7 +2006,9 @@ final class NotesRootAccess {
       do {
         let record = try JSONDecoder().decode(
           NotebookRecoveryRecord.self, from: Data(contentsOf: known))
-        guard recoveryRootMatches(record), recoveryNotebookMatches(record, reference: reference) else {
+        guard recoveryRootMatches(record.identity),
+          recoveryNotebookMatches(record.identity, reference: reference)
+        else {
           recoveryFiles.removeValue(forKey: reference)
           return nil
         }
@@ -2014,16 +2031,24 @@ final class NotesRootAccess {
       options: [.skipsHiddenFiles])
       where file.pathExtension == "json"
     {
-      let record: NotebookRecoveryRecord
+      let data = try Data(contentsOf: file)
+      let identity: NotebookRecoveryIdentity
       do {
-        record = try JSONDecoder().decode(
-          NotebookRecoveryRecord.self, from: Data(contentsOf: file))
+        identity = try JSONDecoder().decode(NotebookRecoveryIdentity.self, from: data)
       } catch {
         throw NotebookStorageError.invalidRecovery(error.localizedDescription)
       }
-      if recoveryRootMatches(record), recoveryNotebookMatches(record, reference: reference) {
-        matches.append((file, record))
+      guard recoveryRootMatches(identity),
+        recoveryNotebookMatches(identity, reference: reference)
+      else { continue }
+
+      let record: NotebookRecoveryRecord
+      do {
+        record = try JSONDecoder().decode(NotebookRecoveryRecord.self, from: data)
+      } catch {
+        throw NotebookStorageError.invalidRecovery(error.localizedDescription)
       }
+      matches.append((file, record))
     }
 
     guard matches.count <= 1 else {

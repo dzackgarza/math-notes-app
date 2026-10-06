@@ -879,6 +879,53 @@ final class NotebookStorageTests: XCTestCase {
   }
 
   @MainActor
+  func testMalformedRecoveryForAnotherNotebookDoesNotBlockOpen() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let recovery = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer {
+      try? FileManager.default.removeItem(at: directory)
+      try? FileManager.default.removeItem(at: recovery)
+    }
+
+    let root = NotesRootAccess(testURL: directory, recoveryURL: recovery)
+    let (damagedReference, damagedDocument) = try root.createNote(
+      title: "Damaged recovery",
+      parent: FolderReference(path: []),
+      template: "blank",
+      pageSize: INK_PAGE_A4,
+      orientation: INK_PORTRAIT)
+    let (cleanReference, _) = try root.createNote(
+      title: "Clean note",
+      parent: FolderReference(path: []),
+      template: "blank",
+      pageSize: INK_PAGE_A4,
+      orientation: INK_PORTRAIT)
+    try damagedDocument.insertPage(at: 1)
+    try root.checkpointRecovery(damagedDocument, notebook: damagedReference)
+
+    let files = try FileManager.default.contentsOfDirectory(
+      at: recovery, includingPropertiesForKeys: nil)
+    let recoveryFile = try XCTUnwrap(files.first)
+    let data = try Data(contentsOf: recoveryFile)
+    var payload = try XCTUnwrap(
+      JSONSerialization.jsonObject(with: data) as? [String: Any])
+    payload["changes"] = "invalid changes payload"
+    try JSONSerialization.data(withJSONObject: payload)
+      .write(to: recoveryFile, options: .atomic)
+
+    let relaunched = NotesRootAccess(testURL: directory, recoveryURL: recovery)
+    XCTAssertEqual(try relaunched.load(cleanReference).pageCount(), 1)
+    XCTAssertThrowsError(try relaunched.load(damagedReference)) { error in
+      guard case NotebookStorageError.invalidRecovery = error else {
+        return XCTFail("Unexpected error: \(error)")
+      }
+    }
+  }
+
+  @MainActor
   func testMultiplePendingRecoveryRecordsAreRejected() throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
