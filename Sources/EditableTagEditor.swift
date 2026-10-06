@@ -28,6 +28,7 @@ struct EditableTagEditor: View {
               .padding(.vertical, 6)
             }
             .buttonStyle(.bordered)
+            .frame(minHeight: 44)
             .accessibilityLabel("Remove tag \(tag)")
             .fixedSize()
           }
