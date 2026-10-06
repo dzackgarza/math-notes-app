@@ -34,14 +34,14 @@ struct PageOverviewSheet: View {
     NavigationStack {
       ScrollView {
         LazyVGrid(
-          columns: [GridItem(.adaptive(minimum: 140, maximum: 190), spacing: 16)],
-          spacing: 20
+          columns: [GridItem(.adaptive(minimum: 140, maximum: 180), spacing: 16)],
+          spacing: 16
         ) {
           ForEach(0..<pageCount, id: \.self) { index in
             pageCard(index)
           }
         }
-        .padding(20)
+        .padding(16)
       }
       .background(NativeTheme.leaf)
       .foregroundStyle(NativeTheme.ink)
@@ -112,6 +112,7 @@ struct PageOverviewSheet: View {
         .accessibilityLabel("Page \(index + 1) actions")
       }
     }
+    .aspectRatio(0.62, contentMode: .fit)
     .contextMenu {
       Button("Duplicate", systemImage: "plus.square.on.square") {
         duplicatePage(index)
