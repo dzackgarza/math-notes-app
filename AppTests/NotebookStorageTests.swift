@@ -1202,13 +1202,19 @@ final class NotebookStorageTests: XCTestCase {
       template: "blank",
       pageSize: INK_PAGE_A4,
       orientation: INK_PORTRAIT)
-    let before = try XCTUnwrap(root.thumbnail(reference))
+    XCTAssertNotNil(try root.thumbnail(reference))
+    let before = try FileManager.default.subpathsOfDirectory(atPath: cache.path)
+      .filter { $0.hasSuffix(".png") }
+    XCTAssertEqual(before.count, 1)
 
     try document.setPageSize(INK_PAGE_LETTER, orientation: INK_LANDSCAPE)
     try root.checkpointRecovery(document, notebook: reference)
 
     let relaunched = NotesRootAccess(testURL: directory, thumbnailCacheURL: cache)
-    let after = try XCTUnwrap(relaunched.thumbnail(reference))
+    XCTAssertNotNil(try relaunched.thumbnail(reference))
+    let after = try FileManager.default.subpathsOfDirectory(atPath: cache.path)
+      .filter { $0.hasSuffix(".png") }
+    XCTAssertEqual(after.count, 1)
     XCTAssertNotEqual(after, before)
     XCTAssertEqual(
       try relaunched.load(reference).pageSize().orientation,
