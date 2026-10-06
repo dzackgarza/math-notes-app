@@ -766,7 +766,7 @@ struct NativeLibraryView: View {
         .aspectRatio(0.72, contentMode: .fit)
         .frame(maxWidth: .infinity)
         .background(NativeTheme.paper)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
         .shadow(color: NativeTheme.ink.opacity(0.18), radius: 9, y: 3)
 
       VStack(alignment: .leading, spacing: 0) {
