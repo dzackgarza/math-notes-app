@@ -206,15 +206,8 @@ struct FigureEditorSheet: View {
             .disabled(source.isEmpty)
           }
           ToolbarItem(placement: .topBarTrailing) {
-            Button(closing ? "Saving…" : "Save and close") {
-              if ready {
-                closing = true
-                saveRevision &+= 1
-              } else {
-                dismiss()
-              }
-            }
-            .disabled(closing)
+            Button(closing ? "Saving…" : "Save and close", action: requestClose)
+              .disabled(closing)
           }
         }
         .safeAreaInset(edge: .bottom) {
@@ -228,6 +221,20 @@ struct FigureEditorSheet: View {
         }
     }
     .interactiveDismissDisabled(true)
+    .background {
+      CreationDismissGuard(onAttempt: requestClose)
+        .frame(width: 0, height: 0)
+    }
+  }
+
+  private func requestClose() {
+    guard !closing else { return }
+    if ready {
+      closing = true
+      saveRevision &+= 1
+    } else {
+      dismiss()
+    }
   }
 
   private func accept(_ message: FigureEditorMessage) {
