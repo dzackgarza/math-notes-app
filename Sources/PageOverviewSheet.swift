@@ -73,14 +73,13 @@ struct PageOverviewSheet: View {
           .frame(maxWidth: .infinity, maxHeight: .infinity)
           .background(NativeTheme.paper)
           .overlay {
-            RoundedRectangle(cornerRadius: 4)
+            Rectangle()
               .stroke(
                 pageCount > 1 && index == currentPage
                   ? NativeTheme.ribbon
                   : NativeTheme.paperEdge,
                 lineWidth: pageCount > 1 && index == currentPage ? 3 : 1)
           }
-          .clipShape(RoundedRectangle(cornerRadius: 4))
       }
       .buttonStyle(.plain)
       .hoverEffect(.highlight)
