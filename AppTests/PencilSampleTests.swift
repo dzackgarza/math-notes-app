@@ -5,10 +5,8 @@ import XCTest
 
 final class PencilSampleTests: XCTestCase {
   func testSampleFactoryMapsValuesIntoTheEngineABI() {
-    let has =
-      UInt32(INK_HAS_PRESSURE) |
-      UInt32(INK_HAS_ALTITUDE) |
-      UInt32(INK_HAS_AZIMUTH)
+    let has = PencilSampleFactory.pencilCapabilities
+    XCTAssertNotEqual(has & UInt32(INK_HAS_ROLL), 0)
     let values = PencilSampleValues(
       location: CGPoint(x: 42.5, y: 87.25),
       timeMs: 1234,
