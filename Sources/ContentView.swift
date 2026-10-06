@@ -690,6 +690,7 @@ struct ContentView: View {
                 .lineLimit(1)
             }
             .buttonStyle(.plain)
+            .frame(minHeight: 44)
 
             Spacer()
 
@@ -697,12 +698,14 @@ struct ContentView: View {
               closeSplit()
             } label: {
               Image(systemName: "xmark")
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Close split")
           }
           .padding(.horizontal, 12)
-          .frame(minHeight: 36)
+          .frame(minHeight: 44)
           .background(NativeTheme.board)
           .foregroundStyle(NativeTheme.ink)
           .font(NativeTheme.callout)
