@@ -101,6 +101,8 @@ struct ClippingsSheet: View {
             move(item, by: -1)
           } label: {
             Image(systemName: "arrow.up")
+              .frame(width: 44, height: 44)
+              .contentShape(Rectangle())
           }
           .disabled(item.index == 0)
           .accessibilityLabel("Move clipping up")
@@ -109,6 +111,8 @@ struct ClippingsSheet: View {
             move(item, by: 1)
           } label: {
             Image(systemName: "arrow.down")
+              .frame(width: 44, height: 44)
+              .contentShape(Rectangle())
           }
           .disabled(item.index == items.count - 1)
           .accessibilityLabel("Move clipping down")
@@ -117,6 +121,8 @@ struct ClippingsSheet: View {
             remove(item)
           } label: {
             Image(systemName: "trash")
+              .frame(width: 44, height: 44)
+              .contentShape(Rectangle())
           }
           .accessibilityLabel("Delete clipping")
           }
