@@ -7,6 +7,8 @@ import UniformTypeIdentifiers
 
 private let notebookSelectionDragType = UTType(
   exportedAs: "dev.zack.mathnotes.selection-drag")
+let notebookClippingDragType = UTType(
+  exportedAs: "dev.zack.mathnotes.clipping-drag")
 
 @MainActor
 private struct NotebookEditorDropDelegate: DropDelegate {
@@ -43,14 +45,25 @@ private struct NotebookEditorDropDelegate: DropDelegate {
       return true
     }
 
+    if let provider = info.itemProviders(for: [notebookClippingDragType]).first {
+      provider.loadDataRepresentation(
+        forTypeIdentifier: notebookClippingDragType.identifier
+      ) { data, _ in
+        guard let data, let id = String(data: data, encoding: .utf8) else { return }
+        Task { @MainActor in
+          _ = onDropClipping(id, location)
+        }
+      }
+      return true
+    }
+
     guard let provider = info.itemProviders(for: [.plainText]).first else {
       return false
     }
     provider.loadObject(ofClass: NSString.self) { object, _ in
       guard let string = object as? NSString else { return }
       Task { @MainActor in
-        let value = string as String
-        _ = onDropClipping(value, location) || onDropSelection(value, location)
+        _ = onDropSelection(string as String, location)
       }
     }
     return true
@@ -2051,7 +2064,7 @@ struct InkEditorView: View {
       }
     }
     .onDrop(
-      of: [notebookSelectionDragType, .plainText],
+      of: [notebookSelectionDragType, notebookClippingDragType, .plainText],
       delegate: NotebookEditorDropDelegate(
         canDrop: { !drawing },
         onFocus: onFocus,

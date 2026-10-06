@@ -95,7 +95,17 @@ struct ClippingsSheet: View {
             .frame(maxWidth: .infinity, minHeight: 44)
             .contentShape(Rectangle())
             .disabled(!availability.canInsert)
-            .draggable(item.id)
+            .onDrag {
+              let provider = NSItemProvider()
+              provider.registerDataRepresentation(
+                forTypeIdentifier: notebookClippingDragType.identifier,
+                visibility: .ownProcess
+              ) { completion in
+                completion(Data(item.id.utf8), nil)
+                return nil
+              }
+              return provider
+            }
             .accessibilityLabel("Insert clipping \(item.index + 1)")
 
             HStack(spacing: 8) {
