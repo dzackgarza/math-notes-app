@@ -858,7 +858,6 @@ struct NativeLibraryView: View {
       LibraryThumbnail(root: root, item: item)
         .frame(width: 48, height: 64)
         .background(NativeTheme.paper)
-        .clipShape(RoundedRectangle(cornerRadius: 4))
 
       VStack(alignment: .leading, spacing: 4) {
         HStack(spacing: 6) {
