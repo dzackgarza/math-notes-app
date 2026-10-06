@@ -2485,7 +2485,33 @@ final class NotesRootAccess {
       }
     }
 
+    if case .localDelete = conflict.source {
+      try reconcileRecoveryAfterLocalDeleteResolution(reference)
+    }
     notebookBases.removeValue(forKey: reference)
+  }
+
+  private func reconcileRecoveryAfterLocalDeleteResolution(
+    _ reference: NotebookReference
+  ) throws {
+    guard let pending = pendingDeleteConflicts[reference], !pending.isEmpty else {
+      try clearRecovery(reference)
+      return
+    }
+    let pendingPaths = Set(pending.keys)
+    let remaining = (recoveredChanges[reference] ?? []).filter { change in
+      guard pendingPaths.contains(change.path) else { return false }
+      if case .delete = change.kind { return true }
+      return false
+    }
+    guard !remaining.isEmpty else {
+      try clearRecovery(reference)
+      return
+    }
+    try writeRecovery(
+      remaining,
+      notebook: reference,
+      base: notebookBases[reference] ?? [:])
   }
 
   @MainActor

@@ -738,6 +738,7 @@ final class NotebookStorageTests: XCTestCase {
 
     try root.resolveConflict(reference, conflict: conflict, choice: .original)
 
+    XCTAssertFalse(root.hasRecoveredChanges(reference))
     XCTAssertEqual(try Data(contentsOf: pageURL), external)
     XCTAssertEqual(try root.conflictCount(reference), 0)
     XCTAssertEqual(try root.load(reference).pageCount(), 2)
@@ -777,6 +778,7 @@ final class NotebookStorageTests: XCTestCase {
       })
     try root.resolveConflict(reference, conflict: conflict, choice: .copy)
 
+    XCTAssertFalse(root.hasRecoveredChanges(reference))
     XCTAssertFalse(FileManager.default.fileExists(atPath: pageURL.path))
     XCTAssertEqual(try root.conflictCount(reference), 0)
     XCTAssertEqual(try root.load(reference).pageCount(), 1)
