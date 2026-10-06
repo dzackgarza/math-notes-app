@@ -124,6 +124,17 @@ struct PencilSampleIDs {
     return estimates[estimationIndex.intValue]
   }
 
+  mutating func estimatedUpdate(
+    values: PencilSampleValues,
+    estimationIndex: NSNumber?,
+    finished: Bool
+  ) -> InkPenSample? {
+    guard let id = updateID(estimationIndex: estimationIndex) else { return nil }
+    let sample = PencilSampleFactory.make(values: values, id: id, predicted: false)
+    if finished { finish(estimationIndex: estimationIndex) }
+    return sample
+  }
+
   mutating func finish(estimationIndex: NSNumber?) {
     guard let estimationIndex else { return }
     estimates.removeValue(forKey: estimationIndex.intValue)

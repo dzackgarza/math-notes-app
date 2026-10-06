@@ -254,17 +254,12 @@ final class InkCanvasView: UIView {
 
     var updates: [InkPenSample] = []
     for touch in touches where touch.type == .pencil {
-      guard let id = sampleIDs.updateID(estimationIndex: touch.estimationUpdateIndex) else {
-        continue
-      }
-      updates.append(
-        PencilSampleFactory.make(
-          values: PencilSampleFactory.values(for: touch, in: self),
-          id: id,
-          predicted: false))
-      if touch.estimatedPropertiesExpectingUpdates.isEmpty {
-        sampleIDs.finish(estimationIndex: touch.estimationUpdateIndex)
-      }
+      guard let update = sampleIDs.estimatedUpdate(
+        values: PencilSampleFactory.values(for: touch, in: self),
+        estimationIndex: touch.estimationUpdateIndex,
+        finished: touch.estimatedPropertiesExpectingUpdates.isEmpty)
+      else { continue }
+      updates.append(update)
     }
 
     guard !updates.isEmpty else { return }

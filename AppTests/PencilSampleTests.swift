@@ -51,16 +51,36 @@ final class PencilSampleTests: XCTestCase {
     XCTAssertNotEqual(sample.has & UInt32(INK_HAS_HOVER_HEIGHT), 0)
   }
 
-  func testEstimatedPropertyUpdateUsesTheOriginalSampleID() {
+  func testEstimatedPropertyUpdateUsesOriginalSampleIDAndUpdatedValues() {
     var ids = PencilSampleIDs()
     let index = NSNumber(value: 41)
-
     let original = ids.issue(estimationIndex: index, trackEstimate: true)
     _ = ids.issue(estimationIndex: nil, trackEstimate: false)
 
-    XCTAssertEqual(ids.updateID(estimationIndex: index), original)
+    let updatedValues = PencilSampleValues(
+      location: CGPoint(x: 14, y: 27),
+      timeMs: 2500,
+      pressure: 0.875,
+      altitude: 0.9,
+      azimuth: 1.4,
+      roll: 0.2,
+      hoverHeight: 0,
+      has: PencilSampleFactory.pencilCapabilities,
+      phase: UInt8(INK_PHASE_MOVE.rawValue))
+    let update = ids.estimatedUpdate(
+      values: updatedValues,
+      estimationIndex: index,
+      finished: true)
 
-    ids.finish(estimationIndex: index)
+    XCTAssertEqual(update?.id, original)
+    XCTAssertEqual(update?.x, 14)
+    XCTAssertEqual(update?.y, 27)
+    XCTAssertEqual(update?.time, 2500)
+    XCTAssertEqual(update?.pressure, 0.875)
+    XCTAssertEqual(update?.altitude, 0.9)
+    XCTAssertEqual(update?.azimuth, 1.4)
+    XCTAssertEqual(update?.roll, 0.2)
+    XCTAssertEqual(update?.predicted, 0)
     XCTAssertNil(ids.updateID(estimationIndex: index))
   }
 }
