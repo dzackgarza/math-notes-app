@@ -76,56 +76,59 @@ struct ClippingsSheet: View {
         }
 
         ForEach(items) { item in
-          HStack(spacing: 12) {
-          Button {
-            onInsert(item.id)
-          } label: {
-            if let image = UIImage(data: item.png) {
-              Image(uiImage: image)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 120, height: 72)
-            } else {
-              Image(systemName: "doc")
-                .frame(width: 120, height: 72)
+          VStack(spacing: 8) {
+            Button {
+              onInsert(item.id)
+            } label: {
+              if let image = UIImage(data: item.png) {
+                Image(uiImage: image)
+                  .resizable()
+                  .scaledToFit()
+                  .frame(maxWidth: .infinity)
+                  .frame(height: 72)
+              } else {
+                Image(systemName: "doc")
+                  .frame(maxWidth: .infinity)
+                  .frame(height: 72)
+              }
+            }
+            .buttonStyle(.plain)
+            .disabled(!availability.canInsert)
+            .draggable(item.id)
+            .accessibilityLabel("Insert clipping \(item.index + 1)")
+
+            HStack(spacing: 8) {
+              Button {
+                move(item, by: -1)
+              } label: {
+                Image(systemName: "arrow.up")
+                  .frame(width: 44, height: 44)
+                  .contentShape(Rectangle())
+              }
+              .disabled(item.index == 0)
+              .accessibilityLabel("Move clipping up")
+
+              Button {
+                move(item, by: 1)
+              } label: {
+                Image(systemName: "arrow.down")
+                  .frame(width: 44, height: 44)
+                  .contentShape(Rectangle())
+              }
+              .disabled(item.index == items.count - 1)
+              .accessibilityLabel("Move clipping down")
+
+              Button(role: .destructive) {
+                remove(item)
+              } label: {
+                Image(systemName: "trash")
+                  .frame(width: 44, height: 44)
+                  .contentShape(Rectangle())
+              }
+              .accessibilityLabel("Delete clipping")
             }
           }
-          .buttonStyle(.plain)
-          .disabled(!availability.canInsert)
-          .draggable(item.id)
-          .accessibilityLabel("Insert clipping \(item.index + 1)")
-
-          Spacer()
-
-          Button {
-            move(item, by: -1)
-          } label: {
-            Image(systemName: "arrow.up")
-              .frame(width: 44, height: 44)
-              .contentShape(Rectangle())
-          }
-          .disabled(item.index == 0)
-          .accessibilityLabel("Move clipping up")
-
-          Button {
-            move(item, by: 1)
-          } label: {
-            Image(systemName: "arrow.down")
-              .frame(width: 44, height: 44)
-              .contentShape(Rectangle())
-          }
-          .disabled(item.index == items.count - 1)
-          .accessibilityLabel("Move clipping down")
-
-          Button(role: .destructive) {
-            remove(item)
-          } label: {
-            Image(systemName: "trash")
-              .frame(width: 44, height: 44)
-              .contentShape(Rectangle())
-          }
-          .accessibilityLabel("Delete clipping")
-          }
+          .frame(maxWidth: .infinity)
         }
       }
       .scrollContentBackground(.hidden)
@@ -147,7 +150,7 @@ struct ClippingsSheet: View {
         }
       }
     }
-    .frame(width: 340)
+    .frame(width: 240)
     .dropDestination(
       for: String.self,
       action: { values, _ in
