@@ -400,6 +400,8 @@ struct EditorToolRail: View {
               Text(mode.rawValue)
                 .font(NativeTheme.footnote)
             }
+            .frame(minWidth: 64, minHeight: 72)
+            .contentShape(Rectangle())
           }
           .buttonStyle(.plain)
           .foregroundStyle(eraserMode == mode ? NativeTheme.ribbon : NativeTheme.ink)
@@ -441,6 +443,8 @@ struct EditorToolRail: View {
               Text(mode.rawValue)
                 .font(NativeTheme.footnote)
             }
+            .frame(minWidth: 64, minHeight: 72)
+            .contentShape(Rectangle())
           }
           .buttonStyle(.plain)
           .foregroundStyle(selectorMode == mode ? NativeTheme.ribbon : NativeTheme.ink)
@@ -482,6 +486,8 @@ struct EditorToolRail: View {
               Text(mode.rawValue)
                 .font(NativeTheme.footnote)
             }
+            .frame(minWidth: 64, minHeight: 72)
+            .contentShape(Rectangle())
           }
           .buttonStyle(.plain)
           .foregroundStyle(spaceMode == mode ? NativeTheme.ribbon : NativeTheme.ink)
