@@ -96,10 +96,10 @@ struct LibraryDetailsSheet: View {
         if request.target.paper != nil {
           Section("Default paper") {
             Picker("Paper", selection: $paper) {
-              Text("Dot").tag("dotted")
-              Text("Graph").tag("grid-medium")
-              Text("Blank").tag("blank")
-              Text("Ruled").tag("lined-medium")
+              Text("Dot").font(NativeTheme.callout).tag("dotted")
+              Text("Graph").font(NativeTheme.callout).tag("grid-medium")
+              Text("Blank").font(NativeTheme.callout).tag("blank")
+              Text("Ruled").font(NativeTheme.callout).tag("lined-medium")
             }
             .pickerStyle(.segmented)
           }

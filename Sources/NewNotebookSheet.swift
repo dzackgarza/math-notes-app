@@ -187,8 +187,8 @@ struct NewNotebookSheet: View {
 
     Section("Cover") {
       Picker("Cover style", selection: $form.coverStyle) {
-        Text("Classic").tag("classic")
-        Text("Spine").tag("spine")
+        Text("Classic").font(NativeTheme.callout).tag("classic")
+        Text("Spine").font(NativeTheme.callout).tag("spine")
       }
       .pickerStyle(.segmented)
 
@@ -223,7 +223,7 @@ struct NewNotebookSheet: View {
     Section("Paper") {
       Picker("Paper style", selection: $form.paper) {
         ForEach(NewNotebookFormState.paperStyles, id: \.self) { paper in
-          Text(paperLabel(paper)).tag(paper)
+          Text(paperLabel(paper)).font(NativeTheme.callout).tag(paper)
         }
       }
       .pickerStyle(.segmented)

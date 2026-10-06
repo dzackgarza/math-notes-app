@@ -111,8 +111,8 @@ struct PagePaperSheet: View {
                 }
               })
           ) {
-            Text("A4").tag(Optional(PageSizeChoice.a4))
-            Text("Letter").tag(Optional(PageSizeChoice.letter))
+            Text("A4").font(NativeTheme.callout).tag(Optional(PageSizeChoice.a4))
+            Text("Letter").font(NativeTheme.callout).tag(Optional(PageSizeChoice.letter))
           }
           .pickerStyle(.segmented)
 
@@ -138,7 +138,7 @@ struct PagePaperSheet: View {
               })
           ) {
             ForEach(PageOrientationChoice.allCases) { value in
-              Text(value.rawValue).tag(value)
+              Text(value.rawValue).font(NativeTheme.callout).tag(value)
             }
           }
           .pickerStyle(.segmented)

@@ -107,8 +107,10 @@ struct PenEditorPopover: View {
       if tool != .highlighter {
         Picker("Pen settings section", selection: $advanced) {
           Label("Settings", systemImage: "pencil")
+            .font(NativeTheme.callout)
             .tag(false)
           Label("Advanced", systemImage: "slider.horizontal.3")
+            .font(NativeTheme.callout)
             .tag(true)
         }
         .pickerStyle(.segmented)
