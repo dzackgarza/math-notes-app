@@ -42,6 +42,8 @@ struct PageOverviewSheet: View {
           }
         }
         .padding(16)
+        .frame(maxWidth: 900)
+        .frame(maxWidth: .infinity)
       }
       .background(NativeTheme.leaf)
       .foregroundStyle(NativeTheme.ink)
