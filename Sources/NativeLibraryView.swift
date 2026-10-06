@@ -798,7 +798,7 @@ struct NativeLibraryView: View {
         searchPresented = false
         openFolder(item.reference)
       } label: {
-        HStack(spacing: 14) {
+        HStack(spacing: 16) {
           LibraryNotebookCover(root: root, item: item, titled: false)
             .frame(width: 48, height: 64)
 
@@ -854,7 +854,7 @@ struct NativeLibraryView: View {
   }
 
   private func notebookRowContent(_ item: LibraryNotebookItem) -> some View {
-    HStack(spacing: 14) {
+    HStack(spacing: 16) {
       LibraryThumbnail(root: root, item: item)
         .frame(width: 48, height: 64)
         .background(NativeTheme.paper)
