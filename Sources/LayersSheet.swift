@@ -50,6 +50,7 @@ struct LayersSheet: View {
                 namingLayerID = layer.id
               }
               .accessibilityLabel(layerActionAccessibilityLabel("Rename", layerName: layer.name))
+              .frame(minWidth: 44, minHeight: 44)
               Button(layer.hidden ? "Show" : "Hide") {
                 mutate {
                   try document.setLayer(
@@ -61,6 +62,7 @@ struct LayersSheet: View {
               }
               .accessibilityLabel(
                 layerActionAccessibilityLabel(layer.hidden ? "Show" : "Hide", layerName: layer.name))
+              .frame(minWidth: 44, minHeight: 44)
               Button(layer.locked ? "Unlock" : "Lock") {
                 mutate {
                   try document.setLayer(
@@ -72,6 +74,7 @@ struct LayersSheet: View {
               }
               .accessibilityLabel(
                 layerActionAccessibilityLabel(layer.locked ? "Unlock" : "Lock", layerName: layer.name))
+              .frame(minWidth: 44, minHeight: 44)
             }
             .buttonStyle(.borderless)
 
@@ -81,24 +84,28 @@ struct LayersSheet: View {
               }
               .disabled(index + 1 >= layers.count)
               .accessibilityLabel(layerActionAccessibilityLabel("Up", layerName: layer.name))
+              .frame(minWidth: 44, minHeight: 44)
 
               Button("Down") {
                 mutate { try document.moveLayer(from: index, to: index - 1) }
               }
               .disabled(index == 0)
               .accessibilityLabel(layerActionAccessibilityLabel("Down", layerName: layer.name))
+              .frame(minWidth: 44, minHeight: 44)
 
               Button("Merge down") {
                 removeLayer(index: index, mergeDown: true)
               }
               .disabled(index == 0 || layers[index - 1].locked)
               .accessibilityLabel(layerActionAccessibilityLabel("Merge down", layerName: layer.name))
+              .frame(minWidth: 44, minHeight: 44)
 
               Button("Delete", role: .destructive) {
                 deleteLayerID = layer.id
               }
               .disabled(layers.count <= 1)
               .accessibilityLabel(layerActionAccessibilityLabel("Delete", layerName: layer.name))
+              .frame(minWidth: 44, minHeight: 44)
             }
             .buttonStyle(.borderless)
           }
