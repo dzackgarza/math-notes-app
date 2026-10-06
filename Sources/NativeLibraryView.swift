@@ -800,7 +800,7 @@ struct NativeLibraryView: View {
       } label: {
         HStack(spacing: 14) {
           LibraryNotebookCover(root: root, item: item, titled: false)
-            .frame(width: 44, height: 58)
+            .frame(width: 48, height: 64)
 
           VStack(alignment: .leading, spacing: 4) {
             Text(item.reference.name)
