@@ -681,12 +681,12 @@ struct NativeLibraryView: View {
         searchPresented = false
         openFolder(item.reference)
       } label: {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 4) {
           LibraryNotebookCover(root: root, item: item, titled: true)
             .aspectRatio(0.72, contentMode: .fit)
             .frame(maxWidth: .infinity)
 
-          VStack(alignment: .leading, spacing: 4) {
+          VStack(alignment: .leading, spacing: 0) {
             notebookSummary(item)
             LibraryTagChips(tags: item.details.tags, knownTags: tags)
           }
@@ -769,7 +769,7 @@ struct NativeLibraryView: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .shadow(color: NativeTheme.ink.opacity(0.18), radius: 9, y: 3)
 
-      VStack(alignment: .leading, spacing: 8) {
+      VStack(alignment: .leading, spacing: 0) {
         HStack(spacing: 6) {
           if item.conflicts > 0 {
             Image(systemName: "exclamationmark.triangle.fill")
