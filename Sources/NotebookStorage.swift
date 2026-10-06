@@ -3077,8 +3077,8 @@ final class NotesRootAccess {
     var parts: [String] = ["first:\(first)"]
     if let pageChange = changes[first] {
       switch pageChange.kind {
-      case let .write(data):
-        parts.append("page:\(stableCacheKey(data ?? Data()))")
+      case .write:
+        parts.append("page:\(stableCacheKey(pageChange.data ?? Data()))")
       case .delete:
         parts.append("page:deleted")
       }
@@ -3105,8 +3105,8 @@ final class NotesRootAccess {
       if let assetChange = changes[relative] {
         relevant = true
         switch assetChange.kind {
-        case let .write(data):
-          parts.append("\(relative):\(stableCacheKey(data ?? Data()))")
+        case .write:
+          parts.append("\(relative):\(stableCacheKey(assetChange.data ?? Data()))")
         case .delete:
           parts.append("\(relative):deleted")
         }
