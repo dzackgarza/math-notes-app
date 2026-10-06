@@ -55,6 +55,28 @@ final class InkEditorGestureTests: XCTestCase {
     })
   }
 
+  func testSelectionActionsWrapInsideNarrowPane() {
+    let wrap = SelectionActionWrapView(spacing: 2, contentInset: 2)
+    var buttons: [UIButton] = []
+    for _ in 0..<5 {
+      let button = UIButton(type: .system)
+      button.widthAnchor.constraint(equalToConstant: 44).isActive = true
+      button.heightAnchor.constraint(equalToConstant: 44).isActive = true
+      wrap.addArrangedSubview(button)
+      buttons.append(button)
+    }
+
+    XCTAssertEqual(
+      wrap.sizeThatFits(CGSize(width: 140, height: 1_000)),
+      CGSize(width: 140, height: 94))
+
+    buttons[3].isHidden = true
+    buttons[4].isHidden = true
+    XCTAssertEqual(
+      wrap.sizeThatFits(CGSize(width: 140, height: 1_000)),
+      CGSize(width: 140, height: 48))
+  }
+
   func testFingerHistoryGesturesUseExactDirectTouchCounts() {
     let controller = InkEditorViewController(document: EngineDocument(seed: 101))
     controller.loadViewIfNeeded()

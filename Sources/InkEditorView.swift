@@ -112,7 +112,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     onPencilStrokeChanged: { [weak self] active in
       self?.setPencilStrokeActive(active)
     })
-  private let selectionBar = UIStackView()
+  private let selectionBar = SelectionActionWrapView(spacing: 2, contentInset: 2)
   private let pencilHoverIndicator = UIView()
   private var editFigureButton: UIButton?
   private var saveClippingButton: UIButton?
@@ -681,11 +681,6 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     return UIMenu(children: actions)
   }
   private func configureSelectionBar() {
-    selectionBar.axis = .horizontal
-    selectionBar.spacing = 2
-    selectionBar.isLayoutMarginsRelativeArrangement = true
-    selectionBar.directionalLayoutMargins = NSDirectionalEdgeInsets(
-      top: 2, leading: 2, bottom: 2, trailing: 2)
     selectionBar.backgroundColor = NativeTheme.leafUI
     selectionBar.tintColor = NativeTheme.inkUI
     selectionBar.layer.cornerRadius = 12
@@ -866,8 +861,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       }
     }
     let target = canvasView.convert(selection, to: view)
-    let size = selectionBar.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize)
     let safe = view.safeAreaLayoutGuide.layoutFrame
+    let size = selectionBar.sizeThatFits(
+      CGSize(width: max(44, safe.width - 16), height: .greatestFiniteMagnitude))
     let minimumX = safe.minX + 8
     let maximumX = max(minimumX, safe.maxX - size.width - 8)
     let x = min(max(target.midX - size.width / 2, minimumX), maximumX)
@@ -1643,6 +1639,75 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
 }
 
 @MainActor
+final class SelectionActionWrapView: UIView {
+  private let spacing: CGFloat
+  private let contentInset: CGFloat
+  private var actionSubviews: [UIView] = []
+
+  init(spacing: CGFloat, contentInset: CGFloat) {
+    self.spacing = spacing
+    self.contentInset = contentInset
+    super.init(frame: .zero)
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) is not supported")
+  }
+
+  func addArrangedSubview(_ view: UIView) {
+    actionSubviews.append(view)
+    addSubview(view)
+  }
+
+  override func sizeThatFits(_ size: CGSize) -> CGSize {
+    let available = max(44, size.width - 2 * contentInset)
+    let measured = measure(maxWidth: available)
+    return CGSize(
+      width: measured.width + 2 * contentInset,
+      height: measured.height + 2 * contentInset)
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    let available = max(44, bounds.width - 2 * contentInset)
+    var x = contentInset
+    var y = contentInset
+    var rowHeight: CGFloat = 0
+
+    for view in actionSubviews where !view.isHidden {
+      let item = view.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize)
+      if x > contentInset, x + item.width > contentInset + available {
+        x = contentInset
+        y += rowHeight + spacing
+        rowHeight = 0
+      }
+      view.frame = CGRect(origin: CGPoint(x: x, y: y), size: item)
+      x += item.width + spacing
+      rowHeight = max(rowHeight, item.height)
+    }
+  }
+
+  private func measure(maxWidth: CGFloat) -> CGSize {
+    var x: CGFloat = 0
+    var y: CGFloat = 0
+    var rowHeight: CGFloat = 0
+    var usedWidth: CGFloat = 0
+
+    for view in actionSubviews where !view.isHidden {
+      let item = view.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize)
+      if x > 0, x + item.width > maxWidth {
+        x = 0
+        y += rowHeight + spacing
+        rowHeight = 0
+      }
+      usedWidth = max(usedWidth, x + item.width)
+      x += item.width + spacing
+      rowHeight = max(rowHeight, item.height)
+    }
+    return CGSize(width: min(usedWidth, maxWidth), height: y + rowHeight)
+  }
+}
+
 private struct InkEditorHost: UIViewControllerRepresentable {
   let document: EngineDocument
   let eraserMode: EditorEraserMode
