@@ -1,4 +1,6 @@
+import CoreTransferable
 import SwiftUI
+import UniformTypeIdentifiers
 import UIKit
 
 @MainActor
@@ -85,9 +87,9 @@ struct PageOverviewSheet: View {
       .hoverEffect(.highlight)
       .accessibilityLabel("Page \(index + 1)")
       .accessibilityAddTraits(pageCount > 1 && index == currentPage ? .isSelected : [])
-      .draggable(String(index))
-      .dropDestination(for: String.self) { items, _ in
-        guard let source = items.first.flatMap(Int.init) else { return false }
+      .draggable(PageOverviewDrag(index: index))
+      .dropDestination(for: PageOverviewDrag.self) { items, _ in
+        guard let source = items.first?.index else { return false }
         return movePage(from: source, to: index)
       }
 
@@ -220,4 +222,17 @@ private struct PageOverviewThumbnail: View {
       }
     }
   }
+}
+
+private struct PageOverviewDrag: Codable, Transferable {
+  let index: Int
+
+  static var transferRepresentation: some TransferRepresentation {
+    CodableRepresentation(contentType: .mathNotesPageOverviewDrag)
+  }
+}
+
+private extension UTType {
+  static let mathNotesPageOverviewDrag = UTType(
+    exportedAs: "dev.zack.mathnotes.page-overview-drag")
 }
