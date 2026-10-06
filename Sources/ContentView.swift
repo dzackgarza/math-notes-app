@@ -588,6 +588,9 @@ struct ContentView: View {
       }
       if let libraryNotice, openNotes.inLibrary {
         Text(libraryNotice)
+          .onAppear {
+            UIAccessibility.post(notification: .announcement, argument: libraryNotice)
+          }
           .padding(.horizontal, 16)
           .padding(.vertical, 8)
           .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
