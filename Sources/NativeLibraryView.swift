@@ -987,9 +987,9 @@ struct NotebookCoverArt<Page: View>: View {
     }
     .clipShape(coverShape)
     .shadow(
-      color: NativeTheme.ink.opacity(title == nil ? 0.12 : 0.18),
-      radius: title == nil ? 4 : 9,
-      y: title == nil ? 1 : 3)
+      color: NativeTheme.ink.opacity(0.18),
+      radius: 9,
+      y: 3)
   }
 }
 
