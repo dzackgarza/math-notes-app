@@ -135,17 +135,20 @@ struct ClippingsSheet: View {
       .navigationTitle("Clippings")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
-        ToolbarItem(placement: .topBarLeading) {
+        ToolbarItemGroup(placement: .topBarTrailing) {
           Button {
             if let refreshed = onRefresh() {
               items = refreshed
             }
           } label: {
-            Label("Refresh", systemImage: "arrow.clockwise")
+            Image(systemName: "arrow.clockwise")
           }
-        }
-        ToolbarItem(placement: .confirmationAction) {
-          Button("Done", action: onClose)
+          .accessibilityLabel("Refresh")
+
+          Button(action: onClose) {
+            Image(systemName: "xmark")
+          }
+          .accessibilityLabel("Close clippings")
         }
       }
     }
