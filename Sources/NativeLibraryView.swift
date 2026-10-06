@@ -113,7 +113,7 @@ struct NativeLibraryView: View {
             if !listing.folders.isEmpty {
               librarySectionHeading(count: listing.folders.count, noun: "notebook")
               LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 170, maximum: 240), spacing: 20)],
+                columns: [GridItem(.adaptive(minimum: 170, maximum: 220), spacing: 20)],
                 spacing: 24
               ) {
                 ForEach(listing.folders) { item in
@@ -125,7 +125,7 @@ struct NativeLibraryView: View {
               librarySectionHeading(count: listing.notebooks.count, noun: "note")
                 .padding(.top, listing.folders.isEmpty ? 0 : 8)
               LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 170, maximum: 240), spacing: 20)],
+                columns: [GridItem(.adaptive(minimum: 170, maximum: 220), spacing: 20)],
                 spacing: 24
               ) {
                 ForEach(listing.notebooks) { item in
@@ -691,6 +691,7 @@ struct NativeLibraryView: View {
 
       folderActionsButton(item)
     }
+    .aspectRatio(0.62, contentMode: .fit)
     .contextMenu {
       folderActions(item)
     }
@@ -744,6 +745,7 @@ struct NativeLibraryView: View {
 
       noteActionsButton(item)
     }
+    .aspectRatio(0.60, contentMode: .fit)
     .contextMenu {
       noteActions(item)
     }
