@@ -563,7 +563,20 @@ struct ContentView: View {
       consumeIncomingDocument()
     }
     .onChange(of: scenePhase) { _, phase in
-      if phase == .background { flushPendingSaves() }
+      switch phase {
+      case .active:
+        refreshLibrary()
+        reloadPenLibrary()
+        if let root {
+          for note in openNotes.opened {
+            note.conflictCount = (try? root.conflictCount(note.reference)) ?? note.conflictCount
+          }
+        }
+      case .background:
+        flushPendingSaves()
+      default:
+        break
+      }
     }
     .overlay(alignment: .bottom) {
       if let toast = deletedPageToast, !openNotes.inLibrary {
