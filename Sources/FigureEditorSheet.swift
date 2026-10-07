@@ -211,7 +211,7 @@ struct FigureEditorSheet: View {
           }
           ToolbarItem(placement: .topBarTrailing) {
             Button(closing ? "Saving…" : "Save and close", action: requestClose)
-              .disabled(closing)
+              .disabled(closing || !ready)
           }
         }
         .safeAreaInset(edge: .bottom) {
@@ -233,13 +233,9 @@ struct FigureEditorSheet: View {
   }
 
   private func requestClose() {
-    guard !closing else { return }
-    if ready {
-      closing = true
-      saveRevision &+= 1
-    } else {
-      dismiss()
-    }
+    guard ready, !closing else { return }
+    closing = true
+    saveRevision &+= 1
   }
 
   private func accept(_ message: FigureEditorMessage) {
