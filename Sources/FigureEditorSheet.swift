@@ -52,6 +52,7 @@ private struct FigureEditorWebView: UIViewRepresentable {
 
     let webView = WKWebView(frame: .zero, configuration: configuration)
     context.coordinator.webView = webView
+    webView.navigationDelegate = context.coordinator
 
     guard let index = Bundle.main.url(
       forResource: "index",
@@ -81,11 +82,20 @@ private struct FigureEditorWebView: UIViewRepresentable {
   static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
     webView.configuration.userContentController.removeScriptMessageHandler(
       forName: "mathNotesFigure")
+    webView.navigationDelegate = nil
     coordinator.webView = nil
   }
 
   @MainActor
-  final class Coordinator: NSObject, WKScriptMessageHandler {
+  final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+      onError(error)
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+      onError(error)
+    }
+
     let initialSource: String
     var onEvent: (FigureEditorMessage) -> Void
     var onError: (Error) -> Void
