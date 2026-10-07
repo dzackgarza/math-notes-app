@@ -21,49 +21,54 @@ struct OpenNotePickerSheet: View {
 
   var body: some View {
     NavigationStack {
-      Group {
-        if filteredNotes.isEmpty {
-          ContentUnavailableView {
-            Label(query.isEmpty ? "No Notes" : "No Results", systemImage: "magnifyingglass")
-          } description: {
-            Text(query.isEmpty ? "There are no notes in this notes folder." : "No note matches the search.")
-          }
-        } else {
-          List(filteredNotes) { item in
-            Button {
-              onOpen(item.reference)
-            } label: {
-              HStack(spacing: 12) {
-                LibraryThumbnail(root: root, item: item)
-                  .frame(width: 48, height: 62)
-                  .clipShape(RoundedRectangle(cornerRadius: 5))
+      VStack(spacing: 0) {
+        TextField("Search", text: $query)
+          .nativeFieldSurface()
+          .padding(12)
 
-                VStack(alignment: .leading, spacing: 3) {
-                  Text(item.conflicts > 0 ? "⚠ \(item.reference.name)" : item.reference.name)
-                    .foregroundStyle(NativeTheme.ink)
-                  let folder = FolderReference(path: Array(item.reference.path.dropLast()))
-                  Text(folder.name)
-                    .font(NativeTheme.footnote)
-                    .foregroundStyle(NativeTheme.graphite)
-                }
-                Spacer()
-                if opened.contains(item.reference) {
-                  Image(systemName: "checkmark")
-                    .foregroundStyle(.secondary)
-                    .accessibilityLabel("Already open")
+        Group {
+          if filteredNotes.isEmpty {
+            ContentUnavailableView {
+              Label(query.isEmpty ? "No Notes" : "No Results", systemImage: "magnifyingglass")
+            } description: {
+              Text(query.isEmpty ? "There are no notes in this notes folder." : "No note matches the search.")
+            }
+          } else {
+            List(filteredNotes) { item in
+              Button {
+                onOpen(item.reference)
+              } label: {
+                HStack(spacing: 12) {
+                  LibraryThumbnail(root: root, item: item)
+                    .frame(width: 48, height: 62)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+
+                  VStack(alignment: .leading, spacing: 3) {
+                    Text(item.conflicts > 0 ? "⚠ \(item.reference.name)" : item.reference.name)
+                      .foregroundStyle(NativeTheme.ink)
+                    let folder = FolderReference(path: Array(item.reference.path.dropLast()))
+                    Text(folder.name)
+                      .font(NativeTheme.footnote)
+                      .foregroundStyle(NativeTheme.graphite)
+                  }
+                  Spacer()
+                  if opened.contains(item.reference) {
+                    Image(systemName: "checkmark")
+                      .foregroundStyle(.secondary)
+                      .accessibilityLabel("Already open")
+                  }
                 }
               }
+              .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            .listStyle(.insetGrouped)
           }
-          .listStyle(.insetGrouped)
         }
       }
       .scrollContentBackground(.hidden)
       .nativeSheetSurface()
       .navigationTitle(title)
       .navigationBarTitleDisplayMode(.inline)
-      .searchable(text: $query, prompt: "Search")
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel", action: onCancel)
