@@ -32,6 +32,14 @@ final class UndoDialTests: XCTestCase {
     XCTAssertEqual(counterclockwise.advance(to: Double.pi - 1.6 * step), -2)
   }
 
+  func testNonfiniteDragAnglesCannotProduceInvalidStepCounts() {
+    var accumulator = UndoDialStepAccumulator(angle: 0)
+    XCTAssertEqual(accumulator.advance(to: .nan), 0)
+    XCTAssertEqual(accumulator.advance(to: .infinity), 0)
+    XCTAssertEqual(accumulator.angle, 0)
+    XCTAssertEqual(UndoDialStepAccumulator.normalized(.infinity), 0)
+  }
+
   func testNormalizationKeepsMultipleCounterclockwiseTurnsPositive() {
     let step = UndoDialStepAccumulator.stepAngle
 

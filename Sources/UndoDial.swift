@@ -11,7 +11,9 @@ struct UndoDialStepAccumulator {
   }
 
   mutating func advance(to nextAngle: Double) -> Int {
+    guard nextAngle.isFinite, angle.isFinite else { return 0 }
     var delta = nextAngle - angle
+    guard delta.isFinite else { return 0 }
     if delta > Double.pi { delta -= 2 * Double.pi }
     if delta < -Double.pi { delta += 2 * Double.pi }
     let steps = Int(delta / Self.stepAngle)
@@ -21,6 +23,7 @@ struct UndoDialStepAccumulator {
   }
 
   static func normalized(_ angle: Double) -> Double {
+    guard angle.isFinite else { return 0 }
     var value = angle.truncatingRemainder(dividingBy: 2 * Double.pi)
     if value < 0 { value += 2 * Double.pi }
     return value
