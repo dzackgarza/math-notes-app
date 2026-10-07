@@ -215,10 +215,13 @@ final class InkCanvasView: UIView {
   }
 
   override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-    _ = sendFingerTouches(touches, event: event)
-    sendPencilTouches(touches, event: event)
+    let fingerHandled = sendFingerTouches(touches, event: event)
+    let pencilHandled = sendPencilTouches(touches, event: event)
     if touches.contains(where: { $0.type == .pencil }) {
       onPencilStrokeChanged(false)
+    }
+    if fingerHandled || pencilHandled {
+      onInteractionEnded()
     }
   }
 
@@ -369,7 +372,7 @@ final class InkCanvasView: UIView {
     }
     check(status, operation: "ink_input")
     return status == INK_OK && touches.contains {
-      $0.type == .pencil && $0.phase == .ended
+      $0.type == .pencil && ($0.phase == .ended || $0.phase == .cancelled)
     }
   }
 
