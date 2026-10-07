@@ -215,6 +215,7 @@ struct EditorToolRail: View {
       }
     }
     .frame(width: EditorToolRailMetrics.width)
+    .focusSection()
     .foregroundStyle(NativeTheme.ink)
     .background(NativeTheme.leaf, in: RoundedRectangle(cornerRadius: 16))
     .overlay {
