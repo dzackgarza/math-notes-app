@@ -100,9 +100,10 @@ func editorKeyboardEditingAllowed(
 func pencilHoverPreviewAllowed(
   preference: Bool,
   hostActive: Bool,
+  hostFocused: Bool,
   pencilStrokeActive: Bool
 ) -> Bool {
-  preference && hostActive && !pencilStrokeActive
+  preference && hostActive && hostFocused && !pencilStrokeActive
 }
 
 struct PencilPreferredActionResult: Equatable {
@@ -512,6 +513,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     let linkedBecameEnabled = linked && !hostLinked
     let focusChanged = focused != hostFocused
     hostFocused = focused
+    if !active || !focused { pencilHoverIndicator.isHidden = true }
     if active && focused && (becameActive || focusChanged) {
       becomeFirstResponder()
     } else if (!active || !focused) && isFirstResponder {
@@ -1274,7 +1276,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   @objc private func handlePencilHover(_ recognizer: UIHoverGestureRecognizer) {
-    guard hostActive, !pencilStrokeActive else {
+    guard hostActive, hostFocused, !pencilStrokeActive else {
       pencilHoverIndicator.isHidden = true
       return
     }
@@ -1290,6 +1292,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       guard pencilHoverPreviewAllowed(
         preference: UIPencilInteraction.prefersHoverToolPreview,
         hostActive: hostActive,
+        hostFocused: hostFocused,
         pencilStrokeActive: pencilStrokeActive)
       else {
         pencilHoverIndicator.isHidden = true

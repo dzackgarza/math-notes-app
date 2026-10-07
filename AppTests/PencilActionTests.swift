@@ -37,16 +37,19 @@ final class PencilActionTests: XCTestCase {
   func testHoverPreviewRespectsSystemPreferenceAndActiveStrokeState() {
     XCTAssertTrue(
       pencilHoverPreviewAllowed(
-        preference: true, hostActive: true, pencilStrokeActive: false))
+        preference: true, hostActive: true, hostFocused: true, pencilStrokeActive: false))
     XCTAssertFalse(
       pencilHoverPreviewAllowed(
-        preference: false, hostActive: true, pencilStrokeActive: false))
+        preference: false, hostActive: true, hostFocused: true, pencilStrokeActive: false))
     XCTAssertFalse(
       pencilHoverPreviewAllowed(
-        preference: true, hostActive: false, pencilStrokeActive: false))
+        preference: true, hostActive: false, hostFocused: true, pencilStrokeActive: false))
     XCTAssertFalse(
       pencilHoverPreviewAllowed(
-        preference: true, hostActive: true, pencilStrokeActive: true))
+        preference: true, hostActive: true, hostFocused: false, pencilStrokeActive: false))
+    XCTAssertFalse(
+      pencilHoverPreviewAllowed(
+        preference: true, hostActive: true, hostFocused: true, pencilStrokeActive: true))
   }
 
 }
