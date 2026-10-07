@@ -88,6 +88,14 @@ private struct FigureEditorWebView: UIViewRepresentable {
 
   @MainActor
   final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+      ready = false
+      onError(NSError(
+        domain: "MathNotes.FigureEditor",
+        code: 2,
+        userInfo: [NSLocalizedDescriptionKey: "The figure editor stopped responding. Close and reopen it."]))
+    }
+
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
       onError(error)
     }
