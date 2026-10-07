@@ -97,6 +97,14 @@ func editorKeyboardEditingAllowed(
     figureCompleting: figureCompleting)
 }
 
+func pencilHoverPreviewAllowed(
+  preference: Bool,
+  hostActive: Bool,
+  pencilStrokeActive: Bool
+) -> Bool {
+  preference && hostActive && !pencilStrokeActive
+}
+
 struct PencilPreferredActionResult: Equatable {
   var tool: EditorTool
   var previousTool: EditorTool?
@@ -1278,6 +1286,14 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         azimuth: recognizer.azimuthAngle(in: canvasView),
         roll: recognizer.rollAngle,
         hoverHeight: recognizer.zOffset)
+      guard pencilHoverPreviewAllowed(
+        preference: UIPencilInteraction.prefersHoverToolPreview,
+        hostActive: hostActive,
+        pencilStrokeActive: pencilStrokeActive)
+      else {
+        pencilHoverIndicator.isHidden = true
+        return
+      }
       let settings: InkToolSettings
       switch appliedTool {
       case .pen:

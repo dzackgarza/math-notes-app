@@ -34,4 +34,19 @@ final class PencilActionTests: XCTestCase {
         .showContextualPalette, tool: .pen, previousTool: nil, point: nil).paletteAnchor,
       CGPoint(x: 88, y: 88))
   }
+  func testHoverPreviewRespectsSystemPreferenceAndActiveStrokeState() {
+    XCTAssertTrue(
+      pencilHoverPreviewAllowed(
+        preference: true, hostActive: true, pencilStrokeActive: false))
+    XCTAssertFalse(
+      pencilHoverPreviewAllowed(
+        preference: false, hostActive: true, pencilStrokeActive: false))
+    XCTAssertFalse(
+      pencilHoverPreviewAllowed(
+        preference: true, hostActive: false, pencilStrokeActive: false))
+    XCTAssertFalse(
+      pencilHoverPreviewAllowed(
+        preference: true, hostActive: true, pencilStrokeActive: true))
+  }
+
 }
