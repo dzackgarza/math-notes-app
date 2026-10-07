@@ -1,5 +1,10 @@
+import Foundation
 import SwiftUI
 import UIKit
+
+func removeExportTemporaryFile(_ url: URL) {
+  try? FileManager.default.removeItem(at: url)
+}
 
 struct SharePayload: Identifiable {
   let url: URL
@@ -11,7 +16,11 @@ struct ActivityShareSheet: UIViewControllerRepresentable {
   let url: URL
 
   func makeUIViewController(context: Context) -> UIActivityViewController {
-    UIActivityViewController(activityItems: [url], applicationActivities: nil)
+    let controller = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+    controller.completionWithItemsHandler = { _, _, _, _ in
+      removeExportTemporaryFile(url)
+    }
+    return controller
   }
 
   func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
@@ -26,9 +35,34 @@ struct ExportPayload: Identifiable {
 struct DocumentExportPicker: UIViewControllerRepresentable {
   let url: URL
 
+  func makeCoordinator() -> Coordinator {
+    Coordinator(url: url)
+  }
+
   func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
-    UIDocumentPickerViewController(forExporting: [url], asCopy: true)
+    let controller = UIDocumentPickerViewController(forExporting: [url], asCopy: true)
+    controller.delegate = context.coordinator
+    return controller
   }
 
   func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
+
+  final class Coordinator: NSObject, UIDocumentPickerDelegate {
+    private let url: URL
+
+    init(url: URL) {
+      self.url = url
+    }
+
+    func documentPicker(
+      _ controller: UIDocumentPickerViewController,
+      didPickDocumentsAt urls: [URL]
+    ) {
+      removeExportTemporaryFile(url)
+    }
+
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+      removeExportTemporaryFile(url)
+    }
+  }
 }
