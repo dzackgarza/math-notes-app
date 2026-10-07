@@ -68,7 +68,10 @@ final class PDFImportDocument {
     if rotation == 90 || rotation == 270 {
       size = CGSize(width: size.height, height: size.width)
     }
-    guard size.width > 0, size.height > 0, maxWidthPixels > 0 else {
+    guard size.width.isFinite, size.height.isFinite,
+      size.width > 0, size.height > 0,
+      maxWidthPixels.isFinite, maxWidthPixels > 0
+    else {
       throw PDFImportError.invalidPageSize(index)
     }
 
@@ -76,6 +79,11 @@ final class PDFImportDocument {
     let targetSize = CGSize(
       width: maxWidthPixels,
       height: size.height * scale)
+    guard targetSize.width.isFinite, targetSize.height.isFinite,
+      targetSize.height > 0
+    else {
+      throw PDFImportError.invalidPageSize(index)
+    }
     let format = UIGraphicsImageRendererFormat()
     format.scale = 1
     format.opaque = true
