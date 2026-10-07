@@ -220,9 +220,7 @@ struct NativeLibraryView: View {
         HStack(spacing: 4) {
           TextField(
             "Search notebooks and notes",
-            text: Binding(
-              get: { query },
-              set: { query = $0.trimmingCharacters(in: .whitespacesAndNewlines) }))
+            text: $query)
             .nativeFieldSurface()
             .focused($searchFocused)
             .onChange(of: query) { refreshSearch() }
