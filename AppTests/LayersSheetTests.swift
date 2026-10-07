@@ -25,4 +25,23 @@ final class LayersSheetTests: XCTestCase {
     XCTAssertNil(editableActiveLayerID(layers: [lockedInk, hiddenNotes], current: notes.id))
   }
 
+  func testRemovedActiveLayerPrefersItsAdjacentFallback() {
+    let ink = EngineLayer(id: "l-ink", name: "Ink", hidden: false, locked: false)
+    let notes = EngineLayer(id: "l-notes", name: "Notes", hidden: false, locked: false)
+    let top = EngineLayer(id: "l-top", name: "Top", hidden: false, locked: false)
+
+    XCTAssertEqual(
+      editableActiveLayerID(
+        layers: [ink, notes],
+        current: top.id,
+        preferred: notes.id),
+      notes.id)
+    XCTAssertEqual(
+      editableActiveLayerID(
+        layers: [notes, top],
+        current: ink.id,
+        preferred: notes.id),
+      notes.id)
+  }
+
 }

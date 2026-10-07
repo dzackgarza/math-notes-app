@@ -215,10 +215,22 @@ struct LayersSheet: View {
   }
 
   private func removeLayer(index: Int, mergeDown: Bool) {
+    let removedID = layers[index].id
+    let preferredID: String?
+    if index > 0 {
+      preferredID = layers[index - 1].id
+    } else if layers.count > 1 {
+      preferredID = layers[1].id
+    } else {
+      preferredID = nil
+    }
     do {
       try document.removeLayer(index: index, mergeDown: mergeDown)
       try reloadThrowing()
-      activeLayerID = editableActiveLayerID(layers: layers, current: activeLayerID)
+      activeLayerID = editableActiveLayerID(
+        layers: layers,
+        current: activeLayerID,
+        preferred: activeLayerID == removedID ? preferredID : nil)
       onEdit()
     } catch {
       onError(error)

@@ -41,12 +41,22 @@ struct EngineLayer: Decodable, Equatable, Identifiable {
   let locked: Bool
 }
 
-func editableActiveLayerID(layers: [EngineLayer], current: String?) -> String? {
+func editableActiveLayerID(
+  layers: [EngineLayer],
+  current: String?,
+  preferred: String? = nil
+) -> String? {
   if let current,
     let layer = layers.first(where: { $0.id == current }),
     !layer.hidden, !layer.locked
   {
     return current
+  }
+  if let preferred,
+    let layer = layers.first(where: { $0.id == preferred }),
+    !layer.hidden, !layer.locked
+  {
+    return preferred
   }
   return layers.first(where: { !$0.hidden && !$0.locked })?.id
 }
