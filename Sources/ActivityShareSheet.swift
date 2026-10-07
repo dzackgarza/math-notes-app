@@ -15,6 +15,13 @@ struct SharePayload: Identifiable {
 struct ActivityShareSheet: UIViewControllerRepresentable {
   let url: URL
 
+  func makeCoordinator() -> Coordinator { Coordinator(url: url) }
+
+  final class Coordinator {
+    let url: URL
+    init(url: URL) { self.url = url }
+  }
+
   func makeUIViewController(context: Context) -> UIActivityViewController {
     let controller = UIActivityViewController(activityItems: [url], applicationActivities: nil)
     controller.completionWithItemsHandler = { _, _, _, _ in
@@ -24,6 +31,10 @@ struct ActivityShareSheet: UIViewControllerRepresentable {
   }
 
   func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+
+  static func dismantleUIViewController(_ uiViewController: UIActivityViewController, coordinator: Coordinator) {
+    removeExportTemporaryFile(coordinator.url)
+  }
 }
 
 struct ExportPayload: Identifiable {
@@ -47,8 +58,12 @@ struct DocumentExportPicker: UIViewControllerRepresentable {
 
   func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
 
+  static func dismantleUIViewController(_ uiViewController: UIDocumentPickerViewController, coordinator: Coordinator) {
+    removeExportTemporaryFile(coordinator.url)
+  }
+
   final class Coordinator: NSObject, UIDocumentPickerDelegate {
-    private let url: URL
+    let url: URL
 
     init(url: URL) {
       self.url = url
