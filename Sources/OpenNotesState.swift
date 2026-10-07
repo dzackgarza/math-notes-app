@@ -412,6 +412,17 @@ final class OpenNotesState {
     return note
   }
 
+  @discardableResult
+  func openLinkTarget(
+    _ reference: NotebookReference,
+    save: (OpenNotebookSession) throws -> Void,
+    load: (NotebookReference) throws -> OpenNotebookSession
+  ) throws -> OpenNotebookSession {
+    let target = try open(reference, save: save, load: load)
+    focusRight(false)
+    return target
+  }
+
   func focusRight(_ right: Bool) {
     guard splitOpen || !right else { return }
     rightFocused = right

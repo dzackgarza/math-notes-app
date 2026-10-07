@@ -606,6 +606,31 @@ final class OpenNotesStateTests: XCTestCase {
     XCTAssertNotEqual(reference.id, replacement.id)
   }
 
+  func testRelativeLinkTargetMovesFromReferencePaneToPrimaryPane() throws {
+    let state = OpenNotesState()
+    let left = session(["Left"], seed: 44)
+    let reference = session(["Reference"], seed: 45)
+    state.show(left)
+    try state.toggleSplit()
+    _ = try state.showReference(
+      reference.reference,
+      save: { _ in },
+      load: { _ in reference })
+    XCTAssertTrue(state.rightFocused)
+    XCTAssertTrue(state.secondary === reference)
+
+    var saves: [NotebookReference] = []
+    let target = try state.openLinkTarget(
+      reference.reference,
+      save: { saves.append($0.reference) },
+      load: { _ in XCTFail("Existing link target reloaded"); return reference })
+
+    XCTAssertTrue(target === reference)
+    XCTAssertTrue(state.active === reference)
+    XCTAssertFalse(state.rightFocused)
+    XCTAssertEqual(saves, [left.reference])
+  }
+
   func testLinkedViewsAndSplitAxisRemainWorkspaceState() throws {
     let state = OpenNotesState()
     let note = session(["A"], seed: 30)

@@ -2168,24 +2168,16 @@ struct ContentView: View {
         UIApplication.shared.open(url, options: [:])
 
       case let .page(reference, file, id):
-        let targetDocument: EngineDocument
-        let targetView: OpenNotebookViewState
-        if reference == source.reference {
-          targetDocument = source.document
-          targetView = viewState
-        } else {
-          let target = try openNotes.open(
-            reference,
-            save: { note in
-              try saveSession(note, using: root)
-            },
-            load: { reference in
-              try makeOpenSession(reference, using: root)
-            })
-          openNotes.focusRight(false)
-          targetDocument = target.document
-          targetView = target.primaryView
-        }
+        let target = try openNotes.openLinkTarget(
+          reference,
+          save: { note in
+            try saveSession(note, using: root)
+          },
+          load: { reference in
+            try makeOpenSession(reference, using: root)
+          })
+        let targetDocument = target.document
+        let targetView = target.primaryView
 
         let targetMarks = try targetDocument.navigation()
         guard let mark = targetMarks.first(where: { candidate in
