@@ -1002,7 +1002,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
 
   @objc private func copySelection() {
     do {
-      guard let svg = try canvasView.copySelection() else { return }
+      guard let svg = try canvasView.copySelection(), !svg.isEmpty else { return }
       UIPasteboard.general.string = svg
     } catch {
       onError(error)
@@ -1011,7 +1011,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
 
   @objc private func cutSelection() {
     do {
-      guard let svg = try canvasView.copySelection() else { return }
+      guard let svg = try canvasView.copySelection(), !svg.isEmpty else { return }
       UIPasteboard.general.string = svg
       try canvasView.deleteSelection()
       onEditCommitted()
