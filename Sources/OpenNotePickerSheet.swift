@@ -22,9 +22,19 @@ struct OpenNotePickerSheet: View {
   var body: some View {
     NavigationStack {
       VStack(spacing: 0) {
-        TextField("Search", text: $query)
-          .nativeFieldSurface()
-          .padding(12)
+        HStack(spacing: 4) {
+          TextField("Search", text: $query)
+            .nativeFieldSurface()
+          if !query.isEmpty {
+            Button { query = "" } label: {
+              Image(systemName: "xmark.circle.fill")
+                .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Clear search")
+          }
+        }
+        .padding(12)
 
         Group {
           if filteredNotes.isEmpty {

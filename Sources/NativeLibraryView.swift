@@ -217,15 +217,30 @@ struct NativeLibraryView: View {
   private var libraryToolbar: some View {
     HStack(spacing: 8) {
       if !notebookOpen {
-        TextField(
-          "Search notebooks and notes",
-          text: Binding(
-            get: { query },
-            set: { query = $0.trimmingCharacters(in: .whitespacesAndNewlines) }))
-          .nativeFieldSurface()
-          .focused($searchFocused)
-          .onChange(of: query) { refreshSearch() }
-          .frame(maxWidth: .infinity)
+        HStack(spacing: 4) {
+          TextField(
+            "Search notebooks and notes",
+            text: Binding(
+              get: { query },
+              set: { query = $0.trimmingCharacters(in: .whitespacesAndNewlines) }))
+            .nativeFieldSurface()
+            .focused($searchFocused)
+            .onChange(of: query) { refreshSearch() }
+
+          if !query.isEmpty {
+            Button {
+              query = ""
+              refreshSearch()
+              searchFocused = true
+            } label: {
+              Image(systemName: "xmark.circle.fill")
+                .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Clear search")
+          }
+        }
+        .frame(maxWidth: .infinity)
         filterMenu
       } else {
         Spacer(minLength: 0)
@@ -670,7 +685,7 @@ struct NativeLibraryView: View {
       folderActions(item)
     } label: {
       Image(systemName: "ellipsis.circle")
-        .frame(width: 32, height: 32)
+        .frame(width: 44, height: 44)
     }
     .accessibilityLabel("\(item.reference.name) notebook actions")
   }
@@ -680,7 +695,7 @@ struct NativeLibraryView: View {
       noteActions(item)
     } label: {
       Image(systemName: "ellipsis.circle")
-        .frame(width: 32, height: 32)
+        .frame(width: 44, height: 44)
     }
     .accessibilityLabel("\(item.reference.name) actions")
   }
