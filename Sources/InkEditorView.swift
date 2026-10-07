@@ -701,13 +701,20 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       guard let svg = try canvasView.copySelection(), !svg.isEmpty else { return [] }
       let provider = NSItemProvider(object: svg as NSString)
       provider.registerDataRepresentation(
-        forTypeIdentifier: copyHandle
-          ? notebookSelectionCopyDragType.identifier
-          : notebookSelectionDragType.identifier,
+        forTypeIdentifier: notebookSelectionCopyDragType.identifier,
         visibility: .ownProcess
       ) { completion in
         completion(Data(svg.utf8), nil)
         return nil
+      }
+      if !copyHandle {
+        provider.registerDataRepresentation(
+          forTypeIdentifier: notebookSelectionDragType.identifier,
+          visibility: .ownProcess
+        ) { completion in
+          completion(Data(svg.utf8), nil)
+          return nil
+        }
       }
       return [UIDragItem(itemProvider: provider)]
     } catch {
