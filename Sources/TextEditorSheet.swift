@@ -136,7 +136,9 @@ private struct NoteTextView: UIViewRepresentable {
     let externalTextChanged = view.text != text && view.markedTextRange == nil
     if externalTextChanged { view.text = text }
     view.font = noteTextFont(size: 18)
-    if externalTextChanged || context.coordinator.appliedRTL != rtl {
+    if view.markedTextRange == nil &&
+      (externalTextChanged || context.coordinator.appliedRTL != rtl)
+    {
       applyDirection(to: view)
       context.coordinator.appliedRTL = rtl
     }
