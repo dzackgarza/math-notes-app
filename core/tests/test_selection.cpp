@@ -472,3 +472,35 @@ TEST_CASE("An image pasted into another notebook gets its own asset file and ren
   CHECK(image_pixels(reopened.document) > 1000);
   CHECK(image_pixels(without_asset.document) == 0);
 }
+
+TEST_CASE("Selection ignores hidden and locked layers") {
+  ink_test::Session canvas;
+  ink_test::SetTool(canvas.get(), INK_BRUSH_MARKER, 0x1A1A1A, 2);
+
+  Gesture(canvas.get(), Line({100, 100}, {300, 100}, 10), 0);
+  REQUIRE(ink_document_add_layer(canvas.document, "Hidden") == INK_OK);
+  REQUIRE(ink_canvas_set_layer(canvas.get(), 1) == INK_OK);
+  Gesture(canvas.get(), Line({100, 200}, {300, 200}, 10), 200);
+  REQUIRE(ink_document_add_layer(canvas.document, "Locked") == INK_OK);
+  REQUIRE(ink_canvas_set_layer(canvas.get(), 2) == INK_OK);
+  Gesture(canvas.get(), Line({100, 300}, {300, 300}, 10), 400);
+
+  REQUIRE(ink_document_set_layer(canvas.document, 1, "Hidden", 1, 0) == INK_OK);
+  REQUIRE(ink_document_set_layer(canvas.document, 2, "Locked", 0, 1) == INK_OK);
+  const Element hidden = *canvas.doc().pages[0]->layers[1].elements[0];
+  const Element locked = *canvas.doc().pages[0]->layers[2].elements[0];
+
+  REQUIRE(ink_canvas_select_all(canvas.get(), 0) == INK_OK);
+  const Selection *selection = canvas.canvas->editor.CurrentSelection();
+  REQUIRE(selection);
+  REQUIRE(selection->items.size() == 1);
+  CHECK(selection->items[0].layer == 0);
+  CHECK(selection->items[0].index == 0);
+
+  REQUIRE(ink_canvas_delete_selection(canvas.get()) == INK_OK);
+  CHECK(canvas.doc().pages[0]->layers[0].elements.empty());
+  REQUIRE(canvas.doc().pages[0]->layers[1].elements.size() == 1);
+  REQUIRE(canvas.doc().pages[0]->layers[2].elements.size() == 1);
+  CHECK(*canvas.doc().pages[0]->layers[1].elements[0] == hidden);
+  CHECK(*canvas.doc().pages[0]->layers[2].elements[0] == locked);
+}

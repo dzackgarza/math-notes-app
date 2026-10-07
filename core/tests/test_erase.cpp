@@ -74,6 +74,22 @@ double ToRectEdge(Point p, double x0, double y0, double x1, double y1) {
   return std::min({p.x - x0, x1 - p.x, p.y - y0, y1 - p.y});
 }
 
+
+Document ProtectedLayerDocument() {
+  ink_test::Session source;
+  ink_test::SetTool(source.get(), INK_BRUSH_MARKER, 0x1A1A1A, 2);
+  Gesture(source.get(), Line({100, 100}, {300, 100}, 10), 0);
+  REQUIRE(ink_document_add_layer(source.document, "Hidden") == INK_OK);
+  REQUIRE(ink_canvas_set_layer(source.get(), 1) == INK_OK);
+  Gesture(source.get(), Line({100, 200}, {300, 200}, 10), 200);
+  REQUIRE(ink_document_add_layer(source.document, "Locked") == INK_OK);
+  REQUIRE(ink_canvas_set_layer(source.get(), 2) == INK_OK);
+  Gesture(source.get(), Line({100, 300}, {300, 300}, 10), 400);
+  REQUIRE(ink_document_set_layer(source.document, 1, "Hidden", 1, 0) == INK_OK);
+  REQUIRE(ink_document_set_layer(source.document, 2, "Locked", 0, 1) == INK_OK);
+  return source.doc();
+}
+
 }  // namespace
 
 TEST_CASE("The stroke eraser deletes the strokes Write deletes") {
@@ -279,5 +295,35 @@ TEST_CASE("The erasers act on shapes") {
     CHECK(std::abs(pieces[0].samples.back().x - 143) < 1e-9);
     CHECK(std::abs(pieces[1].samples.front().x - 157) < 1e-9);
     CHECK((all.left == 100 && all.top == 300 && all.right == 300 && all.bottom == 400));
+  }
+}
+
+TEST_CASE("Both erasers leave hidden and locked layers unchanged") {
+  const Document original = ProtectedLayerDocument();
+  const Element hidden = *original.pages[0]->layers[1].elements[0];
+  const Element locked = *original.pages[0]->layers[2].elements[0];
+
+  SECTION("stroke eraser") {
+    ink_test::Session canvas(original, 31);
+    ink_canvas_set_eraser(canvas.get(), INK_ERASER_STROKE, 1);
+    Gesture(canvas.get(), Line({200, 50}, {200, 350}, 20), 1000);
+
+    CHECK(canvas.doc().pages[0]->layers[0].elements.empty());
+    REQUIRE(canvas.doc().pages[0]->layers[1].elements.size() == 1);
+    REQUIRE(canvas.doc().pages[0]->layers[2].elements.size() == 1);
+    CHECK(*canvas.doc().pages[0]->layers[1].elements[0] == hidden);
+    CHECK(*canvas.doc().pages[0]->layers[2].elements[0] == locked);
+  }
+
+  SECTION("free eraser") {
+    ink_test::Session canvas(original, 32);
+    ink_canvas_set_eraser(canvas.get(), INK_ERASER_FREE, 1);
+    Gesture(canvas.get(), Line({200, 50}, {200, 350}, 20), 1000);
+
+    CHECK(canvas.doc().pages[0]->layers[0].elements.size() == 2);
+    REQUIRE(canvas.doc().pages[0]->layers[1].elements.size() == 1);
+    REQUIRE(canvas.doc().pages[0]->layers[2].elements.size() == 1);
+    CHECK(*canvas.doc().pages[0]->layers[1].elements[0] == hidden);
+    CHECK(*canvas.doc().pages[0]->layers[2].elements[0] == locked);
   }
 }
