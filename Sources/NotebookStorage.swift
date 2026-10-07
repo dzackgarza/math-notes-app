@@ -746,14 +746,18 @@ private final class RootFilePresenter: NSObject, NSFilePresenter {
     itemURL = url
   }
 
+  func updatePresentedItemURL(_ newURL: URL) {
+    urlLock.lock()
+    itemURL = newURL
+    urlLock.unlock()
+  }
+
   func presentedItemDidChange() {
     onChange?()
   }
 
   func presentedItemDidMove(to newURL: URL) {
-    urlLock.lock()
-    itemURL = newURL
-    urlLock.unlock()
+    updatePresentedItemURL(newURL)
     onMove?(newURL)
     onChange?()
   }
@@ -788,13 +792,14 @@ final class NotesRootAccess {
   var onChange: (() -> Void)?
 
   private let presenter: RootFilePresenter
-  private let scopedAccessURL: URL?
+  private var scopedAccessURL: URL?
   private let recoveryDirectory: URL
   private let thumbnailCacheDirectory: URL
 #if DEBUG
   private let thumbnailRendererOverride: (@MainActor (EngineDocument) throws -> Data)?
 #endif
   private var accessing = true
+  private var presenterRegistered = false
   private var thumbnailCache: [String: (stamp: String, data: Data)] = [:]
   private var notebookBases: [NotebookReference: [String: Data]] = [:]
   private var recoveredChanges: [NotebookReference: [EngineFileChange]] = [:]
@@ -819,7 +824,7 @@ final class NotesRootAccess {
     presenter = RootFilePresenter(url: testURL)
     accessing = false
     configurePresenterCallbacks()
-    NSFileCoordinator.addFilePresenter(presenter)
+    resumeFilePresentation()
   }
 #endif
 
@@ -837,7 +842,7 @@ final class NotesRootAccess {
 #endif
     presenter = RootFilePresenter(url: selectedURL)
     configurePresenterCallbacks()
-    NSFileCoordinator.addFilePresenter(presenter)
+    resumeFilePresentation()
   }
 
   private init(restoredURL: URL, refreshBookmark: Bool) throws {
@@ -863,25 +868,69 @@ final class NotesRootAccess {
 #endif
     presenter = RootFilePresenter(url: restoredURL)
     configurePresenterCallbacks()
-    NSFileCoordinator.addFilePresenter(presenter)
+    resumeFilePresentation()
   }
 
   deinit {
-    NSFileCoordinator.removeFilePresenter(presenter)
+    suspendFilePresentation()
     if accessing {
       scopedAccessURL?.stopAccessingSecurityScopedResource()
     }
   }
 
+  func suspendFilePresentation() {
+    guard presenterRegistered else { return }
+    NSFileCoordinator.removeFilePresenter(presenter)
+    presenterRegistered = false
+  }
+
+  func resumeFilePresentation(refreshSavedLocation: Bool = false) {
+    guard !presenterRegistered else { return }
+    if refreshSavedLocation {
+      refreshRootLocationFromSavedBookmark()
+    }
+    NSFileCoordinator.addFilePresenter(presenter)
+    presenterRegistered = true
+  }
+
+#if DEBUG
+  var filePresentationRegisteredForTesting: Bool { presenterRegistered }
+#endif
+
   private func configurePresenterCallbacks() {
     presenter.onMove = { [weak self] newURL in
-      guard let self else { return }
-      self.url = newURL
-      if self.accessing {
-        try? Self.saveBookmark(for: newURL)
-      }
+      self?.adoptRootURL(newURL, refreshBookmark: true)
     }
     presenter.onChange = { [weak self] in self?.onChange?() }
+  }
+
+  private func refreshRootLocationFromSavedBookmark() {
+    guard accessing,
+      let bookmark = UserDefaults.standard.data(forKey: Self.bookmarkKey)
+    else { return }
+
+    var stale = false
+    guard let resolved = try? URL(
+      resolvingBookmarkData: bookmark,
+      bookmarkDataIsStale: &stale)
+    else { return }
+    adoptRootURL(resolved, refreshBookmark: stale || resolved.standardizedFileURL != url.standardizedFileURL)
+  }
+
+  private func adoptRootURL(_ newURL: URL, refreshBookmark: Bool) {
+    let standardized = newURL.standardizedFileURL
+    if accessing, standardized != scopedAccessURL?.standardizedFileURL,
+      newURL.startAccessingSecurityScopedResource()
+    {
+      let previous = scopedAccessURL
+      scopedAccessURL = newURL
+      previous?.stopAccessingSecurityScopedResource()
+    }
+    url = newURL
+    presenter.updatePresentedItemURL(newURL)
+    if accessing && refreshBookmark {
+      try? Self.saveBookmark(for: newURL)
+    }
   }
 
 #if DEBUG

@@ -568,6 +568,7 @@ struct ContentView: View {
     .onChange(of: scenePhase) { _, phase in
       switch phase {
       case .active:
+        root?.resumeFilePresentation(refreshSavedLocation: true)
         refreshLibrary()
         reloadPenLibrary()
         if let root {
@@ -577,6 +578,7 @@ struct ContentView: View {
         }
       case .background:
         flushPendingSaves()
+        root?.suspendFilePresentation()
       default:
         break
       }
