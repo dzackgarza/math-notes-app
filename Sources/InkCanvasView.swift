@@ -71,6 +71,9 @@ final class InkCanvasView: UIView {
       fatalError("ink_canvas_create_metal failed: \(EngineDocument.lastError())")
     }
     canvas = engineCanvas
+    check(
+      ink_canvas_set_utc_offset(engineCanvas, pencilUTCOffsetMilliseconds()),
+      operation: "ink_canvas_set_utc_offset")
 
     applyTool(.pen, pens: .defaults)
 

@@ -94,4 +94,15 @@ final class PencilSampleTests: XCTestCase {
       UInt32(INK_HAS_ALTITUDE) | UInt32(INK_HAS_AZIMUTH) | UInt32(INK_HAS_ROLL))
   }
 
+  func testUTCOffsetMapsSystemUptimeSamplesOntoUnixTime() {
+    let offset = pencilUTCOffsetMilliseconds(
+      utcNow: 1_760_000_123.456,
+      systemUptime: 123_456.789)
+
+    XCTAssertEqual(
+      123_456_789 + offset,
+      1_760_000_123_456,
+      accuracy: 0.001)
+  }
+
 }

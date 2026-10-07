@@ -1,6 +1,14 @@
 import CoreGraphics
+import Foundation
 import InkEngine
 import UIKit
+
+func pencilUTCOffsetMilliseconds(
+  utcNow: TimeInterval = Date().timeIntervalSince1970,
+  systemUptime: TimeInterval = ProcessInfo.processInfo.systemUptime
+) -> Double {
+  (utcNow - systemUptime) * 1000
+}
 
 struct PencilSampleValues: Equatable {
   var location: CGPoint
