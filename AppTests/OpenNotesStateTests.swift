@@ -282,6 +282,25 @@ final class OpenNotesStateTests: XCTestCase {
     XCTAssertTrue(state.active === b)
   }
 
+  func testFigureEditorCaptureTracksTheOriginatingPane() throws {
+    let state = OpenNotesState()
+    let note = session(["A"], seed: 43)
+    state.show(note)
+
+    XCTAssertTrue(state.setCapture(viewID: note.primaryView.id, active: true))
+    XCTAssertThrowsError(try state.requireNoCapture("switching notes"))
+    XCTAssertTrue(state.setCapture(viewID: note.primaryView.id, active: false))
+    XCTAssertNoThrow(try state.requireNoCapture("switching notes"))
+
+    try state.toggleSplit()
+    // The split opens unfocused on the right; address its view directly.
+    let secondary = try XCTUnwrap(state.secondaryView)
+    XCTAssertTrue(state.setCapture(viewID: secondary.id, active: true))
+    XCTAssertThrowsError(try state.requireNoCapture("switching notes"))
+    XCTAssertTrue(state.setCapture(viewID: secondary.id, active: false))
+    XCTAssertNoThrow(try state.requireNoCapture("switching notes"))
+  }
+
   func testCaptureBlocksSwitchAndLibraryButOnlyTargetCaptureBlocksClose() throws {
     let state = OpenNotesState()
     let a = session(["A"], seed: 8)

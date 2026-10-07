@@ -451,6 +451,19 @@ final class OpenNotesState {
     splitAxis = .horizontal
   }
 
+  @discardableResult
+  func setCapture(viewID: UUID, active: Bool) -> Bool {
+    for session in opened where session.primaryView.id == viewID {
+      session.primaryView.captureActive = active
+      return true
+    }
+    if secondaryView?.id == viewID {
+      secondaryView?.captureActive = active
+      return true
+    }
+    return false
+  }
+
   func requireNoCapture(_ action: String) throws {
     guard !opened.contains(where: { captureActive(for: $0) }) else {
       throw OpenNotesStateError.captureInProgress(action)

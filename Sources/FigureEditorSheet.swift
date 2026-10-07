@@ -6,6 +6,7 @@ import WebKit
 struct FigureEditorRequest: Identifiable {
   let id: String
   let source: String
+  let viewID: UUID
 }
 
 private struct FigureEditorMessage: Decodable {
@@ -165,6 +166,7 @@ private struct FigureEditorWebView: UIViewRepresentable {
 struct FigureEditorSheet: View {
   let request: FigureEditorRequest
   let onDraft: (String, Bool) throws -> Void
+  let onDismiss: () -> Void
   @Environment(\.dismiss) private var dismiss
   @State private var source: String
   @State private var ready = false
@@ -174,10 +176,12 @@ struct FigureEditorSheet: View {
 
   init(
     request: FigureEditorRequest,
-    onDraft: @escaping (String, Bool) throws -> Void
+    onDraft: @escaping (String, Bool) throws -> Void,
+    onDismiss: @escaping () -> Void
   ) {
     self.request = request
     self.onDraft = onDraft
+    self.onDismiss = onDismiss
     _source = State(initialValue: request.source)
   }
 
@@ -225,6 +229,7 @@ struct FigureEditorSheet: View {
       CreationDismissGuard(onAttempt: requestClose)
         .frame(width: 0, height: 0)
     }
+    .onDisappear(perform: onDismiss)
   }
 
   private func requestClose() {

@@ -511,6 +511,9 @@ struct ContentView: View {
             id: request.id,
             source: source,
             persistent: persistent)
+        },
+        onDismiss: {
+          _ = openNotes.setCapture(viewID: request.viewID, active: false)
         })
     }
     .sheet(item: $conflictReview) { request in
@@ -2218,11 +2221,17 @@ struct ContentView: View {
   }
 
   private func openFigureEditor(_ id: String) {
-    guard let session else { return }
+    guard let session, let viewState else { return }
     do {
+      let source = try session.document.figureSource(id: id)
+      guard openNotes.setCapture(viewID: viewState.id, active: true) else {
+        throw EngineDocumentError.operation(
+          "Edit figure", "The figure pane is no longer open")
+      }
       figureEditor = FigureEditorRequest(
         id: id,
-        source: try session.document.figureSource(id: id))
+        source: source,
+        viewID: viewState.id)
     } catch {
       errorMessage = error.localizedDescription
     }
