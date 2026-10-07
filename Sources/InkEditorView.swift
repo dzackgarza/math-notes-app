@@ -1253,7 +1253,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     guard recognizer.state == .ended else { return }
     onFocusRequested()
     let point = recognizer.location(in: canvasView)
-    guard !handleModeTap(at: point), !figureCaptureActive, !figureCompleting else { return }
+    guard !figureCaptureActive, !figureCompleting else { return }
+    guard !handleModeTap(at: point) else { return }
     guard appliedTool == .navigate else { return }
     followLink(at: point)
   }
@@ -1262,8 +1263,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     guard recognizer.state == .ended else { return }
     onFocusRequested()
     let point = recognizer.location(in: canvasView)
+    guard !figureCaptureActive, !figureCompleting else { return }
     if handleModeTap(at: point) { return }
-    guard appliedTool == .navigate, !figureCaptureActive, !figureCompleting else { return }
+    guard appliedTool == .navigate else { return }
     followLink(at: point)
   }
 
