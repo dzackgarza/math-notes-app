@@ -36,7 +36,7 @@ struct PencilSampleFactory {
     let maximumForce = touch.maximumPossibleForce
     let pressure = maximumForce > 0 ? Float(touch.force / maximumForce) : 0
     return PencilSampleValues(
-      location: touch.location(in: view),
+      location: touch.preciseLocation(in: view),
       timeMs: touch.timestamp * 1000,
       pressure: pressure,
       altitude: Float(touch.altitudeAngle),
@@ -49,7 +49,7 @@ struct PencilSampleFactory {
 
   static func fingerValues(for touch: UITouch, in view: UIView) -> PencilSampleValues {
     PencilSampleValues(
-      location: touch.location(in: view),
+      location: touch.preciseLocation(in: view),
       timeMs: touch.timestamp * 1000,
       pressure: 0,
       altitude: 0,
