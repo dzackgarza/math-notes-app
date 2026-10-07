@@ -132,7 +132,9 @@ private struct NoteTextView: UIViewRepresentable {
   }
 
   func updateUIView(_ view: UITextView, context: Context) {
-    if view.text != text { view.text = text }
+    if view.text != text && view.markedTextRange == nil {
+      view.text = text
+    }
     view.font = noteTextFont(size: 18)
     applyDirection(to: view)
   }
