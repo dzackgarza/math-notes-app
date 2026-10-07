@@ -55,6 +55,7 @@ struct NativeLibraryView: View {
   var body: some View {
     HStack(spacing: 0) {
       librarySidebar
+        .focusSection()
       Divider()
         .overlay(NativeTheme.separator)
       Group {
@@ -163,6 +164,7 @@ struct NativeLibraryView: View {
       }
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .focusSection()
       .safeAreaInset(edge: .top, spacing: 0) {
         if !notebookOpen {
           Text(libraryHeading)
@@ -200,37 +202,40 @@ struct NativeLibraryView: View {
             Label("Library", systemImage: "chevron.left")
           }
           .accessibilityLabel("Back to library")
+          .focusSection()
         }
       }
 
       ToolbarItemGroup(placement: .topBarTrailing) {
-        if !notebookOpen {
-          filterMenu
+        Group {
+          if !notebookOpen {
+            filterMenu
+          }
+
+          sortMenu
+
+          if !notebookOpen {
+            Button(action: createNotebook) {
+              Label("New notebook", systemImage: "folder.badge.plus")
+            }
+          } else {
+            Button(action: importPDF) {
+              Label("Import PDF", systemImage: "doc.badge.plus")
+            }
+
+            Button(action: createNote) {
+              Label("New note", systemImage: "square.and.pencil")
+            }
+
+            Menu {
+              folderActions(folder)
+            } label: {
+              Image(systemName: "ellipsis.circle")
+            }
+            .accessibilityLabel("\(folder.name) notebook actions")
+          }
         }
-
-        sortMenu
-
-        if !notebookOpen {
-          Button(action: createNotebook) {
-            Label("New notebook", systemImage: "folder.badge.plus")
-          }
-        } else {
-          Button(action: importPDF) {
-            Label("Import PDF", systemImage: "doc.badge.plus")
-          }
-
-          Button(action: createNote) {
-            Label("New note", systemImage: "square.and.pencil")
-          }
-
-          Menu {
-            folderActions(folder)
-          } label: {
-            Image(systemName: "ellipsis.circle")
-          }
-          .accessibilityLabel("\(folder.name) notebook actions")
-        }
-
+        .focusSection()
       }
     }
   }
