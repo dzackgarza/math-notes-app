@@ -95,22 +95,44 @@ private struct ConflictComparisonView: UIViewRepresentable {
     stack.axis = .horizontal
     stack.spacing = 12
     stack.distribution = .fillEqually
-
-    let leftImage = left.flatMap(UIImage.init(data:))
-    let rightImage = right.flatMap(UIImage.init(data:))
-    let synchronized = leftImage != nil && rightImage != nil
-    let leftPane = pane(image: leftImage, summary: leftSummary)
-    let rightPane = pane(image: rightImage, summary: rightSummary)
-    stack.addArrangedSubview(leftPane.scroll)
-    stack.addArrangedSubview(rightPane.scroll)
-    context.coordinator.install(
-      left: leftPane,
-      right: rightPane,
-      synchronized: synchronized)
+    update(stack, coordinator: context.coordinator)
     return stack
   }
 
-  func updateUIView(_ stack: UIStackView, context: Context) {}
+  func updateUIView(_ stack: UIStackView, context: Context) {
+    update(stack, coordinator: context.coordinator)
+  }
+
+  private var content: Coordinator.Content {
+    Coordinator.Content(
+      left: left,
+      leftSummary: leftSummary,
+      right: right,
+      rightSummary: rightSummary)
+  }
+
+  private func update(_ stack: UIStackView, coordinator: Coordinator) {
+    let content = content
+    guard coordinator.content != content else { return }
+
+    for view in stack.arrangedSubviews {
+      stack.removeArrangedSubview(view)
+      view.removeFromSuperview()
+    }
+
+    let leftImage = content.left.flatMap(UIImage.init(data:))
+    let rightImage = content.right.flatMap(UIImage.init(data:))
+    let synchronized = leftImage != nil && rightImage != nil
+    let leftPane = pane(image: leftImage, summary: content.leftSummary)
+    let rightPane = pane(image: rightImage, summary: content.rightSummary)
+    stack.addArrangedSubview(leftPane.scroll)
+    stack.addArrangedSubview(rightPane.scroll)
+    coordinator.install(
+      content: content,
+      left: leftPane,
+      right: rightPane,
+      synchronized: synchronized)
+  }
 
   private func pane(
     image: UIImage?,
@@ -168,17 +190,26 @@ private struct ConflictComparisonView: UIViewRepresentable {
   }
 
   final class Coordinator: NSObject, UIScrollViewDelegate {
+    struct Content: Equatable {
+      let left: Data?
+      let leftSummary: String
+      let right: Data?
+      let rightSummary: String
+    }
+
     struct Pane {
       let scroll: UIScrollView
       let content: UIView
     }
 
+    var content: Content?
     private var left: Pane?
     private var right: Pane?
     private var synchronized = false
     private var applyingSync = false
 
-    func install(left: Pane, right: Pane, synchronized: Bool) {
+    func install(content: Content, left: Pane, right: Pane, synchronized: Bool) {
+      self.content = content
       self.left = left
       self.right = right
       self.synchronized = synchronized
