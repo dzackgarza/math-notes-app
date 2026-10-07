@@ -1,0 +1,80 @@
+import InkEngine
+import PDFKit
+import UIKit
+import XCTest
+@testable import MathNotes
+
+final class PDFImportMixedPageTests: XCTestCase {
+  @MainActor
+  func testMixedSizePdfImportsEachPageAtItsOwnSize() throws {
+    let pageBounds = [
+      CGRect(x: 0, y: 0, width: 595.28, height: 841.89),
+      CGRect(x: 0, y: 0, width: 960, height: 540),
+      CGRect(x: 0, y: 0, width: 612, height: 792),
+    ]
+    let renderer = UIGraphicsPDFRenderer(bounds: pageBounds[0])
+    let pdf = renderer.pdfData { context in
+      for (index, bounds) in pageBounds.enumerated() {
+        context.beginPage(withBounds: bounds, pageInfo: [:])
+        UIColor.white.setFill()
+        context.cgContext.fill(bounds)
+        UIColor.black.setFill()
+        context.cgContext.fill(
+          CGRect(x: 24 + CGFloat(index * 6), y: 30, width: 120, height: 18))
+      }
+    }
+
+    let sourceURL = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString)
+      .appendingPathExtension("pdf")
+    try pdf.write(to: sourceURL, options: .atomic)
+    defer { try? FileManager.default.removeItem(at: sourceURL) }
+
+    let imported = try PDFImportDocument(url: sourceURL)
+    XCTAssertEqual(imported.pageCount, pageBounds.count)
+    let pages = try pageBounds.indices.map { try imported.rasterizedPage(at: $0) }
+    for (page, expected) in zip(pages, pageBounds) {
+      let raster = try XCTUnwrap(UIImage(data: page.png)?.cgImage)
+      XCTAssertEqual(raster.width, 4128)
+      XCTAssertEqual(page.widthPt, expected.width, accuracy: 0.02)
+      XCTAssertEqual(page.heightPt, expected.height, accuracy: 0.02)
+    }
+
+    let rootDirectory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: rootDirectory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: rootDirectory) }
+
+    let root = NotesRootAccess(testURL: rootDirectory)
+    let (reference, document) = try root.createNote(
+      title: "Mixed PDF",
+      parent: FolderReference(path: []),
+      template: "blank",
+      pageSize: INK_PAGE_A4,
+      orientation: INK_PORTRAIT)
+    for (index, page) in pages.enumerated() {
+      try document.importPageImage(
+        at: index,
+        png: page.png,
+        widthPt: page.widthPt,
+        heightPt: page.heightPt)
+    }
+    try document.deletePage(at: pages.count)
+    try root.save(document, notebook: reference)
+
+    let reopened = try NotesRootAccess(testURL: rootDirectory).load(reference)
+    XCTAssertEqual(try reopened.pageCount(), pageBounds.count)
+    for (index, expected) in pageBounds.enumerated() {
+      let rect = try reopened.pageRect(index: index)
+      XCTAssertEqual(rect.width, expected.width, accuracy: 0.02)
+      XCTAssertEqual(rect.height, expected.height, accuracy: 0.02)
+
+      let pageURL = rootDirectory
+        .appendingPathComponent(reference.name, isDirectory: true)
+        .appendingPathComponent("pages", isDirectory: true)
+        .appendingPathComponent(String(format: "%04d.svg", index + 1))
+      let svg = try String(contentsOf: pageURL, encoding: .utf8)
+      XCTAssertTrue(svg.contains("<image"), "Imported page \(index + 1) must retain its PDF background")
+    }
+  }
+}
