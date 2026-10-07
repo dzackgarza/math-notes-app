@@ -5,7 +5,7 @@ import XCTest
 
 final class PencilSampleTests: XCTestCase {
   func testSampleFactoryMapsValuesIntoTheEngineABI() {
-    let has = PencilSampleFactory.pencilCapabilities
+    let has = PencilSampleFactory.pencilCapabilities(maximumPossibleForce: 4)
     XCTAssertNotEqual(has & UInt32(INK_HAS_ROLL), 0)
     let values = PencilSampleValues(
       location: CGPoint(x: 42.5, y: 87.25),
@@ -65,7 +65,7 @@ final class PencilSampleTests: XCTestCase {
       azimuth: 1.4,
       roll: 0.2,
       hoverHeight: 0,
-      has: PencilSampleFactory.pencilCapabilities,
+      has: PencilSampleFactory.pencilCapabilities(maximumPossibleForce: 4),
       phase: UInt8(INK_PHASE_MOVE.rawValue))
     let update = ids.estimatedUpdate(
       values: updatedValues,
@@ -83,4 +83,15 @@ final class PencilSampleTests: XCTestCase {
     XCTAssertEqual(update?.predicted, 0)
     XCTAssertNil(ids.updateID(estimationIndex: index))
   }
+  func testPressureCapabilityRequiresAUsableForceRange() {
+    let withoutPressure = PencilSampleFactory.pencilCapabilities(maximumPossibleForce: 0)
+    let withPressure = PencilSampleFactory.pencilCapabilities(maximumPossibleForce: 4)
+
+    XCTAssertEqual(withoutPressure & UInt32(INK_HAS_PRESSURE), 0)
+    XCTAssertNotEqual(withPressure & UInt32(INK_HAS_PRESSURE), 0)
+    XCTAssertEqual(
+      withoutPressure & (UInt32(INK_HAS_ALTITUDE) | UInt32(INK_HAS_AZIMUTH) | UInt32(INK_HAS_ROLL)),
+      UInt32(INK_HAS_ALTITUDE) | UInt32(INK_HAS_AZIMUTH) | UInt32(INK_HAS_ROLL))
+  }
+
 }

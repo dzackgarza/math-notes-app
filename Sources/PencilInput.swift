@@ -15,11 +15,14 @@ struct PencilSampleValues: Equatable {
 }
 
 struct PencilSampleFactory {
-  static let pencilCapabilities =
-    UInt32(INK_HAS_PRESSURE) |
+  private static let pencilPoseCapabilities =
     UInt32(INK_HAS_ALTITUDE) |
     UInt32(INK_HAS_AZIMUTH) |
     UInt32(INK_HAS_ROLL)
+
+  static func pencilCapabilities(maximumPossibleForce: CGFloat) -> UInt32 {
+    pencilPoseCapabilities | (maximumPossibleForce > 0 ? UInt32(INK_HAS_PRESSURE) : 0)
+  }
 
   static func values(for touch: UITouch, in view: UIView) -> PencilSampleValues {
     let maximumForce = touch.maximumPossibleForce
@@ -32,7 +35,7 @@ struct PencilSampleFactory {
       azimuth: Float(touch.azimuthAngle(in: view)),
       roll: Float(touch.rollAngle),
       hoverHeight: 0,
-      has: pencilCapabilities,
+      has: pencilCapabilities(maximumPossibleForce: maximumForce),
       phase: phase(for: touch.phase))
   }
 
