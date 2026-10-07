@@ -72,3 +72,24 @@ final class PDFImportRotationTests: XCTestCase {
     XCTAssertEqual(media.height, 300, accuracy: 0.01)
   }
 }
+
+extension PDFImportRotationTests {
+  @MainActor
+  func testPDFImportUsesVisibleCropBoxRatherThanMediaBox() throws {
+    let source = PDFDocument()
+    let page = try XCTUnwrap(PDFPage(image: UIGraphicsImageRenderer(
+      size: CGSize(width: 600, height: 800)).image { _ in }))
+    page.setBounds(CGRect(x: 0, y: 0, width: 600, height: 800), for: .mediaBox)
+    page.setBounds(CGRect(x: 50, y: 100, width: 300, height: 400), for: .cropBox)
+    source.insert(page, at: 0)
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".pdf")
+    try XCTUnwrap(source.dataRepresentation()).write(to: url)
+    defer { try? FileManager.default.removeItem(at: url) }
+    let imported = try PDFImportDocument(url: url).rasterizedPage(at: 0, maxWidthPixels: 300)
+    XCTAssertEqual(imported.widthPt, 300, accuracy: 0.01)
+    XCTAssertEqual(imported.heightPt, 400, accuracy: 0.01)
+    let raster = try XCTUnwrap(UIImage(data: imported.png)?.cgImage)
+    XCTAssertEqual(raster.width, 300)
+    XCTAssertEqual(raster.height, 400)
+  }
+}

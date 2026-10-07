@@ -63,7 +63,7 @@ final class PDFImportDocument {
       throw PDFImportError.missingPage(index)
     }
 
-    var size = page.bounds(for: .mediaBox).size
+    var size = page.bounds(for: .cropBox).size
     let rotation = ((page.rotation % 360) + 360) % 360
     if rotation == 90 || rotation == 270 {
       size = CGSize(width: size.height, height: size.width)
@@ -96,7 +96,7 @@ final class PDFImportDocument {
       cg.scaleBy(x: scale, y: scale)
       cg.translateBy(x: 0, y: size.height)
       cg.scaleBy(x: 1, y: -1)
-      page.draw(with: .mediaBox, to: cg)
+      page.draw(with: .cropBox, to: cg)
       cg.restoreGState()
     }
     guard let png = image.pngData() else {
