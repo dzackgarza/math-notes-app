@@ -191,7 +191,10 @@ struct FigureEditorSheet: View {
         initialSource: request.source,
         saveRevision: saveRevision,
         onEvent: accept,
-        onError: { errorMessage = $0.localizedDescription })
+        onError: { error in
+          errorMessage = error.localizedDescription
+          closing = false
+        })
         .overlay {
           if !ready {
             ProgressView("Loading figure editor…")
@@ -244,6 +247,8 @@ struct FigureEditorSheet: View {
     }
     if let messageError = message.error, !messageError.isEmpty {
       errorMessage = messageError
+      closing = false
+      return
     }
     guard let nextSource = message.source,
       ["change", "autosave", "save"].contains(message.event ?? "")
