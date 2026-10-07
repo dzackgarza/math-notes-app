@@ -105,4 +105,24 @@ final class PencilSampleTests: XCTestCase {
       accuracy: 0.001)
   }
 
+  func testCoalescedBatchPhasesMarkOnlyBatchBoundaries() {
+    XCTAssertEqual(
+      (0..<3).map { PencilSampleFactory.batchPhase(eventPhase: .began, index: $0, count: 3) },
+      [
+        UInt8(INK_PHASE_BEGIN.rawValue),
+        UInt8(INK_PHASE_MOVE.rawValue),
+        UInt8(INK_PHASE_MOVE.rawValue),
+      ])
+    XCTAssertEqual(
+      (0..<3).map { PencilSampleFactory.batchPhase(eventPhase: .ended, index: $0, count: 3) },
+      [
+        UInt8(INK_PHASE_MOVE.rawValue),
+        UInt8(INK_PHASE_MOVE.rawValue),
+        UInt8(INK_PHASE_END.rawValue),
+      ])
+    XCTAssertEqual(
+      (0..<2).map { PencilSampleFactory.batchPhase(eventPhase: .cancelled, index: $0, count: 2) },
+      [UInt8(INK_PHASE_MOVE.rawValue), UInt8(INK_PHASE_CANCEL.rawValue)])
+  }
+
 }

@@ -81,6 +81,26 @@ struct PencilSampleFactory {
       phase: UInt8(INK_PHASE_HOVER.rawValue))
   }
 
+  static func batchPhase(
+    eventPhase: UITouch.Phase,
+    index: Int,
+    count: Int
+  ) -> UInt8 {
+    precondition(count > 0 && index >= 0 && index < count)
+    switch eventPhase {
+    case .began:
+      return UInt8((index == 0 ? INK_PHASE_BEGIN : INK_PHASE_MOVE).rawValue)
+    case .ended:
+      return UInt8((index == count - 1 ? INK_PHASE_END : INK_PHASE_MOVE).rawValue)
+    case .cancelled:
+      return UInt8((index == count - 1 ? INK_PHASE_CANCEL : INK_PHASE_MOVE).rawValue)
+    case .moved, .stationary:
+      return UInt8(INK_PHASE_MOVE.rawValue)
+    @unknown default:
+      return UInt8(INK_PHASE_CANCEL.rawValue)
+    }
+  }
+
   private static func phase(for phase: UITouch.Phase) -> UInt8 {
     switch phase {
     case .began:

@@ -302,11 +302,14 @@ final class InkCanvasView: UIView {
 
     let coalesced = event?.coalescedTouches(for: fingerTouch) ?? [fingerTouch]
     var samples: [InkPenSample] = []
-    for touch in coalesced {
+    for (index, touch) in coalesced.enumerated() {
       let id = sampleIDs.issue(estimationIndex: nil, trackEstimate: false)
+      var values = PencilSampleFactory.fingerValues(for: touch, in: self)
+      values.phase = PencilSampleFactory.batchPhase(
+        eventPhase: fingerTouch.phase, index: index, count: coalesced.count)
       samples.append(
         PencilSampleFactory.make(
-          values: PencilSampleFactory.fingerValues(for: touch, in: self),
+          values: values,
           id: id,
           predicted: false))
     }
@@ -343,16 +346,19 @@ final class InkCanvasView: UIView {
     var samples: [InkPenSample] = []
     for touch in touches where touch.type == .pencil {
       let coalesced = event?.coalescedTouches(for: touch) ?? [touch]
-      for realTouch in coalesced {
+      for (index, realTouch) in coalesced.enumerated() {
         let trackEstimate =
           realTouch.estimationUpdateIndex != nil &&
           !realTouch.estimatedPropertiesExpectingUpdates.isEmpty
         let id = sampleIDs.issue(
           estimationIndex: realTouch.estimationUpdateIndex,
           trackEstimate: trackEstimate)
+        var values = PencilSampleFactory.values(for: realTouch, in: self)
+        values.phase = PencilSampleFactory.batchPhase(
+          eventPhase: touch.phase, index: index, count: coalesced.count)
         samples.append(
           PencilSampleFactory.make(
-            values: PencilSampleFactory.values(for: realTouch, in: self),
+            values: values,
             id: id,
             predicted: false))
       }
@@ -360,9 +366,11 @@ final class InkCanvasView: UIView {
       if touch.phase != .ended && touch.phase != .cancelled {
         for predictedTouch in event?.predictedTouches(for: touch) ?? [] {
           let id = sampleIDs.issue(estimationIndex: nil, trackEstimate: false)
+          var values = PencilSampleFactory.values(for: predictedTouch, in: self)
+          values.phase = UInt8(INK_PHASE_MOVE.rawValue)
           samples.append(
             PencilSampleFactory.make(
-              values: PencilSampleFactory.values(for: predictedTouch, in: self),
+              values: values,
               id: id,
               predicted: true))
         }
