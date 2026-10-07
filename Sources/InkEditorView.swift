@@ -1179,9 +1179,12 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         guard let self else { return }
         do {
           let generated = try await self.figureGenerator.generate(scene: scene)
-          guard self.figureCaptureActive, generation == self.figurePreviewGeneration else { return }
+          guard self.figureCaptureActive, !self.figureCompleting,
+            generation == self.figurePreviewGeneration else { return }
           self.onFigureSourceChanged(generated.source)
         } catch {
+          guard self.figureCaptureActive, !self.figureCompleting,
+            generation == self.figurePreviewGeneration else { return }
           self.onError(error)
         }
       }
