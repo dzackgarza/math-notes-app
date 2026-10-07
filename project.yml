@@ -19,6 +19,14 @@ targets:
         buildPhase: resources
       - path: core/assets/fonts/NotoSans-Regular.ttf
         buildPhase: resources
+      - path: .ci/fonts/NotoSansArabic-Regular.ttf
+        buildPhase: resources
+      - path: .ci/fonts/NotoSansHebrew-Regular.ttf
+        buildPhase: resources
+      - path: .ci/fonts/NotoSansDevanagari-Regular.ttf
+        buildPhase: resources
+      - path: .ci/fonts/NotoSansSymbols2-Regular.ttf
+        buildPhase: resources
       - path: Resources/TikZRuntime
         type: folder
       - path: Resources/TikZEditor
@@ -50,6 +58,10 @@ targets:
           - AlegreyaSans-ExtraBold.ttf
           - Alegreya-Variable.ttf
           - NotoSans-Regular.ttf
+          - NotoSansArabic-Regular.ttf
+          - NotoSansHebrew-Regular.ttf
+          - NotoSansDevanagari-Regular.ttf
+          - NotoSansSymbols2-Regular.ttf
         UISupportedInterfaceOrientations~ipad:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown

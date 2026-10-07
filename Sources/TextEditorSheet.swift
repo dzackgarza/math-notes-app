@@ -1,5 +1,6 @@
 import CoreGraphics
 import SwiftUI
+import UIKit
 
 struct EditorTextRequest: Identifiable, Equatable {
   let id = UUID()
@@ -17,7 +18,6 @@ struct TextEditorSheet: View {
   @State private var width: String
   @State private var rtl: Bool
   @State private var validationMessage: String?
-  @FocusState private var contentFocused: Bool
 
   init(
     request: EditorTextRequest,
@@ -44,13 +44,8 @@ struct TextEditorSheet: View {
                 .padding(.vertical, 8)
                 .allowsHitTesting(false)
             }
-            TextEditor(text: $content)
-              .font(.custom("Noto Sans", size: 18))
-              .focused($contentFocused)
-              .task { contentFocused = true }
+            NoteTextView(text: $content, rtl: rtl)
               .frame(minHeight: 140)
-              .accessibilityLabel("Text")
-              .environment(\.layoutDirection, rtl ? .rightToLeft : .leftToRight)
           }
         }
 
@@ -98,5 +93,76 @@ struct TextEditorSheet: View {
       return nil
     }
     return value
+  }
+}
+
+let noteTextFallbackFontNames = [
+  "NotoSansArabic-Regular",
+  "NotoSansHebrew-Regular",
+  "NotoSansDevanagari-Regular",
+  "NotoSansSymbols2-Regular",
+]
+
+func noteTextFont(size: CGFloat) -> UIFont {
+  let fallback = noteTextFallbackFontNames.map { UIFontDescriptor(name: $0, size: size) }
+  let descriptor = UIFontDescriptor(name: "NotoSans-Regular", size: size)
+    .addingAttributes([.cascadeList: fallback])
+  return UIFont(descriptor: descriptor, size: size)
+}
+
+private struct NoteTextView: UIViewRepresentable {
+  @Binding var text: String
+  let rtl: Bool
+
+  func makeCoordinator() -> Coordinator {
+    Coordinator(text: $text)
+  }
+
+  func makeUIView(context: Context) -> UITextView {
+    let view = UITextView()
+    view.delegate = context.coordinator
+    view.backgroundColor = .clear
+    view.text = text
+    view.font = noteTextFont(size: 18)
+    view.textContainerInset = UIEdgeInsets(top: 8, left: 5, bottom: 8, right: 5)
+    view.accessibilityLabel = "Text"
+    applyDirection(to: view)
+    DispatchQueue.main.async { view.becomeFirstResponder() }
+    return view
+  }
+
+  func updateUIView(_ view: UITextView, context: Context) {
+    if view.text != text { view.text = text }
+    view.font = noteTextFont(size: 18)
+    applyDirection(to: view)
+  }
+
+  private func applyDirection(to view: UITextView) {
+    let direction: NSWritingDirection = rtl ? .rightToLeft : .leftToRight
+    let paragraph = NSMutableParagraphStyle()
+    paragraph.baseWritingDirection = direction
+    if view.markedTextRange == nil, view.textStorage.length > 0 {
+      let selection = view.selectedRange
+      view.textStorage.addAttribute(
+        .paragraphStyle,
+        value: paragraph,
+        range: NSRange(location: 0, length: view.textStorage.length))
+      view.selectedRange = selection
+    }
+    view.typingAttributes[.paragraphStyle] = paragraph
+    view.textAlignment = rtl ? .right : .left
+    view.semanticContentAttribute = rtl ? .forceRightToLeft : .forceLeftToRight
+  }
+
+  final class Coordinator: NSObject, UITextViewDelegate {
+    @Binding private var text: String
+
+    init(text: Binding<String>) {
+      _text = text
+    }
+
+    func textViewDidChange(_ textView: UITextView) {
+      text = textView.text
+    }
   }
 }
