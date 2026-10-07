@@ -79,6 +79,15 @@ func alignmentFeedbackNeeded(previous: Int?, current: Int) -> Bool {
   previous != current
 }
 
+func editorKeyboardEditingAllowed(
+  active: Bool,
+  focused: Bool,
+  figureCaptureActive: Bool,
+  figureCompleting: Bool
+) -> Bool {
+  active && focused && !figureCaptureActive && !figureCompleting
+}
+
 struct PencilPreferredActionResult: Equatable {
   var tool: EditorTool
   var previousTool: EditorTool?
@@ -288,10 +297,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         title: "Redo"),
       editorKeyCommand("y", modifiers: .command, action: #selector(keyboardRedo), title: "Redo"),
       editorKeyCommand("a", modifiers: .command, action: #selector(keyboardSelectAll), title: "Select All"),
-      editorKeyCommand("c", modifiers: .command, action: #selector(copySelection), title: "Copy"),
-      editorKeyCommand("x", modifiers: .command, action: #selector(cutSelection), title: "Cut"),
+      editorKeyCommand("c", modifiers: .command, action: #selector(keyboardCopy), title: "Copy"),
+      editorKeyCommand("x", modifiers: .command, action: #selector(keyboardCut), title: "Cut"),
       editorKeyCommand("v", modifiers: .command, action: #selector(keyboardPaste), title: "Paste"),
-      editorKeyCommand("d", modifiers: .command, action: #selector(duplicateSelection), title: "Duplicate"),
+      editorKeyCommand("d", modifiers: .command, action: #selector(keyboardDuplicate), title: "Duplicate"),
       editorKeyCommand(
         UIKeyCommand.inputDelete,
         modifiers: [],
@@ -806,9 +815,32 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     becomeFirstResponder()
   }
 
+  private var keyboardEditingAllowed: Bool {
+    editorKeyboardEditingAllowed(
+      active: hostActive,
+      focused: hostFocused,
+      figureCaptureActive: figureCaptureActive,
+      figureCompleting: figureCompleting)
+  }
+
+  @objc private func keyboardCopy() {
+    guard keyboardEditingAllowed else { return }
+    copySelection()
+  }
+
+  @objc private func keyboardCut() {
+    guard keyboardEditingAllowed else { return }
+    cutSelection()
+  }
+
+  @objc private func keyboardDuplicate() {
+    guard keyboardEditingAllowed else { return }
+    duplicateSelection()
+  }
+
   @objc private func keyboardSave() {
     guard hostActive, hostFocused else { return }
-    guard !figureCaptureActive else {
+    guard !figureCaptureActive, !figureCompleting else {
       onError(
         EngineDocumentError.operation(
           "Save notebook",
@@ -819,17 +851,17 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   @objc private func keyboardUndo() {
-    guard hostActive, hostFocused else { return }
+    guard keyboardEditingAllowed else { return }
     onUndo()
   }
 
   @objc private func keyboardRedo() {
-    guard hostActive, hostFocused else { return }
+    guard keyboardEditingAllowed else { return }
     onRedo()
   }
 
   @objc private func keyboardSelectAll() {
-    guard hostActive, hostFocused else { return }
+    guard keyboardEditingAllowed else { return }
     let center = CGPoint(x: canvasView.bounds.midX, y: canvasView.bounds.midY)
     let page = reportedPage >= 0 ? reportedPage : (canvasView.page(at: center) ?? 0)
     do {
@@ -841,7 +873,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   @objc private func keyboardPaste() {
-    guard hostActive, hostFocused,
+    guard keyboardEditingAllowed,
       let svg = UIPasteboard.general.string,
       svg.contains("<svg")
     else { return }
@@ -849,12 +881,12 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   @objc private func keyboardDelete() {
-    guard hostActive, hostFocused, canvasView.selectionFrame() != nil else { return }
+    guard keyboardEditingAllowed, canvasView.selectionFrame() != nil else { return }
     deleteSelection()
   }
 
   @objc private func clearSelection() {
-    guard hostActive, hostFocused, canvasView.selectionFrame() != nil else { return }
+    guard keyboardEditingAllowed, canvasView.selectionFrame() != nil else { return }
     do {
       try canvasView.clearSelection()
       refreshSelectionBar()
