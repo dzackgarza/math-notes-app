@@ -27,7 +27,9 @@ private struct NotebookEditorDropDelegate: DropDelegate {
   }
 
   func validateDrop(info: DropInfo) -> Bool {
-    canDrop()
+    canDrop() && info.hasItemsConforming(to: [
+      notebookSelectionDragType, notebookSelectionCopyDragType, notebookClippingDragType,
+    ])
   }
 
   func performDrop(info: DropInfo) -> Bool {
