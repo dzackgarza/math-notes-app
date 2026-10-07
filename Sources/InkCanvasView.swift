@@ -192,7 +192,7 @@ final class InkCanvasView: UIView {
   }
 
   override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-    if touches.contains(where: { $0.type == .pencil }) {
+    if !drawingSuppressed && touches.contains(where: { $0.type == .pencil }) {
       onPencilStrokeChanged(true)
     }
     onInteractionBegan()
