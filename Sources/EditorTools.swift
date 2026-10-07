@@ -358,7 +358,8 @@ struct EditorToolRail: View {
     }
     .buttonStyle(.plain)
     .hoverEffect(.highlight)
-    .accessibilityLabel(String(format: "Colors #%06x", rgb & 0xFFFFFF))
+    .accessibilityLabel("Colors")
+    .accessibilityValue(String(format: "#%06x", rgb & 0xFFFFFF))
     .popover(isPresented: $showingColors, arrowEdge: .leading) {
       ColorPalettePopover(
         tool: $tool,
