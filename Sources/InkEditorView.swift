@@ -79,13 +79,22 @@ func alignmentFeedbackNeeded(previous: Int?, current: Int) -> Bool {
   previous != current
 }
 
+func editorDocumentMutationAllowed(
+  figureCaptureActive: Bool,
+  figureCompleting: Bool
+) -> Bool {
+  !figureCaptureActive && !figureCompleting
+}
+
 func editorKeyboardEditingAllowed(
   active: Bool,
   focused: Bool,
   figureCaptureActive: Bool,
   figureCompleting: Bool
 ) -> Bool {
-  active && focused && !figureCaptureActive && !figureCompleting
+  active && focused && editorDocumentMutationAllowed(
+    figureCaptureActive: figureCaptureActive,
+    figureCompleting: figureCompleting)
 }
 
 struct PencilPreferredActionResult: Equatable {
@@ -656,6 +665,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     targetContentOffset: UnsafeMutablePointer<CGPoint>
   ) {
     releasedPullWasArmed =
+      editorDocumentMutationAllowed(
+        figureCaptureActive: figureCaptureActive,
+        figureCompleting: figureCompleting) &&
       addPageFooter.state == .pulling &&
       pullGate.release(at: CACurrentMediaTime())
     cancelPullReadyTimer()
@@ -1407,6 +1419,17 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   private func trackBottomPull() {
+    guard editorDocumentMutationAllowed(
+      figureCaptureActive: figureCaptureActive,
+      figureCompleting: figureCompleting)
+    else {
+      releasedPullWasArmed = false
+      footerWasPulling = false
+      pullGate.leftReady()
+      cancelPullReadyTimer()
+      return
+    }
+
     let pulling = addPageFooter.state == .pulling
     guard pulling != footerWasPulling else { return }
     footerWasPulling = pulling
@@ -1431,7 +1454,11 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   private func completeBottomPull() {
-    let shouldAdd = releasedPullWasArmed
+    let shouldAdd =
+      releasedPullWasArmed &&
+      editorDocumentMutationAllowed(
+        figureCaptureActive: figureCaptureActive,
+        figureCompleting: figureCompleting)
     releasedPullWasArmed = false
     footerWasPulling = false
     pullGate.leftReady()

@@ -24,4 +24,16 @@ final class HeldPullGateTests: XCTestCase {
 
     XCTAssertFalse(gate.release(at: 11))
   }
+  func testDrawingModeBlocksPageEndMutation() {
+    XCTAssertTrue(
+      editorDocumentMutationAllowed(
+        figureCaptureActive: false, figureCompleting: false))
+    XCTAssertFalse(
+      editorDocumentMutationAllowed(
+        figureCaptureActive: true, figureCompleting: false))
+    XCTAssertFalse(
+      editorDocumentMutationAllowed(
+        figureCaptureActive: false, figureCompleting: true))
+  }
+
 }
