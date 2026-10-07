@@ -94,6 +94,17 @@ final class InkEditorGestureTests: XCTestCase {
     }
   }
 
+  func testEditorInstallsNativeHeldPullFooter() throws {
+    let controller = InkEditorViewController(document: EngineDocument(seed: 110))
+    controller.loadViewIfNeeded()
+    let scroll = try XCTUnwrap(findScrollView(in: controller.view))
+    let footer = try XCTUnwrap(findSubview(in: scroll) { view in
+      String(describing: type(of: view)).contains("MJRefreshBackNormalFooter")
+    })
+
+    XCTAssertEqual(footer.frame.height, 96, accuracy: 0.01)
+  }
+
   func testUIKitOwnsDirectTouchPanPinchAndZoomBounds() throws {
     let controller = InkEditorViewController(document: EngineDocument(seed: 109))
     controller.loadViewIfNeeded()
@@ -178,6 +189,11 @@ final class InkEditorGestureTests: XCTestCase {
 
   private func gestureRecognizers(in view: UIView) -> [UIGestureRecognizer] {
     (view.gestureRecognizers ?? []) + view.subviews.flatMap { gestureRecognizers(in: $0) }
+  }
+
+  private func findSubview(in view: UIView, matching predicate: (UIView) -> Bool) -> UIView? {
+    if predicate(view) { return view }
+    return view.subviews.lazy.compactMap { self.findSubview(in: $0, matching: predicate) }.first
   }
 
   private func findButton(in view: UIView, label: String) -> UIButton? {
