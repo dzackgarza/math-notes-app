@@ -276,15 +276,34 @@ struct ContentView: View {
           }
         } else {
           ContentUnavailableView {
-            Label("Choose notes folder", systemImage: "folder")
+            Label(
+              needsRootReconnect ? "Reconnect folder" : "Choose notes folder",
+              systemImage: "folder")
           } description: {
-            Text("Your notes live in a folder on this device.")
+            Text(
+              needsRootReconnect
+                ? "Math Notes needs access to your notes folder again."
+                : "Your notes live in a folder on this device.")
           } actions: {
-            Button("Choose notes folder") {
-              showingFolderPicker = true
+            if needsRootReconnect {
+              Button("Reconnect folder") {
+                showingFolderPicker = true
+              }
+              .buttonStyle(.borderedProminent)
             }
-            .buttonStyle(.borderedProminent)
-            .disabled(!restoredRoot)
+            if needsRootReconnect {
+              Button("Choose notes folder") {
+                showingFolderPicker = true
+              }
+              .buttonStyle(.bordered)
+              .disabled(!restoredRoot)
+            } else {
+              Button("Choose notes folder") {
+                showingFolderPicker = true
+              }
+              .buttonStyle(.borderedProminent)
+              .disabled(!restoredRoot)
+            }
           }
         }
       }
@@ -1189,6 +1208,10 @@ struct ContentView: View {
     restoredRoot = true
     guard let restored = NotesRootAccess.restore() else { return }
     installRoot(restored)
+  }
+
+  private var needsRootReconnect: Bool {
+    restoredRoot && NotesRootAccess.hasSavedRoot
   }
 
   private func selectRoot(_ url: URL) {

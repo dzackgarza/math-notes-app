@@ -955,6 +955,10 @@ final class NotesRootAccess {
     }
   }
 
+  static var hasSavedRoot: Bool {
+    UserDefaults.standard.data(forKey: bookmarkKey) != nil
+  }
+
   static func forgetSavedRoot() {
     UserDefaults.standard.removeObject(forKey: bookmarkKey)
   }
