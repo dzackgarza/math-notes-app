@@ -83,10 +83,10 @@ final class PDFImportAnnotationExportTests: XCTestCase {
     let index = try XCTUnwrap(JSONSerialization.jsonObject(with: indexData) as? [String: Any])
     let pages = try XCTUnwrap(index["pages"] as? [[String: Any]])
     let file = try XCTUnwrap(pages.first?["file"] as? String)
-    let pageURL = file.split(separator: "/").reduce(noteURL) { partial, component in
+    let savedPageURL = file.split(separator: "/").reduce(noteURL) { partial, component in
       partial.appendingPathComponent(String(component))
     }
-    let savedPage = try String(contentsOf: pageURL, encoding: .utf8)
+    let savedPage = try String(contentsOf: savedPageURL, encoding: .utf8)
     XCTAssertTrue(savedPage.contains("<image"), "Imported PDF background must remain embedded")
     XCTAssertTrue(savedPage.contains("mn:brush"), "Annotation must remain vector ink")
 
