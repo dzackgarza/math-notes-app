@@ -228,7 +228,6 @@ struct NativeLibraryView: View {
           if !query.isEmpty {
             Button {
               query = ""
-              refreshSearch()
               searchFocused = true
             } label: {
               Image(systemName: "xmark.circle.fill")
