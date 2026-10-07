@@ -142,6 +142,7 @@ struct ContentView: View {
   @AppStorage("hiddenTools") private var hiddenToolsRaw = ""
   @State private var openNotes = OpenNotesState()
   @State private var showingFolderPicker = false
+  @State private var folderPickerDirectory: URL?
   @State private var restoredRoot = false
   @State private var errorMessage: String?
   @State private var libraryNotice: String?
@@ -285,18 +286,21 @@ struct ContentView: View {
           } actions: {
             if needsRootReconnect {
               Button("Reconnect folder") {
+                folderPickerDirectory = NotesRootAccess.savedRootURL
                 showingFolderPicker = true
               }
               .buttonStyle(.borderedProminent)
             }
             if needsRootReconnect {
               Button("Choose notes folder") {
+                folderPickerDirectory = nil
                 showingFolderPicker = true
               }
               .buttonStyle(.bordered)
               .disabled(!restoredRoot)
             } else {
               Button("Choose notes folder") {
+                folderPickerDirectory = nil
                 showingFolderPicker = true
               }
               .buttonStyle(.borderedProminent)
@@ -308,12 +312,15 @@ struct ContentView: View {
     }
     .sheet(isPresented: $showingFolderPicker) {
       NotesFolderPicker(
+        initialDirectory: folderPickerDirectory,
         onPick: { url in
           showingFolderPicker = false
+          folderPickerDirectory = nil
           selectRoot(url)
         },
         onCancel: {
           showingFolderPicker = false
+          folderPickerDirectory = nil
         })
     }
     .sheet(
@@ -321,6 +328,7 @@ struct ContentView: View {
       onDismiss: {
         if chooseFolderAfterSettings {
           chooseFolderAfterSettings = false
+          folderPickerDirectory = nil
           showingFolderPicker = true
         }
       }

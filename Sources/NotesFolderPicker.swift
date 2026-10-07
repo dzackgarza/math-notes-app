@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 import UIKit
 
 struct NotesFolderPicker: UIViewControllerRepresentable {
+  let initialDirectory: URL?
   let onPick: (URL) -> Void
   let onCancel: () -> Void
 
@@ -15,6 +16,7 @@ struct NotesFolderPicker: UIViewControllerRepresentable {
       forOpeningContentTypes: [.folder],
       asCopy: false)
     picker.allowsMultipleSelection = false
+    picker.directoryURL = initialDirectory
     picker.delegate = context.coordinator
     return picker
   }

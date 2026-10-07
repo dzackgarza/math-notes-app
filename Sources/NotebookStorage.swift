@@ -959,6 +959,16 @@ final class NotesRootAccess {
     UserDefaults.standard.data(forKey: bookmarkKey) != nil
   }
 
+  static var savedRootURL: URL? {
+    guard let bookmark = UserDefaults.standard.data(forKey: bookmarkKey) else {
+      return nil
+    }
+    var stale = false
+    return try? URL(
+      resolvingBookmarkData: bookmark,
+      bookmarkDataIsStale: &stale)
+  }
+
   static func forgetSavedRoot() {
     UserDefaults.standard.removeObject(forKey: bookmarkKey)
   }
