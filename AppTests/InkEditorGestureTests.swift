@@ -174,4 +174,10 @@ final class InkEditorGestureTests: XCTestCase {
     if let scroll = view as? UIScrollView { return scroll }
     return view.subviews.lazy.compactMap { self.findScrollView(in: $0) }.first
   }
+  func testDrawingModeEntryUsesADrawingTool() {
+    XCTAssertEqual(editorToolForDrawingEntry(tool: .pen, drawingTool: .marker), .pen)
+    XCTAssertEqual(editorToolForDrawingEntry(tool: .text, drawingTool: .marker), .marker)
+    XCTAssertEqual(editorToolForDrawingEntry(tool: .navigate, drawingTool: .highlighter), .highlighter)
+  }
+
 }

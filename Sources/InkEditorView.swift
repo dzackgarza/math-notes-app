@@ -1937,6 +1937,13 @@ func editorPageCounterText(currentPage: Int, pageCount: Int) -> String {
   return "\(page + 1) / \(total)"
 }
 
+func editorToolForDrawingEntry(
+  tool: EditorTool,
+  drawingTool: EditorTool
+) -> EditorTool {
+  [EditorTool.pen, .marker, .highlighter].contains(tool) ? tool : drawingTool
+}
+
 @MainActor
 struct InkEditorView: View {
   let document: EngineDocument
@@ -2230,8 +2237,9 @@ struct InkEditorView: View {
   }
 
   private func toggleDrawingMode() {
-    if !drawing, ![EditorTool.pen, .marker, .highlighter].contains(tool) {
-      tool = drawingTool
+    if !drawing {
+      bookmarkMode = false
+      tool = editorToolForDrawingEntry(tool: tool, drawingTool: drawingTool)
     }
     pageCommand = .toggleFigureCapture(currentPage)
   }
