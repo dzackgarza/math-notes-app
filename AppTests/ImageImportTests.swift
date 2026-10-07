@@ -33,6 +33,19 @@ final class ImageImportTests: XCTestCase {
     XCTAssertTrue(svg.contains("height=\"50.0\""))
   }
 
+  func testImageImportRejectsNonfiniteDimensions() {
+    for invalid in [CGFloat.nan, CGFloat.infinity, -CGFloat.infinity] {
+      XCTAssertThrowsError(try imageImportSVG(
+        data: Data(), mimeType: "image/png",
+        imageSize: CGSize(width: invalid, height: 100),
+        pageSize: CGSize(width: 500, height: 500)))
+      XCTAssertThrowsError(try imageImportSVG(
+        data: Data(), mimeType: "image/png",
+        imageSize: CGSize(width: 100, height: 100),
+        pageSize: CGSize(width: 500, height: invalid)))
+    }
+  }
+
   func testImageImportRejectsInvalidDimensions() {
     XCTAssertThrowsError(
       try imageImportSVG(
