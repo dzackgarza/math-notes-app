@@ -423,6 +423,16 @@ final class OpenNotesState {
     return target
   }
 
+  func refreshConflictCounts(
+    _ count: (NotebookReference) -> Int?
+  ) {
+    for session in opened {
+      if let next = count(session.reference) {
+        session.conflictCount = next
+      }
+    }
+  }
+
   func focusRight(_ right: Bool) {
     guard splitOpen || !right else { return }
     rightFocused = right

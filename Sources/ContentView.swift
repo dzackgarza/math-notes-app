@@ -1374,15 +1374,15 @@ struct ContentView: View {
     libraryFolderDetails = nil
     root = newRoot
     reloadPenLibrary()
-    newRoot.onChange = {
+    newRoot.onChange = { [weak newRoot] in
+      guard let newRoot else { return }
       Task { @MainActor in
+        openNotes.refreshConflictCounts { reference in
+          try? newRoot.conflictCount(reference)
+        }
         if openNotes.inLibrary {
           refreshLibrary()
           reloadPenLibrary()
-        } else {
-          for note in openNotes.opened {
-            note.conflictCount = (try? newRoot.conflictCount(note.reference)) ?? note.conflictCount
-          }
         }
       }
     }

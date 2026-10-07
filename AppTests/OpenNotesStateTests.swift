@@ -606,6 +606,23 @@ final class OpenNotesStateTests: XCTestCase {
     XCTAssertNotEqual(reference.id, replacement.id)
   }
 
+  func testConflictCountsRefreshWhileOpenNotesAreHiddenInLibrary() throws {
+    let state = OpenNotesState()
+    let a = session(["A"], seed: 46)
+    let b = session(["B"], seed: 47)
+    state.show(a)
+    state.show(b)
+    try state.showLibrary(save: { _ in })
+    XCTAssertTrue(state.inLibrary)
+
+    state.refreshConflictCounts { reference in
+      reference == a.reference ? 2 : 3
+    }
+
+    XCTAssertEqual(a.conflictCount, 2)
+    XCTAssertEqual(b.conflictCount, 3)
+  }
+
   func testRelativeLinkTargetMovesFromReferencePaneToPrimaryPane() throws {
     let state = OpenNotesState()
     let left = session(["Left"], seed: 44)
