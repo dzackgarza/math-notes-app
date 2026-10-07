@@ -94,6 +94,21 @@ final class InkEditorGestureTests: XCTestCase {
     }
   }
 
+  func testUIKitOwnsDirectTouchPanPinchAndZoomBounds() throws {
+    let controller = InkEditorViewController(document: EngineDocument(seed: 109))
+    controller.loadViewIfNeeded()
+    let scroll = try XCTUnwrap(findScrollView(in: controller.view))
+    let direct = NSNumber(value: UITouch.TouchType.direct.rawValue)
+
+    XCTAssertEqual(scroll.minimumZoomScale, 0.25, accuracy: 0.0001)
+    XCTAssertEqual(scroll.maximumZoomScale, 8, accuracy: 0.0001)
+    XCTAssertTrue(scroll.alwaysBounceVertical)
+    XCTAssertTrue(scroll.alwaysBounceHorizontal)
+    XCTAssertTrue(scroll.bouncesZoom)
+    XCTAssertEqual(scroll.panGestureRecognizer.allowedTouchTypes, [direct])
+    XCTAssertEqual(scroll.pinchGestureRecognizer?.allowedTouchTypes, [direct])
+  }
+
   func testFingerDrawingRequiresTwoTouchesForScrollPan() {
     let controller = InkEditorViewController(document: EngineDocument(seed: 103))
     controller.loadViewIfNeeded()
