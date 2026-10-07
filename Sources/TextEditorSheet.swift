@@ -126,17 +126,20 @@ private struct NoteTextView: UIViewRepresentable {
     view.font = noteTextFont(size: 18)
     view.textContainerInset = UIEdgeInsets(top: 8, left: 5, bottom: 8, right: 5)
     view.accessibilityLabel = "Text"
+    context.coordinator.appliedRTL = rtl
     applyDirection(to: view)
     DispatchQueue.main.async { view.becomeFirstResponder() }
     return view
   }
 
   func updateUIView(_ view: UITextView, context: Context) {
-    if view.text != text && view.markedTextRange == nil {
-      view.text = text
-    }
+    let externalTextChanged = view.text != text && view.markedTextRange == nil
+    if externalTextChanged { view.text = text }
     view.font = noteTextFont(size: 18)
-    applyDirection(to: view)
+    if externalTextChanged || context.coordinator.appliedRTL != rtl {
+      applyDirection(to: view)
+      context.coordinator.appliedRTL = rtl
+    }
   }
 
   private func applyDirection(to view: UITextView) {
@@ -157,6 +160,7 @@ private struct NoteTextView: UIViewRepresentable {
   }
 
   final class Coordinator: NSObject, UITextViewDelegate {
+    var appliedRTL: Bool?
     @Binding private var text: String
 
     init(text: Binding<String>) {
