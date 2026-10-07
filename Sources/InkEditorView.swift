@@ -585,6 +585,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
 
     if revision != documentRevision {
       documentRevision = revision
+      reportedFigureID = nil
       let nextSize = document.contentSize()
       if nextSize != documentSize {
         refreshDocumentGeometry()
