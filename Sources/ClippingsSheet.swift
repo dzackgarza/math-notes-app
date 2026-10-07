@@ -169,7 +169,10 @@ struct ClippingsSheet: View {
       of: [notebookSelectionCopyDragType],
       isTargeted: $dropTargeted
     ) { providers in
-      guard availability.canAcceptDrop, let provider = providers.first else {
+      guard availability.canAcceptDrop,
+        let provider = providers.first(where: {
+          $0.hasItemConformingToTypeIdentifier(notebookSelectionCopyDragType.identifier)
+        }) else {
         return false
       }
       provider.loadDataRepresentation(
