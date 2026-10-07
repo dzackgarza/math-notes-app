@@ -4,16 +4,6 @@ func layerActionAccessibilityLabel(_ action: String, layerName: String) -> Strin
   "\(action) \(layerName)"
 }
 
-func editableActiveLayerID(layers: [EngineLayer], current: String?) -> String? {
-  if let current,
-    let layer = layers.first(where: { $0.id == current }),
-    !layer.hidden, !layer.locked
-  {
-    return current
-  }
-  return layers.first(where: { !$0.hidden && !$0.locked })?.id
-}
-
 @MainActor
 struct LayersSheet: View {
   let document: EngineDocument

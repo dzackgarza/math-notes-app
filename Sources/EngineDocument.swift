@@ -41,6 +41,16 @@ struct EngineLayer: Decodable, Equatable, Identifiable {
   let locked: Bool
 }
 
+func editableActiveLayerID(layers: [EngineLayer], current: String?) -> String? {
+  if let current,
+    let layer = layers.first(where: { $0.id == current }),
+    !layer.hidden, !layer.locked
+  {
+    return current
+  }
+  return layers.first(where: { !$0.hidden && !$0.locked })?.id
+}
+
 struct EngineNavigationMark: Decodable, Equatable {
   let id: String
   let href: String

@@ -2287,12 +2287,9 @@ struct InkEditorView: View {
         pageNavigationRevision &+= 1
       }
       let layers = try document.layers()
-      if let activeLayerID,
-        !layers.contains(where: { $0.id == activeLayerID })
-      {
-        self.activeLayerID =
-          layers.first(where: { !$0.hidden && !$0.locked })?.id
-            ?? layers.first?.id
+      let normalizedLayerID = editableActiveLayerID(layers: layers, current: activeLayerID)
+      if normalizedLayerID != activeLayerID {
+        activeLayerID = normalizedLayerID
       }
     } catch {
       onError(error)
@@ -2311,11 +2308,9 @@ struct InkEditorView: View {
       let count = try document.pageCount()
       currentPage = min(max(step.page, 0), max(0, count - 1))
       let layers = try document.layers()
-      if let activeLayerID,
-        !layers.contains(where: { $0.id == activeLayerID })
-      {
-        self.activeLayerID =
-          layers.first(where: { !$0.hidden && !$0.locked })?.id ?? layers.first?.id
+      let normalizedLayerID = editableActiveLayerID(layers: layers, current: activeLayerID)
+      if normalizedLayerID != activeLayerID {
+        activeLayerID = normalizedLayerID
       }
       pageNavigationRevision &+= 1
       onEditCommitted()
