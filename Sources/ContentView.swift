@@ -1817,6 +1817,15 @@ struct ContentView: View {
       if scoped { url.stopAccessingSecurityScopedResource() }
     }
     guard let root else { return }
+    do {
+      try openNotes.prepareForExternalImport { note in
+        try saveSession(note, using: root)
+      }
+    } catch {
+      handleOpenNotesError(error)
+      return
+    }
+
     var importedReference: NotebookReference?
     var completed = 0
 

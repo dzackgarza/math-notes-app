@@ -89,6 +89,40 @@ final class OpenNotesStateTests: XCTestCase {
     XCTAssertEqual(note.saveStatus, .saved)
   }
 
+  func testExternalImportFlushesPendingSessions() throws {
+    let state = OpenNotesState()
+    let note = session(["A"], seed: 41)
+    state.show(note)
+    note.markUnsaved()
+
+    var saved: [NotebookReference] = []
+    try state.prepareForExternalImport { session in
+      saved.append(session.reference)
+      try session.performSave {}
+    }
+
+    XCTAssertEqual(saved, [note.reference])
+    XCTAssertEqual(note.saveStatus, .saved)
+  }
+
+  func testExternalImportIsBlockedByCaptureBeforeSaving() throws {
+    let state = OpenNotesState()
+    let note = session(["A"], seed: 42)
+    state.show(note)
+    note.captureActive = true
+    note.markUnsaved()
+
+    var saves = 0
+    XCTAssertThrowsError(
+      try state.prepareForExternalImport { _ in saves += 1 }) { error in
+        guard case OpenNotesStateError.captureInProgress = error else {
+          return XCTFail("Unexpected error: \(error)")
+        }
+      }
+    XCTAssertEqual(saves, 0)
+    XCTAssertEqual(note.saveStatus, .pending)
+  }
+
   func testSavePendingOnlyFlushesPendingSessions() throws {
     let state = OpenNotesState()
     let saved = session(["Saved"], seed: 36)

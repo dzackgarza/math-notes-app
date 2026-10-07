@@ -295,6 +295,13 @@ final class OpenNotesState {
     }
   }
 
+  func prepareForExternalImport(
+    save: (OpenNotebookSession) throws -> Void
+  ) throws {
+    try requireNoCapture("importing a PDF")
+    try savePending(save: save)
+  }
+
   func savePending(
     save: (OpenNotebookSession) throws -> Void
   ) throws {
