@@ -4,6 +4,16 @@ func layerActionAccessibilityLabel(_ action: String, layerName: String) -> Strin
   "\(action) \(layerName)"
 }
 
+func editableActiveLayerID(layers: [EngineLayer], current: String?) -> String? {
+  if let current,
+    let layer = layers.first(where: { $0.id == current }),
+    !layer.hidden, !layer.locked
+  {
+    return current
+  }
+  return layers.first(where: { !$0.hidden && !$0.locked })?.id
+}
+
 @MainActor
 struct LayersSheet: View {
   let document: EngineDocument
@@ -131,9 +141,7 @@ struct LayersSheet: View {
       }
       .task {
         reload()
-        if activeLayerID == nil {
-          activeLayerID = layers.first?.id
-        }
+        activeLayerID = editableActiveLayerID(layers: layers, current: activeLayerID)
       }
       .alert(
         addingLayer ? "New layer" : "Rename layer",
@@ -217,23 +225,10 @@ struct LayersSheet: View {
   }
 
   private func removeLayer(index: Int, mergeDown: Bool) {
-    let removedID = layers[index].id
-    let fallbackID: String?
-    if mergeDown {
-      fallbackID = layers[index - 1].id
-    } else if index > 0 {
-      fallbackID = layers[index - 1].id
-    } else if layers.count > 1 {
-      fallbackID = layers[1].id
-    } else {
-      fallbackID = nil
-    }
     do {
       try document.removeLayer(index: index, mergeDown: mergeDown)
       try reloadThrowing()
-      if activeLayerID == removedID {
-        activeLayerID = fallbackID
-      }
+      activeLayerID = editableActiveLayerID(layers: layers, current: activeLayerID)
       onEdit()
     } catch {
       onError(error)
@@ -244,6 +239,7 @@ struct LayersSheet: View {
     do {
       try action()
       try reloadThrowing()
+      activeLayerID = editableActiveLayerID(layers: layers, current: activeLayerID)
       onEdit()
     } catch {
       onError(error)
