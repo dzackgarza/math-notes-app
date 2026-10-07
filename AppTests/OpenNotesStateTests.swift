@@ -89,11 +89,14 @@ final class OpenNotesStateTests: XCTestCase {
     XCTAssertEqual(note.saveStatus, .saved)
   }
 
-  func testExternalImportFlushesPendingSessions() throws {
+  func testExternalImportSavesTheActiveSessionBeforeSwitching() throws {
     let state = OpenNotesState()
-    let note = session(["A"], seed: 41)
-    state.show(note)
-    note.markUnsaved()
+    let inactive = session(["Inactive"], seed: 41)
+    let active = session(["Active"], seed: 42)
+    state.show(inactive)
+    state.show(active)
+    inactive.markUnsaved()
+    active.markUnsaved()
 
     var saved: [NotebookReference] = []
     try state.prepareForExternalImport { session in
@@ -101,8 +104,28 @@ final class OpenNotesStateTests: XCTestCase {
       try session.performSave {}
     }
 
-    XCTAssertEqual(saved, [note.reference])
-    XCTAssertEqual(note.saveStatus, .saved)
+    XCTAssertEqual(saved, [active.reference])
+    XCTAssertEqual(inactive.saveStatus, .pending)
+    XCTAssertEqual(active.saveStatus, .saved)
+  }
+
+  func testExternalImportDoesNotBypassAFailedActiveSession() throws {
+    let state = OpenNotesState()
+    let note = session(["A"], seed: 43)
+    state.show(note)
+    XCTAssertThrowsError(try note.performSave { throw TestFailure.expected })
+    XCTAssertEqual(note.saveStatus, .failed)
+
+    XCTAssertThrowsError(
+      try state.prepareForExternalImport { session in
+        try session.performSave { throw TestFailure.expected }
+      }) { error in
+        guard case let OpenNotesStateError.saveFailed(reference, _) = error else {
+          return XCTFail("Unexpected error: \(error)")
+        }
+        XCTAssertEqual(reference, note.reference)
+      }
+    XCTAssertEqual(note.saveStatus, .failed)
   }
 
   func testExternalImportIsBlockedByCaptureBeforeSaving() throws {

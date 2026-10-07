@@ -299,7 +299,9 @@ final class OpenNotesState {
     save: (OpenNotebookSession) throws -> Void
   ) throws {
     try requireNoCapture("importing a PDF")
-    try savePending(save: save)
+    if let active {
+      try saveOne(active, save: save)
+    }
   }
 
   func savePending(
