@@ -1241,13 +1241,13 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   @objc private func handleUndoTap(_ recognizer: UITapGestureRecognizer) {
-    guard recognizer.state == .ended else { return }
+    guard recognizer.state == .ended, keyboardEditingAllowed else { return }
     onFocusRequested()
     onUndo()
   }
 
   @objc private func handleRedoTap(_ recognizer: UITapGestureRecognizer) {
-    guard recognizer.state == .ended else { return }
+    guard recognizer.state == .ended, keyboardEditingAllowed else { return }
     onFocusRequested()
     onRedo()
   }

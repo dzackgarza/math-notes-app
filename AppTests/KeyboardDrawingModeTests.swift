@@ -2,7 +2,7 @@ import XCTest
 @testable import MathNotes
 
 final class KeyboardDrawingModeTests: XCTestCase {
-  func testKeyboardEditingRequiresFocusedActiveEditorOutsideDrawingMode() {
+  func testKeyboardAndGestureEditingRequireFocusedActiveEditorOutsideDrawingMode() {
     XCTAssertTrue(
       editorKeyboardEditingAllowed(
         active: true, focused: true, figureCaptureActive: false, figureCompleting: false))
