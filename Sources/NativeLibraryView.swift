@@ -50,7 +50,7 @@ struct NativeLibraryView: View {
   let refreshSearch: () -> Void
   let showSettings: () -> Void
 
-  @State private var searchPresented = false
+  @FocusState private var searchFocused: Bool
 
   var body: some View {
     HStack(spacing: 0) {
@@ -166,16 +166,19 @@ struct NativeLibraryView: View {
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .focusSection()
       .safeAreaInset(edge: .top, spacing: 0) {
-        if !notebookOpen {
-          Text(libraryHeading)
-            .font(NativeTheme.volumeTitle)
-            .foregroundStyle(NativeTheme.ink)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 24)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
-            .background(NativeTheme.board)
+        VStack(alignment: .leading, spacing: 8) {
+          if !notebookOpen {
+            Text(libraryHeading)
+              .font(NativeTheme.volumeTitle)
+              .foregroundStyle(NativeTheme.ink)
+          }
+          libraryToolbar
         }
+        .padding(.horizontal, 24)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+        .background(NativeTheme.board)
+        .focusSection()
       }
     }
     .background(NativeTheme.board)
@@ -186,15 +189,6 @@ struct NativeLibraryView: View {
     .toolbarBackground(.visible, for: .navigationBar)
     .navigationTitle(!notebookOpen ? "" : folder.name)
     .navigationBarTitleDisplayMode(.inline)
-    .modifier(
-      LibrarySearchModifier(
-        enabled: !notebookOpen,
-        query: $query,
-        searchPresented: $searchPresented,
-        refreshSearch: refreshSearch))
-    .onChange(of: notebookOpen) { _, open in
-      if open { searchPresented = false }
-    }
     .toolbar {
       if notebookOpen {
         ToolbarItem(placement: .topBarLeading) {
@@ -206,36 +200,47 @@ struct NativeLibraryView: View {
         }
       }
 
-      ToolbarItemGroup(placement: .topBarTrailing) {
-        Group {
-          if !notebookOpen {
-            filterMenu
+      if notebookOpen {
+        ToolbarItem(placement: .topBarTrailing) {
+          Menu {
+            folderActions(folder)
+          } label: {
+            Image(systemName: "ellipsis.circle")
           }
-
-          sortMenu
-
-          if !notebookOpen {
-            Button(action: createNotebook) {
-              Label("New notebook", systemImage: "folder.badge.plus")
-            }
-          } else {
-            Button(action: importPDF) {
-              Label("Import PDF", systemImage: "doc.badge.plus")
-            }
-
-            Button(action: createNote) {
-              Label("New note", systemImage: "square.and.pencil")
-            }
-
-            Menu {
-              folderActions(folder)
-            } label: {
-              Image(systemName: "ellipsis.circle")
-            }
-            .accessibilityLabel("\(folder.name) notebook actions")
-          }
+          .accessibilityLabel("\(folder.name) notebook actions")
         }
-        .focusSection()
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var libraryToolbar: some View {
+    HStack(spacing: 8) {
+      if !notebookOpen {
+        TextField(
+          "Search notebooks and notes",
+          text: Binding(
+            get: { query },
+            set: { query = $0.trimmingCharacters(in: .whitespacesAndNewlines) }))
+          .nativeFieldSurface()
+          .focused($searchFocused)
+          .onChange(of: query) { refreshSearch() }
+          .frame(maxWidth: .infinity)
+        filterMenu
+      } else {
+        Spacer(minLength: 0)
+      }
+
+      sortMenu
+
+      if !notebookOpen {
+        Button("New notebook", action: createNotebook)
+          .buttonStyle(.borderedProminent)
+      } else {
+        Button("Import PDF", action: importPDF)
+          .buttonStyle(.bordered)
+        Button("New note", action: createNote)
+          .buttonStyle(.borderedProminent)
       }
     }
   }
@@ -459,7 +464,7 @@ struct NativeLibraryView: View {
         systemImage: "books.vertical",
         selected: scope == .folder && query.isEmpty
       ) {
-        searchPresented = false
+        searchFocused = false
         selectScope(.folder)
       }
       sidebarRow(
@@ -468,18 +473,18 @@ struct NativeLibraryView: View {
         selected: scope == .folder && !query.isEmpty
       ) {
         showSearch()
-        searchPresented = true
+        searchFocused = true
       }
       sidebarRow("Recent", systemImage: "clock", selected: scope == .recent) {
-        searchPresented = false
+        searchFocused = false
         selectScope(.recent)
       }
       sidebarRow("Favorites", systemImage: "star", selected: scope == .favorites) {
-        searchPresented = false
+        searchFocused = false
         selectScope(.favorites)
       }
       sidebarRow("Trash", systemImage: "trash", selected: scope == .trash) {
-        searchPresented = false
+        searchFocused = false
         selectScope(.trash)
       }
 
@@ -555,7 +560,7 @@ struct NativeLibraryView: View {
 
   private func sidebarTagRow(_ tag: LibraryTag) -> some View {
     Button {
-      searchPresented = false
+      searchFocused = false
       selectTag(tag.name)
     } label: {
       HStack(spacing: 10) {
@@ -683,7 +688,7 @@ struct NativeLibraryView: View {
   private func folderCard(_ item: LibraryFolderItem) -> some View {
     ZStack(alignment: .bottomTrailing) {
       Button {
-        searchPresented = false
+        searchFocused = false
         openFolder(item.reference)
       } label: {
         VStack(alignment: .leading, spacing: 4) {
@@ -800,7 +805,7 @@ struct NativeLibraryView: View {
   private func folderRow(_ item: LibraryFolderItem) -> some View {
     HStack(spacing: 8) {
       Button {
-        searchPresented = false
+        searchFocused = false
         openFolder(item.reference)
       } label: {
         HStack(spacing: 16) {
