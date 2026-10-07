@@ -730,15 +730,31 @@ private struct NotebookRecoveryRecord: Codable {
 }
 
 private final class RootFilePresenter: NSObject, NSFilePresenter {
-  let presentedItemURL: URL?
+  private let urlLock = NSLock()
+  private var itemURL: URL?
   let presentedItemOperationQueue: OperationQueue = .main
   var onChange: (() -> Void)?
+  var onMove: ((URL) -> Void)?
+
+  var presentedItemURL: URL? {
+    urlLock.lock()
+    defer { urlLock.unlock() }
+    return itemURL
+  }
 
   init(url: URL) {
-    presentedItemURL = url
+    itemURL = url
   }
 
   func presentedItemDidChange() {
+    onChange?()
+  }
+
+  func presentedItemDidMove(to newURL: URL) {
+    urlLock.lock()
+    itemURL = newURL
+    urlLock.unlock()
+    onMove?(newURL)
     onChange?()
   }
 
@@ -768,10 +784,11 @@ private final class RootFilePresenter: NSObject, NSFilePresenter {
 final class NotesRootAccess {
   private static let bookmarkKey = "notes-root-bookmark"
 
-  let url: URL
+  private(set) var url: URL
   var onChange: (() -> Void)?
 
   private let presenter: RootFilePresenter
+  private let scopedAccessURL: URL?
   private let recoveryDirectory: URL
   private let thumbnailCacheDirectory: URL
 #if DEBUG
@@ -793,6 +810,7 @@ final class NotesRootAccess {
     thumbnailRenderer: (@MainActor (EngineDocument) throws -> Data)? = nil
   ) {
     url = testURL
+    scopedAccessURL = nil
     recoveryDirectory = recoveryURL
       ?? testURL.appendingPathComponent(".math-notes-recovery", isDirectory: true)
     thumbnailCacheDirectory = thumbnailCacheURL
@@ -800,7 +818,7 @@ final class NotesRootAccess {
     thumbnailRendererOverride = thumbnailRenderer
     presenter = RootFilePresenter(url: testURL)
     accessing = false
-    presenter.onChange = { [weak self] in self?.onChange?() }
+    configurePresenterCallbacks()
     NSFileCoordinator.addFilePresenter(presenter)
   }
 #endif
@@ -811,13 +829,14 @@ final class NotesRootAccess {
     }
 
     url = selectedURL
+    scopedAccessURL = selectedURL
     recoveryDirectory = Self.defaultRecoveryDirectory()
     thumbnailCacheDirectory = Self.defaultThumbnailCacheDirectory(for: selectedURL)
 #if DEBUG
     thumbnailRendererOverride = nil
 #endif
     presenter = RootFilePresenter(url: selectedURL)
-    presenter.onChange = { [weak self] in self?.onChange?() }
+    configurePresenterCallbacks()
     NSFileCoordinator.addFilePresenter(presenter)
   }
 
@@ -836,22 +855,40 @@ final class NotesRootAccess {
     }
 
     url = restoredURL
+    scopedAccessURL = restoredURL
     recoveryDirectory = Self.defaultRecoveryDirectory()
     thumbnailCacheDirectory = Self.defaultThumbnailCacheDirectory(for: restoredURL)
 #if DEBUG
     thumbnailRendererOverride = nil
 #endif
     presenter = RootFilePresenter(url: restoredURL)
-    presenter.onChange = { [weak self] in self?.onChange?() }
+    configurePresenterCallbacks()
     NSFileCoordinator.addFilePresenter(presenter)
   }
 
   deinit {
     NSFileCoordinator.removeFilePresenter(presenter)
     if accessing {
-      url.stopAccessingSecurityScopedResource()
+      scopedAccessURL?.stopAccessingSecurityScopedResource()
     }
   }
+
+  private func configurePresenterCallbacks() {
+    presenter.onMove = { [weak self] newURL in
+      guard let self else { return }
+      self.url = newURL
+      if self.accessing {
+        try? Self.saveBookmark(for: newURL)
+      }
+    }
+    presenter.onChange = { [weak self] in self?.onChange?() }
+  }
+
+#if DEBUG
+  func simulatePresentedRootMove(to newURL: URL) {
+    presenter.presentedItemDidMove(to: newURL)
+  }
+#endif
 
   static func restore() -> NotesRootAccess? {
     guard let bookmark = UserDefaults.standard.data(forKey: bookmarkKey) else {
