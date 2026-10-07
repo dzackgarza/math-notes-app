@@ -1,6 +1,10 @@
 import Foundation
 import SwiftUI
 
+func librarySearchInput(_ input: String) -> String {
+  input
+}
+
 func librarySearchEnabled(folderPath: [String]) -> Bool {
   folderPath.isEmpty
 }
@@ -18,7 +22,7 @@ struct LibrarySearchModifier: ViewModifier {
         .searchable(
           text: Binding(
             get: { query },
-            set: { query = $0.trimmingCharacters(in: .whitespacesAndNewlines) }),
+            set: { query = librarySearchInput($0) }),
           isPresented: $searchPresented,
           placement: .navigationBarDrawer(displayMode: .always),
           prompt: "Search notebooks and notes")
