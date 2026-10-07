@@ -180,6 +180,7 @@ final class InkCanvasView: UIView {
     if suppressed {
       cancelFingerStroke()
       cancelPencilStroke()
+      sampleIDs.cancelPendingEstimates()
     }
   }
 

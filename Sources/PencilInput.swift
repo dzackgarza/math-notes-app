@@ -170,4 +170,8 @@ struct PencilSampleIDs {
     guard let estimationIndex else { return }
     estimates.removeValue(forKey: estimationIndex.intValue)
   }
+
+  mutating func cancelPendingEstimates() {
+    estimates.removeAll()
+  }
 }

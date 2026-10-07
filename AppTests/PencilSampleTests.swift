@@ -83,6 +83,16 @@ final class PencilSampleTests: XCTestCase {
     XCTAssertEqual(update?.predicted, 0)
     XCTAssertNil(ids.updateID(estimationIndex: index))
   }
+  func testCancelPendingEstimatesDiscardsCancelledStrokeUpdates() {
+    var ids = PencilSampleIDs()
+    let index = NSNumber(value: 17)
+    _ = ids.issue(estimationIndex: index, trackEstimate: true)
+    XCTAssertNotNil(ids.updateID(estimationIndex: index))
+
+    ids.cancelPendingEstimates()
+    XCTAssertNil(ids.updateID(estimationIndex: index))
+  }
+
   func testPressureCapabilityRequiresAUsableForceRange() {
     let withoutPressure = PencilSampleFactory.pencilCapabilities(maximumPossibleForce: 0)
     let withPressure = PencilSampleFactory.pencilCapabilities(maximumPossibleForce: 4)
