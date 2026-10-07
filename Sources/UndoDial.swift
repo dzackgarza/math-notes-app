@@ -42,34 +42,44 @@ struct UndoDialButton: View {
   private let buttonSize = Double(EditorToolRailMetrics.targetSize)
 
   var body: some View {
-    Button {
-      guard isEnabled else { return }
-      _ = undo()
-    } label: {
-      Image(systemName: "arrow.uturn.backward")
-        .font(.system(size: 22))
-        .frame(width: buttonSize, height: buttonSize)
-        .contentShape(Rectangle())
-        .foregroundStyle(isEnabled ? NativeTheme.ink : NativeTheme.tertiary)
-        .background(Color.clear, in: RoundedRectangle(cornerRadius: 10))
-    }
-    .buttonStyle(.plain)
-    .overlay {
-      if active {
-        UndoDialIndicator(
-          angle: indicatorAngle,
-          count: indicatorCount,
-          stepAngle: UndoDialStepAccumulator.stepAngle)
-          .frame(width: dialSize, height: dialSize)
-          .offset(x: dialOffsetX)
-          .allowsHitTesting(false)
+    Image(systemName: "arrow.uturn.backward")
+      .font(.system(size: 22))
+      .frame(width: buttonSize, height: buttonSize)
+      .contentShape(Rectangle())
+      .foregroundStyle(isEnabled ? NativeTheme.ink : NativeTheme.tertiary)
+      .background(Color.clear, in: RoundedRectangle(cornerRadius: 10))
+      .overlay {
+        if active {
+          UndoDialIndicator(
+            angle: indicatorAngle,
+            count: indicatorCount,
+            stepAngle: UndoDialStepAccumulator.stepAngle)
+            .frame(width: dialSize, height: dialSize)
+            .offset(x: dialOffsetX)
+            .allowsHitTesting(false)
+        }
       }
-    }
-    .highPriorityGesture(
-      DragGesture(minimumDistance: 0)
-        .onChanged(updateDrag)
-        .onEnded(endDrag))
-    .accessibilityLabel("Undo")
+      .highPriorityGesture(
+        DragGesture(minimumDistance: 0)
+          .onChanged(updateDrag)
+          .onEnded(endDrag))
+      .focusable(isEnabled)
+      .onKeyPress(.space, phases: .down) { _ in
+        guard isEnabled else { return .ignored }
+        _ = undo()
+        return .handled
+      }
+      .onKeyPress(.return, phases: .down) { _ in
+        guard isEnabled else { return .ignored }
+        _ = undo()
+        return .handled
+      }
+      .accessibilityLabel("Undo")
+      .accessibilityAddTraits(.isButton)
+      .accessibilityAction {
+        guard isEnabled else { return }
+        _ = undo()
+      }
   }
 
   private var dialSize: Double { 5 * buttonSize }
