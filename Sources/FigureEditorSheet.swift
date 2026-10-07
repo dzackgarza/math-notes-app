@@ -206,6 +206,11 @@ struct FigureEditorSheet: View {
         .navigationTitle("Figure editor")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+          ToolbarItem(placement: .cancellationAction) {
+            if !ready && errorMessage != nil {
+              Button("Close") { dismiss() }
+            }
+          }
           ToolbarItem(placement: .topBarLeading) {
             Button("Copy TikZ", systemImage: "doc.on.doc") {
               UIPasteboard.general.string = source
