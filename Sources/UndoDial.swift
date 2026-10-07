@@ -42,33 +42,34 @@ struct UndoDialButton: View {
   private let buttonSize = Double(EditorToolRailMetrics.targetSize)
 
   var body: some View {
-    Image(systemName: "arrow.uturn.backward")
-      .font(.system(size: 22))
-      .frame(width: buttonSize, height: buttonSize)
-      .contentShape(Rectangle())
-      .foregroundStyle(isEnabled ? NativeTheme.ink : NativeTheme.tertiary)
-      .background(Color.clear, in: RoundedRectangle(cornerRadius: 10))
-      .overlay {
-        if active {
-          UndoDialIndicator(
-            angle: indicatorAngle,
-            count: indicatorCount,
-            stepAngle: UndoDialStepAccumulator.stepAngle)
-            .frame(width: dialSize, height: dialSize)
-            .offset(x: dialOffsetX)
-            .allowsHitTesting(false)
-        }
+    Button {
+      guard isEnabled else { return }
+      _ = undo()
+    } label: {
+      Image(systemName: "arrow.uturn.backward")
+        .font(.system(size: 22))
+        .frame(width: buttonSize, height: buttonSize)
+        .contentShape(Rectangle())
+        .foregroundStyle(isEnabled ? NativeTheme.ink : NativeTheme.tertiary)
+        .background(Color.clear, in: RoundedRectangle(cornerRadius: 10))
+    }
+    .buttonStyle(.plain)
+    .overlay {
+      if active {
+        UndoDialIndicator(
+          angle: indicatorAngle,
+          count: indicatorCount,
+          stepAngle: UndoDialStepAccumulator.stepAngle)
+          .frame(width: dialSize, height: dialSize)
+          .offset(x: dialOffsetX)
+          .allowsHitTesting(false)
       }
-      .highPriorityGesture(
-        DragGesture(minimumDistance: 0)
-          .onChanged(updateDrag)
-          .onEnded(endDrag))
-      .accessibilityLabel("Undo")
-      .accessibilityAddTraits(.isButton)
-      .accessibilityAction {
-        guard isEnabled else { return }
-        _ = undo()
-      }
+    }
+    .highPriorityGesture(
+      DragGesture(minimumDistance: 0)
+        .onChanged(updateDrag)
+        .onEnded(endDrag))
+    .accessibilityLabel("Undo")
   }
 
   private var dialSize: Double { 5 * buttonSize }
