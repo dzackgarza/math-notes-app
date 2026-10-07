@@ -29,9 +29,13 @@ final class MathNotesSceneDelegate: NSObject, UIWindowSceneDelegate, ObservableO
     incomingDocument = nil
   }
 
+  func receiveIncomingDocumentURL(_ url: URL) {
+    incomingDocument = IncomingDocument(url: url)
+  }
+
   private func receive(_ contexts: Set<UIOpenURLContext>) {
     guard let context = contexts.first else { return }
-    incomingDocument = IncomingDocument(url: context.url)
+    receiveIncomingDocumentURL(context.url)
   }
 }
 
