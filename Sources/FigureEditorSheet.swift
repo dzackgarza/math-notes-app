@@ -212,6 +212,10 @@ struct FigureEditorSheet: View {
         onError: { error in
           errorMessage = error.localizedDescription
           closing = false
+          let failure = error as NSError
+          if failure.domain == "MathNotes.FigureEditor" && failure.code == 2 {
+            ready = false
+          }
         })
         .overlay {
           if !ready {
