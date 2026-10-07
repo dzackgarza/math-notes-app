@@ -52,6 +52,10 @@ struct NativeLibraryView: View {
 
   @FocusState private var searchFocused: Bool
 
+  private var normalizedQuery: String {
+    query.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
   var body: some View {
     HStack(spacing: 0) {
       librarySidebar
@@ -59,7 +63,7 @@ struct NativeLibraryView: View {
       Divider()
         .overlay(NativeTheme.separator)
       Group {
-      if !notebookOpen && !query.isEmpty && listing.folders.isEmpty && listing.notebooks.isEmpty {
+      if !notebookOpen && !normalizedQuery.isEmpty && listing.folders.isEmpty && listing.notebooks.isEmpty {
         ContentUnavailableView {
           Label("No Results", systemImage: "magnifyingglass")
         } description: {
@@ -270,7 +274,7 @@ struct NativeLibraryView: View {
   }
 
   private var libraryHeading: String {
-    if !query.isEmpty { return "Search" }
+    if !normalizedQuery.isEmpty { return "Search" }
     switch scope {
     case .recent: return "Recent"
     case .favorites: return "Favorites"
@@ -474,7 +478,7 @@ struct NativeLibraryView: View {
       sidebarRow(
         "Library",
         systemImage: "books.vertical",
-        selected: scope == .folder && query.isEmpty
+        selected: scope == .folder && normalizedQuery.isEmpty
       ) {
         searchFocused = false
         selectScope(.folder)
@@ -482,7 +486,7 @@ struct NativeLibraryView: View {
       sidebarRow(
         "Search",
         systemImage: "magnifyingglass",
-        selected: scope == .folder && !query.isEmpty
+        selected: scope == .folder && !normalizedQuery.isEmpty
       ) {
         showSearch()
         searchFocused = true
@@ -744,7 +748,7 @@ struct NativeLibraryView: View {
 
   private func noteMetadataLine(_ item: LibraryNotebookItem) -> String {
     var parts: [String] = []
-    if !notebookOpen && scope != .trash && (!query.isEmpty || scope != .folder) {
+    if !notebookOpen && scope != .trash && (!normalizedQuery.isEmpty || scope != .folder) {
       let parent = FolderReference(path: Array(item.reference.path.dropLast()))
       parts.append(parent.name)
     }
