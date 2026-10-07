@@ -39,4 +39,13 @@ final class FitScrollPositionTests: XCTestCase {
         maximum: 500),
       500)
   }
+  func testInvalidScrollGeometryIsNotRestored() {
+    XCTAssertNil(FitScrollPosition.leadingDocumentCoordinate(
+      contentOffset: .infinity, leadingInset: 0, zoomScale: 1))
+    XCTAssertNil(FitScrollPosition.leadingDocumentCoordinate(
+      contentOffset: 0, leadingInset: 0, zoomScale: .nan))
+    XCTAssertNil(FitScrollPosition.leadingDocumentCoordinate(
+      contentOffset: 0, leadingInset: 0, zoomScale: 0))
+  }
+
 }

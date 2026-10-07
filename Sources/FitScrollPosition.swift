@@ -6,8 +6,9 @@ struct FitScrollPosition {
     leadingInset: CGFloat,
     zoomScale: CGFloat
   ) -> CGFloat? {
-    guard zoomScale > 0 else { return nil }
-    return (contentOffset + leadingInset) / zoomScale
+    guard contentOffset.isFinite, leadingInset.isFinite, zoomScale.isFinite, zoomScale > 0 else { return nil }
+    let coordinate = (contentOffset + leadingInset) / zoomScale
+    return coordinate.isFinite ? coordinate : nil
   }
 
   static func contentOffset(
