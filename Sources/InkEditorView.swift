@@ -1078,7 +1078,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
 
   @objc private func saveClipping() {
     do {
-      guard let svg = try canvasView.copySelection() else { return }
+      guard let svg = try canvasView.copySelection(), !svg.isEmpty else { return }
       onSaveClipping(svg)
     } catch {
       onError(error)
@@ -1118,7 +1118,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         try canvasView.linkSelection(href)
         onEditCommitted()
       case .saveSelectionToClippings:
-        if let svg = try canvasView.copySelection() {
+        if let svg = try canvasView.copySelection(), !svg.isEmpty {
           onSaveClipping(svg)
         }
       case let .recolorSelection(rgb):
