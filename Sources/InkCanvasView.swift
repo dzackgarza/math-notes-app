@@ -22,6 +22,7 @@ final class InkCanvasView: UIView {
   private var drawingSuppressed = false
   private var fingerDrawing = false
   private var fingerTouch: UITouch?
+  private var pencilTouch: UITouch?
   private let onInteractionBegan: () -> Void
   private let onInteractionChanged: (CGPoint) -> Void
   private let onInteractionEnded: () -> Void
@@ -178,6 +179,7 @@ final class InkCanvasView: UIView {
     drawingSuppressed = suppressed
     if suppressed {
       cancelFingerStroke()
+      cancelPencilStroke()
     }
   }
 
@@ -339,12 +341,28 @@ final class InkCanvasView: UIView {
     self.fingerTouch = nil
   }
 
+  private func cancelPencilStroke() {
+    guard let pencilTouch, let canvas else {
+      self.pencilTouch = nil
+      return
+    }
+    var values = PencilSampleFactory.values(for: pencilTouch, in: self)
+    values.phase = UInt8(INK_PHASE_CANCEL.rawValue)
+    let id = sampleIDs.issue(estimationIndex: nil, trackEstimate: false)
+    var sample = PencilSampleFactory.make(values: values, id: id, predicted: false)
+    check(ink_input(canvas, &sample, 1), operation: "ink_input")
+    self.pencilTouch = nil
+    onPencilStrokeChanged(false)
+  }
+
   @discardableResult
   private func sendPencilTouches(_ touches: Set<UITouch>, event: UIEvent?) -> Bool {
     guard !drawingSuppressed, let canvas else { return false }
 
     var samples: [InkPenSample] = []
     for touch in touches where touch.type == .pencil {
+      if touch.phase == .began { pencilTouch = touch }
+      if touch.phase == .ended || touch.phase == .cancelled { pencilTouch = nil }
       let coalesced = event?.coalescedTouches(for: touch) ?? [touch]
       for (index, realTouch) in coalesced.enumerated() {
         let trackEstimate =
