@@ -191,8 +191,6 @@ struct ContentView: View {
   @State private var bookmarkPickerPurpose: BookmarkPickerPurpose = .navigate
   @State private var pendingLink: PendingLink?
   @State private var showingLinkChooser = false
-  @State private var clippings: ClippingsRequest?
-  @State private var clippingViewState: OpenNotebookViewState?
   @State private var figureEditor: FigureEditorRequest?
   @State private var conflictReview: ConflictReviewRequest?
   @State private var conflictReviewChanged = false
@@ -543,26 +541,6 @@ struct ContentView: View {
         },
         onCancel: { finishConflictReview(request.reference) })
     }
-    .overlay(alignment: .trailing) {
-      if let request = clippings, let clippingViewState {
-        ClippingsSheet(
-          request: request,
-          selectionActive: clippingViewState.selectionActive,
-          drawing: clippingViewState.captureActive,
-          onInsert: { insertClipping($0, viewState: clippingViewState) },
-          onSaveSelection: {
-            clippingViewState.editorPageCommand = .saveSelectionToClippings
-          },
-          onSave: saveClippingDrop,
-          onMove: moveClipping,
-          onDelete: deleteClipping,
-          onRefresh: refreshClippings,
-          onClose: dismissClippings)
-          .id(request.id)
-          .transition(.move(edge: .trailing).combined(with: .opacity))
-          .zIndex(10)
-      }
-    }
     .alert(
       "Math Notes",
       isPresented: Binding(
@@ -806,68 +784,84 @@ struct ContentView: View {
     focused: Bool,
     right: Bool
   ) -> some View {
-    NotebookEditorPane(
-      session: note,
-      viewState: viewState,
-      active: active,
-      focused: focused,
-      linked: active && openNotes.splitOpen && openNotes.linkedViews,
-      linkedViewport: openNotes.linkedViewport,
-      arrangement: EditorPageArrangement.stored(pageArrangementRaw),
-      fingerDraws: fingerDraws,
-      hiddenTools: hiddenTools,
-      penLibrary: $penLibrary,
-      tool: $selectedTool,
-      drawingTool: $selectedDrawingTool,
-      eraserMode: $eraserMode,
-      selectorMode: $selectorMode,
-      spaceMode: $spaceMode,
-      previousPencilTool: $previousPencilTool,
-      onFocus: { openNotes.focusRight(right) },
-      onViewportChanged: { openNotes.setLinkedViewport($0) },
-      onEditCommitted: {
-        scheduleNotebookSave(note)
-      },
-      onSaveRequested: { saveNotebook(note) },
-      onPensChanged: persistPenLibrary,
-      onInsertImage: {
-        openNotes.focusRight(right)
-        showingImageImporter = true
-      },
-      clippingsOpen: clippings != nil && clippingViewState?.id == viewState.id,
-      onShowClippings: {
-        openNotes.focusRight(right)
-        if clippings != nil && clippingViewState?.id == viewState.id {
-          dismissClippings()
-        } else {
-          prepareClippings(viewState: viewState)
-        }
-      },
-      onSaveClipping: { svg in
-        openNotes.focusRight(right)
-        saveClipping(svg)
-      },
-      onLinkSelectionRequested: { page in
-        openNotes.focusRight(right)
-        prepareLink(note, viewState: viewState, sourcePage: page)
-      },
-      onFollowLink: { href, page in
-        openNotes.focusRight(right)
-        followLink(href, source: note, viewState: viewState, page: page)
-      },
-      onDropClipping: { id, point in
-        openNotes.focusRight(right)
-        return dropClipping(id, at: point, viewState: viewState)
-      },
-      onDropSelection: { svg, point in
-        openNotes.focusRight(right)
-        return dropSelection(svg, at: point, viewState: viewState)
-      },
-      onEditFigure: { id in
-        openNotes.focusRight(right)
-        openFigureEditor(id)
-      },
-      onError: { errorMessage = $0.localizedDescription })
+    HStack(spacing: 0) {
+      NotebookEditorPane(
+        session: note,
+        viewState: viewState,
+        active: active,
+        focused: focused,
+        linked: active && openNotes.splitOpen && openNotes.linkedViews,
+        linkedViewport: openNotes.linkedViewport,
+        arrangement: EditorPageArrangement.stored(pageArrangementRaw),
+        fingerDraws: fingerDraws,
+        hiddenTools: hiddenTools,
+        penLibrary: $penLibrary,
+        tool: $selectedTool,
+        drawingTool: $selectedDrawingTool,
+        eraserMode: $eraserMode,
+        selectorMode: $selectorMode,
+        spaceMode: $spaceMode,
+        previousPencilTool: $previousPencilTool,
+        onFocus: { openNotes.focusRight(right) },
+        onViewportChanged: { openNotes.setLinkedViewport($0) },
+        onEditCommitted: { scheduleNotebookSave(note) },
+        onSaveRequested: { saveNotebook(note) },
+        onPensChanged: persistPenLibrary,
+        onInsertImage: {
+          openNotes.focusRight(right)
+          showingImageImporter = true
+        },
+        clippingsOpen: viewState.clippingsRequest != nil,
+        onShowClippings: {
+          openNotes.focusRight(right)
+          if viewState.clippingsRequest != nil {
+            dismissClippings(viewState: viewState)
+          } else {
+            prepareClippings(viewState: viewState)
+          }
+        },
+        onSaveClipping: { svg in
+          openNotes.focusRight(right)
+          saveClipping(svg, viewState: viewState)
+        },
+        onLinkSelectionRequested: { page in
+          openNotes.focusRight(right)
+          prepareLink(note, viewState: viewState, sourcePage: page)
+        },
+        onFollowLink: { href, page in
+          openNotes.focusRight(right)
+          followLink(href, source: note, viewState: viewState, page: page)
+        },
+        onDropClipping: { id, point in
+          openNotes.focusRight(right)
+          return dropClipping(id, at: point, viewState: viewState)
+        },
+        onDropSelection: { svg, point in
+          openNotes.focusRight(right)
+          return dropSelection(svg, at: point, viewState: viewState)
+        },
+        onEditFigure: { id in
+          openNotes.focusRight(right)
+          openFigureEditor(id)
+        },
+        onError: { errorMessage = $0.localizedDescription })
+
+      if let request = viewState.clippingsRequest {
+        ClippingsSheet(
+          request: request,
+          selectionActive: viewState.selectionActive,
+          drawing: viewState.captureActive,
+          onInsert: { insertClipping($0, viewState: viewState) },
+          onSaveSelection: { viewState.editorPageCommand = .saveSelectionToClippings },
+          onSave: saveClippingDrop,
+          onMove: moveClipping,
+          onDelete: deleteClipping,
+          onRefresh: { refreshClippings(viewState: viewState) },
+          onClose: { dismissClippings(viewState: viewState) })
+          .id(request.id)
+          .transition(.move(edge: .trailing).combined(with: .opacity))
+      }
+    }
   }
 
   @ViewBuilder
@@ -1304,7 +1298,6 @@ struct ContentView: View {
       try openNotes.showLibrary { note in
         try saveSession(note, using: root)
       }
-      dismissClippings()
       conflictReview = nil
       refreshLibrary()
     } catch {
@@ -1336,15 +1329,9 @@ struct ContentView: View {
       let index = openNotes.opened.firstIndex(where: { $0.id == id })
     else { return }
 
-    let closing = openNotes.opened[index]
-    let closingPrimary = closing.primaryView
-    let closingSecondary = openNotes.secondary?.id == closing.id ? openNotes.secondaryView : nil
     do {
       try openNotes.close(index) { note in
         try saveSession(note, using: root)
-      }
-      if clippingViewState === closingPrimary || clippingViewState === closingSecondary {
-        dismissClippings()
       }
       conflictReview = nil
       refreshLibrary()
@@ -1389,7 +1376,6 @@ struct ContentView: View {
       return
     }
 
-    dismissClippings()
     conflictReview = nil
     libraryFolder = FolderReference(path: [])
     libraryNotebookOpen = false
@@ -1895,7 +1881,6 @@ struct ContentView: View {
         await Task.yield()
       }
 
-      dismissClippings()
       conflictReview = nil
       openNotes.show(
         OpenNotebookSession(
@@ -1955,7 +1940,6 @@ struct ContentView: View {
         pageSize: request.pageSize,
         orientation: request.orientation)
       try root.completeNewNoteCreation(reference, tags: request.tags)
-      dismissClippings()
       conflictReview = nil
       openNotes.show(
         OpenNotebookSession(
@@ -1978,7 +1962,6 @@ struct ContentView: View {
         load: { reference in
           try makeOpenSession(reference, using: root)
         })
-      dismissClippings()
       conflictReview = nil
     } catch {
       handleOpenNotesError(error)
@@ -1996,7 +1979,6 @@ struct ContentView: View {
         load: { reference in
           try makeOpenSession(reference, using: root)
         })
-      dismissClippings()
       conflictReview = nil
       prepareConflicts(reference)
     } catch {
@@ -2015,7 +1997,6 @@ struct ContentView: View {
         load: { reference in
           try makeOpenSession(reference, using: root)
         })
-      dismissClippings()
       conflictReview = nil
     } catch {
       handleOpenNotesError(error)
@@ -2023,23 +2004,15 @@ struct ContentView: View {
   }
 
   private func toggleSplit() {
-    let closingView = openNotes.splitOpen ? openNotes.secondaryView : nil
     do {
       try openNotes.toggleSplit()
-      if let closingView, clippingViewState === closingView {
-        dismissClippings()
-      }
     } catch {
       handleOpenNotesError(error)
     }
   }
 
   private func closeSplit() {
-    let closingView = openNotes.secondaryView
     openNotes.closeSplit()
-    if let closingView, clippingViewState === closingView {
-      dismissClippings()
-    }
   }
 
   private func prepareBookmarks(_ session: OpenNotebookSession) {
@@ -2217,7 +2190,6 @@ struct ContentView: View {
         }
         targetView.currentPage = mark.page
         targetView.editorPageCommand = .jumpToMark(mark)
-        dismissClippings()
         conflictReview = nil
       }
     } catch {
@@ -2342,7 +2314,6 @@ struct ContentView: View {
           reference,
           save: { note in try saveSession(note, using: root) },
           load: { target in try makeOpenSession(target, using: root) })
-        dismissClippings()
       }
       conflictReview = nil
       conflictReviewChanged = false
@@ -2359,24 +2330,22 @@ struct ContentView: View {
     }
   }
 
-  private func dismissClippings() {
-    clippings = nil
-    clippingViewState = nil
+  private func dismissClippings(viewState: OpenNotebookViewState) {
+    viewState.clippingsRequest = nil
   }
 
   private func prepareClippings(viewState: OpenNotebookViewState) {
     do {
-      clippingViewState = viewState
-      clippings = ClippingsRequest(items: try clippingItems())
+      viewState.clippingsRequest = ClippingsRequest(items: try clippingItems())
     } catch {
       errorMessage = error.localizedDescription
     }
   }
 
-  private func refreshClippings() -> [ClippingPreview]? {
+  private func refreshClippings(viewState: OpenNotebookViewState) -> [ClippingPreview]? {
     do {
       let items = try clippingItems()
-      clippings = ClippingsRequest(items: items)
+      viewState.clippingsRequest = ClippingsRequest(items: items)
       return items
     } catch {
       errorMessage = error.localizedDescription
@@ -2384,9 +2353,9 @@ struct ContentView: View {
     }
   }
 
-  private func saveClipping(_ svg: String) {
-    guard saveClippingDrop(svg), clippings != nil else { return }
-    _ = refreshClippings()
+  private func saveClipping(_ svg: String, viewState: OpenNotebookViewState) {
+    guard saveClippingDrop(svg), viewState.clippingsRequest != nil else { return }
+    _ = refreshClippings(viewState: viewState)
   }
 
   private func saveClippingDrop(_ svg: String) -> Bool {
@@ -2412,9 +2381,7 @@ struct ContentView: View {
   }
 
   private func dropClipping(_ id: String, at point: CGPoint, viewState: OpenNotebookViewState) -> Bool {
-    guard clippings?.items.contains(where: { $0.id == id }) == true, let root else {
-      return false
-    }
+    guard let root else { return false }
     do {
       viewState.editorPageCommand = .pasteSVG(
         try root.clippingSVG(id: id),

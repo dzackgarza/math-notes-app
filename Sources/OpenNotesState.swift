@@ -45,6 +45,7 @@ final class OpenNotebookViewState: Identifiable {
   var fitRevision = 0
   var fitActive = true
   var editorPageCommand: EditorPageCommand?
+  var clippingsRequest: ClippingsRequest?
   var captureActive = false
   var selectionActive = false
 

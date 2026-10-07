@@ -461,6 +461,25 @@ final class OpenNotesStateTests: XCTestCase {
     XCTAssertEqual(a.documentRevision, 8)
     XCTAssertTrue(a.bookmarkMode)
     XCTAssertEqual(b.currentPage, 2)
+
+    a.primaryView.clippingsRequest = ClippingsRequest(items: [])
+    _ = try state.open(
+      b.reference,
+      save: { _ in },
+      load: { _ in XCTFail("Existing tab reloaded"); return a })
+    _ = try state.open(
+      a.reference,
+      save: { _ in },
+      load: { _ in XCTFail("Existing tab reloaded"); return b })
+    XCTAssertNotNil(a.primaryView.clippingsRequest)
+
+    try state.showLibrary(save: { _ in })
+    XCTAssertNotNil(a.primaryView.clippingsRequest)
+    _ = try state.open(
+      a.reference,
+      save: { _ in },
+      load: { _ in XCTFail("Existing tab reloaded"); return b })
+    XCTAssertNotNil(a.primaryView.clippingsRequest)
   }
 
   func testSplitUsesIndependentViewStateForTheSameDocument() throws {
@@ -479,6 +498,19 @@ final class OpenNotesStateTests: XCTestCase {
 
     secondaryView.currentPage = 7
     XCTAssertEqual(note.primaryView.currentPage, 3)
+
+    note.primaryView.clippingsRequest = ClippingsRequest(items: [])
+    secondaryView.clippingsRequest = ClippingsRequest(items: [])
+    XCTAssertNotNil(note.primaryView.clippingsRequest)
+    XCTAssertNotNil(secondaryView.clippingsRequest)
+    XCTAssertNotEqual(
+      note.primaryView.clippingsRequest?.id,
+      secondaryView.clippingsRequest?.id)
+
+    state.closeSplit()
+    try state.toggleSplit()
+    XCTAssertNotNil(note.primaryView.clippingsRequest)
+    XCTAssertNil(state.secondaryView?.clippingsRequest)
   }
 
   func testReferenceSelectionKeepsTheLeftTabAndFocusesTheRightPane() throws {

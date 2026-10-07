@@ -189,9 +189,6 @@ struct ClippingsSheet: View {
       dropTargeted && availability.canAcceptDrop
         ? NativeTheme.selectedFill
         : NativeTheme.board)
-    .clipShape(RoundedRectangle(cornerRadius: 16))
-    .shadow(radius: 10)
-    .padding(8)
   }
 
   private func move(_ item: ClippingPreview, by offset: Int) {
