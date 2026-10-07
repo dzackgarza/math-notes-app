@@ -733,6 +733,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
 
   @objc private func handlePageLongPress(_ recognizer: UILongPressGestureRecognizer) {
     guard recognizer.state == .began, !fingerDrawing,
+      !figureCaptureActive, !figureCompleting,
       let pageEditMenuInteraction
     else { return }
     onFocusRequested()
