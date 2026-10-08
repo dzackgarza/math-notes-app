@@ -744,7 +744,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       return source.dragSelectionSVG != nil && source.dragSelectionFrame != nil && source.dragSelectionPage != nil &&
         source.dragDocumentRevision == source.documentRevision
     }
-    return [notebookSelectionCopyDragType, .svg, .png, .jpeg].contains {
+    return [notebookSelectionCopyDragType, .svg, .png, .jpeg, .image].contains {
       item.itemProvider.hasItemConformingToTypeIdentifier($0.identifier)
     }
   }
@@ -768,6 +768,33 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     if !(item.localObject is InkEditorViewController) {
       let point = session.location(in: canvasView)
       let destinationRevision = documentRevision
+      let provider = item.itemProvider
+      if ![notebookSelectionCopyDragType, .svg, .png, .jpeg].contains(where: {
+        provider.hasItemConformingToTypeIdentifier($0.identifier)
+      }), provider.canLoadObject(ofClass: UIImage.self) {
+        _ = provider.loadObject(ofClass: UIImage.self) { [weak self] object, _ in
+          guard let image = object as? UIImage, let data = image.pngData() else { return }
+          Task { @MainActor [weak self] in
+            guard let self, self.hostActive, !self.figureCaptureActive, !self.figureCompleting,
+              self.documentRevision == destinationRevision,
+              let page = self.canvasView.page(at: point), let cgImage = UIImage(data: data)?.cgImage
+            else { return }
+            do {
+              let pageSize = try self.document.pageRect(index: page).size
+              let svg = try imageImportSVG(
+                data: data, mimeType: "image/png",
+                imageSize: CGSize(width: cgImage.width, height: cgImage.height),
+                pageSize: pageSize)
+              try self.canvasView.paste(svg, at: point, placeAtPointer: true)
+              self.onEditCommitted()
+              self.refreshSelectionBar()
+            } catch {
+              self.onError(error)
+            }
+          }
+        }
+        return
+      }
       let copyType: UTType
       if item.itemProvider.hasItemConformingToTypeIdentifier(notebookSelectionCopyDragType.identifier) {
         copyType = notebookSelectionCopyDragType
