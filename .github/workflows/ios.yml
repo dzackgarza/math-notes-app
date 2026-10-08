@@ -2,28 +2,19 @@ name: Build iPad IPA
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - Sources/**
-      - AppTests/**
-      - core/**
-      - hosts/web/build-tikz.mjs
-      - hosts/web/ipad-figure-generator.js
-      - hosts/web/tikz-embed.html
-      - Resources/TikZRuntime/**
-      - Resources/Fonts/**
-      - tests/documents/**
-      - project.yml
-      - sidestore-source.jq
-      - .github/workflows/ios.yml
-
+  workflow_run:
+    workflows:
+      - Engine (wasm32)
+    types:
+      - completed
+    branches:
+      - main
 permissions:
   contents: write
-
+  checks: read
 # Releases must land in run order so the newest one is "latest".
 concurrency:
-  group: release
+  group: ${{ github.ref == 'refs/heads/main' && 'release' || github.ref }}
   cancel-in-progress: false
 
 env:
@@ -32,7 +23,28 @@ env:
   TAG: v${{ github.run_number }}
 
 jobs:
+  engine-check:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    outputs:
+      sha: ${{ steps.engine.outputs.sha }}
+    steps:
+      - name: Require successful engine tests for the release revision
+        id: engine
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = context.payload.workflow_run?.head_sha ?? context.sha;
+            const { data } = await github.rest.checks.listForRef({
+              ...context.repo, ref: sha, check_name: 'wasm', filter: 'latest',
+            });
+            const check = data.check_runs.find(run => run.app.slug === 'github-actions');
+            if (!check || check.status !== 'completed' || check.conclusion !== 'success') {
+              throw new Error(`Engine (wasm32) must pass for ${sha} before starting the iPad build.`);
+            }
+            core.setOutput('sha', sha);
   build:
+    needs: engine-check
     runs-on: macos-26
     timeout-minutes: 150
 
@@ -41,9 +53,12 @@ jobs:
       VCPKG_ROOT: ${{ github.workspace }}/.ci/vcpkg
       VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/.ci/vcpkg-bin,readwrite
 
+      SOURCE_SHA: ${{ needs.engine-check.outputs.sha }}
     steps:
       - uses: actions/checkout@v7
 
+        with:
+          ref: ${{ needs.engine-check.outputs.sha }}
       - name: Install tools
         run: brew install xcodegen ninja
 
@@ -162,11 +177,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)" = "$SOURCE_SHA"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" MathNotes.ipa source.json --clobber
           else
-            gh release create "$TAG" MathNotes.ipa source.json --latest \
-              --title "$VERSION ($GITHUB_SHA)" \
+            gh release create "$TAG" MathNotes.ipa source.json --latest --target "$SOURCE_SHA" \
+              --title "$VERSION ($SOURCE_SHA)" \
               --notes "Unsigned; install with SideStore."
           fi
 

@@ -4,20 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: ['**']
-    paths:
-      - core/**
-      - tests/documents/**
-      - hosts/web/**
-      - .github/workflows/engine.yml
-      - .github/workflows/web.yml
   pull_request:
-    paths:
-      - core/**
-      - tests/documents/**
-      - hosts/web/**
-      - .github/workflows/engine.yml
-      - .github/workflows/web.yml
-
 env:
   EMSDK_VERSION: 4.0.7
   VCPKG_ROOT: ${{ github.workspace }}/.ci/vcpkg
