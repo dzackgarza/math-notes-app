@@ -930,6 +930,14 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         self?.saveClipping()
       })
     }
+    if (try? canvasView.selectedFigure()) != nil {
+      actions.append(UIAction(
+        title: "Edit figure",
+        image: UIImage(systemName: "scribble.variable")
+      ) { [weak self] _ in
+        self?.editSelectedFigure()
+      })
+    }
     return UIMenu(children: actions)
   }
   private func configureSelectionBar() {
