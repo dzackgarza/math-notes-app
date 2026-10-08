@@ -32,6 +32,21 @@ final class ExportTemporaryFileTests: XCTestCase {
     XCTAssertEqual(try Data(contentsOf: second), Data("second".utf8))
   }
 
+  func testCleanupDoesNotRemoveUnrelatedPrefixedDirectory() throws {
+    let container = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let unrelated = container.appendingPathComponent("mathnotes-export-unrelated", isDirectory: true)
+    try FileManager.default.createDirectory(at: unrelated, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: container) }
+    let url = unrelated.appendingPathComponent("example.pdf")
+    let sentinel = unrelated.appendingPathComponent("sentinel")
+    try Data("pdf".utf8).write(to: url)
+    try Data("keep".utf8).write(to: sentinel)
+    removeExportTemporaryFile(url)
+    XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    XCTAssertTrue(FileManager.default.fileExists(atPath: sentinel.path))
+  }
+
   func testExportTemporaryFileCleanupIsIdempotent() throws {
     let url = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString)

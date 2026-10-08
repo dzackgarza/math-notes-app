@@ -23,7 +23,10 @@ func writeTemporaryPDFExport(_ data: Data, name: String) throws -> URL {
 func removeExportTemporaryFile(_ url: URL) {
   try? FileManager.default.removeItem(at: url)
   let folder = url.deletingLastPathComponent()
-  if folder.lastPathComponent.hasPrefix("mathnotes-export-") {
+  if folder.deletingLastPathComponent().standardizedFileURL ==
+      FileManager.default.temporaryDirectory.standardizedFileURL,
+    folder.lastPathComponent.hasPrefix("mathnotes-export-")
+  {
     try? FileManager.default.removeItem(at: folder)
   }
 }
