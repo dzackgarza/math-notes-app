@@ -1100,6 +1100,26 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         self?.clearSelection()
       })
     }
+    if let page = canvasView.page(at: location), !canSaveClipping {
+      actions.append(UIAction(
+        title: "Save Page to Clippings",
+        image: UIImage(systemName: "tray.and.arrow.down")
+      ) { [weak self] _ in
+        guard let self, self.keyboardEditingAllowed else { return }
+        do {
+          try self.canvasView.selectAll(page: page)
+          defer {
+            try? self.canvasView.clearSelection()
+            self.refreshSelectionBar()
+          }
+          if let svg = try self.canvasView.copySelection(), !svg.isEmpty {
+            self.onSaveClipping(svg)
+          }
+        } catch {
+          self.onError(error)
+        }
+      })
+    }
     if canSaveClipping {
       actions.append(UIAction(
         title: "Save to clippings",
