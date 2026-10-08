@@ -760,10 +760,14 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   func dropInteraction(_ interaction: UIDropInteraction, canHandle session: UIDropSession) -> Bool {
-    guard hostActive, !figureCaptureActive, !figureCompleting,
-      session.items.count == 1, let source = session.items.first?.localObject as? InkEditorViewController
+    guard hostActive, !figureCaptureActive, !figureCompleting, session.items.count == 1,
+      let item = session.items.first
     else { return false }
-    return source.dragSelectionFrame != nil && source.dragSelectionPage != nil && source.dragDocumentRevision == source.documentRevision
+    if let source = item.localObject as? InkEditorViewController {
+      return source.dragSelectionFrame != nil && source.dragSelectionPage != nil &&
+        source.dragDocumentRevision == source.documentRevision
+    }
+    return item.itemProvider.hasItemConformingToTypeIdentifier(notebookSelectionCopyDragType.identifier)
   }
 
   func dropInteraction(
@@ -775,13 +779,32 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     }
     let item = session.items[0]
     let movable = item.itemProvider.hasItemConformingToTypeIdentifier(notebookSelectionDragType.identifier)
-    return UIDropProposal(operation: movable && session.allowsMoveOperation ? .move : .copy)
+    let local = item.localObject is InkEditorViewController
+    return UIDropProposal(operation: local && movable && session.allowsMoveOperation ? .move : .copy)
   }
 
   func dropInteraction(_ interaction: UIDropInteraction, performDrop session: UIDropSession) {
-    guard dropInteraction(interaction, canHandle: session),
-      let item = session.items.first,
-      let source = item.localObject as? InkEditorViewController,
+    guard dropInteraction(interaction, canHandle: session), let item = session.items.first else { return }
+    if !(item.localObject is InkEditorViewController) {
+      let point = session.location(in: canvasView)
+      item.itemProvider.loadDataRepresentation(
+        forTypeIdentifier: notebookSelectionCopyDragType.identifier
+      ) { [weak self] data, _ in
+        guard let data, let svg = String(data: data, encoding: .utf8), svg.contains("<svg") else { return }
+        Task { @MainActor [weak self] in
+          guard let self, self.hostActive, !self.figureCaptureActive, !self.figureCompleting else { return }
+          do {
+            try self.canvasView.paste(svg, at: point, placeAtPointer: true)
+            self.onEditCommitted()
+            self.refreshSelectionBar()
+          } catch {
+            self.onError(error)
+          }
+        }
+      }
+      return
+    }
+    guard let source = item.localObject as? InkEditorViewController,
       let originalFrame = source.dragSelectionFrame,
       let originalPage = source.dragSelectionPage,
       source.canvasView.selectionPage() == originalPage,
