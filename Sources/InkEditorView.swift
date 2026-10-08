@@ -1616,6 +1616,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   private func pasteFromPasteboard(at point: CGPoint, placeAtPointer: Bool = false) {
+    guard hostActive, editorDocumentMutationAllowed(
+      figureCaptureActive: figureCaptureActive, figureCompleting: figureCompleting),
+      canvasView.page(at: point) != nil
+    else { return }
     if let svg = selectionFromPasteboard(), svg.contains("<svg") {
       paste(svg, at: point, placeAtPointer: placeAtPointer)
       return
