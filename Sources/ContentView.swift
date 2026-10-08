@@ -2379,7 +2379,7 @@ struct ContentView: View {
   }
 
   private func saveClipping(_ svg: String, viewState: OpenNotebookViewState) {
-    guard saveClippingDrop(svg), viewState.clippingsRequest != nil else { return }
+    guard viewState.clippingsRequest != nil, saveClippingDrop(svg) else { return }
     _ = refreshClippings(viewState: viewState)
   }
 
