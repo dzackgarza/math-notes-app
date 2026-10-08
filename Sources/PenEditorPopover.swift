@@ -15,9 +15,6 @@ struct PenEditorPopover: View {
   @State private var saved: [InkToolSettings]
   @State private var advanced = false
 
-  private let brush: UInt32
-  private let rgb: UInt32
-
   init(
     tool: EditorTool,
     library: Binding<EditorPenLibrary>,
@@ -28,8 +25,6 @@ struct PenEditorPopover: View {
     self.onPersist = onPersist
 
     let settings = library.wrappedValue.settings(for: tool)
-    brush = settings.brush
-    rgb = settings.rgb
     _size = State(initialValue: Double(settings.size))
     _opacity = State(initialValue: Double(settings.opacity))
     _saved = State(initialValue: library.wrappedValue.saved)
@@ -131,16 +126,15 @@ struct PenEditorPopover: View {
   }
 
   private var penColor: Color {
-    Color(
+    let rgb = library.settings(for: tool).rgb
+    return Color(
       red: Double((rgb >> 16) & 0xFF) / 255,
       green: Double((rgb >> 8) & 0xFF) / 255,
       blue: Double(rgb & 0xFF) / 255)
   }
 
   private var settings: InkToolSettings {
-    var value = InkToolSettings()
-    value.brush = brush
-    value.rgb = rgb
+    var value = library.settings(for: tool)
     value.size = Float(size)
     value.opacity = Float(opacity)
     return value
