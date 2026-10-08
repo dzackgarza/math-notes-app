@@ -35,6 +35,7 @@ struct ClippingsSheet: View {
 
   @State private var items: [ClippingPreview]
   @State private var dropTargeted = false
+  @State private var dropSession = UUID()
 
   init(
     request: ClippingsRequest,
@@ -166,6 +167,8 @@ struct ClippingsSheet: View {
       }
     }
     .frame(width: 240)
+    .onAppear { dropSession = UUID() }
+    .onDisappear { dropSession = UUID() }
     .onDrop(
       of: [notebookSelectionCopyDragType],
       isTargeted: $dropTargeted
@@ -176,6 +179,7 @@ struct ClippingsSheet: View {
         }) else {
         return false
       }
+      let session = dropSession
       provider.loadDataRepresentation(
         forTypeIdentifier: notebookSelectionCopyDragType.identifier
       ) { data, _ in
@@ -183,6 +187,7 @@ struct ClippingsSheet: View {
           svg.contains("<svg")
         else { return }
         Task { @MainActor in
+          guard session == dropSession else { return }
           guard ClippingsPanelAvailability(
             selectionActive: selectionActive, drawing: drawing
           ).canAcceptDrop, onSave(svg) else { return }
