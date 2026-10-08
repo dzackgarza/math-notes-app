@@ -696,6 +696,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         figureCompleting: figureCompleting) &&
       addPageFooter.state == .pulling &&
       pullGate.release(at: CACurrentMediaTime())
+    footerWasPulling = false
     cancelPullReadyTimer()
   }
 
