@@ -172,6 +172,11 @@ final class InkCanvasView: UIView {
   }
 
   func setActive(_ active: Bool) {
+    if !active {
+      cancelFingerStroke()
+      cancelPencilStroke()
+      sampleIDs.cancelPendingEstimates()
+    }
     updateLink?.isEnabled = active
   }
 
