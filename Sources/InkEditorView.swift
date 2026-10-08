@@ -19,7 +19,7 @@ private struct NotebookEditorDropDelegate: DropDelegate {
   let onDropClipping: (String, CGPoint) -> Bool
 
   func dropUpdated(info: DropInfo) -> DropProposal? {
-    DropProposal(operation: .copy)
+    DropProposal(operation: validateDrop(info: info) ? .copy : .cancel)
   }
 
   func validateDrop(info: DropInfo) -> Bool {
