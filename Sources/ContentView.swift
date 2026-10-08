@@ -2469,10 +2469,7 @@ struct ContentView: View {
         firstPage: firstPage,
         pageCount: pageCount,
         layerIDs: layerIDs)
-      let safeName = session.reference.name.replacingOccurrences(of: "/", with: "-")
-      let url = FileManager.default.temporaryDirectory
-        .appendingPathComponent(safeName)
-        .appendingPathExtension("pdf")
+      let url = try temporaryPDFExportURL(name: session.reference.name)
       try data.write(to: url, options: .atomic)
       DispatchQueue.main.async {
         switch destination {

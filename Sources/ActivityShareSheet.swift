@@ -2,8 +2,19 @@ import Foundation
 import SwiftUI
 import UIKit
 
+func temporaryPDFExportURL(name: String, directory: URL = FileManager.default.temporaryDirectory) throws -> URL {
+  let safeName = name.replacingOccurrences(of: "/", with: "-")
+  let folder = directory.appendingPathComponent("mathnotes-export-" + UUID().uuidString, isDirectory: true)
+  try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+  return folder.appendingPathComponent(safeName).appendingPathExtension("pdf")
+}
+
 func removeExportTemporaryFile(_ url: URL) {
   try? FileManager.default.removeItem(at: url)
+  let folder = url.deletingLastPathComponent()
+  if folder.lastPathComponent.hasPrefix("mathnotes-export-") {
+    try? FileManager.default.removeItem(at: folder)
+  }
 }
 
 struct SharePayload: Identifiable {
