@@ -102,6 +102,7 @@ final class InkCanvasView: UIView {
 
   override func didMoveToWindow() {
     super.didMoveToWindow()
+    updateLink?.isEnabled = hostActive && window != nil
     updateSurfaceSize()
   }
 
@@ -179,7 +180,7 @@ final class InkCanvasView: UIView {
       cancelPencilStroke()
       sampleIDs.cancelPendingEstimates()
     }
-    updateLink?.isEnabled = active
+    updateLink?.isEnabled = active && window != nil
   }
 
   func setDrawingSuppressed(_ suppressed: Bool) {
