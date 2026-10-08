@@ -824,6 +824,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     guard let source = item.localObject as? InkEditorViewController,
       let originalFrame = source.dragSelectionFrame,
       let originalPage = source.dragSelectionPage,
+      source.dragDocumentRevision == source.documentRevision,
       source.canvasView.selectionPage() == originalPage,
       source.canvasView.selectionFrame() == originalFrame
     else { return }
