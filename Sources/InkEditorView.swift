@@ -767,6 +767,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         source.dragSelectionFrame != nil && source.dragSelectionPage != nil &&
         source.dragDocumentRevision == source.documentRevision
     }
+    guard canvasView.page(at: session.location(in: canvasView)) != nil else { return false }
     return [notebookSelectionCopyDragType, .svg, .utf8PlainText, .plainText, .png, .jpeg, .heic, .heif, .tiff].contains {
       item.itemProvider.hasItemConformingToTypeIdentifier($0.identifier)
     } || item.itemProvider.canLoadObject(ofClass: UIImage.self) ||
