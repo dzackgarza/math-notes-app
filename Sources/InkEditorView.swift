@@ -762,12 +762,12 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     guard hostActive, !figureCaptureActive, !figureCompleting, session.items.count == 1,
       let item = session.items.first
     else { return false }
+    guard canvasView.page(at: session.location(in: canvasView)) != nil else { return false }
     if let source = item.localObject as? InkEditorViewController {
       return source.hostActive && source.dragSelectionSVG != nil &&
         source.dragSelectionFrame != nil && source.dragSelectionPage != nil &&
         source.dragDocumentRevision == source.documentRevision
     }
-    guard canvasView.page(at: session.location(in: canvasView)) != nil else { return false }
     return [notebookSelectionCopyDragType, .svg, .utf8PlainText, .plainText, .png, .jpeg, .heic, .heif, .tiff].contains {
       item.itemProvider.hasItemConformingToTypeIdentifier($0.identifier)
     } || item.itemProvider.canLoadObject(ofClass: UIImage.self) ||
