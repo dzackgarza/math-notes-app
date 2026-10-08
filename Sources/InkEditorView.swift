@@ -698,6 +698,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     _ interaction: UIDragInteraction,
     itemsForBeginning session: UIDragSession
   ) -> [UIDragItem] {
+    guard hostActive else { return [] }
     onFocusRequested()
     let copyHandle = interaction.view === selectionCopyDragHandle
     guard !pencilStrokeActive else { return [] }
