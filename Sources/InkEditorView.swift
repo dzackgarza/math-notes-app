@@ -303,6 +303,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       editorKeyCommand("s", modifiers: .command, action: #selector(keyboardSave), title: "Save"),
       editorKeyCommand(UIKeyCommand.inputUpArrow, modifiers: .command, action: #selector(keyboardPreviousPage), title: "Previous Page"),
       editorKeyCommand(UIKeyCommand.inputDownArrow, modifiers: .command, action: #selector(keyboardNextPage), title: "Next Page"),
+      editorKeyCommand("0", modifiers: .command, action: #selector(keyboardFitPages), title: "Fit Pages"),
       editorKeyCommand("i", modifiers: .command, action: #selector(keyboardInsertImage), title: "Insert Image"),
       editorKeyCommand("k", modifiers: .command.union(.shift), action: #selector(keyboardClippings), title: "Clippings"),
       editorKeyCommand("c", modifiers: .command.union(.shift), action: #selector(keyboardSaveClipping), title: "Save Clipping"),
@@ -1207,6 +1208,11 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   @objc private func keyboardInsertImage() {
     guard keyboardEditingAllowed else { return }
     onInsertImageRequested()
+  }
+
+  @objc private func keyboardFitPages() {
+    guard hostActive, hostFocused else { return }
+    fitPages(animated: true, preserveLeadingPosition: true)
   }
 
   private func keyboardNavigatePage(by offset: Int) {
