@@ -408,7 +408,7 @@ struct ContentView: View {
     }
     .fileImporter(
       isPresented: $showingImageImporter,
-      allowedContentTypes: [.png, .jpeg]
+      allowedContentTypes: [.png, .jpeg, .heic, .heif, .tiff]
     ) { result in
       switch result {
       case let .success(url):
@@ -1918,10 +1918,23 @@ struct ContentView: View {
       let page = try session.document.pageRect(index: currentPage)
       let contentType = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType
       let ext = url.pathExtension.lowercased()
-      let mimeType = contentType?.preferredMIMEType
-        ?? (ext == "jpg" || ext == "jpeg" ? "image/jpeg" : "image/png")
+      let mimeType: String
+      let importedData: Data
+      if ext == "png" || contentType == .png {
+        mimeType = "image/png"
+        importedData = data
+      } else if ext == "jpg" || ext == "jpeg" || contentType == .jpeg {
+        mimeType = "image/jpeg"
+        importedData = data
+      } else {
+        guard let png = UIImage(cgImage: cgImage).pngData() else {
+          throw ImageImportError.invalidImageSize
+        }
+        mimeType = "image/png"
+        importedData = png
+      }
       let svg = try imageImportSVG(
-        data: data,
+        data: importedData,
         mimeType: mimeType,
         imageSize: CGSize(width: CGFloat(cgImage.width), height: CGFloat(cgImage.height)),
         pageSize: page.size)
