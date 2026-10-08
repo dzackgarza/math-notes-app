@@ -121,30 +121,32 @@ private struct NoteTextView: UIViewRepresentable {
   func makeUIView(context: Context) -> UITextView {
     let view = UITextView()
     view.delegate = context.coordinator
+    context.coordinator.rtl = rtl
     view.backgroundColor = .clear
     view.text = text
     view.font = noteTextFont(size: 18)
     view.textContainerInset = UIEdgeInsets(top: 8, left: 5, bottom: 8, right: 5)
     view.accessibilityLabel = "Text"
     context.coordinator.appliedRTL = rtl
-    applyDirection(to: view)
+    Self.applyParagraphDirection(to: view, rtl: rtl)
     DispatchQueue.main.async { view.becomeFirstResponder() }
     return view
   }
 
   func updateUIView(_ view: UITextView, context: Context) {
+    context.coordinator.rtl = rtl
     let externalTextChanged = view.text != text && view.markedTextRange == nil
     if externalTextChanged { view.text = text }
     view.font = noteTextFont(size: 18)
     if view.markedTextRange == nil &&
       (externalTextChanged || context.coordinator.appliedRTL != rtl)
     {
-      applyDirection(to: view)
+      Self.applyParagraphDirection(to: view, rtl: rtl)
       context.coordinator.appliedRTL = rtl
     }
   }
 
-  private func applyDirection(to view: UITextView) {
+  private static func applyParagraphDirection(to view: UITextView, rtl: Bool) {
     let direction: NSWritingDirection = rtl ? .rightToLeft : .leftToRight
     let paragraph = NSMutableParagraphStyle()
     paragraph.baseWritingDirection = direction
@@ -163,6 +165,7 @@ private struct NoteTextView: UIViewRepresentable {
 
   final class Coordinator: NSObject, UITextViewDelegate {
     var appliedRTL: Bool?
+    var rtl = false
     @Binding private var text: String
 
     init(text: Binding<String>) {
@@ -171,6 +174,10 @@ private struct NoteTextView: UIViewRepresentable {
 
     func textViewDidChange(_ textView: UITextView) {
       text = textView.text
+      if textView.markedTextRange == nil, appliedRTL != rtl {
+        NoteTextView.applyParagraphDirection(to: textView, rtl: rtl)
+        appliedRTL = rtl
+      }
     }
   }
 }
