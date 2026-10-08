@@ -236,6 +236,9 @@ struct EditorToolRail: View {
       if [.pen, .marker, .highlighter].contains(next) {
         drawingTool = next
       }
+      if next != .eraser { showingEraserModes = false }
+      if next != .lasso { showingSelectorModes = false }
+      if next != .space { showingSpaceModes = false }
     }
   }
 
