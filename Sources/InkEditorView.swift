@@ -763,7 +763,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       let item = session.items.first
     else { return false }
     if let source = item.localObject as? InkEditorViewController {
-      return source.dragSelectionSVG != nil && source.dragSelectionFrame != nil && source.dragSelectionPage != nil &&
+      return source.hostActive && source.dragSelectionSVG != nil &&
+        source.dragSelectionFrame != nil && source.dragSelectionPage != nil &&
         source.dragDocumentRevision == source.documentRevision
     }
     return [notebookSelectionCopyDragType, .svg, .utf8PlainText, .plainText, .png, .jpeg, .heic, .heif, .tiff].contains {
@@ -947,6 +948,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       return
     }
     guard let source = item.localObject as? InkEditorViewController,
+      source.hostActive,
       let originalFrame = source.dragSelectionFrame,
       let originalPage = source.dragSelectionPage,
       source.dragDocumentRevision == source.documentRevision,
@@ -966,7 +968,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         guard let svg = source.dragSelectionSVG else { return }
         try canvasView.paste(svg, at: point, placeAtPointer: true)
         if movable && session.allowsMoveOperation && source.document !== document {
-          guard source.dragDocumentRevision == source.documentRevision,
+          guard source.hostActive,
+            source.dragDocumentRevision == source.documentRevision,
             source.canvasView.selectionFrame() == originalFrame,
             source.canvasView.selectionPage() == originalPage
           else {
