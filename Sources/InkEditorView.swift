@@ -772,7 +772,18 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       let provider = item.itemProvider
       if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
         _ = provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { [weak self] item, _ in
-          guard let url = item as? URL, url.isFileURL else { return }
+          let url: URL?
+          switch item {
+          case let value as URL:
+            url = value
+          case let value as Data:
+            url = URL(dataRepresentation: value, relativeTo: nil)
+          case let value as String:
+            url = URL(string: value)
+          default:
+            url = nil
+          }
+          guard let url, url.isFileURL else { return }
           let scoped = url.startAccessingSecurityScopedResource()
           let data = try? Data(contentsOf: url)
           if scoped { url.stopAccessingSecurityScopedResource() }
