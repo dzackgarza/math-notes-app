@@ -1885,7 +1885,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   @objc private func handleDirectTap(_ recognizer: UITapGestureRecognizer) {
-    guard recognizer.state == .ended else { return }
+    guard recognizer.state == .ended, hostActive, hostFocused else { return }
     onFocusRequested()
     let point = recognizer.location(in: canvasView)
     guard !figureCaptureActive, !figureCompleting else { return }
@@ -1895,7 +1895,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   @objc private func handlePencilModeTap(_ recognizer: UITapGestureRecognizer) {
-    guard recognizer.state == .ended else { return }
+    guard recognizer.state == .ended, hostActive, hostFocused else { return }
     onFocusRequested()
     let point = recognizer.location(in: canvasView)
     guard !figureCaptureActive, !figureCompleting else { return }
