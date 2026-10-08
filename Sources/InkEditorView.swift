@@ -1028,6 +1028,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     guard pressedPage != nil || canvasView.selectionFrame() != nil else { return nil }
     let svg = selectionFromPasteboard()
     let selectedPage = canvasView.selectionPage()
+    let menuRevision = documentRevision
     let canSaveClipping = canvasView.selectionFrame() != nil &&
       (pressedPage == nil || selectedPage == pressedPage)
     var actions: [UIMenuElement] = []
@@ -1068,7 +1069,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       actions.append(UIAction(
         title: "Clear Page", image: UIImage(systemName: "eraser"), attributes: .destructive
       ) { [weak self] _ in
-        guard let self, self.keyboardEditingAllowed else { return }
+        guard let self, self.keyboardEditingAllowed,
+          self.documentRevision == menuRevision, self.canvasView.page(at: location) == page
+        else { return }
         do {
           try self.canvasView.selectAll(page: page)
           try self.canvasView.deleteSelection()
@@ -1081,7 +1084,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     }
     if pressedPage != nil {
       actions.append(UIAction(title: "Add Bookmark Here", image: UIImage(systemName: "bookmark.fill")) { [weak self] _ in
-        guard let self, self.keyboardEditingAllowed else { return }
+        guard let self, self.keyboardEditingAllowed,
+          self.documentRevision == menuRevision, self.canvasView.page(at: location) == page
+        else { return }
         do {
           try self.canvasView.addBookmark(at: location)
           self.onEditCommitted()
@@ -1124,7 +1129,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         title: "Save Page to Clippings",
         image: UIImage(systemName: "tray.and.arrow.down")
       ) { [weak self] _ in
-        guard let self, self.keyboardEditingAllowed else { return }
+        guard let self, self.keyboardEditingAllowed,
+          self.documentRevision == menuRevision, self.canvasView.page(at: location) == page
+        else { return }
         do {
           try self.canvasView.selectAll(page: page)
           defer {
