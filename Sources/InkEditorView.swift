@@ -823,11 +823,21 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         guard let svg = try source.canvasView.copySelection(), !svg.isEmpty else { return }
         try canvasView.paste(svg, at: point, placeAtPointer: true)
         if movable && session.allowsMoveOperation && source.document !== document {
-          guard source.dragDocumentRevision == source.documentRevision, source.canvasView.selectionFrame() == originalFrame, source.canvasView.selectionPage() == originalPage else { _ = try document.undo(); return }
+          guard source.dragDocumentRevision == source.documentRevision,
+            source.canvasView.selectionFrame() == originalFrame,
+            source.canvasView.selectionPage() == originalPage
+          else {
+            _ = try document.undo()
+            onEditCommitted()
+            refreshSelectionBar()
+            return
+          }
           do {
             try source.canvasView.deleteSelection()
           } catch {
             _ = try document.undo()
+            onEditCommitted()
+            refreshSelectionBar()
             throw error
           }
           source.onEditCommitted()
