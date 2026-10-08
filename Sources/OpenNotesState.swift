@@ -44,7 +44,13 @@ final class OpenNotebookViewState: Identifiable {
   var pageNavigationRevision = 0
   var fitRevision = 0
   var fitActive = true
-  var editorPageCommand: EditorPageCommand?
+  var editorPageCommand: EditorPageCommand? {
+    didSet {
+      if let command = editorPageCommand, !command.isIdentified {
+        editorPageCommand = .identified(UUID(), command)
+      }
+    }
+  }
   var clippingsRequest: ClippingsRequest?
   var captureActive = false
   var selectionActive = false

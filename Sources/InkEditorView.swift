@@ -145,6 +145,21 @@ func applyPreferredPencilAction(
 }
 
 enum EditorPageCommand: Equatable {
+  indirect case identified(UUID, EditorPageCommand)
+
+  var action: EditorPageCommand {
+    switch self {
+    case let .identified(_, command): command.action
+    default: self
+    }
+  }
+
+  var isIdentified: Bool {
+    switch self {
+    case .identified: true
+    default: false
+    }
+  }
   case select(Int)
   case clear(Int)
   case addBookmark
@@ -1109,7 +1124,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private func handlePageCommand(_ command: EditorPageCommand) {
     defer { onPageCommandHandled(command) }
     do {
-      switch command {
+      switch command.action {
+      case .identified:
+        break
       case let .select(page):
         try canvasView.selectAll(page: page)
       case let .clear(page):
@@ -2105,14 +2122,14 @@ struct InkEditorView: View {
         hiddenTools: hiddenTools,
         undo: { history(redo: false) },
         redo: { history(redo: true) },
-        insertText: { pageCommand = .requestTextAtCenter },
+        insertText: { pageCommand = .identified(UUID(), .requestTextAtCenter) },
         insertImage: onInsertImage,
         drawing: drawing,
         selectionActive: selectionActive,
         clippingsOpen: clippingsOpen,
         toggleDrawing: toggleDrawingMode,
         showClippings: onShowClippings,
-        recolorSelection: { rgb in pageCommand = .recolorSelection(rgb) },
+        recolorSelection: { rgb in pageCommand = .identified(UUID(), .recolorSelection(rgb)) },
         onPensChanged: onPensChanged)
 
       if let pencilPaletteAnchor {
@@ -2130,7 +2147,7 @@ struct InkEditorView: View {
               drawingTool: $drawingTool,
               library: $penLibrary,
               selectionActive: selectionActive,
-              onRecolorSelection: { rgb in pageCommand = .recolorSelection(rgb) },
+              onRecolorSelection: { rgb in pageCommand = .identified(UUID(), .recolorSelection(rgb)) },
               onPersist: onPensChanged)
               .presentationCompactAdaptation(.popover)
           }
@@ -2249,7 +2266,7 @@ struct InkEditorView: View {
       TextEditorSheet(
         request: request,
         onSave: { properties in
-          pageCommand = .commitText(request, properties)
+          pageCommand = .identified(UUID(), .commitText(request, properties))
           textRequest = nil
         },
         onCancel: { textRequest = nil })
@@ -2277,7 +2294,7 @@ struct InkEditorView: View {
       bookmarkMode = false
       tool = editorToolForDrawingEntry(tool: tool, drawingTool: drawingTool)
     }
-    pageCommand = .toggleFigureCapture(currentPage)
+    pageCommand = .identified(UUID(), .toggleFigureCapture(currentPage))
   }
 
   private func closeModeBanner() {

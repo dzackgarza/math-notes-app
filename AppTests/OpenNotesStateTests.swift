@@ -18,6 +18,22 @@ final class OpenNotesStateTests: XCTestCase {
       document: EngineDocument(seed: seed))
   }
 
+  func testRepeatedEditorCommandsHaveDistinctIdentities() {
+    let view = OpenNotebookViewState()
+    view.editorPageCommand = .addBookmark
+    let first = view.editorPageCommand
+    XCTAssertNotNil(first)
+    XCTAssertEqual(first?.action, .addBookmark)
+
+    view.editorPageCommand = .addBookmark
+    let second = view.editorPageCommand
+    XCTAssertNotEqual(first, second)
+    XCTAssertEqual(second?.action, .addBookmark)
+
+    view.editorPageCommand = nil
+    XCTAssertNil(view.editorPageCommand)
+  }
+
   func testSessionTracksSaveStatusThroughSuccessAndFailure() throws {
     let note = session(["A"], seed: 34)
     XCTAssertEqual(note.saveStatus, .saved)
