@@ -17,63 +17,30 @@ private struct NotebookEditorDropDelegate: DropDelegate {
   let canDrop: () -> Bool
   let onFocus: () -> Void
   let onDropClipping: (String, CGPoint) -> Bool
-  let onDropSelection: (String, CGPoint) -> Bool
 
   func dropUpdated(info: DropInfo) -> DropProposal? {
-    DropProposal(
-      operation: info.hasItemsConforming(to: [notebookSelectionDragType])
-        ? .move
-        : .copy)
+    DropProposal(operation: .copy)
   }
 
   func validateDrop(info: DropInfo) -> Bool {
-    canDrop() && info.hasItemsConforming(to: [
-      notebookSelectionDragType, notebookSelectionCopyDragType, notebookClippingDragType,
-    ])
+    canDrop() && info.hasItemsConforming(to: [notebookClippingDragType])
   }
 
   func performDrop(info: DropInfo) -> Bool {
-    guard canDrop() else { return false }
+    guard canDrop(),
+      let provider = info.itemProviders(for: [notebookClippingDragType]).first
+    else { return false }
     onFocus()
     let location = info.location
-
-    if let provider = info.itemProviders(for: [notebookSelectionDragType]).first {
-      provider.loadDataRepresentation(
-        forTypeIdentifier: notebookSelectionDragType.identifier
-      ) { data, _ in
-        guard let data, let svg = String(data: data, encoding: .utf8) else { return }
-        Task { @MainActor in
-          _ = onDropSelection(svg, location)
-        }
+    provider.loadDataRepresentation(
+      forTypeIdentifier: notebookClippingDragType.identifier
+    ) { data, _ in
+      guard let data, let id = String(data: data, encoding: .utf8) else { return }
+      Task { @MainActor in
+        _ = onDropClipping(id, location)
       }
-      return true
     }
-
-    if let provider = info.itemProviders(for: [notebookSelectionCopyDragType]).first {
-      provider.loadDataRepresentation(
-        forTypeIdentifier: notebookSelectionCopyDragType.identifier
-      ) { data, _ in
-        guard let data, let svg = String(data: data, encoding: .utf8) else { return }
-        Task { @MainActor in
-          _ = onDropSelection(svg, location)
-        }
-      }
-      return true
-    }
-
-    if let provider = info.itemProviders(for: [notebookClippingDragType]).first {
-      provider.loadDataRepresentation(
-        forTypeIdentifier: notebookClippingDragType.identifier
-      ) { data, _ in
-        guard let data, let id = String(data: data, encoding: .utf8) else { return }
-        Task { @MainActor in
-          _ = onDropClipping(id, location)
-        }
-      }
-      return true
-    }
-
-    return false
+    return true
   }
 }
 
@@ -2352,8 +2319,7 @@ struct InkEditorView: View {
       delegate: NotebookEditorDropDelegate(
         canDrop: { !drawing },
         onFocus: onFocus,
-        onDropClipping: onDropClipping,
-        onDropSelection: onDropSelection))
+        onDropClipping: onDropClipping))
     .simultaneousGesture(
       TapGesture().onEnded { onFocus() })
     .onChange(of: documentRevision) {
