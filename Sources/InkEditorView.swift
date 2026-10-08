@@ -791,6 +791,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     onFocusRequested()
     if !(item.localObject is InkEditorViewController) {
       let point = session.location(in: canvasView)
+      guard canvasView.page(at: point) != nil else { return }
       let destinationRevision = documentRevision
       let provider = item.itemProvider
       if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) &&
