@@ -770,7 +770,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       let point = session.location(in: canvasView)
       let destinationRevision = documentRevision
       let provider = item.itemProvider
-      if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+      if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) &&
+        ![notebookSelectionCopyDragType, .svg, .png, .jpeg].contains(where: {
+          provider.hasItemConformingToTypeIdentifier($0.identifier)
+        }) {
         _ = provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { [weak self] item, _ in
           let url: URL?
           switch item {
