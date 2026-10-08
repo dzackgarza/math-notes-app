@@ -220,6 +220,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private var saveClippingButton: UIButton?
   private var selectionCopyDragHandle: UIButton?
   private var dragSelectionFrame: CGRect?
+  private var dragSelectionPage: Int?
   private var dragDocumentRevision: Int?
   private var clippingsPanelOpen = false
   private let figureGenerator = FigureTikZGenerator()
@@ -720,6 +721,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     do {
       guard let svg = try canvasView.copySelection(), !svg.isEmpty else { return [] }
       dragSelectionFrame = canvasView.selectionFrame()
+      dragSelectionPage = canvasView.selectionPage()
       dragDocumentRevision = documentRevision
       let provider = NSItemProvider(object: svg as NSString)
       provider.registerDataRepresentation(
@@ -753,6 +755,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     didEndWith operation: UIDropOperation
   ) {
     dragSelectionFrame = nil
+    dragSelectionPage = nil
     dragDocumentRevision = nil
   }
 
@@ -760,7 +763,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     guard hostActive, !figureCaptureActive, !figureCompleting,
       session.items.count == 1, let source = session.items.first?.localObject as? InkEditorViewController
     else { return false }
-    return source.dragSelectionFrame != nil && source.dragDocumentRevision == source.documentRevision
+    return source.dragSelectionFrame != nil && source.dragSelectionPage != nil && source.dragDocumentRevision == source.documentRevision
   }
 
   func dropInteraction(
@@ -780,6 +783,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       let item = session.items.first,
       let source = item.localObject as? InkEditorViewController,
       let originalFrame = source.dragSelectionFrame,
+      let originalPage = source.dragSelectionPage,
+      source.canvasView.selectionPage() == originalPage,
       source.canvasView.selectionFrame() == originalFrame
     else { return }
     let point = session.location(in: canvasView)
@@ -795,7 +800,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         guard let svg = try source.canvasView.copySelection(), !svg.isEmpty else { return }
         try canvasView.paste(svg, at: point, placeAtPointer: true)
         if movable && session.allowsMoveOperation && source.document !== document {
-          guard source.dragDocumentRevision == source.documentRevision, source.canvasView.selectionFrame() == originalFrame else { _ = try document.undo(); return }
+          guard source.dragDocumentRevision == source.documentRevision, source.canvasView.selectionFrame() == originalFrame, source.canvasView.selectionPage() == originalPage else { _ = try document.undo(); return }
           do {
             try source.canvasView.deleteSelection()
           } catch {
