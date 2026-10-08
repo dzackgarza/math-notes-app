@@ -885,7 +885,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     var actions: [UIMenuElement] = []
     if (svg?.contains("<svg") == true) ||
       UIPasteboard.general.data(forPasteboardType: UTType.png.identifier) != nil ||
-      UIPasteboard.general.data(forPasteboardType: UTType.jpeg.identifier) != nil {
+      UIPasteboard.general.data(forPasteboardType: UTType.jpeg.identifier) != nil ||
+      UIPasteboard.general.image != nil {
       actions.append(UIAction(
         title: "Paste",
         image: UIImage(systemName: "doc.on.clipboard")
@@ -1156,10 +1157,14 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       imageType = .png
     } else if pasteboard.data(forPasteboardType: UTType.jpeg.identifier) != nil {
       imageType = .jpeg
+    } else if pasteboard.image != nil {
+      imageType = .png
     } else {
       return
     }
-    guard let data = pasteboard.data(forPasteboardType: imageType.identifier),
+    let data = pasteboard.data(forPasteboardType: imageType.identifier)
+      ?? (imageType == .png ? pasteboard.image?.pngData() : nil)
+    guard let data,
       let image = UIImage(data: data)?.cgImage,
       let page = canvasView.page(at: point)
     else { return }
