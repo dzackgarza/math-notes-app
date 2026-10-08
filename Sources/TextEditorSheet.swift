@@ -174,10 +174,17 @@ private struct NoteTextView: UIViewRepresentable {
 
     func textViewDidChange(_ textView: UITextView) {
       text = textView.text
-      if textView.markedTextRange == nil, appliedRTL != rtl {
-        NoteTextView.applyParagraphDirection(to: textView, rtl: rtl)
-        appliedRTL = rtl
-      }
+      finishCompositionIfNeeded(in: textView)
+    }
+
+    func textViewDidChangeSelection(_ textView: UITextView) {
+      finishCompositionIfNeeded(in: textView)
+    }
+
+    private func finishCompositionIfNeeded(in textView: UITextView) {
+      guard textView.markedTextRange == nil, appliedRTL != rtl else { return }
+      NoteTextView.applyParagraphDirection(to: textView, rtl: rtl)
+      appliedRTL = rtl
     }
   }
 }
