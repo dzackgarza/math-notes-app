@@ -1786,7 +1786,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
           onEditCommitted()
         }
       case let .pasteSVGAtCenter(svg, placeAtPointer):
-        guard editorDocumentMutationAllowed(
+        guard hostActive, editorDocumentMutationAllowed(
           figureCaptureActive: figureCaptureActive, figureCompleting: figureCompleting)
         else { return }
         try canvasView.paste(
@@ -1797,7 +1797,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
           placeAtPointer: placeAtPointer)
         onEditCommitted()
       case let .pasteSVG(svg, point, placeAtPointer):
-        guard editorDocumentMutationAllowed(
+        guard hostActive, editorDocumentMutationAllowed(
           figureCaptureActive: figureCaptureActive, figureCompleting: figureCompleting)
         else { return }
         try canvasView.paste(svg, at: point, placeAtPointer: placeAtPointer)
