@@ -156,6 +156,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private let onFitStateChanged: (Bool) -> Void
   private let onEditCommitted: () -> Void
   private let onSaveRequested: () -> Void
+  private let onInsertImageRequested: () -> Void
   private let onCurrentPageChanged: (Int) -> Void
   private let onPageCommandHandled: (EditorPageCommand, Bool) -> Void
   private let onBookmarkModeChanged: (Bool) -> Void
@@ -245,6 +246,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     onFitStateChanged: @escaping (Bool) -> Void = { _ in },
     onEditCommitted: @escaping () -> Void = {},
     onSaveRequested: @escaping () -> Void = {},
+    onInsertImageRequested: @escaping () -> Void = {},
     onCurrentPageChanged: @escaping (Int) -> Void = { _ in },
     onPageCommandHandled: @escaping (EditorPageCommand, Bool) -> Void = { _, _ in },
     onBookmarkModeChanged: @escaping (Bool) -> Void = { _ in },
@@ -267,6 +269,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     self.onFitStateChanged = onFitStateChanged
     self.onEditCommitted = onEditCommitted
     self.onSaveRequested = onSaveRequested
+    self.onInsertImageRequested = onInsertImageRequested
     self.onCurrentPageChanged = onCurrentPageChanged
     self.onPageCommandHandled = onPageCommandHandled
     self.onBookmarkModeChanged = onBookmarkModeChanged
@@ -295,6 +298,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   override var keyCommands: [UIKeyCommand]? {
     [
       editorKeyCommand("s", modifiers: .command, action: #selector(keyboardSave), title: "Save"),
+      editorKeyCommand("i", modifiers: .command, action: #selector(keyboardInsertImage), title: "Insert Image"),
       editorKeyCommand("z", modifiers: .command, action: #selector(keyboardUndo), title: "Undo"),
       editorKeyCommand(
         "z",
@@ -1131,6 +1135,11 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   @objc private func keyboardDuplicate() {
     guard keyboardEditingAllowed else { return }
     duplicateSelection()
+  }
+
+  @objc private func keyboardInsertImage() {
+    guard keyboardEditingAllowed else { return }
+    onInsertImageRequested()
   }
 
   @objc private func keyboardSave() {
@@ -2209,6 +2218,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let onFitStateChanged: (Bool) -> Void
   let onEditCommitted: () -> Void
   let onSaveRequested: () -> Void
+  let onInsertImageRequested: () -> Void
   let onCurrentPageChanged: (Int) -> Void
   let onPageCommandHandled: (EditorPageCommand, Bool) -> Void
   let onBookmarkModeChanged: (Bool) -> Void
@@ -2233,6 +2243,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       onFitStateChanged: onFitStateChanged,
       onEditCommitted: onEditCommitted,
       onSaveRequested: onSaveRequested,
+      onInsertImageRequested: onInsertImageRequested,
       onCurrentPageChanged: onCurrentPageChanged,
       onPageCommandHandled: onPageCommandHandled,
       onBookmarkModeChanged: onBookmarkModeChanged,
@@ -2369,6 +2380,7 @@ struct InkEditorView: View {
           onEditCommitted()
         },
         onSaveRequested: onSaveRequested,
+        onInsertImageRequested: onInsertImage,
         onCurrentPageChanged: { currentPage = $0 },
         onPageCommandHandled: { handled, _ in
           DispatchQueue.main.async {
