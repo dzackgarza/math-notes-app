@@ -2001,6 +2001,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   @discardableResult
   private func handleModeTap(at point: CGPoint) -> Bool {
     if bookmarkMode {
+      guard canvasView.page(at: point) != nil else { return true }
       do {
         try canvasView.addBookmark(at: point)
         onEditCommitted()
