@@ -282,6 +282,28 @@ TEST_CASE("A selection dragged from page 2 onto page 3 moves there; one undo res
   CHECK(restored.at("pages/0003.svg") == before.at("pages/0003.svg"));
 }
 
+TEST_CASE("Move selected ink directly commits one history step and preserves its id") {
+  ink_test::Session canvas;
+  REQUIRE(ink_canvas_set_surface_size(canvas.get(), 600, 850, 1) == INK_OK);
+  Gesture(canvas.get(), Line({120, 200}, {320, 260}, 24), 0);
+  const std::string id = StrokeAt(canvas.doc(), 0, 0).id;
+  REQUIRE(ink_canvas_select_all(canvas.get(), 0) == INK_OK);
+  const size_t before = canvas.document->history.size();
+  CHECK(ink_canvas_move_selection_to(canvas.get(), -1000, -1000) == INK_ERROR_ARGUMENT);
+  CHECK(canvas.document->history.size() == before);
+  REQUIRE(ink_canvas_move_selection_to(canvas.get(), 300, 450) == INK_OK);
+  CHECK(canvas.document->history.size() == before + 1);
+  REQUIRE(Layer0(canvas.doc()).size() == 1);
+  CHECK(StrokeAt(canvas.doc(), 0, 0).id == id);
+  InkSelectionInfo selected{};
+  REQUIRE(ink_canvas_selection(canvas.get(), &selected) == INK_OK);
+  CHECK(selected.count == 1);
+  CHECK(selected.page == 0);
+  int32_t undone = 0, page = -1;
+  REQUIRE(ink_undo(canvas.document, &undone, &page) == INK_OK);
+  CHECK(StrokeAt(canvas.doc(), 0, 0).id == id);
+}
+
 TEST_CASE("Copy in one notebook and paste in another: the same outline bytes and new ids") {
   ink_test::Session source(1);
   ink_test::SetTool(source.get(), INK_BRUSH_PRESSURE_PEN, 0xD6455D, 2.5f);

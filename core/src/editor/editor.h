@@ -148,6 +148,9 @@ class Editor {
   void SelectAll(size_t page);
   // Deletes the selection: one history step. False when nothing is selected.
   bool DeleteSelection();
+  // Move the current selection to a view point through the existing transform commit.
+  // False if the point lies outside the pages or there is no selection.
+  bool MoveSelectionTo(double x, double y);
   // The selection as a clipboard document (selection/selection.h
   // ClipboardSvg). A copy's elements get new ids; `cut` keeps the ids and
   // deletes the selection (Write scribbledoc.cpp:723-756, ID_COPYSEL and

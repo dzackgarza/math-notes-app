@@ -339,6 +339,8 @@ InkStatus ink_document_bookmark_png(InkDocument *document, const char *id, int32
                                     const uint8_t **png, size_t *size);
 /* Deletes the selected elements: one history step. */
 InkStatus ink_canvas_delete_selection(InkCanvas *canvas);
+/* Move the current selection to a view point as one history step. Fails off-page. */
+InkStatus ink_canvas_move_selection_to(InkCanvas *canvas, double x, double y);
 /* The selection as a standalone SVG document (UTF-8), for the host's
    clipboard. A copy's elements get new ids; with `cut` 1 they keep their ids
    and the selection is deleted (one history step). `*svg` stays valid until

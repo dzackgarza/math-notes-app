@@ -604,6 +604,23 @@ void Editor::SelectAll(size_t page_index) {
   ++overlay_version_;
 }
 
+bool Editor::MoveSelectionTo(double x, double y) {
+  const Selection *selection = CurrentSelection();
+  if (!selection || !std::isfinite(x) || !std::isfinite(y)) return false;
+  const Point content = ToContent(view_, x, y);
+  const std::vector<PagePlacement> layout = Layout(document());
+  const PagePlacement *target = PageContaining(layout, content);
+  const PagePlacement *origin = Placement(layout, selection->page);
+  if (!target || !origin) return false;
+  const Point center{(selection->rect.left + selection->rect.right) / 2,
+                     (selection->rect.top + selection->rect.bottom) / 2};
+  const Point desired{content.x - origin->x, content.y - origin->y};
+  transform_ = TransformGesture{.hit = HandleHit{.kind = HandleKind::kMove},
+                                .live = Translation(desired.x - center.x, desired.y - center.y)};
+  CommitTransform(content);
+  return true;
+}
+
 bool Editor::DeleteSelection() {
   const Selection *selection = CurrentSelection();
   if (!selection) return false;

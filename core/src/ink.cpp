@@ -1036,6 +1036,14 @@ InkStatus ink_canvas_delete_selection(InkCanvas *canvas) {
   });
 }
 
+InkStatus ink_canvas_move_selection_to(InkCanvas *canvas, double x, double y) {
+  return Call([&] {
+    if (!canvas) return NullArgument("canvas");
+    if (!canvas->editor.MoveSelectionTo(x, y)) return Fail(INK_ERROR_ARGUMENT, "invalid selection move");
+    return INK_OK;
+  });
+}
+
 InkStatus ink_canvas_bookmark_selection(InkCanvas *canvas) {
   return Call([&] {
     if (!canvas) return NullArgument("canvas");
