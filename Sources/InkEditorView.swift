@@ -1147,12 +1147,15 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         self?.saveClipping()
       })
     }
-    if (try? canvasView.selectedFigure()) != nil {
+    if canSaveClipping, (try? canvasView.selectedFigure()) != nil {
       actions.append(UIAction(
         title: "Edit figure",
         image: UIImage(systemName: "scribble.variable")
       ) { [weak self] _ in
-        self?.editSelectedFigure()
+        guard let self, self.keyboardEditingAllowed,
+          self.canvasView.selectionPage() == selectedPage
+        else { return }
+        self.editSelectedFigure()
       })
     }
     return UIMenu(children: actions)
