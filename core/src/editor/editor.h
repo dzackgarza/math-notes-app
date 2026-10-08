@@ -174,6 +174,7 @@ class Editor {
   enum class FigureCaptureError { kNone, kCrossPageInput, kPageChanged, kCrossLayerMove };
   // A capture owns pen strokes on one page and layer until completion.
   bool StartFigureCapture(size_t page, size_t layer);
+  bool CancelFigureCapture();
   bool FigureCapturing() const { return figure_capture_.has_value(); }
   FigureCaptureError FigureCaptureStatus() const;
   void AcknowledgeFigureCaptureError();

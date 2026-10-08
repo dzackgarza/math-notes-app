@@ -269,6 +269,7 @@ InkStatus ink_canvas_active_layer(InkCanvas *canvas, int32_t *index);
    valid until the next figure call on this canvas. An empty capture returns
    an empty figure id. */
 InkStatus ink_canvas_figure_begin(InkCanvas *canvas, size_t page, size_t layer);
+InkStatus ink_canvas_figure_cancel(InkCanvas *canvas);
 InkStatus ink_canvas_figure_scene(InkCanvas *canvas, const uint8_t **json, size_t *size);
 InkStatus ink_canvas_figure_complete(InkCanvas *canvas, const uint8_t *scene, size_t scene_size,
                                      const uint8_t *tikz, size_t tikz_size,

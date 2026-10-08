@@ -529,6 +529,11 @@ final class InkCanvasView: UIView {
       operation: "Start drawing mode")
   }
 
+  func cancelFigure() throws {
+    guard let canvas else { return }
+    try require(ink_canvas_figure_cancel(canvas), operation: "Cancel drawing mode")
+  }
+
   func figureScene() throws -> String {
     guard let canvas else {
       throw EngineDocumentError.operation("Read figure scene", "Canvas is unavailable")

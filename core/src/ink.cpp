@@ -750,6 +750,14 @@ InkStatus ink_canvas_figure_begin(InkCanvas *canvas, size_t page, size_t layer) 
   });
 }
 
+InkStatus ink_canvas_figure_cancel(InkCanvas *canvas) {
+  return Call([&] {
+    if (!canvas) return NullArgument("canvas");
+    if (!canvas->editor.CancelFigureCapture()) return Fail(INK_ERROR_ARGUMENT, "no idle figure capture");
+    return INK_OK;
+  });
+}
+
 InkStatus ink_canvas_figure_scene(InkCanvas *canvas, const uint8_t **json, size_t *size) {
   return Call([&] {
     if (!canvas) return NullArgument("canvas");

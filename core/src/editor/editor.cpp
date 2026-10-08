@@ -153,6 +153,13 @@ Point ToContent(const Transform &view, double x, double y) {
   return {inverse.a * x + inverse.c * y + inverse.e, inverse.b * x + inverse.d * y + inverse.f};
 }
 
+bool Editor::CancelFigureCapture() {
+  if (!figure_capture_ || live_ || erase_ || select_ || transform_ || ignored_) return false;
+  layer_ = figure_capture_->previous_layer;
+  figure_capture_.reset();
+  return true;
+}
+
 bool Editor::StartFigureCapture(size_t page, size_t layer) {
   if (figure_capture_ || live_ || erase_ || select_ || transform_ || ignored_) return false;
   const Document &doc = document();

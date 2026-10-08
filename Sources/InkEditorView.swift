@@ -300,7 +300,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
 
   override var keyCommands: [UIKeyCommand]? {
     [
-      editorKeyCommand(UIKeyCommand.inputEscape, modifiers: [], action: #selector(clearSelection), title: "Clear Selection"),
+      editorKeyCommand(UIKeyCommand.inputEscape, modifiers: [], action: #selector(keyboardEscape), title: "Cancel Drawing or Selection"),
       editorKeyCommand("s", modifiers: .command, action: #selector(keyboardSave), title: "Save"),
       editorKeyCommand(UIKeyCommand.inputUpArrow, modifiers: .command, action: #selector(keyboardPreviousPage), title: "Previous Page"),
       editorKeyCommand(UIKeyCommand.inputDownArrow, modifiers: .command, action: #selector(keyboardNextPage), title: "Next Page"),
@@ -1295,6 +1295,26 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   @objc private func keyboardDelete() {
     guard keyboardEditingAllowed, canvasView.selectionFrame() != nil else { return }
     deleteSelection()
+  }
+
+  @objc private func keyboardEscape() {
+    guard hostActive, hostFocused, !figureCompleting else { return }
+    if figureCaptureActive {
+      do {
+        try canvasView.cancelFigure()
+        figureCaptureActive = false
+        figurePreviewGeneration &+= 1
+        onFigureSourceChanged("")
+        onFigureCaptureChanged(false)
+        updateSaveClippingVisibility()
+        syncDrawingSuppression()
+        refreshSelectionBar()
+      } catch {
+        onError(error)
+      }
+    } else {
+      clearSelection()
+    }
   }
 
   @objc private func clearSelection() {
