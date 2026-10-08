@@ -796,6 +796,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
 
   func dropInteraction(_ interaction: UIDropInteraction, performDrop session: UIDropSession) {
     guard dropInteraction(interaction, canHandle: session), let item = session.items.first else { return }
+    onFocusRequested()
     if !(item.localObject is InkEditorViewController) {
       let point = session.location(in: canvasView)
       let destinationRevision = documentRevision
