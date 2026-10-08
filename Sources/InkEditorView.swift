@@ -304,6 +304,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       editorKeyCommand("s", modifiers: .command, action: #selector(keyboardSave), title: "Save"),
       editorKeyCommand(UIKeyCommand.inputUpArrow, modifiers: .command, action: #selector(keyboardPreviousPage), title: "Previous Page"),
       editorKeyCommand(UIKeyCommand.inputDownArrow, modifiers: .command, action: #selector(keyboardNextPage), title: "Next Page"),
+      editorKeyCommand(UIKeyCommand.inputLeftArrow, modifiers: .command, action: #selector(keyboardPreviousHorizontalPage), title: "Previous Horizontal Page"),
+      editorKeyCommand(UIKeyCommand.inputRightArrow, modifiers: .command, action: #selector(keyboardNextHorizontalPage), title: "Next Horizontal Page"),
       editorKeyCommand("0", modifiers: .command, action: #selector(keyboardFitPages), title: "Fit Pages"),
       editorKeyCommand("=", modifiers: .command, action: #selector(keyboardZoomIn), title: "Zoom In"),
       editorKeyCommand("-", modifiers: .command, action: #selector(keyboardZoomOut), title: "Zoom Out"),
@@ -1245,6 +1247,16 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   @objc private func keyboardNextPage() {
+    keyboardNavigatePage(by: 1)
+  }
+
+  @objc private func keyboardPreviousHorizontalPage() {
+    guard appliedArrangement == .horizontal else { return }
+    keyboardNavigatePage(by: -1)
+  }
+
+  @objc private func keyboardNextHorizontalPage() {
+    guard appliedArrangement == .horizontal else { return }
     keyboardNavigatePage(by: 1)
   }
 
