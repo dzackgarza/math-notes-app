@@ -206,7 +206,7 @@ final class InkCanvasView: UIView {
   }
 
   override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-    guard hostActive else { return }
+    guard hostActive, window != nil else { return }
     if !drawingSuppressed && touches.contains(where: { $0.type == .pencil }) {
       onPencilStrokeChanged(true)
     }
@@ -217,7 +217,7 @@ final class InkCanvasView: UIView {
   }
 
   override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-    guard hostActive else { return }
+    guard hostActive, window != nil else { return }
     _ = sendFingerTouches(touches, event: event)
     sendPencilTouches(touches, event: event)
     reportInteractionChange(touches)
@@ -252,7 +252,7 @@ final class InkCanvasView: UIView {
   }
 
   private func reportInteractionChange(_ touches: Set<UITouch>) {
-    guard hostActive else { return }
+    guard hostActive, window != nil else { return }
     guard let touch = touches.first(where: { $0.type == .pencil }) ?? touches.first else { return }
     onInteractionChanged(touch.location(in: self))
   }
@@ -264,7 +264,7 @@ final class InkCanvasView: UIView {
     roll: CGFloat,
     hoverHeight: CGFloat
   ) {
-    guard hostActive, !drawingSuppressed, let canvas else { return }
+    guard hostActive, window != nil, !drawingSuppressed, let canvas else { return }
     let id = sampleIDs.issue(estimationIndex: nil, trackEstimate: false)
     var sample = PencilSampleFactory.make(
       values: PencilSampleFactory.hoverValues(
@@ -280,7 +280,7 @@ final class InkCanvasView: UIView {
   }
 
   override func touchesEstimatedPropertiesUpdated(_ touches: Set<UITouch>) {
-    guard hostActive, !drawingSuppressed, let canvas else { return }
+    guard hostActive, window != nil, !drawingSuppressed, let canvas else { return }
 
     var updates: [InkPenSample] = []
     for touch in touches where touch.type == .pencil {
@@ -301,7 +301,7 @@ final class InkCanvasView: UIView {
 
   @discardableResult
   private func sendFingerTouches(_ touches: Set<UITouch>, event: UIEvent?) -> Bool {
-    guard hostActive, fingerDrawing, !drawingSuppressed, let canvas else { return false }
+    guard hostActive, window != nil, fingerDrawing, !drawingSuppressed, let canvas else { return false }
 
     let activeTouches = event?.touches(for: self) ?? touches
     let pencilActive = activeTouches.contains {
@@ -379,7 +379,7 @@ final class InkCanvasView: UIView {
 
   @discardableResult
   private func sendPencilTouches(_ touches: Set<UITouch>, event: UIEvent?) -> Bool {
-    guard hostActive, !drawingSuppressed, let canvas else { return false }
+    guard hostActive, window != nil, !drawingSuppressed, let canvas else { return false }
 
     var samples: [InkPenSample] = []
     for touch in touches where touch.type == .pencil {
