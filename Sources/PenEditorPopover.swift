@@ -14,8 +14,8 @@ struct PenEditorPopover: View {
   @State private var opacity: Double
   @State private var pendingSaved: [InkToolSettings] = []
   @State private var advanced = false
-  private let initialSize: Double
-  private let initialOpacity: Double
+  @State private var initialSize: Double
+  @State private var initialOpacity: Double
 
   init(
     tool: EditorTool,
@@ -27,10 +27,10 @@ struct PenEditorPopover: View {
     self.onPersist = onPersist
 
     let settings = library.wrappedValue.settings(for: tool)
-    initialSize = Double(settings.size)
-    initialOpacity = Double(settings.opacity)
-    _size = State(initialValue: initialSize)
-    _opacity = State(initialValue: initialOpacity)
+    _initialSize = State(initialValue: Double(settings.size))
+    _initialOpacity = State(initialValue: Double(settings.opacity))
+    _size = State(initialValue: Double(settings.size))
+    _opacity = State(initialValue: Double(settings.opacity))
   }
 
   var body: some View {
