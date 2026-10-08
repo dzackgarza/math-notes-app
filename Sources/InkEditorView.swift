@@ -175,7 +175,7 @@ enum EditorPageCommand: Equatable {
 }
 
 @MainActor
-final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIEditMenuInteractionDelegate, UIDragInteractionDelegate, UIPencilInteractionDelegate {
+final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIEditMenuInteractionDelegate, UIDragInteractionDelegate, UIDropInteractionDelegate, UIPencilInteractionDelegate {
   private static let deskMargin: CGFloat = 16
   private static let toolRailInset: CGFloat = 8
   private static let toolRailWidth: CGFloat = 60
@@ -219,6 +219,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private var editFigureButton: UIButton?
   private var saveClippingButton: UIButton?
   private var selectionCopyDragHandle: UIButton?
+  private var dragSelectionFrame: CGRect?
+  private var dragDocumentRevision: Int?
   private var clippingsPanelOpen = false
   private let figureGenerator = FigureTikZGenerator()
   private var canvasFeedback: UICanvasFeedbackGenerator?
@@ -436,6 +438,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     self.pageLongPress = pageLongPress
     canvasView.addGestureRecognizer(pageLongPress)
     canvasView.addInteraction(UIDragInteraction(delegate: self))
+    canvasView.addInteraction(UIDropInteraction(delegate: self))
     let directTap = UITapGestureRecognizer(target: self, action: #selector(handleDirectTap))
     self.directTap = directTap
     directTap.cancelsTouchesInView = false
@@ -716,6 +719,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     }
     do {
       guard let svg = try canvasView.copySelection(), !svg.isEmpty else { return [] }
+      dragSelectionFrame = canvasView.selectionFrame()
+      dragDocumentRevision = documentRevision
       let provider = NSItemProvider(object: svg as NSString)
       provider.registerDataRepresentation(
         forTypeIdentifier: notebookSelectionCopyDragType.identifier,
@@ -733,7 +738,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
           return nil
         }
       }
-      return [UIDragItem(itemProvider: provider)]
+      let item = UIDragItem(itemProvider: provider)
+      item.localObject = self
+      return [item]
     } catch {
       onError(error)
       return []
@@ -743,13 +750,64 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   func dragInteraction(
     _ interaction: UIDragInteraction,
     session: UIDragSession,
-    willEndWith operation: UIDropOperation
+    didEndWith operation: UIDropOperation
   ) {
-    guard interaction.view !== selectionCopyDragHandle, operation == .move else { return }
+    dragSelectionFrame = nil
+    dragDocumentRevision = nil
+  }
+
+  func dropInteraction(_ interaction: UIDropInteraction, canHandle session: UIDropSession) -> Bool {
+    guard hostActive, !figureCaptureActive, !figureCompleting,
+      session.items.count == 1, let source = session.items.first?.localObject as? InkEditorViewController
+    else { return false }
+    return source.dragSelectionFrame != nil && source.dragDocumentRevision == source.documentRevision
+  }
+
+  func dropInteraction(
+    _ interaction: UIDropInteraction,
+    sessionDidUpdate session: UIDropSession
+  ) -> UIDropProposal {
+    guard dropInteraction(interaction, canHandle: session) else {
+      return UIDropProposal(operation: .cancel)
+    }
+    let item = session.items[0]
+    let movable = item.itemProvider.hasItemConformingToTypeIdentifier(notebookSelectionDragType.identifier)
+    return UIDropProposal(operation: movable && session.allowsMoveOperation ? .move : .copy)
+  }
+
+  func dropInteraction(_ interaction: UIDropInteraction, performDrop session: UIDropSession) {
+    guard dropInteraction(interaction, canHandle: session),
+      let item = session.items.first,
+      let source = item.localObject as? InkEditorViewController,
+      let originalFrame = source.dragSelectionFrame,
+      source.canvasView.selectionFrame() == originalFrame
+    else { return }
+    let point = session.location(in: canvasView)
+    let movable = item.itemProvider.hasItemConformingToTypeIdentifier(notebookSelectionDragType.identifier)
     do {
-      try canvasView.deleteSelection()
-      onEditCommitted()
-      refreshSelectionBar()
+      if movable && session.allowsMoveOperation && source.document === document {
+        let contentPoint = documentView.convert(point, from: canvasView)
+        let sourcePoint = source.canvasView.convert(contentPoint, from: source.documentView)
+        guard source.canvasView.page(at: sourcePoint) == canvasView.page(at: point) else { return }
+        try source.canvasView.moveSelection(to: sourcePoint)
+        source.onEditCommitted()
+        source.refreshSelectionBar()
+      } else {
+        guard let svg = try source.canvasView.copySelection(), !svg.isEmpty else { return }
+        try canvasView.paste(svg, at: point, placeAtPointer: true)
+        if movable && session.allowsMoveOperation && source.document !== document {
+          do {
+            try source.canvasView.deleteSelection()
+          } catch {
+            _ = try document.undo()
+            throw error
+          }
+          source.onEditCommitted()
+          source.refreshSelectionBar()
+        }
+        onEditCommitted()
+        refreshSelectionBar()
+      }
     } catch {
       onError(error)
     }
@@ -2234,10 +2292,7 @@ struct InkEditorView: View {
       }
     }
     .onDrop(
-      of: [
-        notebookSelectionDragType, notebookSelectionCopyDragType,
-        notebookClippingDragType,
-      ],
+      of: [notebookClippingDragType],
       delegate: NotebookEditorDropDelegate(
         canDrop: { !drawing },
         onFocus: onFocus,
