@@ -234,7 +234,7 @@ final class InkCanvasView: UIView {
     let pencilCancelled = touches.contains { $0 === pencilTouch }
     let fingerHandled = sendFingerTouches(touches, event: event)
     let pencilHandled = sendPencilTouches(touches, event: event)
-    if touches.contains(where: { $0.type == .pencil }) {
+    if pencilCancelled {
       sampleIDs.cancelPendingEstimates()
     }
     if pencilCancelled {
