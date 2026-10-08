@@ -1789,16 +1789,14 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         guard hostActive, editorDocumentMutationAllowed(
           figureCaptureActive: figureCaptureActive, figureCompleting: figureCompleting)
         else { return }
-        try canvasView.paste(
-          svg,
-          at: CGPoint(
-            x: canvasView.bounds.midX,
-            y: canvasView.bounds.midY),
-          placeAtPointer: placeAtPointer)
+        let point = CGPoint(x: canvasView.bounds.midX, y: canvasView.bounds.midY)
+        guard canvasView.page(at: point) != nil else { return }
+        try canvasView.paste(svg, at: point, placeAtPointer: placeAtPointer)
         onEditCommitted()
       case let .pasteSVG(svg, point, placeAtPointer):
         guard hostActive, editorDocumentMutationAllowed(
-          figureCaptureActive: figureCaptureActive, figureCompleting: figureCompleting)
+          figureCaptureActive: figureCaptureActive, figureCompleting: figureCompleting),
+          canvasView.page(at: point) != nil
         else { return }
         try canvasView.paste(svg, at: point, placeAtPointer: placeAtPointer)
         onEditCommitted()
