@@ -408,7 +408,7 @@ struct ContentView: View {
     }
     .fileImporter(
       isPresented: $showingImageImporter,
-      allowedContentTypes: [.png, .jpeg, .heic, .heif, .tiff]
+      allowedContentTypes: [.svg, .png, .jpeg, .heic, .heif, .tiff]
     ) { result in
       switch result {
       case let .success(url):
@@ -1912,6 +1912,13 @@ struct ContentView: View {
 
     do {
       let data = try Data(contentsOf: url)
+      if url.pathExtension.lowercased() == "svg" {
+        guard let svg = String(data: data, encoding: .utf8), svg.contains("<svg") else {
+          throw EngineDocumentError.operation("Import SVG", "Invalid SVG document")
+        }
+        editorPageCommand = .pasteSVGAtCenter(svg, placeAtPointer: false)
+        return
+      }
       guard let image = UIImage(data: data), let cgImage = image.cgImage else {
         throw ImageImportError.invalidImageSize
       }
