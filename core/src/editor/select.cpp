@@ -606,7 +606,7 @@ void Editor::SelectAll(size_t page_index) {
 
 bool Editor::MoveSelectionTo(double x, double y) {
   const Selection *selection = CurrentSelection();
-  if (!selection || !std::isfinite(x) || !std::isfinite(y)) return false;
+  if (!selection || transform_ || !std::isfinite(x) || !std::isfinite(y)) return false;
   const Point content = ToContent(view_, x, y);
   const std::vector<PagePlacement> layout = Layout(document());
   const PagePlacement *target = PageContaining(layout, content);
