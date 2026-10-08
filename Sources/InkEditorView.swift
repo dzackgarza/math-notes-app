@@ -1748,6 +1748,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       case let .select(page):
         try canvasView.selectAll(page: page)
       case let .clear(page):
+        guard hostActive, editorDocumentMutationAllowed(
+          figureCaptureActive: figureCaptureActive, figureCompleting: figureCompleting),
+          page >= 0, page < (try document.pageCount())
+        else { return }
         try canvasView.selectAll(page: page)
         try canvasView.deleteSelection()
         onEditCommitted()
