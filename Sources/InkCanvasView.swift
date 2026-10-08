@@ -102,6 +102,11 @@ final class InkCanvasView: UIView {
 
   override func didMoveToWindow() {
     super.didMoveToWindow()
+    if window == nil {
+      cancelFingerStroke()
+      cancelPencilStroke()
+      sampleIDs.cancelPendingEstimates()
+    }
     updateLink?.isEnabled = hostActive && window != nil
     updateSurfaceSize()
   }
