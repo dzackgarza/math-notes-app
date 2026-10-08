@@ -1465,6 +1465,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       } catch {
         onError(error)
       }
+    } else if bookmarkMode {
+      bookmarkMode = false
+      onBookmarkModeChanged(false)
+      syncDrawingSuppression()
     } else {
       clearSelection()
     }
