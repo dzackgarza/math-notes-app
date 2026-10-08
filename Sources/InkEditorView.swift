@@ -220,6 +220,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private var saveClippingButton: UIButton?
   private var selectionCopyDragHandle: UIButton?
   private var dragSelectionFrame: CGRect?
+  private var dragSelectionSVG: String?
   private var dragSelectionPage: Int?
   private var dragDocumentRevision: Int?
   private var clippingsPanelOpen = false
@@ -720,6 +721,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     }
     do {
       guard let svg = try canvasView.copySelection(), !svg.isEmpty else { return [] }
+      dragSelectionSVG = svg
       dragSelectionFrame = canvasView.selectionFrame()
       dragSelectionPage = canvasView.selectionPage()
       dragDocumentRevision = documentRevision
@@ -755,6 +757,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     didEndWith operation: UIDropOperation
   ) {
     dragSelectionFrame = nil
+    dragSelectionSVG = nil
     dragSelectionPage = nil
     dragDocumentRevision = nil
   }
@@ -764,7 +767,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       let item = session.items.first
     else { return false }
     if let source = item.localObject as? InkEditorViewController {
-      return source.dragSelectionFrame != nil && source.dragSelectionPage != nil &&
+      return source.dragSelectionSVG != nil && source.dragSelectionFrame != nil && source.dragSelectionPage != nil &&
         source.dragDocumentRevision == source.documentRevision
     }
     return item.itemProvider.hasItemConformingToTypeIdentifier(notebookSelectionCopyDragType.identifier)
@@ -823,7 +826,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         source.onEditCommitted()
         source.refreshSelectionBar()
       } else {
-        guard let svg = try source.canvasView.copySelection(), !svg.isEmpty else { return }
+        guard let svg = source.dragSelectionSVG else { return }
         try canvasView.paste(svg, at: point, placeAtPointer: true)
         if movable && session.allowsMoveOperation && source.document !== document {
           guard source.dragDocumentRevision == source.documentRevision,
