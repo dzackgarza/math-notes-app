@@ -518,6 +518,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       canvasView.setActive(active)
       if !active {
         view.endEditing(true)
+        releasedPullWasArmed = false
+        footerWasPulling = false
+        pullGate.leftReady()
+        cancelPullReadyTimer()
       }
     }
 
@@ -2123,7 +2127,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         withTimeInterval: HeldPullGate.holdDuration,
         repeats: false
       ) { [weak self] _ in
-        guard let self, self.addPageFooter.state == .pulling else { return }
+        guard let self, self.hostActive, self.addPageFooter.state == .pulling else { return }
         self.addPageFooter.setTitle("Release to add a page", for: .pulling)
       }
       return
