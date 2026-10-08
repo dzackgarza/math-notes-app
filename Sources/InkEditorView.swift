@@ -37,6 +37,7 @@ private struct NotebookEditorDropDelegate: DropDelegate {
     ) { data, _ in
       guard let data, let id = String(data: data, encoding: .utf8) else { return }
       Task { @MainActor in
+        guard canDrop() else { return }
         _ = onDropClipping(id, location)
       }
     }
