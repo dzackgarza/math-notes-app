@@ -895,6 +895,20 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       })
     }
     if canSaveClipping {
+      actions.append(UIAction(title: "Copy", image: UIImage(systemName: "doc.on.doc")) { [weak self] _ in
+        self?.copySelection()
+      })
+      actions.append(UIAction(title: "Cut", image: UIImage(systemName: "scissors")) { [weak self] _ in
+        self?.cutSelection()
+      })
+      actions.append(UIAction(title: "Duplicate", image: UIImage(systemName: "plus.square.on.square")) { [weak self] _ in
+        self?.duplicateSelection()
+      })
+      actions.append(UIAction(title: "Delete", image: UIImage(systemName: "trash"), attributes: .destructive) { [weak self] _ in
+        self?.deleteSelection()
+      })
+    }
+    if canSaveClipping {
       actions.append(UIAction(
         title: "Save to clippings",
         image: UIImage(systemName: "tray.and.arrow.down")
