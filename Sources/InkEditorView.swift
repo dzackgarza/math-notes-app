@@ -1778,6 +1778,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
             x: canvasView.bounds.midX,
             y: canvasView.bounds.midY))
       case let .commitText(request, properties):
+        guard hostActive, editorDocumentMutationAllowed(
+          figureCaptureActive: figureCaptureActive, figureCompleting: figureCompleting)
+        else { return }
         if properties.content.isEmpty {
           if request.existing {
             try canvasView.deleteSelection()
