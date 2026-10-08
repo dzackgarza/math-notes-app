@@ -330,11 +330,6 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         modifiers: [],
         action: #selector(keyboardDelete),
         title: "Delete Selection"),
-      editorKeyCommand(
-        UIKeyCommand.inputEscape,
-        modifiers: [],
-        action: #selector(clearSelection),
-        title: "Clear Selection"),
     ]
   }
 
