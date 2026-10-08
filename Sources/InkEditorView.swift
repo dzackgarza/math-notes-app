@@ -303,6 +303,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       editorKeyCommand("s", modifiers: .command, action: #selector(keyboardSave), title: "Save"),
       editorKeyCommand("i", modifiers: .command, action: #selector(keyboardInsertImage), title: "Insert Image"),
       editorKeyCommand("k", modifiers: .command.union(.shift), action: #selector(keyboardClippings), title: "Clippings"),
+      editorKeyCommand("c", modifiers: .command.union(.shift), action: #selector(keyboardSaveClipping), title: "Save Clipping"),
       editorKeyCommand("z", modifiers: .command, action: #selector(keyboardUndo), title: "Undo"),
       editorKeyCommand(
         "z",
@@ -1171,6 +1172,11 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   @objc private func keyboardDuplicate() {
     guard keyboardEditingAllowed else { return }
     duplicateSelection()
+  }
+
+  @objc private func keyboardSaveClipping() {
+    guard keyboardEditingAllowed, canvasView.selectionFrame() != nil else { return }
+    saveClipping()
   }
 
   @objc private func keyboardClippings() {
