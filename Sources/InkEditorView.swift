@@ -1002,6 +1002,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     if (svg?.contains("<svg") == true) ||
       UIPasteboard.general.data(forPasteboardType: UTType.png.identifier) != nil ||
       UIPasteboard.general.data(forPasteboardType: UTType.jpeg.identifier) != nil ||
+      UIPasteboard.general.data(forPasteboardType: UTType.heic.identifier) != nil ||
+      UIPasteboard.general.data(forPasteboardType: UTType.heif.identifier) != nil ||
+      UIPasteboard.general.data(forPasteboardType: UTType.tiff.identifier) != nil ||
       UIPasteboard.general.image != nil {
       actions.append(UIAction(
         title: "Paste",
@@ -1333,6 +1336,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       imageType = .png
     } else if pasteboard.data(forPasteboardType: UTType.jpeg.identifier) != nil {
       imageType = .jpeg
+    } else if let rasterType = [UTType.heic, .heif, .tiff].first(where: {
+      pasteboard.data(forPasteboardType: $0.identifier) != nil
+    }) {
+      imageType = rasterType
     } else if pasteboard.image != nil {
       imageType = .png
     } else {
@@ -1346,9 +1353,22 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     else { return }
     do {
       let bounds = try document.pageRect(index: page)
+      let importedData: Data
+      let mimeType: String
+      switch imageType {
+      case .png:
+        importedData = data
+        mimeType = "image/png"
+      case .jpeg:
+        importedData = data
+        mimeType = "image/jpeg"
+      default:
+        guard let png = UIImage(cgImage: image).pngData() else { return }
+        importedData = png
+        mimeType = "image/png"
+      }
       let svg = try imageImportSVG(
-        data: data,
-        mimeType: imageType == .png ? "image/png" : "image/jpeg",
+        data: importedData, mimeType: mimeType,
         imageSize: CGSize(width: image.width, height: image.height),
         pageSize: bounds.size)
       paste(svg, at: point, placeAtPointer: placeAtPointer)
