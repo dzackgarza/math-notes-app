@@ -1043,7 +1043,11 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         title: "Paste",
         image: UIImage(systemName: "doc.on.clipboard")
       ) { [weak self] _ in
-        self?.pasteFromPasteboard(at: location, placeAtPointer: true)
+        guard let self, self.keyboardEditingAllowed,
+          self.documentRevision == menuRevision,
+          self.canvasView.page(at: location) == pressedPage
+        else { return }
+        self.pasteFromPasteboard(at: location, placeAtPointer: true)
       })
     }
     if pressedPage != nil {
@@ -1056,7 +1060,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     }
     if let page = pressedPage {
       actions.append(UIAction(title: "Select All on Page", image: UIImage(systemName: "selection.pin.in.out")) { [weak self] _ in
-        guard let self else { return }
+        guard let self, self.keyboardEditingAllowed,
+          self.documentRevision == menuRevision,
+          self.canvasView.page(at: location) == page
+        else { return }
         do {
           try self.canvasView.selectAll(page: page)
           self.refreshSelectionBar()
