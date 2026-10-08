@@ -744,9 +744,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       return source.dragSelectionSVG != nil && source.dragSelectionFrame != nil && source.dragSelectionPage != nil &&
         source.dragDocumentRevision == source.documentRevision
     }
-    return [notebookSelectionCopyDragType, .svg, .png, .jpeg, .image].contains {
+    return [notebookSelectionCopyDragType, .svg, .png, .jpeg].contains {
       item.itemProvider.hasItemConformingToTypeIdentifier($0.identifier)
-    }
+    } || item.itemProvider.canLoadObject(ofClass: UIImage.self)
   }
 
   func dropInteraction(
@@ -771,7 +771,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       let provider = item.itemProvider
       if ![notebookSelectionCopyDragType, .svg, .png, .jpeg].contains(where: {
         provider.hasItemConformingToTypeIdentifier($0.identifier)
-      }), provider.canLoadObject(ofClass: UIImage.self) {
+      }) {
         _ = provider.loadObject(ofClass: UIImage.self) { [weak self] object, _ in
           guard let image = object as? UIImage, let data = image.pngData() else { return }
           Task { @MainActor [weak self] in
