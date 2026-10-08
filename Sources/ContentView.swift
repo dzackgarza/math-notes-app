@@ -2469,8 +2469,7 @@ struct ContentView: View {
         firstPage: firstPage,
         pageCount: pageCount,
         layerIDs: layerIDs)
-      let url = try temporaryPDFExportURL(name: session.reference.name)
-      try data.write(to: url, options: .atomic)
+      let url = try writeTemporaryPDFExport(data, name: session.reference.name)
       DispatchQueue.main.async {
         switch destination {
         case .share:

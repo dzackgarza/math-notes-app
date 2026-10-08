@@ -20,6 +20,18 @@ final class ExportTemporaryFileTests: XCTestCase {
     XCTAssertEqual(try Data(contentsOf: second), Data("two".utf8))
   }
 
+  func testExportWritesUniqueFilesWithExpectedContents() throws {
+    let first = try writeTemporaryPDFExport(Data("first".utf8), name: "Notes")
+    let second = try writeTemporaryPDFExport(Data("second".utf8), name: "Notes")
+    defer {
+      removeExportTemporaryFile(first)
+      removeExportTemporaryFile(second)
+    }
+    XCTAssertNotEqual(first, second)
+    XCTAssertEqual(try Data(contentsOf: first), Data("first".utf8))
+    XCTAssertEqual(try Data(contentsOf: second), Data("second".utf8))
+  }
+
   func testExportTemporaryFileCleanupIsIdempotent() throws {
     let url = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString)

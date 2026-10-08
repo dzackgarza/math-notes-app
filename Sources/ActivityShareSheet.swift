@@ -9,6 +9,17 @@ func temporaryPDFExportURL(name: String, directory: URL = FileManager.default.te
   return folder.appendingPathComponent(safeName).appendingPathExtension("pdf")
 }
 
+func writeTemporaryPDFExport(_ data: Data, name: String) throws -> URL {
+  let url = try temporaryPDFExportURL(name: name)
+  do {
+    try data.write(to: url, options: .atomic)
+    return url
+  } catch {
+    removeExportTemporaryFile(url)
+    throw error
+  }
+}
+
 func removeExportTemporaryFile(_ url: URL) {
   try? FileManager.default.removeItem(at: url)
   let folder = url.deletingLastPathComponent()
