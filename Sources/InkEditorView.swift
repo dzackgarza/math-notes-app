@@ -805,10 +805,24 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
                   let page = self.canvasView.page(at: point)
                 else { return }
                 let ext = url.pathExtension.lowercased()
-                guard ["png", "jpg", "jpeg"].contains(ext) else { return }
+                guard ["png", "jpg", "jpeg", "heic", "heif", "tif", "tiff"].contains(ext) else { return }
+                let importedData: Data
+                let mimeType: String
+                switch ext {
+                case "png":
+                  importedData = data
+                  mimeType = "image/png"
+                case "jpg", "jpeg":
+                  importedData = data
+                  mimeType = "image/jpeg"
+                default:
+                  guard let png = UIImage(cgImage: image).pngData() else { return }
+                  importedData = png
+                  mimeType = "image/png"
+                }
                 let pageSize = try self.document.pageRect(index: page).size
                 svg = try imageImportSVG(
-                  data: data, mimeType: ext == "png" ? "image/png" : "image/jpeg",
+                  data: importedData, mimeType: mimeType,
                   imageSize: CGSize(width: image.width, height: image.height), pageSize: pageSize)
               }
               try self.canvasView.paste(svg, at: point, placeAtPointer: true)
