@@ -748,7 +748,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       return source.dragSelectionSVG != nil && source.dragSelectionFrame != nil && source.dragSelectionPage != nil &&
         source.dragDocumentRevision == source.documentRevision
     }
-    return [notebookSelectionCopyDragType, .svg, .png, .jpeg].contains {
+    return [notebookSelectionCopyDragType, .svg, .utf8PlainText, .plainText, .png, .jpeg].contains {
       item.itemProvider.hasItemConformingToTypeIdentifier($0.identifier)
     } || item.itemProvider.canLoadObject(ofClass: UIImage.self) ||
       item.itemProvider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
@@ -775,7 +775,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       let destinationRevision = documentRevision
       let provider = item.itemProvider
       if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) &&
-        ![notebookSelectionCopyDragType, .svg, .png, .jpeg].contains(where: {
+        ![notebookSelectionCopyDragType, .svg, .utf8PlainText, .plainText, .png, .jpeg].contains(where: {
           provider.hasItemConformingToTypeIdentifier($0.identifier)
         }) {
         _ = provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { [weak self] item, _ in
@@ -837,7 +837,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         }
         return
       }
-      if ![notebookSelectionCopyDragType, .svg, .png, .jpeg].contains(where: {
+      if ![notebookSelectionCopyDragType, .svg, .utf8PlainText, .plainText, .png, .jpeg].contains(where: {
         provider.hasItemConformingToTypeIdentifier($0.identifier)
       }) {
         _ = provider.loadObject(ofClass: UIImage.self) { [weak self] object, _ in
@@ -870,8 +870,12 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         copyType = .svg
       } else if item.itemProvider.hasItemConformingToTypeIdentifier(UTType.png.identifier) {
         copyType = .png
-      } else {
+      } else if item.itemProvider.hasItemConformingToTypeIdentifier(UTType.jpeg.identifier) {
         copyType = .jpeg
+      } else if item.itemProvider.hasItemConformingToTypeIdentifier(UTType.utf8PlainText.identifier) {
+        copyType = .utf8PlainText
+      } else {
+        copyType = .plainText
       }
       item.itemProvider.loadDataRepresentation(
         forTypeIdentifier: copyType.identifier
