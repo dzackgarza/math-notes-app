@@ -306,6 +306,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       editorKeyCommand(UIKeyCommand.inputDownArrow, modifiers: .command, action: #selector(keyboardNextPage), title: "Next Page"),
       editorKeyCommand(UIKeyCommand.inputLeftArrow, modifiers: .command, action: #selector(keyboardPreviousHorizontalPage), title: "Previous Horizontal Page"),
       editorKeyCommand(UIKeyCommand.inputRightArrow, modifiers: .command, action: #selector(keyboardNextHorizontalPage), title: "Next Horizontal Page"),
+      editorKeyCommand(UIKeyCommand.inputUpArrow, modifiers: [.command, .alternate], action: #selector(keyboardFirstPage), title: "First Page"),
+      editorKeyCommand(UIKeyCommand.inputDownArrow, modifiers: [.command, .alternate], action: #selector(keyboardLastPage), title: "Last Page"),
       editorKeyCommand("0", modifiers: .command, action: #selector(keyboardFitPages), title: "Fit Pages"),
       editorKeyCommand("=", modifiers: .command, action: #selector(keyboardZoomIn), title: "Zoom In"),
       editorKeyCommand("-", modifiers: .command, action: #selector(keyboardZoomOut), title: "Zoom Out"),
@@ -1258,6 +1260,19 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   @objc private func keyboardNextHorizontalPage() {
     guard appliedArrangement == .horizontal else { return }
     keyboardNavigatePage(by: 1)
+  }
+
+  private func keyboardNavigateToEdge(last: Bool) {
+    guard hostActive, hostFocused, let count = try? document.pageCount(), count > 0 else { return }
+    scrollToPage(last ? count - 1 : 0)
+  }
+
+  @objc private func keyboardFirstPage() {
+    keyboardNavigateToEdge(last: false)
+  }
+
+  @objc private func keyboardLastPage() {
+    keyboardNavigateToEdge(last: true)
   }
 
   @objc private func keyboardSave() {
