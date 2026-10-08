@@ -166,7 +166,6 @@ struct PenEditorPopover: View {
     var next = library
     next.setSettings(settings, for: tool)
     next.saved = saved
-    library = next
     onPersist(next)
   }
 
