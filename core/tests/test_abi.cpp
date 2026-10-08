@@ -160,6 +160,20 @@ TEST_CASE("A duplicated figure has its own scene and TikZ files") {
   CHECK(std::string(reinterpret_cast<const char *>(asset), asset_size) == tikz);
 }
 
+TEST_CASE("Cancelling figure capture preserves the notebook and permits restarting") {
+  ink_test::Session session;
+  REQUIRE(ink_document_mark_saved(session.document) == INK_OK);
+  CHECK(ink_canvas_figure_cancel(session.get()) == INK_ERROR_ARGUMENT);
+  REQUIRE(ink_canvas_figure_begin(session.get(), 0, 0) == INK_OK);
+  CHECK(ink_canvas_figure_begin(session.get(), 0, 0) == INK_ERROR_ARGUMENT);
+  REQUIRE(ink_canvas_figure_cancel(session.get()) == INK_OK);
+  CHECK(ink_canvas_figure_cancel(session.get()) == INK_ERROR_ARGUMENT);
+  CHECK(DirtyFiles(session.document).empty());
+  REQUIRE(ink_canvas_figure_begin(session.get(), 0, 0) == INK_OK);
+  REQUIRE(ink_canvas_figure_cancel(session.get()) == INK_OK);
+  CHECK(DirtyFiles(session.document).empty());
+}
+
 TEST_CASE("An empty drawing session leaves the page and assets unchanged") {
   ink_test::Session session;
   REQUIRE(ink_document_mark_saved(session.document) == INK_OK);
