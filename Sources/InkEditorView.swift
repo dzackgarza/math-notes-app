@@ -1060,6 +1060,18 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         }
       })
     }
+    if canvasView.page(at: location) != nil {
+      actions.append(UIAction(title: "Add Bookmark Here", image: UIImage(systemName: "bookmark.fill")) { [weak self] _ in
+        guard let self, self.keyboardEditingAllowed else { return }
+        do {
+          try self.canvasView.addBookmark(at: location)
+          self.onEditCommitted()
+          self.refreshSelectionBar()
+        } catch {
+          self.onError(error)
+        }
+      })
+    }
     if canSaveClipping {
       actions.append(UIAction(title: "Copy", image: UIImage(systemName: "doc.on.doc")) { [weak self] _ in
         self?.copySelection()
