@@ -300,6 +300,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
 
   override var keyCommands: [UIKeyCommand]? {
     [
+      editorKeyCommand(UIKeyCommand.inputEscape, modifiers: [], action: #selector(clearSelection), title: "Clear Selection"),
       editorKeyCommand("s", modifiers: .command, action: #selector(keyboardSave), title: "Save"),
       editorKeyCommand(UIKeyCommand.inputUpArrow, modifiers: .command, action: #selector(keyboardPreviousPage), title: "Previous Page"),
       editorKeyCommand(UIKeyCommand.inputDownArrow, modifiers: .command, action: #selector(keyboardNextPage), title: "Next Page"),
