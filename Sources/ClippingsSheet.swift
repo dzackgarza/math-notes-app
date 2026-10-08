@@ -183,7 +183,7 @@ struct ClippingsSheet: View {
           svg.contains("<svg")
         else { return }
         Task { @MainActor in
-          guard onSave(svg) else { return }
+          guard !drawing, onSave(svg) else { return }
           if let refreshed = onRefresh() { items = refreshed }
         }
       }
