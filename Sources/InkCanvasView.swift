@@ -584,11 +584,19 @@ final class InkCanvasView: UIView {
   }
 
   func copySelection() throws -> String? {
+    try selectionSVG(cut: false)
+  }
+
+  func cutSelection() throws -> String? {
+    try selectionSVG(cut: true)
+  }
+
+  private func selectionSVG(cut: Bool) throws -> String? {
     guard let canvas else { return nil }
     var bytes: UnsafePointer<UInt8>?
     var size = 0
     try require(
-      ink_canvas_copy_selection(canvas, 0, &bytes, &size),
+      ink_canvas_copy_selection(canvas, cut ? 1 : 0, &bytes, &size),
       operation: "Copy selection")
     guard size > 0, let bytes else { return nil }
     return String(decoding: UnsafeBufferPointer(start: bytes, count: size), as: UTF8.self)

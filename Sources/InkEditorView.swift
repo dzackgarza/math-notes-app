@@ -1133,9 +1133,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
 
   @objc private func cutSelection() {
     do {
-      guard let svg = try canvasView.copySelection(), !svg.isEmpty else { return }
+      guard let svg = try canvasView.cutSelection(), !svg.isEmpty else { return }
       writeSelectionToPasteboard(svg)
-      try canvasView.deleteSelection()
       onEditCommitted()
       refreshSelectionBar()
     } catch {
