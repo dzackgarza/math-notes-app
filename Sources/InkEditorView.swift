@@ -989,6 +989,14 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         self?.pasteFromPasteboard(at: location)
       })
     }
+    if canvasView.page(at: location) != nil {
+      actions.append(UIAction(
+        title: "Insert Image or SVG",
+        image: UIImage(systemName: "photo.on.rectangle")
+      ) { [weak self] _ in
+        self?.onInsertImageRequested()
+      })
+    }
     if let page = canvasView.page(at: location) {
       actions.append(UIAction(title: "Select All on Page", image: UIImage(systemName: "selection.pin.in.out")) { [weak self] _ in
         guard let self else { return }
