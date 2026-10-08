@@ -2012,6 +2012,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       return true
     }
     if appliedTool == .text {
+      guard canvasView.page(at: point) != nil else { return true }
       requestText(at: point)
       return true
     }
