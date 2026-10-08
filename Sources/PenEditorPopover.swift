@@ -12,7 +12,7 @@ struct PenEditorPopover: View {
   @Environment(\.dismiss) private var dismiss
   @State private var size: Double
   @State private var opacity: Double
-  @State private var saved: [InkToolSettings]
+  @State private var pendingSaved: [InkToolSettings] = []
   @State private var advanced = false
 
   init(
@@ -27,7 +27,6 @@ struct PenEditorPopover: View {
     let settings = library.wrappedValue.settings(for: tool)
     _size = State(initialValue: Double(settings.size))
     _opacity = State(initialValue: Double(settings.opacity))
-    _saved = State(initialValue: library.wrappedValue.saved)
   }
 
   var body: some View {
@@ -112,7 +111,7 @@ struct PenEditorPopover: View {
       }
 
       Button {
-        saved.append(settings)
+        pendingSaved.append(settings)
         dismiss()
       } label: {
         Label("Save pen", systemImage: "bookmark.badge.plus")
@@ -147,19 +146,11 @@ struct PenEditorPopover: View {
       current.rgb != settings.rgb ||
       current.size != settings.size ||
       current.opacity != settings.opacity
-    let savedChanged = saved.count != library.saved.count ||
-      zip(saved, library.saved).contains { pair in
-        let (left, right) = pair
-        return left.brush != right.brush ||
-          left.rgb != right.rgb ||
-          left.size != right.size ||
-          left.opacity != right.opacity
-      }
-    guard settingsChanged || savedChanged else { return }
+    guard settingsChanged || !pendingSaved.isEmpty else { return }
 
     var next = library
     next.setSettings(settings, for: tool)
-    next.saved = saved
+    next.saved.append(contentsOf: pendingSaved)
     onPersist(next)
   }
 
