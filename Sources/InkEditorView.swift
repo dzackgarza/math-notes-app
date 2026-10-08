@@ -312,6 +312,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       editorKeyCommand("0", modifiers: .command, action: #selector(keyboardFitPages), title: "Fit Pages"),
       editorKeyCommand("=", modifiers: .command, action: #selector(keyboardZoomIn), title: "Zoom In"),
       editorKeyCommand("-", modifiers: .command, action: #selector(keyboardZoomOut), title: "Zoom Out"),
+      editorKeyCommand("t", modifiers: .command, action: #selector(keyboardInsertText), title: "Insert Text"),
       editorKeyCommand("i", modifiers: .command, action: #selector(keyboardInsertImage), title: "Insert Image"),
       editorKeyCommand("k", modifiers: .command.union(.shift), action: #selector(keyboardClippings), title: "Clippings"),
       editorKeyCommand("c", modifiers: .command.union(.shift), action: #selector(keyboardSaveClipping), title: "Save Clipping"),
@@ -1347,6 +1348,11 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   @objc private func keyboardClippings() {
     guard keyboardEditingAllowed else { return }
     onShowClippingsRequested()
+  }
+
+  @objc private func keyboardInsertText() {
+    guard keyboardEditingAllowed else { return }
+    handlePageCommand(.requestTextAtCenter)
   }
 
   @objc private func keyboardInsertImage() {

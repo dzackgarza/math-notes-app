@@ -30,6 +30,7 @@ final class InkEditorGestureTests: XCTestCase {
     }
 
     XCTAssertTrue(contains("s", .command))
+    XCTAssertTrue(contains("t", .command))
     XCTAssertTrue(contains("z", .command))
     XCTAssertTrue(contains("z", .command.union(.shift)))
     XCTAssertTrue(contains("y", .command))
