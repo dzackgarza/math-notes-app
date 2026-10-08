@@ -827,9 +827,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
                 guard let decoded = String(data: data, encoding: .utf8), decoded.contains("<svg") else { return }
                 svg = decoded
               } else {
-                guard let image = UIImage(data: data)?.cgImage,
-                  let page = self.canvasView.page(at: point)
-                else { return }
+                guard let image = UIImage(data: data)?.cgImage else { return }
                 let ext = url.pathExtension.lowercased()
                 guard ["png", "jpg", "jpeg", "heic", "heif", "tif", "tiff"].contains(ext) else { return }
                 let importedData: Data
@@ -846,7 +844,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
                   importedData = png
                   mimeType = "image/png"
                 }
-                let pageSize = try self.document.pageRect(index: page).size
+                let pageSize = try self.document.pageRect(index: destinationPage).size
                 svg = try imageImportSVG(
                   data: importedData, mimeType: mimeType,
                   imageSize: CGSize(width: image.width, height: image.height), pageSize: pageSize)
@@ -916,10 +914,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
           do {
             let svg: String
             if [.png, .jpeg, .heic, .heif, .tiff].contains(copyType) {
-              guard let image = UIImage(data: data)?.cgImage,
-                let page = self.canvasView.page(at: point)
-              else { return }
-              let pageSize = try self.document.pageRect(index: page).size
+              guard let image = UIImage(data: data)?.cgImage else { return }
+              let pageSize = try self.document.pageRect(index: destinationPage).size
               let importedData: Data
               let mimeType: String
               switch copyType {
