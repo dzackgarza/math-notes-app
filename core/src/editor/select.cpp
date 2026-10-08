@@ -615,8 +615,10 @@ bool Editor::MoveSelectionTo(double x, double y) {
   const Point center{(selection->rect.left + selection->rect.right) / 2,
                      (selection->rect.top + selection->rect.bottom) / 2};
   const Point desired{content.x - origin->x, content.y - origin->y};
+  const Transform translation = Translation(desired.x - center.x, desired.y - center.y);
+  if (translation.IsIdentity()) return false;
   transform_ = TransformGesture{.hit = HandleHit{.kind = HandleKind::kMove},
-                                .live = Translation(desired.x - center.x, desired.y - center.y)};
+                                .live = translation};
   CommitTransform(content);
   return true;
 }

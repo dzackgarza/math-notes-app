@@ -289,6 +289,12 @@ TEST_CASE("Move selected ink directly commits one history step and preserves its
   const std::string id = StrokeAt(canvas.doc(), 0, 0).id;
   REQUIRE(ink_canvas_select_all(canvas.get(), 0) == INK_OK);
   const size_t before = canvas.document->history.size();
+  InkSelectionInfo original{};
+  REQUIRE(ink_canvas_selection(canvas.get(), &original) == INK_OK);
+  const double centerX = original.x + original.width / 2;
+  const double centerY = original.y + original.height / 2;
+  CHECK(ink_canvas_move_selection_to(canvas.get(), centerX, centerY) == INK_ERROR_ARGUMENT);
+  CHECK(canvas.document->history.size() == before);
   CHECK(ink_canvas_move_selection_to(canvas.get(), -1000, -1000) == INK_ERROR_ARGUMENT);
   CHECK(canvas.document->history.size() == before);
   REQUIRE(ink_canvas_move_selection_to(canvas.get(), 300, 450) == INK_OK);
