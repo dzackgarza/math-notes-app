@@ -40,6 +40,25 @@ final class InkEditorGestureTests: XCTestCase {
     XCTAssertTrue(contains("d", .command))
     XCTAssertTrue(contains(UIKeyCommand.inputDelete, []))
     XCTAssertTrue(contains(UIKeyCommand.inputEscape, []))
+    XCTAssertTrue(contains(UIKeyCommand.inputUpArrow, .command))
+    XCTAssertTrue(contains(UIKeyCommand.inputDownArrow, .command))
+    XCTAssertTrue(contains(UIKeyCommand.inputLeftArrow, .command))
+    XCTAssertTrue(contains(UIKeyCommand.inputRightArrow, .command))
+    XCTAssertTrue(contains(UIKeyCommand.inputUpArrow, [.command, .alternate]))
+    XCTAssertTrue(contains(UIKeyCommand.inputDownArrow, [.command, .alternate]))
+    XCTAssertTrue(contains("0", .command))
+    XCTAssertTrue(contains("=", .command))
+    XCTAssertTrue(contains("-", .command))
+    XCTAssertTrue(contains("i", .command))
+    for letter in ["k", "c", "b", "l", "u"] {
+      XCTAssertTrue(contains(letter, [.command, .shift]))
+    }
+    for (index, command) in commands.enumerated() {
+      let matches = commands.filter {
+        $0.input == command.input && $0.modifierFlags == command.modifierFlags
+      }
+      XCTAssertEqual(matches.count, 1, "Duplicate keyboard binding at index \(index)")
+    }
   }
 
   func testSelectionBarExposesClearSelectionTarget() throws {
