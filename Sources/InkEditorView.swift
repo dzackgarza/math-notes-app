@@ -2082,6 +2082,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   private func requestText(at point: CGPoint) {
+    guard hostActive, editorDocumentMutationAllowed(
+      figureCaptureActive: figureCaptureActive, figureCompleting: figureCompleting),
+      canvasView.page(at: point) != nil
+    else { return }
     do {
       let existing = try canvasView.selectText(at: point)
       let properties = existing
