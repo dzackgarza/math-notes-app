@@ -139,7 +139,6 @@ struct ColorPalettePopover: View {
         var next = library
         next.palette[index] = rgb
         next.setColor(rgb, for: drawingTool)
-        library = next
         tool = drawingTool
         onPersist(next)
       })
@@ -153,7 +152,6 @@ struct ColorPalettePopover: View {
     }
     var next = library
     next.setColor(rgb, for: drawingTool)
-    library = next
     tool = drawingTool
     onPersist(next)
     dismiss()
@@ -163,7 +161,6 @@ struct ColorPalettePopover: View {
     let target = library.drawingTool(for: preset)
     var next = library
     next.setSettings(preset, for: target)
-    library = next
     drawingTool = target
     tool = target
     onPersist(next)
@@ -174,7 +171,6 @@ struct ColorPalettePopover: View {
     guard library.saved.indices.contains(index) else { return }
     var next = library
     next.saved.remove(at: index)
-    library = next
     onPersist(next)
   }
 
@@ -263,7 +259,6 @@ private struct PaletteEditorPopover: View {
     guard colors != library.palette else { return }
     var next = library
     next.palette = colors
-    library = next
     onPersist(next)
   }
 }
