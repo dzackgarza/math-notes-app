@@ -63,7 +63,6 @@ private struct NotebookEditorPane: View {
   let onLinkSelectionRequested: (Int) -> Void
   let onFollowLink: (String, Int) -> Void
   let onDropClipping: (String, CGPoint) -> Bool
-  let onDropSelection: (String, CGPoint) -> Bool
   let onEditFigure: (String) -> Void
   let onError: (Error) -> Void
 
@@ -105,7 +104,6 @@ private struct NotebookEditorPane: View {
       onLinkSelectionRequested: onLinkSelectionRequested,
       onFollowLink: onFollowLink,
       onDropClipping: onDropClipping,
-      onDropSelection: onDropSelection,
       onCaptureChanged: { viewState.captureActive = $0 },
       onEditFigure: onEditFigure,
       onError: onError)
@@ -843,10 +841,6 @@ struct ContentView: View {
         onDropClipping: { id, point in
           openNotes.focusRight(right)
           return dropClipping(id, at: point, viewState: viewState)
-        },
-        onDropSelection: { svg, point in
-          openNotes.focusRight(right)
-          return dropSelection(svg, at: point, viewState: viewState)
         },
         onEditFigure: { id in
           openNotes.focusRight(right)
@@ -2400,12 +2394,6 @@ struct ContentView: View {
       errorMessage = error.localizedDescription
       return false
     }
-  }
-
-  private func dropSelection(_ svg: String, at point: CGPoint, viewState: OpenNotebookViewState) -> Bool {
-    guard svg.contains("<svg") else { return false }
-    viewState.editorPageCommand = .pasteSVG(svg, at: point, placeAtPointer: true)
-    return true
   }
 
   private func moveClipping(_ id: String, _ offset: Int) -> Bool {

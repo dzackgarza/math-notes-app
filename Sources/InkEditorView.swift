@@ -2123,7 +2123,6 @@ struct InkEditorView: View {
   let onLinkSelectionRequested: (Int) -> Void
   let onFollowLink: (String, Int) -> Void
   let onDropClipping: (String, CGPoint) -> Bool
-  let onDropSelection: (String, CGPoint) -> Bool
   let onCaptureChanged: (Bool) -> Void
   let onEditFigure: (String) -> Void
   let onError: (Error) -> Void
