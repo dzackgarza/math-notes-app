@@ -1082,7 +1082,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         }
       })
     }
-    if pressedPage != nil {
+    if let page = pressedPage {
       actions.append(UIAction(title: "Add Bookmark Here", image: UIImage(systemName: "bookmark.fill")) { [weak self] _ in
         guard let self, self.keyboardEditingAllowed,
           self.documentRevision == menuRevision, self.canvasView.page(at: location) == page
