@@ -1773,10 +1773,21 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       case let .jumpToMark(mark):
         scrollToMark(mark)
       case .requestTextAtCenter:
-        requestText(
-          at: CGPoint(
-            x: canvasView.bounds.midX,
-            y: canvasView.bounds.midY))
+        guard hostActive, editorDocumentMutationAllowed(
+          figureCaptureActive: figureCaptureActive, figureCompleting: figureCompleting)
+        else { return }
+        let viewportCenter = CGPoint(x: canvasView.bounds.midX, y: canvasView.bounds.midY)
+        let point: CGPoint
+        if canvasView.page(at: viewportCenter) != nil {
+          point = viewportCenter
+        } else {
+          let pageCount = try document.pageCount()
+          guard pageCount > 0 else { return }
+          let page = try document.pageRect(index: min(max(reportedPage, 0), pageCount - 1))
+          point = CGPoint(x: page.midX, y: page.midY)
+        }
+        guard canvasView.page(at: point) != nil else { return }
+        requestText(at: point)
       case let .commitText(request, properties):
         guard hostActive, editorDocumentMutationAllowed(
           figureCaptureActive: figureCaptureActive, figureCompleting: figureCompleting)
