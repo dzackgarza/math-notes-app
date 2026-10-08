@@ -129,7 +129,10 @@ private struct NoteTextView: UIViewRepresentable {
     view.accessibilityLabel = "Text"
     context.coordinator.appliedRTL = rtl
     Self.applyParagraphDirection(to: view, rtl: rtl)
-    DispatchQueue.main.async { view.becomeFirstResponder() }
+    DispatchQueue.main.async { [weak view] in
+      guard let view, view.window != nil else { return }
+      view.becomeFirstResponder()
+    }
     return view
   }
 
