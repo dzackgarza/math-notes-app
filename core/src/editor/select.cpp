@@ -658,7 +658,7 @@ bool Editor::Paste(std::string_view svg, double x, double y, double view_width, 
   Document next = document();
   const std::vector<PagePlacement> layout = Layout(next);
   Point at = ToContent(view_, x, y);
-  const PagePlacement *placement = PageAt(layout, at);
+  const PagePlacement *placement = place_at_pointer ? PageContaining(layout, at) : PageAt(layout, at);
   if (!placement) return false;
   Page page = *next.pages[placement->page];
 
