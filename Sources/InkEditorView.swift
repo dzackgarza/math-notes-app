@@ -1023,6 +1023,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     guard hostActive, hostFocused, !figureCaptureActive, !figureCompleting else { return nil }
     onFocusRequested()
     let location = configuration.sourcePoint
+    guard canvasView.page(at: location) != nil || canvasView.selectionFrame() != nil else { return nil }
     let svg = selectionFromPasteboard()
     let canSaveClipping = canvasView.selectionFrame() != nil
     var actions: [UIMenuElement] = []
