@@ -310,6 +310,32 @@ TEST_CASE("Move selected ink directly commits one history step and preserves its
   CHECK(StrokeAt(canvas.doc(), 0, 0).id == id);
 }
 
+TEST_CASE("Direct selection move crosses pages preserving IDs and one-step undo") {
+  ink_test::Session canvas;
+  REQUIRE(ink_document_insert_page(canvas.document, 1) == INK_OK);
+  double x0, y0, w, h, x1, y1;
+  REQUIRE(ink_document_page_rect(canvas.document, 0, &x0, &y0, &w, &h) == INK_OK);
+  REQUIRE(ink_document_page_rect(canvas.document, 1, &x1, &y1, &w, &h) == INK_OK);
+  Gesture(canvas.get(), Line({x0 + 120, y0 + 200}, {x0 + 320, y0 + 260}, 24), 0);
+  const std::string id = StrokeAt(canvas.doc(), 0, 0).id;
+  REQUIRE(ink_canvas_select_all(canvas.get(), 0) == INK_OK);
+  const size_t before = canvas.document->history.size();
+  REQUIRE(ink_canvas_move_selection_to(canvas.get(), x1 + 260, y1 + 400) == INK_OK);
+  CHECK(canvas.document->history.size() == before + 1);
+  CHECK(Layer0(canvas.doc(), 0).empty());
+  REQUIRE(Layer0(canvas.doc(), 1).size() == 1);
+  CHECK(StrokeAt(canvas.doc(), 1, 0).id == id);
+  InkSelectionInfo selected{};
+  REQUIRE(ink_canvas_selection(canvas.get(), &selected) == INK_OK);
+  CHECK(selected.page == 1);
+  CHECK(selected.count == 1);
+  int32_t undone = 0, page = -1;
+  REQUIRE(ink_undo(canvas.document, &undone, &page) == INK_OK);
+  REQUIRE(Layer0(canvas.doc(), 0).size() == 1);
+  CHECK(StrokeAt(canvas.doc(), 0, 0).id == id);
+  CHECK(Layer0(canvas.doc(), 1).empty());
+}
+
 TEST_CASE("Copy in one notebook and paste in another: the same outline bytes and new ids") {
   ink_test::Session source(1);
   ink_test::SetTool(source.get(), INK_BRUSH_PRESSURE_PEN, 0xD6455D, 2.5f);
