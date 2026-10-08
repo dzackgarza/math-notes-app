@@ -1790,7 +1790,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         requestText(at: point)
       case let .commitText(request, properties):
         guard hostActive, editorDocumentMutationAllowed(
-          figureCaptureActive: figureCaptureActive, figureCompleting: figureCompleting)
+          figureCaptureActive: figureCaptureActive, figureCompleting: figureCompleting),
+          let targetPage = canvasView.page(at: request.point),
+          !request.existing || canvasView.selectionPage() == targetPage
         else { return }
         if properties.content.isEmpty {
           if request.existing {
