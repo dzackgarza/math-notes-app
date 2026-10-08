@@ -1756,6 +1756,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         try canvasView.deleteSelection()
         onEditCommitted()
       case .addBookmark:
+        guard hostActive, editorDocumentMutationAllowed(
+          figureCaptureActive: figureCaptureActive, figureCompleting: figureCompleting)
+        else { return }
         if canvasView.selectionFrame() != nil {
           try canvasView.bookmarkSelection()
           onEditCommitted()
@@ -1765,13 +1768,22 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
           onBookmarkModeChanged(true)
         }
       case let .linkSelection(href):
+        guard hostActive, editorDocumentMutationAllowed(
+          figureCaptureActive: figureCaptureActive, figureCompleting: figureCompleting)
+        else { return }
         try canvasView.linkSelection(href)
         onEditCommitted()
       case .saveSelectionToClippings:
+        guard hostActive, editorDocumentMutationAllowed(
+          figureCaptureActive: figureCaptureActive, figureCompleting: figureCompleting)
+        else { return }
         if let svg = try canvasView.copySelection(), !svg.isEmpty {
           onSaveClipping(svg)
         }
       case let .recolorSelection(rgb):
+        guard hostActive, editorDocumentMutationAllowed(
+          figureCaptureActive: figureCaptureActive, figureCompleting: figureCompleting)
+        else { return }
         try canvasView.recolorSelection(rgb)
         onEditCommitted()
       case let .jumpToMark(mark):
