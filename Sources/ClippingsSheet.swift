@@ -72,7 +72,10 @@ struct ClippingsSheet: View {
             .font(NativeTheme.footnote)
             .foregroundStyle(NativeTheme.graphite)
           if availability.canSaveSelection {
-            Button("Save selected content", action: onSaveSelection)
+            Button("Save selected content") {
+              onSaveSelection()
+              if let refreshed = onRefresh() { items = refreshed }
+            }
           }
         }
 
