@@ -391,6 +391,7 @@ struct EditorToolRail: View {
           Button {
             eraserMode = mode
             tool = .eraser
+            showingEraserModes = false
           } label: {
             VStack(spacing: 8) {
               Image(systemName: mode.systemImage)
@@ -434,6 +435,7 @@ struct EditorToolRail: View {
           Button {
             selectorMode = mode
             tool = .lasso
+            showingSelectorModes = false
           } label: {
             VStack(spacing: 8) {
               Image(systemName: mode.systemImage)
@@ -477,6 +479,7 @@ struct EditorToolRail: View {
           Button {
             spaceMode = mode
             tool = .space
+            showingSpaceModes = false
           } label: {
             VStack(spacing: 8) {
               Image(systemName: mode.systemImage)
