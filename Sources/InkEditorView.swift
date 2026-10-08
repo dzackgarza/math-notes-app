@@ -883,12 +883,14 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     let svg = selectionFromPasteboard()
     let canSaveClipping = canvasView.selectionFrame() != nil
     var actions: [UIMenuElement] = []
-    if let svg, svg.contains("<svg") {
+    if (svg?.contains("<svg") == true) ||
+      UIPasteboard.general.data(forPasteboardType: UTType.png.identifier) != nil ||
+      UIPasteboard.general.data(forPasteboardType: UTType.jpeg.identifier) != nil {
       actions.append(UIAction(
         title: "Paste",
         image: UIImage(systemName: "doc.on.clipboard")
       ) { [weak self] _ in
-        self?.paste(svg, at: location)
+        self?.pasteFromPasteboard(at: location)
       })
     }
     if canSaveClipping {
@@ -1027,11 +1029,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   @objc private func keyboardPaste() {
-    guard keyboardEditingAllowed,
-      let svg = selectionFromPasteboard(),
-      svg.contains("<svg")
-    else { return }
-    paste(svg, at: CGPoint(x: canvasView.bounds.midX, y: canvasView.bounds.midY))
+    guard keyboardEditingAllowed else { return }
+    pasteFromPasteboard(at: CGPoint(x: canvasView.bounds.midX, y: canvasView.bounds.midY))
   }
 
   @objc private func keyboardDelete() {
@@ -1144,6 +1143,37 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       return svg
     }
     return UIPasteboard.general.string
+  }
+
+  private func pasteFromPasteboard(at point: CGPoint) {
+    if let svg = selectionFromPasteboard(), svg.contains("<svg") {
+      paste(svg, at: point)
+      return
+    }
+    let pasteboard = UIPasteboard.general
+    let imageType: UTType
+    if pasteboard.data(forPasteboardType: UTType.png.identifier) != nil {
+      imageType = .png
+    } else if pasteboard.data(forPasteboardType: UTType.jpeg.identifier) != nil {
+      imageType = .jpeg
+    } else {
+      return
+    }
+    guard let data = pasteboard.data(forPasteboardType: imageType.identifier),
+      let image = UIImage(data: data)?.cgImage,
+      let page = canvasView.page(at: point)
+    else { return }
+    do {
+      let bounds = try document.pageRect(index: page)
+      let svg = try imageImportSVG(
+        data: data,
+        mimeType: imageType == .png ? "image/png" : "image/jpeg",
+        imageSize: CGSize(width: image.width, height: image.height),
+        pageSize: bounds.size)
+      paste(svg, at: point)
+    } catch {
+      onError(error)
+    }
   }
 
   @objc private func copySelection() {
