@@ -2116,7 +2116,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       return
     }
 
-    let pulling = addPageFooter.state == .pulling
+    let pulling = addPageFooter.state == .pulling && scrollView.isDragging
     guard pulling != footerWasPulling else { return }
     footerWasPulling = pulling
 
