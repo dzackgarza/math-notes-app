@@ -744,8 +744,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       return source.dragSelectionSVG != nil && source.dragSelectionFrame != nil && source.dragSelectionPage != nil &&
         source.dragDocumentRevision == source.documentRevision
     }
-    return item.itemProvider.hasItemConformingToTypeIdentifier(notebookSelectionCopyDragType.identifier) ||
-      item.itemProvider.hasItemConformingToTypeIdentifier(UTType.svg.identifier)
+    return [notebookSelectionCopyDragType, .svg, .png, .jpeg].contains {
+      item.itemProvider.hasItemConformingToTypeIdentifier($0.identifier)
+    }
   }
 
   func dropInteraction(
@@ -767,17 +768,40 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     if !(item.localObject is InkEditorViewController) {
       let point = session.location(in: canvasView)
       let destinationRevision = documentRevision
-      let copyType = item.itemProvider.hasItemConformingToTypeIdentifier(
-        notebookSelectionCopyDragType.identifier) ? notebookSelectionCopyDragType.identifier : UTType.svg.identifier
+      let copyType: UTType
+      if item.itemProvider.hasItemConformingToTypeIdentifier(notebookSelectionCopyDragType.identifier) {
+        copyType = notebookSelectionCopyDragType
+      } else if item.itemProvider.hasItemConformingToTypeIdentifier(UTType.svg.identifier) {
+        copyType = .svg
+      } else if item.itemProvider.hasItemConformingToTypeIdentifier(UTType.png.identifier) {
+        copyType = .png
+      } else {
+        copyType = .jpeg
+      }
       item.itemProvider.loadDataRepresentation(
-        forTypeIdentifier: copyType
+        forTypeIdentifier: copyType.identifier
       ) { [weak self] data, _ in
-        guard let data, let svg = String(data: data, encoding: .utf8), svg.contains("<svg") else { return }
+        guard let data else { return }
         Task { @MainActor [weak self] in
           guard let self, self.hostActive, !self.figureCaptureActive, !self.figureCompleting,
             self.documentRevision == destinationRevision
           else { return }
           do {
+            let svg: String
+            if copyType == .png || copyType == .jpeg {
+              guard let image = UIImage(data: data)?.cgImage,
+                let page = self.canvasView.page(at: point)
+              else { return }
+              let pageSize = try self.document.pageRect(index: page).size
+              svg = try imageImportSVG(
+                data: data,
+                mimeType: copyType == .png ? "image/png" : "image/jpeg",
+                imageSize: CGSize(width: image.width, height: image.height),
+                pageSize: pageSize)
+            } else {
+              guard let decoded = String(data: data, encoding: .utf8), decoded.contains("<svg") else { return }
+              svg = decoded
+            }
             try self.canvasView.paste(svg, at: point, placeAtPointer: true)
             self.onEditCommitted()
             self.refreshSelectionBar()
