@@ -788,7 +788,6 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       if movable && session.allowsMoveOperation && source.document === document {
         let contentPoint = documentView.convert(point, from: canvasView)
         let sourcePoint = source.canvasView.convert(contentPoint, from: source.documentView)
-        guard source.canvasView.page(at: sourcePoint) == canvasView.page(at: point) else { return }
         try source.canvasView.moveSelection(to: sourcePoint)
         source.onEditCommitted()
         source.refreshSelectionBar()
