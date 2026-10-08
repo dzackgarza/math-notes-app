@@ -1024,17 +1024,18 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     guard hostActive, hostFocused, !figureCaptureActive, !figureCompleting else { return nil }
     onFocusRequested()
     let location = configuration.sourcePoint
-    guard canvasView.page(at: location) != nil || canvasView.selectionFrame() != nil else { return nil }
+    let pressedPage = canvasView.page(at: location)
+    guard pressedPage != nil || canvasView.selectionFrame() != nil else { return nil }
     let svg = selectionFromPasteboard()
     let canSaveClipping = canvasView.selectionFrame() != nil
     var actions: [UIMenuElement] = []
-    if (svg?.contains("<svg") == true) ||
+    if pressedPage != nil && ((svg?.contains("<svg") == true) ||
       UIPasteboard.general.data(forPasteboardType: UTType.png.identifier) != nil ||
       UIPasteboard.general.data(forPasteboardType: UTType.jpeg.identifier) != nil ||
       UIPasteboard.general.data(forPasteboardType: UTType.heic.identifier) != nil ||
       UIPasteboard.general.data(forPasteboardType: UTType.heif.identifier) != nil ||
       UIPasteboard.general.data(forPasteboardType: UTType.tiff.identifier) != nil ||
-      UIPasteboard.general.image != nil {
+      UIPasteboard.general.image != nil) {
       actions.append(UIAction(
         title: "Paste",
         image: UIImage(systemName: "doc.on.clipboard")
@@ -1042,7 +1043,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         self?.pasteFromPasteboard(at: location, placeAtPointer: true)
       })
     }
-    if canvasView.page(at: location) != nil {
+    if pressedPage != nil {
       actions.append(UIAction(
         title: "Insert Image or SVG",
         image: UIImage(systemName: "photo.on.rectangle")
@@ -1050,7 +1051,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         self?.onInsertImageRequested()
       })
     }
-    if let page = canvasView.page(at: location) {
+    if let page = pressedPage {
       actions.append(UIAction(title: "Select All on Page", image: UIImage(systemName: "selection.pin.in.out")) { [weak self] _ in
         guard let self else { return }
         do {
@@ -1061,7 +1062,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         }
       })
     }
-    if let page = canvasView.page(at: location) {
+    if let page = pressedPage {
       actions.append(UIAction(
         title: "Clear Page", image: UIImage(systemName: "eraser"), attributes: .destructive
       ) { [weak self] _ in
@@ -1076,7 +1077,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         }
       })
     }
-    if canvasView.page(at: location) != nil {
+    if pressedPage != nil {
       actions.append(UIAction(title: "Add Bookmark Here", image: UIImage(systemName: "bookmark.fill")) { [weak self] _ in
         guard let self, self.keyboardEditingAllowed else { return }
         do {
@@ -1116,7 +1117,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         self?.clearSelection()
       })
     }
-    if let page = canvasView.page(at: location), !canSaveClipping {
+    if let page = pressedPage, !canSaveClipping {
       actions.append(UIAction(
         title: "Save Page to Clippings",
         image: UIImage(systemName: "tray.and.arrow.down")
