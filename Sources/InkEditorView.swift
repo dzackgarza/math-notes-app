@@ -1028,6 +1028,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     guard pressedPage != nil || canvasView.selectionFrame() != nil else { return nil }
     let svg = selectionFromPasteboard()
     let selectedPage = canvasView.selectionPage()
+    let selectedFrame = canvasView.selectionFrame()
     let menuRevision = documentRevision
     let canSaveClipping = canvasView.selectionFrame() != nil &&
       (pressedPage == nil || selectedPage == pressedPage)
@@ -1105,30 +1106,70 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     }
     if canSaveClipping {
       actions.append(UIAction(title: "Copy", image: UIImage(systemName: "doc.on.doc")) { [weak self] _ in
-        self?.copySelection()
+        guard let self, self.keyboardEditingAllowed,
+          self.documentRevision == menuRevision,
+          self.canvasView.selectionPage() == selectedPage,
+          self.canvasView.selectionFrame() == selectedFrame
+        else { return }
+        self.copySelection()
       })
       actions.append(UIAction(title: "Cut", image: UIImage(systemName: "scissors")) { [weak self] _ in
-        self?.cutSelection()
+        guard let self, self.keyboardEditingAllowed,
+          self.documentRevision == menuRevision,
+          self.canvasView.selectionPage() == selectedPage,
+          self.canvasView.selectionFrame() == selectedFrame
+        else { return }
+        self.cutSelection()
       })
       actions.append(UIAction(title: "Duplicate", image: UIImage(systemName: "plus.square.on.square")) { [weak self] _ in
-        self?.duplicateSelection()
+        guard let self, self.keyboardEditingAllowed,
+          self.documentRevision == menuRevision,
+          self.canvasView.selectionPage() == selectedPage,
+          self.canvasView.selectionFrame() == selectedFrame
+        else { return }
+        self.duplicateSelection()
       })
       actions.append(UIAction(title: "Delete", image: UIImage(systemName: "trash"), attributes: .destructive) { [weak self] _ in
-        self?.deleteSelection()
+        guard let self, self.keyboardEditingAllowed,
+          self.documentRevision == menuRevision,
+          self.canvasView.selectionPage() == selectedPage,
+          self.canvasView.selectionFrame() == selectedFrame
+        else { return }
+        self.deleteSelection()
       })
     }
     if canSaveClipping {
       actions.append(UIAction(title: "Link", image: UIImage(systemName: "link")) { [weak self] _ in
-        self?.linkSelection()
+        guard let self, self.keyboardEditingAllowed,
+          self.documentRevision == menuRevision,
+          self.canvasView.selectionPage() == selectedPage,
+          self.canvasView.selectionFrame() == selectedFrame
+        else { return }
+        self.linkSelection()
       })
       actions.append(UIAction(title: "Bookmark", image: UIImage(systemName: "bookmark")) { [weak self] _ in
-        self?.bookmarkSelection()
+        guard let self, self.keyboardEditingAllowed,
+          self.documentRevision == menuRevision,
+          self.canvasView.selectionPage() == selectedPage,
+          self.canvasView.selectionFrame() == selectedFrame
+        else { return }
+        self.bookmarkSelection()
       })
       actions.append(UIAction(title: "Remove bookmark or link", image: UIImage(systemName: "link.badge.minus")) { [weak self] _ in
-        self?.ungroupSelection()
+        guard let self, self.keyboardEditingAllowed,
+          self.documentRevision == menuRevision,
+          self.canvasView.selectionPage() == selectedPage,
+          self.canvasView.selectionFrame() == selectedFrame
+        else { return }
+        self.ungroupSelection()
       })
       actions.append(UIAction(title: "Clear selection", image: UIImage(systemName: "xmark")) { [weak self] _ in
-        self?.clearSelection()
+        guard let self, self.keyboardEditingAllowed,
+          self.documentRevision == menuRevision,
+          self.canvasView.selectionPage() == selectedPage,
+          self.canvasView.selectionFrame() == selectedFrame
+        else { return }
+        self.clearSelection()
       })
     }
     if let page = pressedPage, canvasView.selectionFrame() == nil {
@@ -1158,7 +1199,12 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         title: "Save to clippings",
         image: UIImage(systemName: "tray.and.arrow.down")
       ) { [weak self] _ in
-        self?.saveClipping()
+        guard let self, self.keyboardEditingAllowed,
+          self.documentRevision == menuRevision,
+          self.canvasView.selectionPage() == selectedPage,
+          self.canvasView.selectionFrame() == selectedFrame
+        else { return }
+        self.saveClipping()
       })
     }
     if canSaveClipping, (try? canvasView.selectedFigure()) != nil {
@@ -1167,7 +1213,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         image: UIImage(systemName: "scribble.variable")
       ) { [weak self] _ in
         guard let self, self.keyboardEditingAllowed,
-          self.canvasView.selectionPage() == selectedPage
+          self.documentRevision == menuRevision,
+          self.canvasView.selectionPage() == selectedPage,
+          self.canvasView.selectionFrame() == selectedFrame
         else { return }
         self.editSelectedFigure()
       })
