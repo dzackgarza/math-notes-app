@@ -59,7 +59,6 @@ struct NativeLibraryView: View {
   var body: some View {
     HStack(spacing: 0) {
       librarySidebar
-        .focusSection()
       Divider()
         .overlay(NativeTheme.separator)
       Group {
@@ -168,7 +167,6 @@ struct NativeLibraryView: View {
       }
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .focusSection()
       .safeAreaInset(edge: .top, spacing: 0) {
         VStack(alignment: .leading, spacing: 8) {
           if !notebookOpen {
@@ -182,7 +180,6 @@ struct NativeLibraryView: View {
         .padding(.top, 12)
         .padding(.bottom, 8)
         .background(NativeTheme.board)
-        .focusSection()
       }
     }
     .background(NativeTheme.board)
@@ -200,7 +197,6 @@ struct NativeLibraryView: View {
             Label("Library", systemImage: "chevron.left")
           }
           .accessibilityLabel("Back to library")
-          .focusSection()
         }
       }
 
