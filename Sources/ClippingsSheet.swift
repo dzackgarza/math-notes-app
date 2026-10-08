@@ -106,6 +106,7 @@ struct ClippingsSheet: View {
               }
               return provider
             }
+            .allowsHitTesting(availability.canInsert)
             .accessibilityLabel("Insert clipping \(item.index + 1)")
 
             HStack(spacing: 8) {
