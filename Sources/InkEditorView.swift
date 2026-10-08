@@ -687,7 +687,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     targetContentOffset: UnsafeMutablePointer<CGPoint>
   ) {
     releasedPullWasArmed =
-      editorDocumentMutationAllowed(
+      hostActive && editorDocumentMutationAllowed(
         figureCaptureActive: figureCaptureActive,
         figureCompleting: figureCompleting) &&
       addPageFooter.state == .pulling &&
@@ -2101,7 +2101,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   private func trackBottomPull() {
-    guard editorDocumentMutationAllowed(
+    guard hostActive, editorDocumentMutationAllowed(
       figureCaptureActive: figureCaptureActive,
       figureCompleting: figureCompleting)
     else {
@@ -2137,7 +2137,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
 
   private func completeBottomPull() {
     let shouldAdd =
-      releasedPullWasArmed &&
+      releasedPullWasArmed && hostActive &&
       editorDocumentMutationAllowed(
         figureCaptureActive: figureCaptureActive,
         figureCompleting: figureCompleting)
