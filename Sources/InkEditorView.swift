@@ -778,7 +778,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     let svg = UIPasteboard.general.string
     let canSaveClipping = canvasView.selectionFrame() != nil
     var actions: [UIMenuElement] = []
-    if let svg, !svg.isEmpty {
+    if let svg, svg.contains("<svg") {
       actions.append(UIAction(
         title: "Paste",
         image: UIImage(systemName: "doc.on.clipboard")
