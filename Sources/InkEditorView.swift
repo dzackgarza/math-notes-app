@@ -746,7 +746,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     }
     return [notebookSelectionCopyDragType, .svg, .png, .jpeg].contains {
       item.itemProvider.hasItemConformingToTypeIdentifier($0.identifier)
-    } || item.itemProvider.canLoadObject(ofClass: UIImage.self)
+    } || item.itemProvider.canLoadObject(ofClass: UIImage.self) ||
+      item.itemProvider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
   }
 
   func dropInteraction(
@@ -769,6 +770,41 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       let point = session.location(in: canvasView)
       let destinationRevision = documentRevision
       let provider = item.itemProvider
+      if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+        _ = provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { [weak self] item, _ in
+          guard let url = item as? URL, url.isFileURL else { return }
+          let scoped = url.startAccessingSecurityScopedResource()
+          let data = try? Data(contentsOf: url)
+          if scoped { url.stopAccessingSecurityScopedResource() }
+          guard let data else { return }
+          Task { @MainActor [weak self] in
+            guard let self, self.hostActive, !self.figureCaptureActive, !self.figureCompleting,
+              self.documentRevision == destinationRevision
+            else { return }
+            do {
+              let svg: String
+              if url.pathExtension.lowercased() == "svg" {
+                guard let decoded = String(data: data, encoding: .utf8), decoded.contains("<svg") else { return }
+                svg = decoded
+              } else {
+                guard let image = UIImage(data: data)?.cgImage,
+                  let page = self.canvasView.page(at: point)
+                else { return }
+                let ext = url.pathExtension.lowercased()
+                guard ["png", "jpg", "jpeg"].contains(ext) else { return }
+                let pageSize = try self.document.pageRect(index: page).size
+                svg = try imageImportSVG(
+                  data: data, mimeType: ext == "png" ? "image/png" : "image/jpeg",
+                  imageSize: CGSize(width: image.width, height: image.height), pageSize: pageSize)
+              }
+              try self.canvasView.paste(svg, at: point, placeAtPointer: true)
+              self.onEditCommitted()
+              self.refreshSelectionBar()
+            } catch { self.onError(error) }
+          }
+        }
+        return
+      }
       if ![notebookSelectionCopyDragType, .svg, .png, .jpeg].contains(where: {
         provider.hasItemConformingToTypeIdentifier($0.identifier)
       }) {
