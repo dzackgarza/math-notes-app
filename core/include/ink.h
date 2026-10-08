@@ -337,7 +337,7 @@ InkStatus ink_canvas_add_bookmark(InkCanvas *canvas, double x, double y);
 InkStatus ink_document_navigation(InkDocument *document, const char **json);
 InkStatus ink_document_bookmark_png(InkDocument *document, const char *id, int32_t width,
                                     const uint8_t **png, size_t *size);
-/* Deletes the selected elements: one history step. */
+/* Deletes the selected elements: one history step. Returns INK_ERROR_ARGUMENT if none are selected. */
 InkStatus ink_canvas_delete_selection(InkCanvas *canvas);
 /* Move the current selection to a view point as one history step. Fails off-page. */
 InkStatus ink_canvas_move_selection_to(InkCanvas *canvas, double x, double y);

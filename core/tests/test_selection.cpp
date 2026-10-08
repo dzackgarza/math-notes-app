@@ -560,4 +560,5 @@ TEST_CASE("Selection ignores hidden and locked layers") {
   REQUIRE(canvas.doc().pages[0]->layers[2].elements.size() == 1);
   CHECK(*canvas.doc().pages[0]->layers[1].elements[0] == hidden);
   CHECK(*canvas.doc().pages[0]->layers[2].elements[0] == locked);
+  CHECK(ink_canvas_delete_selection(canvas.get()) == INK_ERROR_ARGUMENT);
 }

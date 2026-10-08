@@ -1031,7 +1031,7 @@ InkStatus ink_canvas_clear_selection(InkCanvas *canvas) {
 InkStatus ink_canvas_delete_selection(InkCanvas *canvas) {
   return Call([&] {
     if (!canvas) return NullArgument("canvas");
-    canvas->editor.DeleteSelection();
+    if (!canvas->editor.DeleteSelection()) return Fail(INK_ERROR_ARGUMENT, "no selection to delete");
     return INK_OK;
   });
 }
