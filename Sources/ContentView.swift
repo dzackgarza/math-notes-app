@@ -1419,10 +1419,13 @@ struct ContentView: View {
     }
   }
   private func persistPenLibrary(_ library: EditorPenLibrary) {
-    penLibrary = library
-    guard let root else { return }
+    guard let root else {
+      penLibrary = library
+      return
+    }
     do {
       try root.savePenLibrary(library)
+      penLibrary = library
     } catch {
       errorMessage = error.localizedDescription
     }
