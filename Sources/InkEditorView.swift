@@ -304,6 +304,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       editorKeyCommand(UIKeyCommand.inputUpArrow, modifiers: .command, action: #selector(keyboardPreviousPage), title: "Previous Page"),
       editorKeyCommand(UIKeyCommand.inputDownArrow, modifiers: .command, action: #selector(keyboardNextPage), title: "Next Page"),
       editorKeyCommand("0", modifiers: .command, action: #selector(keyboardFitPages), title: "Fit Pages"),
+      editorKeyCommand("=", modifiers: .command, action: #selector(keyboardZoomIn), title: "Zoom In"),
+      editorKeyCommand("-", modifiers: .command, action: #selector(keyboardZoomOut), title: "Zoom Out"),
       editorKeyCommand("i", modifiers: .command, action: #selector(keyboardInsertImage), title: "Insert Image"),
       editorKeyCommand("k", modifiers: .command.union(.shift), action: #selector(keyboardClippings), title: "Clippings"),
       editorKeyCommand("c", modifiers: .command.union(.shift), action: #selector(keyboardSaveClipping), title: "Save Clipping"),
@@ -1209,6 +1211,24 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     guard keyboardEditingAllowed else { return }
     onInsertImageRequested()
   }
+
+  private func keyboardZoom(by factor: CGFloat) {
+    guard hostActive, hostFocused, scrollView.bounds.width > 0, scrollView.bounds.height > 0 else { return }
+    let scale = min(max(scrollView.zoomScale * factor, scrollView.minimumZoomScale),
+                    scrollView.maximumZoomScale)
+    guard abs(scale - scrollView.zoomScale) > 0.001 else { return }
+    let center = CGPoint(x: scrollView.contentOffset.x + scrollView.bounds.width / 2,
+                         y: scrollView.contentOffset.y + scrollView.bounds.height / 2)
+    let size = CGSize(width: scrollView.bounds.width / scale,
+                      height: scrollView.bounds.height / scale)
+    scrollView.zoom(to: CGRect(x: center.x / scrollView.zoomScale - size.width / 2,
+                               y: center.y / scrollView.zoomScale - size.height / 2,
+                               width: size.width, height: size.height), animated: true)
+  }
+
+  @objc private func keyboardZoomIn() { keyboardZoom(by: 1.25) }
+
+  @objc private func keyboardZoomOut() { keyboardZoom(by: 0.8) }
 
   @objc private func keyboardFitPages() {
     guard hostActive, hostFocused else { return }
