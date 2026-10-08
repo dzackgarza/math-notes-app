@@ -377,10 +377,18 @@ TEST_CASE("Cut keeps ids; pasting where an id exists gives the copy a new one") 
   Gesture(canvas.get(), Line({120, 200}, {320, 260}, 24), 0);
   const std::string id = StrokeAt(canvas.doc(), 0, 0).id;
   REQUIRE(ink_canvas_select_all(canvas.get(), 0) == INK_OK);
+  const size_t beforeCut = canvas.document->history.size();
   const uint8_t *svg = nullptr;
   size_t size = 0;
   REQUIRE(ink_canvas_copy_selection(canvas.get(), 1, &svg, &size) == INK_OK);
   std::string clipboard(reinterpret_cast<const char *>(svg), size);
+  CHECK(Layer0(canvas.doc()).empty());
+  CHECK(canvas.document->history.size() == beforeCut + 1);
+  int32_t undone = 0, page = -1;
+  REQUIRE(ink_undo(canvas.document, &undone, &page) == INK_OK);
+  REQUIRE(Layer0(canvas.doc()).size() == 1);
+  CHECK(StrokeAt(canvas.doc(), 0, 0).id == id);
+  REQUIRE(ink_redo(canvas.document, &undone, &page) == INK_OK);
   CHECK(Layer0(canvas.doc()).empty());
 
   auto paste = [&] {
