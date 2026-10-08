@@ -733,6 +733,13 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         completion(Data(svg.utf8), nil)
         return nil
       }
+      provider.registerDataRepresentation(
+        forTypeIdentifier: UTType.svg.identifier,
+        visibility: .all
+      ) { completion in
+        completion(Data(svg.utf8), nil)
+        return nil
+      }
       if !copyHandle {
         provider.registerDataRepresentation(
           forTypeIdentifier: notebookSelectionDragType.identifier,
@@ -770,7 +777,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       return source.dragSelectionSVG != nil && source.dragSelectionFrame != nil && source.dragSelectionPage != nil &&
         source.dragDocumentRevision == source.documentRevision
     }
-    return item.itemProvider.hasItemConformingToTypeIdentifier(notebookSelectionCopyDragType.identifier)
+    return item.itemProvider.hasItemConformingToTypeIdentifier(notebookSelectionCopyDragType.identifier) ||
+      item.itemProvider.hasItemConformingToTypeIdentifier(UTType.svg.identifier)
   }
 
   func dropInteraction(
@@ -791,8 +799,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     if !(item.localObject is InkEditorViewController) {
       let point = session.location(in: canvasView)
       let destinationRevision = documentRevision
+      let copyType = item.itemProvider.hasItemConformingToTypeIdentifier(
+        notebookSelectionCopyDragType.identifier) ? notebookSelectionCopyDragType.identifier : UTType.svg.identifier
       item.itemProvider.loadDataRepresentation(
-        forTypeIdentifier: notebookSelectionCopyDragType.identifier
+        forTypeIdentifier: copyType
       ) { [weak self] data, _ in
         guard let data, let svg = String(data: data, encoding: .utf8), svg.contains("<svg") else { return }
         Task { @MainActor [weak self] in
