@@ -792,7 +792,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     onFocusRequested()
     if !(item.localObject is InkEditorViewController) {
       let point = session.location(in: canvasView)
-      guard canvasView.page(at: point) != nil else { return }
+      guard let destinationPage = canvasView.page(at: point) else { return }
       let destinationRevision = documentRevision
       let provider = item.itemProvider
       if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) &&
@@ -818,7 +818,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
           guard let data else { return }
           Task { @MainActor [weak self] in
             guard let self, self.hostActive, !self.figureCaptureActive, !self.figureCompleting,
-              self.documentRevision == destinationRevision
+              self.documentRevision == destinationRevision,
+              self.canvasView.page(at: point) == destinationPage
             else { return }
             do {
               let svg: String
@@ -866,10 +867,11 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
           Task { @MainActor [weak self] in
             guard let self, self.hostActive, !self.figureCaptureActive, !self.figureCompleting,
               self.documentRevision == destinationRevision,
-              let page = self.canvasView.page(at: point), let cgImage = UIImage(data: data)?.cgImage
+              self.canvasView.page(at: point) == destinationPage,
+              let cgImage = UIImage(data: data)?.cgImage
             else { return }
             do {
-              let pageSize = try self.document.pageRect(index: page).size
+              let pageSize = try self.document.pageRect(index: destinationPage).size
               let svg = try imageImportSVG(
                 data: data, mimeType: "image/png",
                 imageSize: CGSize(width: cgImage.width, height: cgImage.height),
@@ -908,7 +910,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         guard let data else { return }
         Task { @MainActor [weak self] in
           guard let self, self.hostActive, !self.figureCaptureActive, !self.figureCompleting,
-            self.documentRevision == destinationRevision
+            self.documentRevision == destinationRevision,
+            self.canvasView.page(at: point) == destinationPage
           else { return }
           do {
             let svg: String
