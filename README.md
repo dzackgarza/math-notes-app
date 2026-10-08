@@ -38,7 +38,9 @@ restart. A new deployment activates at once; a reload shows it.
 
 ## Releasing
 
-Push to `main` with a change under `Sources/`, `project.yml`, `sidestore-source.jq`, or the workflow. The run sets version `0.1.<run number>`, build `<run number>`. Other pushes do not build. Run manually with `gh workflow run ios.yml`.
+Push changes to a working branch first. Every branch revision runs "Engine (wasm32)"; `main` requires its `wasm` check to pass before accepting that revision, including administrator pushes. Local push checks only lint YAML; compilation and engine tests run in CI.
+
+After the verified revision reaches `main`, a successful "Engine (wasm32)" workflow starts the iPad release. The iPad workflow checks the exact revision again before allocating a macOS runner, then runs Simulator tests and packages the IPA. It sets version `0.1.<run number>`, build `<run number>`. Manual runs (`gh workflow run ios.yml --ref <branch>`) require that branch revision's engine check to have passed too. Only runs on `main` publish to SideStore, and publication rejects a revision that has been superseded on `main`.
 
 On the iPad, open SideStore; the update shows in My Apps. Tap Update (SideStore does not auto-install source updates).
 
