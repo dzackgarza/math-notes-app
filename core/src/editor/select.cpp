@@ -635,12 +635,12 @@ bool Editor::Paste(std::string_view svg, double x, double y, double view_width, 
   if (!ResolveActiveLayer()) return false;
   std::optional<Elements> pasted = ReadClipboard(svg);
   if (!pasted) return false;
-  if (pasted->empty()) return true;
+  if (pasted->empty()) return false;
   Document next = document();
   const std::vector<PagePlacement> layout = Layout(next);
   Point at = ToContent(view_, x, y);
   const PagePlacement *placement = PageAt(layout, at);
-  if (!placement) return true;
+  if (!placement) return false;
   Page page = *next.pages[placement->page];
 
   std::vector<std::string> taken;

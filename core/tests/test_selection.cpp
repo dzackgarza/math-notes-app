@@ -310,6 +310,9 @@ TEST_CASE("Copy in one notebook and paste in another: the same outline bytes and
     CHECK(pasted[i].transform == copied[i].transform);  // on the page: pasted in place
     CHECK(pasted[i].id != copied[i].id);
   }
+  // A drop outside every page must not acknowledge a committed insertion.
+  CHECK(ink_canvas_paste_at(target.get(), reinterpret_cast<const uint8_t *>(clipboard.data()),
+                            clipboard.size(), -1000000, -1000000) == INK_ERROR_PARSE);
   CHECK(ink_canvas_paste(target.get(), reinterpret_cast<const uint8_t *>("<svg"), 4, 0, 0) ==
         INK_ERROR_PARSE);
 }
