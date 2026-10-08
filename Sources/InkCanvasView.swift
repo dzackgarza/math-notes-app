@@ -211,6 +211,7 @@ final class InkCanvasView: UIView {
   }
 
   override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+    guard hostActive else { return }
     _ = sendFingerTouches(touches, event: event)
     sendPencilTouches(touches, event: event)
     reportInteractionChange(touches)
@@ -243,6 +244,7 @@ final class InkCanvasView: UIView {
   }
 
   private func reportInteractionChange(_ touches: Set<UITouch>) {
+    guard hostActive else { return }
     guard let touch = touches.first(where: { $0.type == .pencil }) ?? touches.first else { return }
     onInteractionChanged(touch.location(in: self))
   }
