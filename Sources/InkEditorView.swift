@@ -894,6 +894,17 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         self?.pasteFromPasteboard(at: location)
       })
     }
+    if let page = canvasView.page(at: location) {
+      actions.append(UIAction(title: "Select All on Page", image: UIImage(systemName: "selection.pin.in.out")) { [weak self] _ in
+        guard let self else { return }
+        do {
+          try self.canvasView.selectAll(page: page)
+          self.refreshSelectionBar()
+        } catch {
+          self.onError(error)
+        }
+      })
+    }
     if canSaveClipping {
       actions.append(UIAction(title: "Copy", image: UIImage(systemName: "doc.on.doc")) { [weak self] _ in
         self?.copySelection()
