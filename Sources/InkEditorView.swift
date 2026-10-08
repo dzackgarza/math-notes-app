@@ -909,6 +909,20 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       })
     }
     if canSaveClipping {
+      actions.append(UIAction(title: "Link", image: UIImage(systemName: "link")) { [weak self] _ in
+        self?.linkSelection()
+      })
+      actions.append(UIAction(title: "Bookmark", image: UIImage(systemName: "bookmark")) { [weak self] _ in
+        self?.bookmarkSelection()
+      })
+      actions.append(UIAction(title: "Remove bookmark or link", image: UIImage(systemName: "link.badge.minus")) { [weak self] _ in
+        self?.ungroupSelection()
+      })
+      actions.append(UIAction(title: "Clear selection", image: UIImage(systemName: "xmark")) { [weak self] _ in
+        self?.clearSelection()
+      })
+    }
+    if canSaveClipping {
       actions.append(UIAction(
         title: "Save to clippings",
         image: UIImage(systemName: "tray.and.arrow.down")
