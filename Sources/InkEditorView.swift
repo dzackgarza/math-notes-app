@@ -690,12 +690,12 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     withVelocity velocity: CGPoint,
     targetContentOffset: UnsafeMutablePointer<CGPoint>
   ) {
+    let holdCompleted = pullGate.release(at: CACurrentMediaTime())
     releasedPullWasArmed =
       hostActive && editorDocumentMutationAllowed(
         figureCaptureActive: figureCaptureActive,
         figureCompleting: figureCompleting) &&
-      addPageFooter.state == .pulling &&
-      pullGate.release(at: CACurrentMediaTime())
+      addPageFooter.state == .pulling && holdCompleted
     footerWasPulling = false
     cancelPullReadyTimer()
   }
