@@ -94,6 +94,22 @@ final class InkEditorGestureTests: XCTestCase {
     }
   }
 
+  func testCanvasSeparatesPrimaryAndSecondaryPointerTaps() throws {
+    let controller = InkEditorViewController(document: EngineDocument(seed: 111))
+    controller.loadViewIfNeeded()
+
+    let taps = gestureRecognizers(in: controller.view)
+      .compactMap { $0 as? UITapGestureRecognizer }
+    let primary = try XCTUnwrap(taps.first { $0.buttonMaskRequired == .primary })
+    let secondary = try XCTUnwrap(taps.first { $0.buttonMaskRequired == .secondary })
+
+    XCTAssertEqual(primary.allowedTouchTypes,
+      [NSNumber(value: UITouch.TouchType.direct.rawValue)])
+    XCTAssertFalse(primary.cancelsTouchesInView)
+    XCTAssertEqual(secondary.numberOfTouchesRequired, 1)
+    XCTAssertEqual(secondary.numberOfTapsRequired, 1)
+  }
+
   func testEditorInstallsNativeHeldPullFooter() throws {
     let controller = InkEditorViewController(document: EngineDocument(seed: 110))
     controller.loadViewIfNeeded()
