@@ -431,6 +431,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     let directTap = UITapGestureRecognizer(target: self, action: #selector(handleDirectTap))
     self.directTap = directTap
     directTap.cancelsTouchesInView = false
+    directTap.buttonMaskRequired = .primary
     directTap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
     canvasView.addGestureRecognizer(directTap)
 
@@ -994,7 +995,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
 
   @objc private func handlePageLongPress(_ recognizer: UILongPressGestureRecognizer) {
     guard recognizer.state == .began, !fingerDrawing,
-      !figureCaptureActive, !figureCompleting,
+      hostActive, hostFocused, !figureCaptureActive, !figureCompleting,
       let pageEditMenuInteraction
     else { return }
     onFocusRequested()
