@@ -301,6 +301,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   override var keyCommands: [UIKeyCommand]? {
     [
       editorKeyCommand("s", modifiers: .command, action: #selector(keyboardSave), title: "Save"),
+      editorKeyCommand(UIKeyCommand.inputUpArrow, modifiers: .command, action: #selector(keyboardPreviousPage), title: "Previous Page"),
+      editorKeyCommand(UIKeyCommand.inputDownArrow, modifiers: .command, action: #selector(keyboardNextPage), title: "Next Page"),
       editorKeyCommand("i", modifiers: .command, action: #selector(keyboardInsertImage), title: "Insert Image"),
       editorKeyCommand("k", modifiers: .command.union(.shift), action: #selector(keyboardClippings), title: "Clippings"),
       editorKeyCommand("c", modifiers: .command.union(.shift), action: #selector(keyboardSaveClipping), title: "Save Clipping"),
@@ -1205,6 +1207,23 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   @objc private func keyboardInsertImage() {
     guard keyboardEditingAllowed else { return }
     onInsertImageRequested()
+  }
+
+  private func keyboardNavigatePage(by offset: Int) {
+    guard hostActive, hostFocused, let count = try? document.pageCount(), count > 0 else { return }
+    let center = CGPoint(x: canvasView.bounds.midX, y: canvasView.bounds.midY)
+    let current = canvasView.page(at: center) ?? max(0, reportedPage)
+    let target = min(max(current + offset, 0), count - 1)
+    guard target != current else { return }
+    scrollToPage(target)
+  }
+
+  @objc private func keyboardPreviousPage() {
+    keyboardNavigatePage(by: -1)
+  }
+
+  @objc private func keyboardNextPage() {
+    keyboardNavigatePage(by: 1)
   }
 
   @objc private func keyboardSave() {
