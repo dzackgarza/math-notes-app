@@ -986,7 +986,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         title: "Paste",
         image: UIImage(systemName: "doc.on.clipboard")
       ) { [weak self] _ in
-        self?.pasteFromPasteboard(at: location)
+        self?.pasteFromPasteboard(at: location, placeAtPointer: true)
       })
     }
     if canvasView.page(at: location) != nil {
@@ -1301,9 +1301,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     return UIPasteboard.general.string
   }
 
-  private func pasteFromPasteboard(at point: CGPoint) {
+  private func pasteFromPasteboard(at point: CGPoint, placeAtPointer: Bool = false) {
     if let svg = selectionFromPasteboard(), svg.contains("<svg") {
-      paste(svg, at: point)
+      paste(svg, at: point, placeAtPointer: placeAtPointer)
       return
     }
     let pasteboard = UIPasteboard.general
@@ -1330,7 +1330,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         mimeType: imageType == .png ? "image/png" : "image/jpeg",
         imageSize: CGSize(width: image.width, height: image.height),
         pageSize: bounds.size)
-      paste(svg, at: point)
+      paste(svg, at: point, placeAtPointer: placeAtPointer)
     } catch {
       onError(error)
     }
@@ -1761,9 +1761,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     }
   }
 
-  private func paste(_ svg: String, at point: CGPoint) {
+  private func paste(_ svg: String, at point: CGPoint, placeAtPointer: Bool = false) {
     do {
-      try canvasView.paste(svg, at: point)
+      try canvasView.paste(svg, at: point, placeAtPointer: placeAtPointer)
       onEditCommitted()
       refreshSelectionBar()
     } catch {
