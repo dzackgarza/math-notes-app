@@ -2128,7 +2128,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         withTimeInterval: HeldPullGate.holdDuration,
         repeats: false
       ) { [weak self] _ in
-        guard let self, self.hostActive, self.addPageFooter.state == .pulling else { return }
+        guard let self, self.hostActive, self.scrollView.isDragging,
+          self.addPageFooter.state == .pulling
+        else { return }
         self.addPageFooter.setTitle("Release to add a page", for: .pulling)
       }
       return
