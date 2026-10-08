@@ -2024,7 +2024,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     _ interaction: UIPencilInteraction,
     didReceiveTap tap: UIPencilInteraction.Tap
   ) {
-    guard hostActive, hostFocused else { return }
+    guard hostActive, hostFocused, !pencilStrokeActive else { return }
     onFocusRequested()
     onPencilAction(UIPencilInteraction.preferredTapAction, tap.hoverPose?.location)
   }
@@ -2033,7 +2033,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     _ interaction: UIPencilInteraction,
     didReceiveSqueeze squeeze: UIPencilInteraction.Squeeze
   ) {
-    guard hostActive, hostFocused, squeeze.phase == .ended else { return }
+    guard hostActive, hostFocused, !pencilStrokeActive, squeeze.phase == .ended else { return }
     onFocusRequested()
     onPencilAction(UIPencilInteraction.preferredSqueezeAction, squeeze.hoverPose?.location)
   }
