@@ -614,6 +614,15 @@ final class InkCanvasView: UIView {
     try require(ink_canvas_recolor_selection(canvas, rgb), operation: "Recolor selection")
   }
 
+  func moveSelection(to point: CGPoint) throws {
+    guard let canvas else {
+      throw EngineDocumentError.operation("Move selection", "Canvas is unavailable")
+    }
+    try require(
+      ink_canvas_move_selection_to(canvas, point.x, point.y),
+      operation: "Move selection")
+  }
+
   func paste(_ svg: String, at point: CGPoint, placeAtPointer: Bool = false) throws {
     guard let canvas else { return }
     let data = Data(svg.utf8)
