@@ -218,10 +218,11 @@ final class InkCanvasView: UIView {
   }
 
   override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+    let pencilEnded = touches.contains { $0 === pencilTouch }
     let fingerHandled = sendFingerTouches(touches, event: event)
     let pencilHandled = sendPencilTouches(touches, event: event)
     reportInteractionChange(touches)
-    if touches.contains(where: { $0.type == .pencil }) {
+    if pencilEnded {
       onPencilStrokeChanged(false)
     }
     if fingerHandled || pencilHandled {
@@ -230,12 +231,13 @@ final class InkCanvasView: UIView {
   }
 
   override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+    let pencilCancelled = touches.contains { $0 === pencilTouch }
     let fingerHandled = sendFingerTouches(touches, event: event)
     let pencilHandled = sendPencilTouches(touches, event: event)
     if touches.contains(where: { $0.type == .pencil }) {
       sampleIDs.cancelPendingEstimates()
     }
-    if touches.contains(where: { $0.type == .pencil }) {
+    if pencilCancelled {
       onPencilStrokeChanged(false)
     }
     if fingerHandled || pencilHandled {
