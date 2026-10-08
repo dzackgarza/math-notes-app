@@ -190,7 +190,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private let onEditCommitted: () -> Void
   private let onSaveRequested: () -> Void
   private let onCurrentPageChanged: (Int) -> Void
-  private let onPageCommandHandled: (EditorPageCommand) -> Void
+  private let onPageCommandHandled: (EditorPageCommand, Bool) -> Void
   private let onBookmarkModeChanged: (Bool) -> Void
   private let onTextRequested: (EditorTextRequest) -> Void
   private let onLinkSelectionRequested: (Int) -> Void
@@ -275,7 +275,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     onEditCommitted: @escaping () -> Void = {},
     onSaveRequested: @escaping () -> Void = {},
     onCurrentPageChanged: @escaping (Int) -> Void = { _ in },
-    onPageCommandHandled: @escaping (EditorPageCommand) -> Void = { _ in },
+    onPageCommandHandled: @escaping (EditorPageCommand, Bool) -> Void = { _, _ in },
     onBookmarkModeChanged: @escaping (Bool) -> Void = { _ in },
     onTextRequested: @escaping (EditorTextRequest) -> Void = { _ in },
     onLinkSelectionRequested: @escaping (Int) -> Void = { _ in },
@@ -1122,7 +1122,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   private func handlePageCommand(_ command: EditorPageCommand) {
-    defer { onPageCommandHandled(command) }
+    var succeeded = false
+    defer { onPageCommandHandled(command, succeeded) }
     do {
       switch command.action {
       case .identified:
@@ -1187,6 +1188,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         toggleFigureCapture(page: page)
       }
       refreshSelectionBar()
+      succeeded = true
     } catch {
       onError(error)
     }
@@ -1916,7 +1918,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let onEditCommitted: () -> Void
   let onSaveRequested: () -> Void
   let onCurrentPageChanged: (Int) -> Void
-  let onPageCommandHandled: (EditorPageCommand) -> Void
+  let onPageCommandHandled: (EditorPageCommand, Bool) -> Void
   let onBookmarkModeChanged: (Bool) -> Void
   let onTextRequested: (EditorTextRequest) -> Void
   let onLinkSelectionRequested: (Int) -> Void
@@ -2077,7 +2079,7 @@ struct InkEditorView: View {
         },
         onSaveRequested: onSaveRequested,
         onCurrentPageChanged: { currentPage = $0 },
-        onPageCommandHandled: { handled in
+        onPageCommandHandled: { handled, _ in
           DispatchQueue.main.async {
             if pageCommand == handled { pageCommand = nil }
           }
