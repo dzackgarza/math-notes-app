@@ -157,6 +157,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private let onEditCommitted: () -> Void
   private let onSaveRequested: () -> Void
   private let onInsertImageRequested: () -> Void
+  private let onShowClippingsRequested: () -> Void
   private let onCurrentPageChanged: (Int) -> Void
   private let onPageCommandHandled: (EditorPageCommand, Bool) -> Void
   private let onBookmarkModeChanged: (Bool) -> Void
@@ -247,6 +248,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     onEditCommitted: @escaping () -> Void = {},
     onSaveRequested: @escaping () -> Void = {},
     onInsertImageRequested: @escaping () -> Void = {},
+    onShowClippingsRequested: @escaping () -> Void = {},
     onCurrentPageChanged: @escaping (Int) -> Void = { _ in },
     onPageCommandHandled: @escaping (EditorPageCommand, Bool) -> Void = { _, _ in },
     onBookmarkModeChanged: @escaping (Bool) -> Void = { _ in },
@@ -270,6 +272,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     self.onEditCommitted = onEditCommitted
     self.onSaveRequested = onSaveRequested
     self.onInsertImageRequested = onInsertImageRequested
+    self.onShowClippingsRequested = onShowClippingsRequested
     self.onCurrentPageChanged = onCurrentPageChanged
     self.onPageCommandHandled = onPageCommandHandled
     self.onBookmarkModeChanged = onBookmarkModeChanged
@@ -299,6 +302,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     [
       editorKeyCommand("s", modifiers: .command, action: #selector(keyboardSave), title: "Save"),
       editorKeyCommand("i", modifiers: .command, action: #selector(keyboardInsertImage), title: "Insert Image"),
+      editorKeyCommand("k", modifiers: .command.union(.shift), action: #selector(keyboardClippings), title: "Clippings"),
       editorKeyCommand("z", modifiers: .command, action: #selector(keyboardUndo), title: "Undo"),
       editorKeyCommand(
         "z",
@@ -1167,6 +1171,11 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   @objc private func keyboardDuplicate() {
     guard keyboardEditingAllowed else { return }
     duplicateSelection()
+  }
+
+  @objc private func keyboardClippings() {
+    guard keyboardEditingAllowed else { return }
+    onShowClippingsRequested()
   }
 
   @objc private func keyboardInsertImage() {
@@ -2268,6 +2277,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let onEditCommitted: () -> Void
   let onSaveRequested: () -> Void
   let onInsertImageRequested: () -> Void
+  let onShowClippingsRequested: () -> Void
   let onCurrentPageChanged: (Int) -> Void
   let onPageCommandHandled: (EditorPageCommand, Bool) -> Void
   let onBookmarkModeChanged: (Bool) -> Void
@@ -2293,6 +2303,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       onEditCommitted: onEditCommitted,
       onSaveRequested: onSaveRequested,
       onInsertImageRequested: onInsertImageRequested,
+      onShowClippingsRequested: onShowClippingsRequested,
       onCurrentPageChanged: onCurrentPageChanged,
       onPageCommandHandled: onPageCommandHandled,
       onBookmarkModeChanged: onBookmarkModeChanged,
@@ -2430,6 +2441,7 @@ struct InkEditorView: View {
         },
         onSaveRequested: onSaveRequested,
         onInsertImageRequested: onInsertImage,
+        onShowClippingsRequested: onShowClippings,
         onCurrentPageChanged: { currentPage = $0 },
         onPageCommandHandled: { handled, _ in
           DispatchQueue.main.async {
