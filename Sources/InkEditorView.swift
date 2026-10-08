@@ -423,6 +423,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     pageLongPress.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
     self.pageLongPress = pageLongPress
     canvasView.addGestureRecognizer(pageLongPress)
+    let secondaryClick = UITapGestureRecognizer(target: self, action: #selector(handlePageSecondaryClick))
+    secondaryClick.buttonMaskRequired = .secondary
+    canvasView.addGestureRecognizer(secondaryClick)
     canvasView.addInteraction(UIDragInteraction(delegate: self))
     canvasView.addInteraction(UIDropInteraction(delegate: self))
     let directTap = UITapGestureRecognizer(target: self, action: #selector(handleDirectTap))
@@ -993,6 +996,17 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     guard recognizer.state == .began, !fingerDrawing,
       !figureCaptureActive, !figureCompleting,
       let pageEditMenuInteraction
+    else { return }
+    onFocusRequested()
+    pageEditMenuInteraction.presentEditMenu(
+      with: UIEditMenuConfiguration(
+        identifier: nil,
+        sourcePoint: recognizer.location(in: canvasView)))
+  }
+
+  @objc private func handlePageSecondaryClick(_ recognizer: UITapGestureRecognizer) {
+    guard recognizer.state == .ended, !figureCaptureActive, !figureCompleting,
+      hostActive, hostFocused, let pageEditMenuInteraction
     else { return }
     onFocusRequested()
     pageEditMenuInteraction.presentEditMenu(
