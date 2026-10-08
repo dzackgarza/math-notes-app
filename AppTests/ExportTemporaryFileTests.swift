@@ -47,6 +47,19 @@ final class ExportTemporaryFileTests: XCTestCase {
     XCTAssertTrue(FileManager.default.fileExists(atPath: sentinel.path))
   }
 
+  func testCleanupPreservesUnrelatedDirectoryInTemporaryRoot() throws {
+    let folder = FileManager.default.temporaryDirectory
+      .appendingPathComponent("mathnotes-export-not-an-export", isDirectory: true)
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let pdf = folder.appendingPathComponent("example.pdf")
+    let sentinel = folder.appendingPathComponent("other.txt")
+    try Data("pdf".utf8).write(to: pdf)
+    try Data("keep".utf8).write(to: sentinel)
+    removeExportTemporaryFile(pdf)
+    XCTAssertTrue(FileManager.default.fileExists(atPath: sentinel.path))
+  }
+
   func testExportTemporaryFileCleanupIsIdempotent() throws {
     let url = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString)

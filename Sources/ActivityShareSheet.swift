@@ -25,7 +25,8 @@ func removeExportTemporaryFile(_ url: URL) {
   let folder = url.deletingLastPathComponent()
   if folder.deletingLastPathComponent().standardizedFileURL ==
       FileManager.default.temporaryDirectory.standardizedFileURL,
-    folder.lastPathComponent.hasPrefix("mathnotes-export-")
+    folder.lastPathComponent.hasPrefix("mathnotes-export-"),
+    UUID(uuidString: String(folder.lastPathComponent.dropFirst("mathnotes-export-".count))) != nil
   {
     try? FileManager.default.removeItem(at: folder)
   }
