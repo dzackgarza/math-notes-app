@@ -175,7 +175,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private let onEditCommitted: () -> Void
   private let onSaveRequested: () -> Void
   private let onCurrentPageChanged: (Int) -> Void
-  private let onPageCommandHandled: () -> Void
+  private let onPageCommandHandled: (EditorPageCommand) -> Void
   private let onBookmarkModeChanged: (Bool) -> Void
   private let onTextRequested: (EditorTextRequest) -> Void
   private let onLinkSelectionRequested: (Int) -> Void
@@ -260,7 +260,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     onEditCommitted: @escaping () -> Void = {},
     onSaveRequested: @escaping () -> Void = {},
     onCurrentPageChanged: @escaping (Int) -> Void = { _ in },
-    onPageCommandHandled: @escaping () -> Void = {},
+    onPageCommandHandled: @escaping (EditorPageCommand) -> Void = { _ in },
     onBookmarkModeChanged: @escaping (Bool) -> Void = { _ in },
     onTextRequested: @escaping (EditorTextRequest) -> Void = { _ in },
     onLinkSelectionRequested: @escaping (Int) -> Void = { _ in },
@@ -1107,7 +1107,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   private func handlePageCommand(_ command: EditorPageCommand) {
-    defer { onPageCommandHandled() }
+    defer { onPageCommandHandled(command) }
     do {
       switch command {
       case let .select(page):
@@ -1899,7 +1899,7 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   let onEditCommitted: () -> Void
   let onSaveRequested: () -> Void
   let onCurrentPageChanged: (Int) -> Void
-  let onPageCommandHandled: () -> Void
+  let onPageCommandHandled: (EditorPageCommand) -> Void
   let onBookmarkModeChanged: (Bool) -> Void
   let onTextRequested: (EditorTextRequest) -> Void
   let onLinkSelectionRequested: (Int) -> Void
@@ -2060,9 +2060,9 @@ struct InkEditorView: View {
         },
         onSaveRequested: onSaveRequested,
         onCurrentPageChanged: { currentPage = $0 },
-        onPageCommandHandled: {
+        onPageCommandHandled: { handled in
           DispatchQueue.main.async {
-            pageCommand = nil
+            if pageCommand == handled { pageCommand = nil }
           }
         },
         onBookmarkModeChanged: { active in
