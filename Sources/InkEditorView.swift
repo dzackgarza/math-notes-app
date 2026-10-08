@@ -748,7 +748,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       return source.dragSelectionSVG != nil && source.dragSelectionFrame != nil && source.dragSelectionPage != nil &&
         source.dragDocumentRevision == source.documentRevision
     }
-    return [notebookSelectionCopyDragType, .svg, .utf8PlainText, .plainText, .png, .jpeg].contains {
+    return [notebookSelectionCopyDragType, .svg, .utf8PlainText, .plainText, .png, .jpeg, .heic, .heif, .tiff].contains {
       item.itemProvider.hasItemConformingToTypeIdentifier($0.identifier)
     } || item.itemProvider.canLoadObject(ofClass: UIImage.self) ||
       item.itemProvider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
@@ -775,7 +775,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       let destinationRevision = documentRevision
       let provider = item.itemProvider
       if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) &&
-        ![notebookSelectionCopyDragType, .svg, .utf8PlainText, .plainText, .png, .jpeg].contains(where: {
+        ![notebookSelectionCopyDragType, .svg, .utf8PlainText, .plainText, .png, .jpeg, .heic, .heif, .tiff].contains(where: {
           provider.hasItemConformingToTypeIdentifier($0.identifier)
         }) {
         _ = provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { [weak self] item, _ in
@@ -837,7 +837,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         }
         return
       }
-      if ![notebookSelectionCopyDragType, .svg, .utf8PlainText, .plainText, .png, .jpeg].contains(where: {
+      if ![notebookSelectionCopyDragType, .svg, .utf8PlainText, .plainText, .png, .jpeg, .heic, .heif, .tiff].contains(where: {
         provider.hasItemConformingToTypeIdentifier($0.identifier)
       }) {
         _ = provider.loadObject(ofClass: UIImage.self) { [weak self] object, _ in
@@ -872,6 +872,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         copyType = .png
       } else if item.itemProvider.hasItemConformingToTypeIdentifier(UTType.jpeg.identifier) {
         copyType = .jpeg
+      } else if let rasterType = [UTType.heic, .heif, .tiff].first(where: {
+        item.itemProvider.hasItemConformingToTypeIdentifier($0.identifier)
+      }) {
+        copyType = rasterType
       } else if item.itemProvider.hasItemConformingToTypeIdentifier(UTType.utf8PlainText.identifier) {
         copyType = .utf8PlainText
       } else {
@@ -887,14 +891,27 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
           else { return }
           do {
             let svg: String
-            if copyType == .png || copyType == .jpeg {
+            if [.png, .jpeg, .heic, .heif, .tiff].contains(copyType) {
               guard let image = UIImage(data: data)?.cgImage,
                 let page = self.canvasView.page(at: point)
               else { return }
               let pageSize = try self.document.pageRect(index: page).size
+              let importedData: Data
+              let mimeType: String
+              switch copyType {
+              case .png:
+                importedData = data
+                mimeType = "image/png"
+              case .jpeg:
+                importedData = data
+                mimeType = "image/jpeg"
+              default:
+                guard let png = UIImage(cgImage: image).pngData() else { return }
+                importedData = png
+                mimeType = "image/png"
+              }
               svg = try imageImportSVG(
-                data: data,
-                mimeType: copyType == .png ? "image/png" : "image/jpeg",
+                data: importedData, mimeType: mimeType,
                 imageSize: CGSize(width: image.width, height: image.height),
                 pageSize: pageSize)
             } else {
