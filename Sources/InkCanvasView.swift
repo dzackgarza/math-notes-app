@@ -375,7 +375,11 @@ final class InkCanvasView: UIView {
 
     var samples: [InkPenSample] = []
     for touch in touches where touch.type == .pencil {
-      if touch.phase == .began { pencilTouch = touch }
+      if touch.phase == .began {
+        pencilTouch = touch
+      } else if pencilTouch !== touch {
+        continue
+      }
       if touch.phase == .ended || touch.phase == .cancelled { pencilTouch = nil }
       let coalesced = event?.coalescedTouches(for: touch) ?? [touch]
       for (index, realTouch) in coalesced.enumerated() {
