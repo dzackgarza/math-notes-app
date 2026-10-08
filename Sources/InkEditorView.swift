@@ -787,12 +787,15 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     guard dropInteraction(interaction, canHandle: session), let item = session.items.first else { return }
     if !(item.localObject is InkEditorViewController) {
       let point = session.location(in: canvasView)
+      let destinationRevision = documentRevision
       item.itemProvider.loadDataRepresentation(
         forTypeIdentifier: notebookSelectionCopyDragType.identifier
       ) { [weak self] data, _ in
         guard let data, let svg = String(data: data, encoding: .utf8), svg.contains("<svg") else { return }
         Task { @MainActor [weak self] in
-          guard let self, self.hostActive, !self.figureCaptureActive, !self.figureCompleting else { return }
+          guard let self, self.hostActive, !self.figureCaptureActive, !self.figureCompleting,
+            self.documentRevision == destinationRevision
+          else { return }
           do {
             try self.canvasView.paste(svg, at: point, placeAtPointer: true)
             self.onEditCommitted()
