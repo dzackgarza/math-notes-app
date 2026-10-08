@@ -1027,7 +1027,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     let pressedPage = canvasView.page(at: location)
     guard pressedPage != nil || canvasView.selectionFrame() != nil else { return nil }
     let svg = selectionFromPasteboard()
-    let canSaveClipping = canvasView.selectionFrame() != nil
+    let selectedPage = canvasView.selectionPage()
+    let canSaveClipping = canvasView.selectionFrame() != nil &&
+      (pressedPage == nil || selectedPage == pressedPage)
     var actions: [UIMenuElement] = []
     if pressedPage != nil && ((svg?.contains("<svg") == true) ||
       UIPasteboard.general.data(forPasteboardType: UTType.png.identifier) != nil ||
@@ -1117,7 +1119,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
         self?.clearSelection()
       })
     }
-    if let page = pressedPage, !canSaveClipping {
+    if let page = pressedPage, canvasView.selectionFrame() == nil {
       actions.append(UIAction(
         title: "Save Page to Clippings",
         image: UIImage(systemName: "tray.and.arrow.down")
