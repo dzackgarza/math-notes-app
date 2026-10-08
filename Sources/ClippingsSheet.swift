@@ -183,7 +183,9 @@ struct ClippingsSheet: View {
           svg.contains("<svg")
         else { return }
         Task { @MainActor in
-          guard !drawing, onSave(svg) else { return }
+          guard ClippingsPanelAvailability(
+            selectionActive: selectionActive, drawing: drawing
+          ).canAcceptDrop, onSave(svg) else { return }
           if let refreshed = onRefresh() { items = refreshed }
         }
       }
