@@ -856,7 +856,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     guard hostActive, hostFocused, !figureCaptureActive, !figureCompleting else { return nil }
     onFocusRequested()
     let location = configuration.sourcePoint
-    let svg = UIPasteboard.general.string
+    let svg = selectionFromPasteboard()
     let canSaveClipping = canvasView.selectionFrame() != nil
     var actions: [UIMenuElement] = []
     if let svg, svg.contains("<svg") {
@@ -1004,7 +1004,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
 
   @objc private func keyboardPaste() {
     guard keyboardEditingAllowed,
-      let svg = UIPasteboard.general.string,
+      let svg = selectionFromPasteboard(),
       svg.contains("<svg")
     else { return }
     paste(svg, at: CGPoint(x: canvasView.bounds.midX, y: canvasView.bounds.midY))
@@ -1107,10 +1107,25 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     onSelectionChanged(active)
   }
 
+  private func writeSelectionToPasteboard(_ svg: String) {
+    UIPasteboard.general.items = [[
+      UTType.svg.identifier: Data(svg.utf8),
+      UTType.utf8PlainText.identifier: svg,
+    ]]
+  }
+
+  private func selectionFromPasteboard() -> String? {
+    if let data = UIPasteboard.general.data(forPasteboardType: UTType.svg.identifier),
+      let svg = String(data: data, encoding: .utf8) {
+      return svg
+    }
+    return UIPasteboard.general.string
+  }
+
   @objc private func copySelection() {
     do {
       guard let svg = try canvasView.copySelection(), !svg.isEmpty else { return }
-      UIPasteboard.general.string = svg
+      writeSelectionToPasteboard(svg)
     } catch {
       onError(error)
     }
@@ -1119,7 +1134,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   @objc private func cutSelection() {
     do {
       guard let svg = try canvasView.copySelection(), !svg.isEmpty else { return }
-      UIPasteboard.general.string = svg
+      writeSelectionToPasteboard(svg)
       try canvasView.deleteSelection()
       onEditCommitted()
       refreshSelectionBar()
