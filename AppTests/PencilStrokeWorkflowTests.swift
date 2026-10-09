@@ -66,7 +66,8 @@ final class PencilStrokeWorkflowTests: XCTestCase {
     try events.stylusMove(to: CGPoint(x: center.x + 6, y: center.y + 4), duration: 0.05)
     try events.stylusUp()
     try awaitSaved(session)
-    XCTAssertEqual(try savedStrokeCount(directory, reference), 1, "the short pencil stroke was not saved")
+    let tick = try savedStrokeIDs(directory, reference)
+    XCTAssertEqual(tick.count, 1, "the short pencil stroke was not saved")
 
     // A long stroke across the page.
     let rowY = center.y + 80
@@ -74,7 +75,9 @@ final class PencilStrokeWorkflowTests: XCTestCase {
     try events.stylusMove(to: CGPoint(x: center.x + 150, y: rowY), duration: 0.5)
     try events.stylusUp()
     try awaitSaved(session)
-    XCTAssertEqual(try savedStrokeCount(directory, reference), 2, "the long pencil stroke was not saved")
+    let both = try savedStrokeIDs(directory, reference)
+    XCTAssertEqual(both.count, 2, "the long pencil stroke was not saved")
+    XCTAssertTrue(tick.isSubset(of: both), "the long stroke replaced the tick")
 
     // The stroke eraser drawn across the long stroke removes it and only it.
     state.tool = .eraser
@@ -82,7 +85,7 @@ final class PencilStrokeWorkflowTests: XCTestCase {
     try events.stylusMove(to: CGPoint(x: center.x, y: rowY + 40), duration: 0.3)
     try events.stylusUp()
     try awaitSaved(session)
-    XCTAssertEqual(try savedStrokeCount(directory, reference), 1, "the stroke eraser did not remove the long stroke")
+    XCTAssertEqual(try savedStrokeIDs(directory, reference), tick, "the stroke eraser must remove the long stroke and only it")
   }
 
   // The app's autosave runs a second after the last edit; this waits for the
@@ -94,10 +97,10 @@ final class PencilStrokeWorkflowTests: XCTestCase {
     wait(for: [saved], timeout: 5)
   }
 
-  private func savedStrokeCount(_ directory: URL, _ reference: NotebookReference) throws -> Int {
+  private func savedStrokeIDs(_ directory: URL, _ reference: NotebookReference) throws -> Set<String> {
     let page = directory.appendingPathComponent(reference.name, isDirectory: true)
       .appendingPathComponent("pages/0001.svg")
-    let counter = BrushElementCounter()
+    let counter = SavedStrokeIDs()
     let parser = try XCTUnwrap(XMLParser(contentsOf: page))
     parser.delegate = counter
     XCTAssertTrue(parser.parse(), "the saved page is not well-formed: \(String(describing: parser.parserError))")
@@ -113,9 +116,9 @@ final class PencilStrokeWorkflowTests: XCTestCase {
   }
 }
 
-// Each saved stroke is an element carrying its brush (mn:brush).
-private final class BrushElementCounter: NSObject, XMLParserDelegate {
-  var strokes = 0
+// Each saved stroke is an element carrying its brush (mn:brush) and its id.
+private final class SavedStrokeIDs: NSObject, XMLParserDelegate {
+  var strokes: Set<String> = []
 
   func parser(
     _ parser: XMLParser,
@@ -124,7 +127,12 @@ private final class BrushElementCounter: NSObject, XMLParserDelegate {
     qualifiedName: String?,
     attributes: [String: String]
   ) {
-    if attributes["mn:brush"] != nil { strokes += 1 }
+    guard attributes["mn:brush"] != nil else { return }
+    guard let id = attributes["id"] else {
+      parser.abortParsing()
+      return
+    }
+    strokes.insert(id)
   }
 }
 

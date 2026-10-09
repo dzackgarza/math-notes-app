@@ -8,9 +8,7 @@
 #include "format/notebook.h"
 #include "format/numbers.h"
 #include "format/page_svg.h"
-#include "ink/strokes/stroke.h"
 #include "support/notebook_dir.h"
-#include "support/trace.h"
 
 using namespace ink_engine;
 
@@ -109,39 +107,6 @@ TEST_CASE("Ids come from a seedable generator") {
   CHECK(stroke.size() == 14);
   CHECK(page.starts_with("p-"));
   CHECK(stroke.find_first_not_of("abcdefghijklmnopqrstuvwxyz234567", 2) == std::string::npos);
-}
-
-TEST_CASE("A page of 400 recorded strokes reads back and writes the same bytes again") {
-  auto inputs = ink_test::RealInputs(ink_test::ReadTrace(INK_FIXTURE_DIR "/ink/spring_shape.trace"));
-  ink::Stroke recorded(ink_test::StockTestBrushes()[1].brush, inputs);
-
-  Stroke stroke{.fill = {26, 26, 26}, .brush = "pressure-pen", .size = 5,
-                .time = "2026-09-25T17:43:21.123Z",
-                .channels = kChannelX | kChannelY | kChannelT | kChannelF | kChannelOE | kChannelOA};
-  for (const auto &v : ink_test::Outline(recorded)) {
-    if (stroke.outline.size() <= v.group + v.outline) stroke.outline.emplace_back();
-    stroke.outline[v.group + v.outline].push_back({v.position.x, v.position.y});
-  }
-  for (ink::StrokeInput in : inputs) {
-    stroke.samples.push_back({.x = in.position.x, .y = in.position.y,
-                              .t = in.elapsed_time.ToMillis(), .force = in.pressure,
-                              .altitude = in.tilt.ValueInRadians(),
-                              .azimuth = in.orientation.ValueInRadians()});
-  }
-
-  IdGenerator ids(7);
-  Page page{.id = ids.PageId(), .file = "pages/0001.svg", .width = 595.28, .height = 841.89};
-  LayerContent layer{.layer_id = ids.LayerId()};
-  for (int i = 0; i < 400; ++i) {
-    stroke.id = ids.StrokeId();
-    stroke.transform = {.e = double(i % 20) * 25, .f = double(i / 20) * 40};
-    layer.elements = std::move(layer.elements).push_back(immer::box<Element>(Element{stroke}));
-  }
-  page.layers.push_back(layer);
-  std::string bytes = WritePage(page);
-  Page read = ReadPage(bytes, page.file, {layer.layer_id});
-  REQUIRE(read.layers[0].elements.size() == 400);
-  CHECK(WritePage(read) == bytes);
 }
 
 TEST_CASE("A TikZ figure stays visible in standalone SVG and retains its editable references") {

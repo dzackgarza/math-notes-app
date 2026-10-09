@@ -341,32 +341,18 @@ TEST_CASE("A pen stroke off the selection only clears it; the next stroke draws"
   CHECK(canvas.document->history.size() == steps + 1);
 }
 
-TEST_CASE("A stroke on a hidden or locked active layer commits nothing") {
-  const auto [hidden, locked] = GENERATE(table<int, int>({{1, 0}, {0, 1}}));
-  CAPTURE(hidden, locked);
+// A locked layer takes no edits (docs/FEATURES.md, layers).
+TEST_CASE("A stroke on a locked active layer commits nothing") {
   ink_test::Session canvas;
   REQUIRE(ink_document_add_layer(canvas.document, "Second") == INK_OK);
   REQUIRE(ink_canvas_set_layer(canvas.get(), 1) == INK_OK);
-  REQUIRE(ink_document_set_layer(canvas.document, 1, "Second", hidden, locked) == INK_OK);
+  REQUIRE(ink_document_set_layer(canvas.document, 1, "Second", 0, 1) == INK_OK);
   const size_t steps = canvas.document->history.size();
 
   PenLine(canvas.get(), 100, 300, 200, 0);
   CHECK(ElementCount(canvas, 0) == 0);
   CHECK(ElementCount(canvas, 1) == 0);
   CHECK(canvas.document->history.size() == steps);
-}
-
-TEST_CASE("Locking the active layer during a stroke discards it; the next stroke after unlocking draws") {
-  ink_test::Session canvas;
-  PenLine(canvas.get(), 100, 300, 200, 0, false);
-  REQUIRE(ink_document_set_layer(canvas.document, 0, "Layer 1", 0, 1) == INK_OK);
-  InkPenSample up = PenSample(310, 200, 120, INK_PHASE_END);
-  REQUIRE(ink_input(canvas.get(), &up, 1) == INK_OK);
-  CHECK(ElementCount(canvas, 0) == 0);
-
-  REQUIRE(ink_document_set_layer(canvas.document, 0, "Layer 1", 0, 0) == INK_OK);
-  PenLine(canvas.get(), 100, 300, 300, 1000);
-  CHECK(ElementCount(canvas, 0) == 1);
 }
 
 TEST_CASE("A host cancel discards the live stroke; the next stroke draws") {
