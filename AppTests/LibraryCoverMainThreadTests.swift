@@ -1,4 +1,3 @@
-import Darwin
 import InkEngine
 import SwiftUI
 import UIKit
@@ -6,10 +5,10 @@ import XCTest
 @testable import MathNotes
 
 // The 0.1.293 watchdog reports (docs/reports/device-logs) show the main thread
-// blocked in read() under NotesRootAccess.thumbnail, called from
-// LibraryNotebookCover's task, while Dropbox downloaded a page on demand. A
-// FIFO in place of the page file blocks read() the same way until its writer
-// delivers the bytes.
+// waiting inside a coordinated read under NotesRootAccess.thumbnail, called from
+// LibraryNotebookCover's task, while Dropbox supplied a page on demand. A
+// coordinated write held on the page makes the thumbnail's coordinated read wait
+// the same way.
 @MainActor
 final class LibraryCoverMainThreadTests: XCTestCase {
   func testCoverThumbnailKeepsMainThreadResponsiveWhileItsPageReadWaits() throws {
@@ -32,14 +31,15 @@ final class LibraryCoverMainThreadTests: XCTestCase {
     XCTAssertNotNil(item.coverNote)
 
     let page = directory.appendingPathComponent("Dropbox/Lecture/pages/0001.svg")
-    let server = try SlowFileServer(replacing: page, delay: 3)
-    defer { server.stop() }
+    let hold = CoordinatedWriteHold(on: page, for: 3)
 
     // The cover's .task: a main-actor task that asks the root for the thumbnail.
     let cover = try XCTUnwrap(item.coverNote)
     let outcome = ThumbnailOutcome()
     let heartbeat = MainThreadHeartbeat()
+    let started = ProcessInfo.processInfo.systemUptime
     Task { @MainActor in
+      defer { outcome.seconds = ProcessInfo.processInfo.systemUptime - started }
       do {
         outcome.result = .success(try await root.thumbnail(cover))
       } catch {
@@ -50,7 +50,8 @@ final class LibraryCoverMainThreadTests: XCTestCase {
     heartbeat.stop()
 
     XCTAssertNotNil(try XCTUnwrap(outcome.result, "the thumbnail never finished").get())
-    XCTAssertGreaterThan(server.servedReads, 0, "the thumbnail never read the page file")
+    try hold.check()
+    XCTAssertGreaterThanOrEqual(outcome.seconds, 2.5, "the thumbnail did not wait for the held page")
     XCTAssertLessThan(
       heartbeat.longestGap, 0.5,
       "the main thread stalled \(heartbeat.longestGap) s while the thumbnail waited on its page file")
@@ -60,6 +61,7 @@ final class LibraryCoverMainThreadTests: XCTestCase {
 @MainActor
 final class ThumbnailOutcome {
   var result: Result<Data?, Error>?
+  var seconds: TimeInterval = 0
 }
 
 // Records the longest interval between main-run-loop timer ticks.
@@ -87,51 +89,38 @@ final class MainThreadHeartbeat {
   }
 }
 
-// Replaces a file with a FIFO. Each time a reader opens it, the server waits
-// `delay` seconds before writing the original bytes, as an on-demand download does.
-final class SlowFileServer: @unchecked Sendable {
-  private let path: String
-  private let bytes: Data
-  private let delay: TimeInterval
-  private let lock = NSLock()
-  private var stopped = false
-  private var reads = 0
+// Holds a coordinated write on a file from a background thread, as a file
+// provider holds an item while it downloads; coordinated readers wait until the
+// hold ends. Spins the main run loop until the hold starts, because the notes
+// root's file presenter answers coordination on the main queue.
+@MainActor
+final class CoordinatedWriteHold {
+  private let state = HoldState()
 
-  var servedReads: Int { lock.withLock { reads } }
-
-  init(replacing file: URL, delay: TimeInterval) throws {
-    path = file.path
-    bytes = try Data(contentsOf: file)
-    self.delay = delay
-    try FileManager.default.removeItem(at: file)
-    // A reader that closes early must surface as EPIPE, not kill the test process.
-    signal(SIGPIPE, SIG_IGN)
-    guard mkfifo(path, 0o644) == 0 else {
-      throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
-    }
-    Thread.detachNewThread { [self] in serve() }
-  }
-
-  private func serve() {
-    while true {
-      let fd = open(path, O_WRONLY)
-      if lock.withLock({ stopped }) {
-        if fd >= 0 { close(fd) }
-        return
+  init(on file: URL, for duration: TimeInterval) {
+    let state = self.state
+    Thread.detachNewThread {
+      var error: NSError?
+      NSFileCoordinator().coordinate(writingItemAt: file, options: [], error: &error) { _ in
+        state.set(.holding)
+        Thread.sleep(forTimeInterval: duration)
       }
-      precondition(fd >= 0, "open FIFO for writing failed: \(errno)")
-      Thread.sleep(forTimeInterval: delay)
-      let written = bytes.withUnsafeBytes { raw in write(fd, raw.baseAddress, raw.count) }
-      close(fd)
-      precondition(written == bytes.count || errno == EPIPE, "FIFO write failed: \(errno)")
-      if written == bytes.count { lock.withLock { reads += 1 } }
+      state.set(error.map { .failed($0) } ?? .released)
+    }
+    while state.get() == .waiting {
+      RunLoop.main.run(until: Date().addingTimeInterval(0.01))
     }
   }
 
-  // Opens and closes the reading end so a writer waiting in open() returns and exits.
-  func stop() {
-    lock.withLock { stopped = true }
-    let fd = open(path, O_RDONLY | O_NONBLOCK)
-    if fd >= 0 { close(fd) }
+  func check() throws {
+    if case let .failed(error) = state.get() { throw error }
   }
+}
+
+final class HoldState: @unchecked Sendable {
+  enum Phase: Equatable { case waiting, holding, released, failed(NSError) }
+  private let lock = NSLock()
+  private var phase = Phase.waiting
+  func get() -> Phase { lock.withLock { phase } }
+  func set(_ next: Phase) { lock.withLock { phase = next } }
 }
