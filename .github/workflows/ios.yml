@@ -51,12 +51,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Left shut down: parallel app tests clone it, and Catch2 boots it afterwards.
-      - name: Pick an iPad Simulator
+      # Booting now overlaps the simulator's cold start with the engine build.
+      - name: Boot an iPad Simulator
         id: simulator
         run: |
           udid=$(xcrun simctl list devices available -j \
             | jq -r '[.devices[][] | select(.name | startswith("iPad"))][0].udid')
+          xcrun simctl boot "$udid"
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
 
       - name: Install tools
@@ -166,8 +167,6 @@ jobs:
             -project MathNotes.xcodeproj \
             -scheme MathNotes \
             -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
-            -parallel-testing-enabled YES \
-            -parallel-testing-worker-count 3 \
             CODE_SIGNING_ALLOWED=NO
 
       - name: Set up vcpkg for the Catch2 build
@@ -207,6 +206,18 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             MARKETING_VERSION="$VERSION" \
             CURRENT_PROJECT_VERSION="$BUILD"
+
+      # Release binaries are stripped; device crash reports symbolicate only against this.
+      - name: Package debug symbols
+        run: |
+          dsym="$RUNNER_TEMP/MathNotes.xcarchive/dSYMs/MathNotes.app.dSYM"
+          dwarfdump --uuid "$dsym"
+          ditto -c -k --keepParent "$dsym" MathNotes.dSYM.zip
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: MathNotes-${{ env.BUILD }}-dSYM
+          path: MathNotes.dSYM.zip
 
       - name: Make unsigned IPA
         run: |
@@ -263,9 +274,9 @@ jobs:
         run: |
           test "$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)" = "$SOURCE_SHA"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" MathNotes.ipa source.json --clobber
+            gh release upload "$TAG" MathNotes.ipa source.json MathNotes.dSYM.zip --clobber
           else
-            gh release create "$TAG" MathNotes.ipa source.json --latest --target "$SOURCE_SHA" \
+            gh release create "$TAG" MathNotes.ipa source.json MathNotes.dSYM.zip --latest --target "$SOURCE_SHA" \
               --title "$VERSION ($SOURCE_SHA)" \
               --notes "Unsigned; install with SideStore."
           fi
