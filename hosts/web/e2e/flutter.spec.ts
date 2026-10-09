@@ -3952,6 +3952,35 @@ function storedNote(page: Page, path: string[]) {
   }, path));
 }
 
+// Paper for new pages: a style is chosen while another file task holds the
+// files lock (math-notes-files in src/storage/folder.ts, as a save or a
+// library scan does), and Done is pressed before that task ends. The next new
+// page has the chosen paper, and nothing fails after the sheet is gone.
+test("Flutter applies a paper style chosen while a file task is under way", async ({ page }) => {
+  test.setTimeout(120_000);
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  await openNewNote(page, "Paper");
+  const errors: string[] = [];
+  page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+  await button("Pages").click();
+  await button("Paper for new pages").click();
+  await expect(button("Lined paper")).toBeVisible();
+  await page.evaluate(() => new Promise<void>((held) => {
+    void navigator.locks.request("math-notes-files", () => new Promise<void>((release) => {
+      (window as unknown as { releaseFiles: () => void }).releaseFiles = release;
+      held();
+    }));
+  }));
+  await button("Lined paper").click();
+  await button("Done").click();
+  await page.evaluate(() => (window as unknown as { releaseFiles: () => void }).releaseFiles());
+  await button("Pages").click();
+  await button("Add page").click();
+  await expect(page.getByText(/^\d \/ 2$/)).toBeVisible();
+  expect((await savedPages(page, "Paper")).map(({ ruling }) => ruling)[1], "the new page is lined").toBe("lined");
+  expect(errors, "no failure after the sheet closed").toEqual([]);
+});
+
 // A sync client rewrote page 1 while the note had unsaved strokes. The save
 // keeps the outside version and writes the local one beside it as a conflict
 // copy; comparing them and keeping both makes the local version a page.
