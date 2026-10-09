@@ -51,13 +51,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Booting now overlaps the simulator's cold start with the engine build.
-      - name: Boot an iPad Simulator
+      # Left shut down: parallel app tests clone it, and Catch2 boots it afterwards.
+      - name: Pick an iPad Simulator
         id: simulator
         run: |
           udid=$(xcrun simctl list devices available -j \
             | jq -r '[.devices[][] | select(.name | startswith("iPad"))][0].udid')
-          xcrun simctl boot "$udid"
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
 
       - name: Install tools
@@ -97,31 +96,64 @@ jobs:
           key: ${{ steps.skia-cache.outputs.cache-primary-key }}
 
       - name: Restore vcpkg binary cache
+        id: vcpkg-cache
         uses: actions/cache/restore@v6
         with:
           path: ${{ github.workspace }}/.ci/vcpkg-bin
           key: vcpkg-ios-${{ hashFiles('core/vcpkg.json', 'core/triplets/**') }}
 
-        id: vcpkg-cache
-      - name: Set up vcpkg
-        run: |
+      - name: Read the Xcode version
+        id: xcode
+        run: echo "version=$(xcodebuild -version | tr -s '\n ' '-')" >> "$GITHUB_OUTPUT"
+
+      # A Swift-only change reuses the engine framework built for the same core and Xcode.
+      - name: Restore engine xcframework
+        id: engine-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: build/InkEngine.xcframework
+          key: ios-engine-${{ steps.xcode.outputs.version }}-${{ hashFiles('core/**') }}
+
+      - name: Set up vcpkg for the engine build
+        if: steps.engine-cache.outputs.cache-hit != 'true'
+        run: &vcpkg-setup |
           git clone -q https://github.com/microsoft/vcpkg "$VCPKG_ROOT"
           mkdir -p "$(dirname "$VCPKG_ROOT")/vcpkg-bin"
           "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
 
       - name: Build engine xcframework
+        if: steps.engine-cache.outputs.cache-hit != 'true'
         run: core/scripts/build-ios-xcframework.sh "$SKIA_DIR" "$VCPKG_ROOT"
 
-      - name: Save iOS dependency cache
-        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
+      - name: Save engine xcframework
+        if: steps.engine-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v6
         with:
-          path: ${{ github.workspace }}/.ci/vcpkg-bin
-          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
+          path: build/InkEngine.xcframework
+          key: ${{ steps.engine-cache.outputs.cache-primary-key }}
+
       - uses: oven-sh/setup-bun@v2
 
+      # build-tikz.mjs pins every source revision it fetches.
+      - name: Restore iPad TikZ resources
+        id: tikz-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: &tikz-paths |
+            Resources/TikZEditor
+            Resources/TikZRuntime/figure-generator.js
+          key: ios-tikz-${{ hashFiles('hosts/web/build-tikz.mjs', 'hosts/web/tikz-embed.html', 'hosts/web/ipad-figure-generator.js') }}
+
       - name: Build iPad TikZ resources
+        if: steps.tikz-cache.outputs.cache-hit != 'true'
         run: node hosts/web/build-tikz.mjs Resources/TikZEditor Resources/TikZRuntime
+
+      - name: Save iPad TikZ resources
+        if: steps.tikz-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: *tikz-paths
+          key: ${{ steps.tikz-cache.outputs.cache-primary-key }}
 
       - name: Generate Xcode project
         run: xcodegen generate
@@ -134,7 +166,13 @@ jobs:
             -project MathNotes.xcodeproj \
             -scheme MathNotes \
             -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
+            -parallel-testing-enabled YES \
+            -parallel-testing-worker-count 3 \
             CODE_SIGNING_ALLOWED=NO
+
+      - name: Set up vcpkg for the Catch2 build
+        if: ${{ !cancelled() && steps.engine-cache.outputs.cache-hit == 'true' }}
+        run: *vcpkg-setup
 
       - name: Run the engine Catch2 tests in the iPad Simulator
         if: ${{ !cancelled() }}
@@ -146,6 +184,13 @@ jobs:
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ccache-ios-${{ github.sha }}
+
+      - name: Save iOS dependency cache
+        if: ${{ !cancelled() && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ github.workspace }}/.ci/vcpkg-bin
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
 
       - name: Build unsigned archive
         run: |
