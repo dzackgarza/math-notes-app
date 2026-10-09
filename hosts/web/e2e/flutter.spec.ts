@@ -1285,19 +1285,28 @@ async function boxOf(locator: Locator): Promise<Box> {
 }
 
 // Flutter starts a delayed drag (LongPressDraggable, the reorderable grid's
-// delayed listener) once a press is held for kLongPressTimeout, 500 ms
-// (flutter/lib/src/gestures/constants.dart), timed from when Flutter receives
-// the press. The item lifts only once it moves, so the hold is the gesture:
-// it starts after Flutter has taken the press (a drawn frame) and ends after
-// the timer's frame.
-const LONG_PRESS_MS = 500;
-
+// delayed listener) once a press is held for kLongPressTimeout, timed from
+// when the framework receives the press; with semantics on, the web engine's
+// ClickDebouncer first holds a pointerdown on a tappable node for 200 ms
+// (engine/src/flutter/lib/web_ui/lib/src/engine/pointer_binding.dart). The
+// held item does not change until it moves, and before the timer a mouse
+// moving beyond its hit slop, kPrecisePointerHitSlop = 1 px (computeHitSlop,
+// flutter/lib/src/gestures/events.dart), cancels the gesture: so the pointer
+// nudges 0.5 px back and forth until the item follows it.
 async function longPressDrag(page: Page, from: Box, to: Box): Promise<void> {
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  const x = from.x + from.width / 2;
+  const y = from.y + from.height / 2;
+  await page.mouse.move(x, y);
+  await settled(page, from);
+  const resting = await capture(page, from);
   await page.mouse.down();
-  await frames(page);
-  await page.waitForTimeout(LONG_PRESS_MS);
-  await frames(page);
+  let nudge = 0;
+  await expect(async () => {
+    nudge = 0.5 - nudge;
+    await page.mouse.move(x + nudge, y);
+    await frames(page);
+    expect(await capture(page, from), "the held item follows the pointer").not.toEqual(resting);
+  }).toPass();
   await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
   // The drop takes the slot the dragged item has settled into: release once
   // the items between start and target stop moving.
