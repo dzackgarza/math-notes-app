@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import Observation
+import os
 
 enum EditorSplitAxis: String, CaseIterable, Equatable {
   case horizontal
@@ -106,6 +107,7 @@ final class OpenNotebookSession: Identifiable {
         try checkpoint()
         saveStatus = .recoverable
       } catch {
+        Log.storage.error("recovery checkpoint failed for \(self.reference.id, privacy: .public): \(String(describing: error), privacy: .public)")
         saveStatus = .failed
       }
     }
@@ -130,11 +132,14 @@ final class OpenNotebookSession: Identifiable {
   func performSave(_ operation: () throws -> Void) throws {
     cancelAutosave()
     saveStatus = .saving
+    let started = ContinuousClock.now
     do {
       try operation()
       saveStatus = .saved
+      Log.storage.info("saved \(self.reference.id, privacy: .public) in \((ContinuousClock.now - started).milliseconds, format: .fixed(precision: 0), privacy: .public) ms")
     } catch {
       saveStatus = .failed
+      Log.storage.error("save of \(self.reference.id, privacy: .public) failed: \(String(describing: error), privacy: .public)")
       throw error
     }
   }

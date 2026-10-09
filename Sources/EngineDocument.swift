@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import InkEngine
+import os
 
 struct EngineFileChange: Equatable {
   enum Kind: Equatable {
@@ -519,7 +520,10 @@ final class EngineDocument {
   }
 
   private func check(_ status: InkStatus, operation: String) throws {
+    Log.ink.debug("document \(operation, privacy: .public) status=\(status.rawValue, privacy: .public)")
     guard status != INK_OK else { return }
-    throw EngineDocumentError.operation(operation, Self.lastError())
+    let message = Self.lastError()
+    Log.ink.error("document \(operation, privacy: .public) failed: \(message, privacy: .public)")
+    throw EngineDocumentError.operation(operation, message)
   }
 }

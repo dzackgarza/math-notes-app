@@ -574,6 +574,7 @@ struct ContentView: View {
       Log.app.error("error shown: \(message, privacy: .public)")
     }
     .onChange(of: scenePhase) { _, phase in
+      Log.app.info("scene phase \(String(describing: phase), privacy: .public)")
       switch phase {
       case .active:
         root?.resumeFilePresentation(refreshSavedLocation: true)

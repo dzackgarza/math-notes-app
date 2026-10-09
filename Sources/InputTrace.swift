@@ -9,6 +9,14 @@ enum InputTrace {
   static let log = Logger(subsystem: "dev.zack.mathnotes", category: "input")
 
   static func install() {
+    watchMainThread()
+    NotificationCenter.default.addObserver(
+      forName: UIApplication.didReceiveMemoryWarningNotification,
+      object: nil,
+      queue: .main
+    ) { _ in
+      Log.app.fault("memory warning")
+    }
     exchange(
       UIWindow.self,
       #selector(UIWindow.sendEvent(_:)),
@@ -17,6 +25,26 @@ enum InputTrace {
       UIGestureRecognizer.self,
       NSSelectorFromString("setState:"),
       #selector(UIGestureRecognizer.mathNotesTracedSetState(_:)))
+  }
+
+  // Pings the main thread every 50 ms from a background thread and logs every
+  // stall longer than Log.mainThreadBudget with its full length.
+  private static func watchMainThread() {
+    let watcher = Thread {
+      while true {
+        let sent = ContinuousClock.now
+        let answered = DispatchSemaphore(value: 0)
+        DispatchQueue.main.async { answered.signal() }
+        if answered.wait(timeout: .now() + .milliseconds(100)) == .timedOut {
+          answered.wait()
+          Log.app.fault(
+            "main thread blocked for \((ContinuousClock.now - sent).milliseconds, format: .fixed(precision: 0), privacy: .public) ms")
+        }
+        Thread.sleep(forTimeInterval: 0.05)
+      }
+    }
+    watcher.name = "dev.zack.mathnotes.main-thread-watch"
+    watcher.start()
   }
 
   private static func exchange(_ type: AnyClass, _ original: Selector, _ traced: Selector) {

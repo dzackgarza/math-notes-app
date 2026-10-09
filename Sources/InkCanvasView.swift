@@ -176,6 +176,7 @@ final class InkCanvasView: UIView {
 
   func setViewTransform(_ transform: CGAffineTransform) {
     guard let canvas else { return }
+    Log.ink.debug("view transform a=\(Double(transform.a), format: .fixed(precision: 3), privacy: .public) d=\(Double(transform.d), format: .fixed(precision: 3), privacy: .public) tx=\(Double(transform.tx), format: .fixed(precision: 1), privacy: .public) ty=\(Double(transform.ty), format: .fixed(precision: 1), privacy: .public)")
     check(
       ink_canvas_set_view(
         canvas,
@@ -748,6 +749,7 @@ final class InkCanvasView: UIView {
     let width = Int32(ceil(bounds.width * scale))
     let height = Int32(ceil(bounds.height * scale))
     guard width > 0, height > 0 else { return }
+    Log.ink.info("surface \(width, privacy: .public)x\(height, privacy: .public) scale=\(Double(scale), format: .fixed(precision: 1), privacy: .public)")
     check(
       ink_canvas_set_surface_size(canvas, width, height, Float(scale)),
       operation: "ink_canvas_set_surface_size")

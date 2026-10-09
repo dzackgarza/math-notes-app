@@ -376,6 +376,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     scrollView.maximumZoomScale = 8
     scrollView.contentInsetAdjustmentBehavior = .never
     scrollView.delaysContentTouches = false
+    scrollView.panGestureRecognizer.name = "editor.scrollPan"
+    scrollView.pinchGestureRecognizer?.name = "editor.scrollPinch"
     scrollView.panGestureRecognizer.allowedTouchTypes = [
       NSNumber(value: UITouch.TouchType.direct.rawValue)
     ]
@@ -414,6 +416,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     view.addSubview(pencilHoverIndicator)
 
     let pencilHover = UIHoverGestureRecognizer(target: self, action: #selector(handlePencilHover))
+    pencilHover.name = "canvas.pencilHover"
     pencilHover.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.pencil.rawValue)]
     canvasView.addGestureRecognizer(pencilHover)
 
@@ -423,15 +426,18 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     pageEditMenuInteraction = editMenuInteraction
     canvasView.addInteraction(editMenuInteraction)
     let pageLongPress = UILongPressGestureRecognizer(target: self, action: #selector(handlePageLongPress))
+    pageLongPress.name = "canvas.pageLongPress"
     pageLongPress.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
     self.pageLongPress = pageLongPress
     canvasView.addGestureRecognizer(pageLongPress)
     let secondaryClick = UITapGestureRecognizer(target: self, action: #selector(handlePageSecondaryClick))
+    secondaryClick.name = "canvas.secondaryClick"
     secondaryClick.buttonMaskRequired = .secondary
     canvasView.addGestureRecognizer(secondaryClick)
     canvasView.addInteraction(UIDragInteraction(delegate: self))
     canvasView.addInteraction(UIDropInteraction(delegate: self))
     let directTap = UITapGestureRecognizer(target: self, action: #selector(handleDirectTap))
+    directTap.name = "canvas.directTap"
     self.directTap = directTap
     directTap.cancelsTouchesInView = false
     directTap.buttonMaskRequired = .primary
@@ -439,11 +445,13 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     canvasView.addGestureRecognizer(directTap)
 
     let pencilTap = UITapGestureRecognizer(target: self, action: #selector(handlePencilModeTap))
+    pencilTap.name = "canvas.pencilTap"
     pencilTap.cancelsTouchesInView = false
     pencilTap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.pencil.rawValue)]
     canvasView.addGestureRecognizer(pencilTap)
 
     let undoTap = UITapGestureRecognizer(target: self, action: #selector(handleUndoTap))
+    undoTap.name = "canvas.undoTap"
     self.undoTap = undoTap
     undoTap.cancelsTouchesInView = false
     undoTap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
@@ -451,6 +459,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     canvasView.addGestureRecognizer(undoTap)
 
     let redoTap = UITapGestureRecognizer(target: self, action: #selector(handleRedoTap))
+    redoTap.name = "canvas.redoTap"
     self.redoTap = redoTap
     redoTap.cancelsTouchesInView = false
     redoTap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
@@ -672,6 +681,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   func scrollViewDidZoom(_ scrollView: UIScrollView) {
+    Log.ink.debug("zoom \(Double(scrollView.zoomScale), format: .fixed(precision: 3), privacy: .public)")
     updateContentInsets()
     syncCanvasTransform()
     refreshSelectionBar()
@@ -1989,12 +1999,14 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   @objc private func handleUndoTap(_ recognizer: UITapGestureRecognizer) {
+    Log.ink.info("two-finger undo tap state=\(recognizer.state.rawValue, privacy: .public) allowed=\(self.keyboardEditingAllowed, privacy: .public)")
     guard recognizer.state == .ended, keyboardEditingAllowed else { return }
     onFocusRequested()
     onUndo()
   }
 
   @objc private func handleRedoTap(_ recognizer: UITapGestureRecognizer) {
+    Log.ink.info("three-finger redo tap state=\(recognizer.state.rawValue, privacy: .public) allowed=\(self.keyboardEditingAllowed, privacy: .public)")
     guard recognizer.state == .ended, keyboardEditingAllowed else { return }
     onFocusRequested()
     onRedo()
@@ -2068,6 +2080,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     _ interaction: UIPencilInteraction,
     didReceiveTap tap: UIPencilInteraction.Tap
   ) {
+    Log.ink.info("pencil double-tap preferred=\(UIPencilInteraction.preferredTapAction.rawValue, privacy: .public) active=\(self.hostActive, privacy: .public) focused=\(self.hostFocused, privacy: .public) stroke=\(self.pencilStrokeActive, privacy: .public)")
     guard hostActive, hostFocused, !pencilStrokeActive else { return }
     onFocusRequested()
     onPencilAction(UIPencilInteraction.preferredTapAction, tap.hoverPose?.location)
@@ -2077,6 +2090,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     _ interaction: UIPencilInteraction,
     didReceiveSqueeze squeeze: UIPencilInteraction.Squeeze
   ) {
+    Log.ink.info("pencil squeeze phase=\(squeeze.phase.rawValue, privacy: .public) preferred=\(UIPencilInteraction.preferredSqueezeAction.rawValue, privacy: .public) active=\(self.hostActive, privacy: .public) focused=\(self.hostFocused, privacy: .public) stroke=\(self.pencilStrokeActive, privacy: .public)")
     guard hostActive, hostFocused, !pencilStrokeActive, squeeze.phase == .ended else { return }
     onFocusRequested()
     onPencilAction(UIPencilInteraction.preferredSqueezeAction, squeeze.hoverPose?.location)
