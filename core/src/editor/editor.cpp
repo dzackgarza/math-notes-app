@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <numbers>
 
+#include "absl/status/status.h"
 #include "ink/brush/stock_brushes.h"
 #include "ink/color/color.h"
 #include "ink/geometry/affine_transform.h"
@@ -283,9 +284,10 @@ ink::StrokeInput Editor::ToStrokeInput(const InkPenSample &s, double t0) const {
 ink::StrokeInputBatch Editor::Batch(const std::vector<InkPenSample> &samples, double t0) const {
   ink::StrokeInputBatch batch;
   for (const InkPenSample &s : samples) {
-    // Append rejects inputs out of order in time or position; they are dropped,
-    // as InProgressStroke::EnqueueInputs does.
-    (void)batch.Append(ToStrokeInput(s, t0));
+    // Append rejects inputs out of order in time or position, or with a value
+    // out of range; they are dropped, as InProgressStroke::EnqueueInputs does.
+    absl::Status appended = batch.Append(ToStrokeInput(s, t0));
+    if (!appended.ok()) ink_engine::Trace("sample dropped: " + std::string(appended.message()));
   }
   return batch;
 }
