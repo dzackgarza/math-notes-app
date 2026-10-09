@@ -77,11 +77,22 @@ struct UndoDialButton: View {
         _ = undo()
         return .handled
       }
+      // A tick per history step, as a picker wheel gives.
+      .sensoryFeedback(.selection, trigger: indicatorCount)
       .accessibilityLabel("Undo")
       .accessibilityAddTraits(.isButton)
       .accessibilityAction {
         guard isEnabled else { return }
         _ = undo()
+      }
+      // The dial's steps for VoiceOver: swipe down to undo, up to redo.
+      .accessibilityAdjustableAction { direction in
+        guard isEnabled else { return }
+        switch direction {
+        case .increment: _ = redo()
+        case .decrement: _ = undo()
+        @unknown default: break
+        }
       }
   }
 
