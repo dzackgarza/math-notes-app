@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import UIKit
 import WebKit
+import os
 
 struct FigureEditorRequest: Identifiable {
   let id: String
@@ -32,15 +33,26 @@ private struct FigureEditorWebView: UIViewRepresentable {
   func makeUIView(context: Context) -> WKWebView {
     let configuration = WKWebViewConfiguration()
     configuration.defaultWebpagePreferences.allowsContentJavaScript = true
+    // Forwards the editor's protocol messages, and reports the page's own
+    // errors to the app log so a failed start is never silent.
     let bridge = """
+      const report = (text) => window.webkit.messageHandlers.mathNotesFigureLog.postMessage(String(text));
+      window.addEventListener('error', (event) => report('error: ' + event.message + ' at ' + event.filename + ':' + event.lineno));
+      window.addEventListener('unhandledrejection', (event) => report('unhandled rejection: ' + event.reason));
+      const consoleError = console.error;
+      console.error = (...args) => { report('console.error: ' + args.join(' ')); consoleError(...args); };
       window.addEventListener('message', function(event) {
         if (typeof event.data !== 'string') return;
+        let message;
         try {
-          const message = JSON.parse(event.data);
-          if (message && typeof message.event === 'string') {
-            window.webkit.messageHandlers.mathNotesFigure.postMessage(event.data);
-          }
-        } catch (_) {}
+          message = JSON.parse(event.data);
+        } catch (error) {
+          report('unparsable message: ' + event.data);
+          return;
+        }
+        if (message && typeof message.event === 'string') {
+          window.webkit.messageHandlers.mathNotesFigure.postMessage(event.data);
+        }
       });
       """
     configuration.userContentController.addUserScript(
@@ -49,6 +61,7 @@ private struct FigureEditorWebView: UIViewRepresentable {
         injectionTime: .atDocumentStart,
         forMainFrameOnly: true))
     configuration.userContentController.add(context.coordinator, name: "mathNotesFigure")
+    configuration.userContentController.add(context.coordinator, name: "mathNotesFigureLog")
 
     let webView = WKWebView(frame: .zero, configuration: configuration)
     context.coordinator.webView = webView
@@ -82,6 +95,8 @@ private struct FigureEditorWebView: UIViewRepresentable {
   static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
     webView.configuration.userContentController.removeScriptMessageHandler(
       forName: "mathNotesFigure")
+    webView.configuration.userContentController.removeScriptMessageHandler(
+      forName: "mathNotesFigureLog")
     webView.navigationDelegate = nil
     coordinator.webView = nil
   }
@@ -96,11 +111,26 @@ private struct FigureEditorWebView: UIViewRepresentable {
         userInfo: [NSLocalizedDescriptionKey: "The figure editor stopped responding. Close and reopen it."]))
     }
 
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+      Log.app.info("figure editor page loaded")
+      Task { @MainActor [weak self] in
+        try await Task.sleep(for: .seconds(20))
+        guard let self, self.webView != nil, !self.ready else { return }
+        Log.app.fault("figure editor sent no 'loaded' message within 20 s of its page loading")
+        self.onError(NSError(
+          domain: "MathNotes.FigureEditor",
+          code: 3,
+          userInfo: [NSLocalizedDescriptionKey: "The figure editor did not start. Close it and try again."]))
+      }
+    }
+
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+      Log.app.error("figure editor navigation failed: \(String(describing: error), privacy: .public)")
       onError(error)
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+      Log.app.error("figure editor page failed to load: \(String(describing: error), privacy: .public)")
       onError(error)
     }
 
@@ -127,6 +157,11 @@ private struct FigureEditorWebView: UIViewRepresentable {
       didReceive message: WKScriptMessage
     ) {
       guard let raw = message.body as? String else { return }
+      if message.name == "mathNotesFigureLog" {
+        Log.app.error("figure editor page \(raw, privacy: .public)")
+        return
+      }
+      Log.app.info("figure editor message \(String(raw.prefix(80)), privacy: .public)")
       do {
         let decoded = try JSONDecoder().decode(
           FigureEditorMessage.self,
@@ -229,7 +264,7 @@ struct FigureEditorSheet: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
           ToolbarItem(placement: .cancellationAction) {
-            if !ready && errorMessage != nil {
+            if !ready {
               Button("Close") { dismiss() }
             }
           }
