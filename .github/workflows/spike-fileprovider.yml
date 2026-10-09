@@ -7,7 +7,7 @@ on:
 jobs:
   spike:
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: spikes/fileprovider-sim
@@ -39,5 +39,5 @@ jobs:
       - name: File Provider logs
         if: ${{ !cancelled() }}
         run: |
-          xcrun simctl spawn "${{ steps.simulator.outputs.udid }}" log show --last 15m --style compact \
-            --predicate 'process == "fileproviderd" OR eventMessage CONTAINS "FPSpike"' | tail -200
+          xcrun simctl spawn "${{ steps.simulator.outputs.udid }}" log show --last 10m --style compact \
+            --predicate 'process == "fileproviderd" OR process CONTAINS "FPSpike" OR eventMessage CONTAINS "FPSpike"' | grep -iE "FPSpike|error|fail|denied|entitle|fetch|domain" | tail -150

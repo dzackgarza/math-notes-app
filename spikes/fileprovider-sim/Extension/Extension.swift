@@ -31,7 +31,10 @@ final class Item: NSObject, NSFileProviderItem {
 }
 
 final class Extension: NSObject, NSFileProviderReplicatedExtension {
-  required init(domain: NSFileProviderDomain) { super.init() }
+  required init(domain: NSFileProviderDomain) {
+    NSLog("FPSpike extension init %@", domain.identifier.rawValue)
+    super.init()
+  }
   func invalidate() {}
 
   func item(
@@ -42,6 +45,7 @@ final class Extension: NSObject, NSFileProviderReplicatedExtension {
       completionHandler(nil, NSFileProviderError(.noSuchItem))
       return Progress()
     }
+    NSLog("FPSpike item %@", identifier.rawValue)
     completionHandler(Item(identifier), nil)
     return Progress()
   }
@@ -94,7 +98,8 @@ final class Extension: NSObject, NSFileProviderReplicatedExtension {
   func enumerator(
     for containerItemIdentifier: NSFileProviderItemIdentifier, request: NSFileProviderRequest
   ) throws -> NSFileProviderEnumerator {
-    Enumerator(container: containerItemIdentifier)
+    NSLog("FPSpike enumerator %@", containerItemIdentifier.rawValue)
+    return Enumerator(container: containerItemIdentifier)
   }
 }
 
