@@ -16,7 +16,6 @@ final class InkCanvasView: UIView {
   override class var layerClass: AnyClass { CAMetalLayer.self }
 
   private let document: EngineDocument
-  private var strokeStartDigest: Int?
   private let device: any MTLDevice
   private let queue: any MTLCommandQueue
   private var canvas: OpaquePointer?
@@ -277,19 +276,6 @@ final class InkCanvasView: UIView {
   }
 
   // The unsaved changes; a stroke that drew or erased something changes them.
-  private func documentDigest() -> Int {
-    var hasher = Hasher()
-    do {
-      for change in try document.dirtyFiles() {
-        hasher.combine(change.path)
-        if case let .write(data) = change.kind { hasher.combine(data) }
-      }
-    } catch {
-      Log.ink.fault("reading unsaved changes failed: \(String(describing: error), privacy: .public)")
-    }
-    return hasher.finalize()
-  }
-
   private func logDroppedInput(_ phase: String, _ touches: Set<UITouch>) {
     let pencil = touches.contains { $0.type == .pencil }
     Log.ink.error(
@@ -440,7 +426,6 @@ final class InkCanvasView: UIView {
       if touch.phase == .began {
         pencilTouch = touch
         Log.ink.info("pencil stroke began")
-        strokeStartDigest = documentDigest()
       } else if pencilTouch !== touch {
         Log.ink.error("pencil sample from an untracked touch dropped, phase=\(touch.phase.rawValue, privacy: .public)")
         continue
@@ -486,12 +471,6 @@ final class InkCanvasView: UIView {
       ink_input(canvas, buffer.baseAddress, buffer.count)
     }
     check(status, operation: "ink_input")
-    if let start = strokeStartDigest,
-      touches.contains(where: { $0.type == .pencil && $0.phase == .ended })
-    {
-      strokeStartDigest = nil
-      Log.ink.info("pencil stroke changed the document: \(self.documentDigest() != start, privacy: .public)")
-    }
     return status == INK_OK && touches.contains {
       $0.type == .pencil && ($0.phase == .ended || $0.phase == .cancelled)
     }
