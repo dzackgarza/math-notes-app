@@ -1285,18 +1285,19 @@ async function boxOf(locator: Locator): Promise<Box> {
 }
 
 // Flutter starts a delayed drag (LongPressDraggable, the reorderable grid's
-// delayed listener) once a press is held for kLongPressTimeout
+// delayed listener) once a press is held for kLongPressTimeout, 500 ms
 // (flutter/lib/src/gestures/constants.dart), timed from when Flutter receives
-// the press. The drag has started when the pressed item lifts: its pixels change.
+// the press. The item lifts only once it moves, so the hold is the gesture:
+// it starts after Flutter has taken the press (a drawn frame) and ends after
+// the timer's frame.
+const LONG_PRESS_MS = 500;
+
 async function longPressDrag(page: Page, from: Box, to: Box): Promise<void> {
-  // Hovered first: the item's hover highlight is part of its resting look.
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
-  await settled(page, from);
-  const resting = await capture(page, from);
   await page.mouse.down();
-  await expect(async () => {
-    expect(await capture(page, from), "the pressed item lifts").not.toEqual(resting);
-  }).toPass();
+  await frames(page);
+  await page.waitForTimeout(LONG_PRESS_MS);
+  await frames(page);
   await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
   // The drop takes the slot the dragged item has settled into: release once
   // the items between start and target stop moving.
@@ -4246,6 +4247,7 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   await expect(page.getByRole("heading", { name: "Lecture", exact: true })).toBeVisible();
   await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
   await shot("followed-after-reload");
+  await followLinks(false);
 
   // Split view: Lecture beside Proofs. Page 2 of Lecture is selected and
   // dragged into Proofs, which gains its row with a new id.
