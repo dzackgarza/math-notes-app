@@ -35,7 +35,11 @@ final class LibraryCoverMainThreadTests: XCTestCase {
     let server = try SlowFileServer(replacing: page, delay: 3)
     defer { server.stop() }
 
-    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 400, height: 400))
+    // A window shows, and SwiftUI runs the cover's task, only inside a window scene.
+    let scene = try XCTUnwrap(
+      UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+    let window = UIWindow(windowScene: scene)
+    window.frame = CGRect(x: 0, y: 0, width: 400, height: 400)
     window.rootViewController = UIHostingController(
       rootView: LibraryNotebookCover(root: root, item: item, titled: true))
     window.makeKeyAndVisible()
