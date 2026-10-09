@@ -1,4 +1,5 @@
 import Darwin
+import InkEngine
 import SwiftUI
 import UIKit
 import XCTest
