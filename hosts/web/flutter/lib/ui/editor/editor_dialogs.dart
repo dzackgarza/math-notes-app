@@ -148,94 +148,110 @@ extension _EditorDialogs on _EditorScreenState {
         child: Text(text, style: subhead),
       ),
     );
+    // A paper style applies after the files lock frees; until then the sheet
+    // stays open, so the next new page has that paper and the sheet's update
+    // finds it mounted.
+    var applying = false;
+    var applied = Future<void>.value();
+    var closing = false;
     await showModalSheet<void>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, update) {
           final current = widget.note.document.pageSize();
-          return ActionSheet(
-            title: const Text('Paper for new pages'),
-            message: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                heading('Paper style'),
-                for (final name in templates)
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    minimumSize: const Size(44, 36),
-                    onPressed: () => unawaited(
-                      run(() async {
-                        await applyTemplate(name);
-                        update(() {});
-                      }),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            paperLabels[name] ?? name,
-                            textAlign: TextAlign.start,
+          return PopScope(
+            canPop: !applying,
+            child: ActionSheet(
+              title: const Text('Paper for new pages'),
+              message: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  heading('Paper style'),
+                  for (final name in templates)
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(44, 36),
+                      onPressed: applying
+                          ? null
+                          : () {
+                              update(() => applying = true);
+                              applied = run(
+                                () => applyTemplate(name),
+                              ).whenComplete(() => update(() => applying = false));
+                            },
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              paperLabels[name] ?? name,
+                              textAlign: TextAlign.start,
+                            ),
                           ),
+                          if (name == widget.note.template)
+                            const Icon(CupertinoIcons.checkmark, size: 18),
+                        ],
+                      ),
+                    ),
+                  heading('Page size'),
+                  CupertinoSlidingSegmentedControl<int>(
+                    backgroundColor: segmentTrack,
+                    thumbColor: segmentThumb,
+                    groupValue: current.size == 2 ? null : current.size,
+                    children: const {
+                      0: Text('A4', style: segmentLabel),
+                      1: Text('Letter', style: segmentLabel),
+                    },
+                    onValueChanged: (size) {
+                      if (size == null) return;
+                      edit(
+                        () => widget.note.document.setPageSize(
+                          size,
+                          current.orientation,
                         ),
-                        if (name == widget.note.template)
-                          const Icon(CupertinoIcons.checkmark, size: 18),
-                      ],
-                    ),
+                      );
+                      update(() {});
+                    },
                   ),
-                heading('Page size'),
-                CupertinoSlidingSegmentedControl<int>(
-                  backgroundColor: segmentTrack,
-                  thumbColor: segmentThumb,
-                  groupValue: current.size == 2 ? null : current.size,
-                  children: const {
-                    0: Text('A4', style: segmentLabel),
-                    1: Text('Letter', style: segmentLabel),
-                  },
-                  onValueChanged: (size) {
-                    if (size == null) return;
-                    edit(
-                      () => widget.note.document.setPageSize(
-                        size,
-                        current.orientation,
+                  if (current.size == 2)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        'Custom: ${current.width.round()} × ${current.height.round()} pt',
                       ),
-                    );
-                    update(() {});
-                  },
-                ),
-                if (current.size == 2)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Text(
-                      'Custom: ${current.width.round()} × ${current.height.round()} pt',
                     ),
+                  heading('Orientation'),
+                  CupertinoSlidingSegmentedControl<int>(
+                    backgroundColor: segmentTrack,
+                    thumbColor: segmentThumb,
+                    groupValue: current.orientation,
+                    children: const {
+                      0: Text('Portrait', style: segmentLabel),
+                      1: Text('Landscape', style: segmentLabel),
+                    },
+                    onValueChanged: (orientation) {
+                      if (orientation == null) return;
+                      edit(
+                        () => widget.note.document.setPageSize(
+                          current.size,
+                          orientation,
+                          current.width,
+                          current.height,
+                        ),
+                      );
+                      update(() {});
+                    },
                   ),
-                heading('Orientation'),
-                CupertinoSlidingSegmentedControl<int>(
-                  backgroundColor: segmentTrack,
-                  thumbColor: segmentThumb,
-                  groupValue: current.orientation,
-                  children: const {
-                    0: Text('Portrait', style: segmentLabel),
-                    1: Text('Landscape', style: segmentLabel),
-                  },
-                  onValueChanged: (orientation) {
-                    if (orientation == null) return;
-                    edit(
-                      () => widget.note.document.setPageSize(
-                        current.size,
-                        orientation,
-                        current.width,
-                        current.height,
-                      ),
-                    );
-                    update(() {});
-                  },
-                ),
-              ],
-            ),
-            cancelButton: SheetAction(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Done'),
+                ],
+              ),
+              cancelButton: SheetAction(
+                onPressed: () async {
+                  if (closing) return;
+                  closing = true;
+                  await applied;
+                  Navigator.pop(context);
+                },
+                child: const Text('Done'),
+              ),
             ),
           );
         },
