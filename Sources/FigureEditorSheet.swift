@@ -20,6 +20,11 @@ private struct FigureEditorMessage: Decodable {
 // editor. The sheet and its tests load the editor through this one path.
 @MainActor
 enum FigureEditorPage {
+  // How long the editor may take to start before the sheet reports that it
+  // did not. A cold start launches WebKit's GPU, networking and content
+  // processes first.
+  static let startLimit: Duration = .seconds(20)
+
   static func makeWebView(handler: WKScriptMessageHandler) throws -> WKWebView {
     let configuration = WKWebViewConfiguration()
     configuration.defaultWebpagePreferences.allowsContentJavaScript = true
@@ -194,9 +199,9 @@ private struct FigureEditorWebView: UIViewRepresentable {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
       Log.app.info("figure editor page loaded")
       Task { @MainActor [weak self] in
-        try await Task.sleep(for: .seconds(20))
+        try await Task.sleep(for: FigureEditorPage.startLimit)
         guard let self, self.webView != nil, !self.ready else { return }
-        Log.app.fault("figure editor sent no 'loaded' message within 20 s of its page loading")
+        Log.app.fault("figure editor sent no 'loaded' message within \(FigureEditorPage.startLimit, privacy: .public) of its page loading")
         self.onError(NSError(
           domain: "MathNotes.FigureEditor",
           code: 3,
@@ -357,6 +362,7 @@ struct FigureEditorSheet: View {
           ToolbarItem(placement: .topBarTrailing) {
             Button(closing ? "Saving…" : "Save and close", action: requestClose)
               .disabled(closing || !ready)
+              .accessibilityIdentifier("figure-editor-save")
           }
         }
         .safeAreaInset(edge: .bottom) {
