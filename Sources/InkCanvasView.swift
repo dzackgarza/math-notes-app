@@ -3,6 +3,7 @@ import InkEngine
 import Metal
 import QuartzCore
 import UIKit
+import os
 
 struct EngineTextProperties: Codable, Equatable {
   var content: String
@@ -103,10 +104,11 @@ final class InkCanvasView: UIView {
   override func didMoveToWindow() {
     super.didMoveToWindow()
     if window == nil {
-      cancelFingerStroke()
-      cancelPencilStroke()
+      cancelFingerStroke(reason: "canvas left its window")
+      cancelPencilStroke(reason: "canvas left its window")
       sampleIDs.cancelPendingEstimates()
     }
+    Log.ink.info("canvas window attached=\(self.window != nil, privacy: .public)")
     updateLink?.isEnabled = hostActive && window != nil
     updateSurfaceSize()
   }
@@ -125,6 +127,7 @@ final class InkCanvasView: UIView {
     spaceMode: EditorSpaceMode = .reflow
   ) {
     guard let canvas else { return }
+    Log.ink.info("tool \(String(describing: tool), privacy: .public) eraser=\(String(describing: eraserMode), privacy: .public)")
 
     func setEraser(active: Bool) {
       check(
@@ -179,20 +182,26 @@ final class InkCanvasView: UIView {
   }
 
   func setActive(_ active: Bool) {
+    if hostActive != active {
+      Log.ink.info("canvas host active \(self.hostActive, privacy: .public) -> \(active, privacy: .public)")
+    }
     hostActive = active
     if !active {
-      cancelFingerStroke()
-      cancelPencilStroke()
+      cancelFingerStroke(reason: "host became inactive")
+      cancelPencilStroke(reason: "host became inactive")
       sampleIDs.cancelPendingEstimates()
     }
     updateLink?.isEnabled = active && window != nil
   }
 
   func setDrawingSuppressed(_ suppressed: Bool) {
+    if drawingSuppressed != suppressed {
+      Log.ink.info("drawing suppressed \(self.drawingSuppressed, privacy: .public) -> \(suppressed, privacy: .public)")
+    }
     drawingSuppressed = suppressed
     if suppressed {
-      cancelFingerStroke()
-      cancelPencilStroke()
+      cancelFingerStroke(reason: "drawing suppressed")
+      cancelPencilStroke(reason: "drawing suppressed")
       sampleIDs.cancelPendingEstimates()
     }
   }
@@ -200,13 +209,16 @@ final class InkCanvasView: UIView {
   func setFingerDrawing(_ enabled: Bool) {
     guard fingerDrawing != enabled else { return }
     if !enabled {
-      cancelFingerStroke()
+      cancelFingerStroke(reason: "finger drawing disabled")
     }
     fingerDrawing = enabled
   }
 
   override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-    guard hostActive, window != nil else { return }
+    guard hostActive, window != nil else {
+      logDroppedInput("touchesBegan", touches)
+      return
+    }
     if !drawingSuppressed && touches.contains(where: { $0.type == .pencil }) {
       onPencilStrokeChanged(true)
     }
@@ -217,7 +229,10 @@ final class InkCanvasView: UIView {
   }
 
   override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-    guard hostActive, window != nil else { return }
+    guard hostActive, window != nil else {
+      logDroppedInput("touchesMoved", touches)
+      return
+    }
     _ = sendFingerTouches(touches, event: event)
     sendPencilTouches(touches, event: event)
     reportInteractionChange(touches)
@@ -227,6 +242,10 @@ final class InkCanvasView: UIView {
     let pencilEnded = touches.contains { $0 === pencilTouch }
     let fingerHandled = sendFingerTouches(touches, event: event)
     let pencilHandled = sendPencilTouches(touches, event: event)
+    if pencilEnded && !pencilHandled {
+      Log.ink.fault(
+        "pencil lift not delivered to the engine; stroke left uncommitted (hostActive=\(self.hostActive, privacy: .public) window=\(self.window != nil, privacy: .public) suppressed=\(self.drawingSuppressed, privacy: .public))")
+    }
     reportInteractionChange(touches)
     if pencilEnded {
       onPencilStrokeChanged(false)
@@ -238,6 +257,8 @@ final class InkCanvasView: UIView {
 
   override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
     let pencilCancelled = touches.contains { $0 === pencilTouch }
+    Log.ink.error(
+      "UIKit cancelled touches: pencilStroke=\(pencilCancelled, privacy: .public) count=\(touches.count, privacy: .public)")
     let fingerHandled = sendFingerTouches(touches, event: event)
     let pencilHandled = sendPencilTouches(touches, event: event)
     if pencilCancelled {
@@ -249,6 +270,12 @@ final class InkCanvasView: UIView {
     if fingerHandled || pencilHandled {
       onInteractionEnded()
     }
+  }
+
+  private func logDroppedInput(_ phase: String, _ touches: Set<UITouch>) {
+    let pencil = touches.contains { $0.type == .pencil }
+    Log.ink.error(
+      "\(phase, privacy: .public) dropped: hostActive=\(self.hostActive, privacy: .public) window=\(self.window != nil, privacy: .public) pencil=\(pencil, privacy: .public)")
   }
 
   private func reportInteractionChange(_ touches: Set<UITouch>) {
@@ -311,7 +338,8 @@ final class InkCanvasView: UIView {
       $0.type == .direct && $0.phase != .ended && $0.phase != .cancelled
     }
     if pencilActive || activeDirectTouches.count >= 2 {
-      cancelFingerStroke()
+      cancelFingerStroke(
+        reason: pencilActive ? "pencil touched down" : "second finger touched down")
       return false
     }
 
@@ -350,11 +378,12 @@ final class InkCanvasView: UIView {
     return status == INK_OK && ended
   }
 
-  private func cancelFingerStroke() {
+  private func cancelFingerStroke(reason: String) {
     guard let fingerTouch, let canvas else {
       self.fingerTouch = nil
       return
     }
+    Log.ink.error("finger stroke cancelled: \(reason, privacy: .public)")
     var values = PencilSampleFactory.fingerValues(for: fingerTouch, in: self)
     values.phase = UInt8(INK_PHASE_CANCEL.rawValue)
     let id = sampleIDs.issue(estimationIndex: nil, trackEstimate: false)
@@ -363,11 +392,12 @@ final class InkCanvasView: UIView {
     self.fingerTouch = nil
   }
 
-  private func cancelPencilStroke() {
+  private func cancelPencilStroke(reason: String) {
     guard let pencilTouch, let canvas else {
       self.pencilTouch = nil
       return
     }
+    Log.ink.error("pencil stroke cancelled: \(reason, privacy: .public)")
     var values = PencilSampleFactory.values(for: pencilTouch, in: self)
     values.phase = UInt8(INK_PHASE_CANCEL.rawValue)
     let id = sampleIDs.issue(estimationIndex: nil, trackEstimate: false)
@@ -379,14 +409,25 @@ final class InkCanvasView: UIView {
 
   @discardableResult
   private func sendPencilTouches(_ touches: Set<UITouch>, event: UIEvent?) -> Bool {
-    guard hostActive, window != nil, !drawingSuppressed, let canvas else { return false }
+    guard hostActive, window != nil, !drawingSuppressed, let canvas else {
+      if touches.contains(where: { $0.type == .pencil }) {
+        Log.ink.error(
+          "pencil samples dropped: hostActive=\(self.hostActive, privacy: .public) window=\(self.window != nil, privacy: .public) suppressed=\(self.drawingSuppressed, privacy: .public)")
+      }
+      return false
+    }
 
     var samples: [InkPenSample] = []
     for touch in touches where touch.type == .pencil {
       if touch.phase == .began {
         pencilTouch = touch
+        Log.ink.info("pencil stroke began")
       } else if pencilTouch !== touch {
+        Log.ink.error("pencil sample from an untracked touch dropped, phase=\(touch.phase.rawValue, privacy: .public)")
         continue
+      }
+      if touch.phase == .ended {
+        Log.ink.info("pencil stroke ended")
       }
       if touch.phase == .ended || touch.phase == .cancelled { pencilTouch = nil }
       let coalesced = event?.coalescedTouches(for: touch) ?? [touch]
@@ -694,8 +735,12 @@ final class InkCanvasView: UIView {
     check(ink_render(canvas, &drew), operation: "ink_render")
   }
 
+  // Release builds compile assertionFailure away, so the fault log is what
+  // records an engine failure on the device.
   private func check(_ status: InkStatus, operation: String) {
     guard status != INK_OK else { return }
-    assertionFailure("\(operation) failed: \(EngineDocument.lastError())")
+    let message = EngineDocument.lastError()
+    Log.ink.fault("\(operation, privacy: .public) failed: \(message, privacy: .public)")
+    assertionFailure("\(operation) failed: \(message)")
   }
 }
