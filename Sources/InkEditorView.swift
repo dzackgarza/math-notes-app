@@ -145,6 +145,10 @@ enum EditorPageCommand: Equatable {
 
 @MainActor
 final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIEditMenuInteractionDelegate, UIDragInteractionDelegate, UIDropInteractionDelegate, UIPencilInteractionDelegate {
+  // True while SwiftUI's update of the editor runs applyHostState; a host
+  // callback fired then changes SwiftUI state during a view update.
+  static var applyingHostState = false
+
   private static let deskMargin: CGFloat = 16
   private static let toolRailInset: CGFloat = 8
   private static let toolRailWidth: CGFloat = 60
@@ -520,6 +524,8 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     fingerDraws: Bool,
     clippingsOpen: Bool
   ) {
+    Self.applyingHostState = true
+    defer { Self.applyingHostState = false }
     loadViewIfNeeded()
 
     let becameActive = active && !hostActive
@@ -2650,28 +2656,28 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   func makeUIViewController(context: Context) -> InkEditorViewController {
     InkEditorViewController(
       document: document,
-      onFocusRequested: onFocus,
-      onViewportChanged: onViewportChanged,
-      onFitStateChanged: onFitStateChanged,
-      onEditCommitted: onEditCommitted,
-      onSaveRequested: onSaveRequested,
-      onInsertImageRequested: onInsertImageRequested,
-      onShowClippingsRequested: onShowClippingsRequested,
-      onCurrentPageChanged: onCurrentPageChanged,
-      onPageCommandHandled: onPageCommandHandled,
-      onBookmarkModeChanged: onBookmarkModeChanged,
-      onTextRequested: onTextRequested,
-      onLinkSelectionRequested: onLinkSelectionRequested,
-      onFollowLink: onFollowLink,
-      onSaveClipping: onSaveClipping,
-      onSelectionChanged: onSelectionChanged,
-      onUndo: onUndo,
-      onRedo: onRedo,
-      onPencilAction: onPencilAction,
-      onFigureCaptureChanged: onFigureCaptureChanged,
-      onFigureSourceChanged: onFigureSourceChanged,
-      onEditFigure: onEditFigure,
-      onError: onError)
+      onFocusRequested: duringUpdateTraced("onFocus", onFocus),
+      onViewportChanged: duringUpdateTraced("onViewportChanged", onViewportChanged),
+      onFitStateChanged: duringUpdateTraced("onFitStateChanged", onFitStateChanged),
+      onEditCommitted: duringUpdateTraced("onEditCommitted", onEditCommitted),
+      onSaveRequested: duringUpdateTraced("onSaveRequested", onSaveRequested),
+      onInsertImageRequested: duringUpdateTraced("onInsertImageRequested", onInsertImageRequested),
+      onShowClippingsRequested: duringUpdateTraced("onShowClippingsRequested", onShowClippingsRequested),
+      onCurrentPageChanged: duringUpdateTraced("onCurrentPageChanged", onCurrentPageChanged),
+      onPageCommandHandled: duringUpdateTraced("onPageCommandHandled", onPageCommandHandled),
+      onBookmarkModeChanged: duringUpdateTraced("onBookmarkModeChanged", onBookmarkModeChanged),
+      onTextRequested: duringUpdateTraced("onTextRequested", onTextRequested),
+      onLinkSelectionRequested: duringUpdateTraced("onLinkSelectionRequested", onLinkSelectionRequested),
+      onFollowLink: duringUpdateTraced("onFollowLink", onFollowLink),
+      onSaveClipping: duringUpdateTraced("onSaveClipping", onSaveClipping),
+      onSelectionChanged: duringUpdateTraced("onSelectionChanged", onSelectionChanged),
+      onUndo: duringUpdateTraced("onUndo", onUndo),
+      onRedo: duringUpdateTraced("onRedo", onRedo),
+      onPencilAction: duringUpdateTraced("onPencilAction", onPencilAction),
+      onFigureCaptureChanged: duringUpdateTraced("onFigureCaptureChanged", onFigureCaptureChanged),
+      onFigureSourceChanged: duringUpdateTraced("onFigureSourceChanged", onFigureSourceChanged),
+      onEditFigure: duringUpdateTraced("onEditFigure", onEditFigure),
+      onError: duringUpdateTraced("onError", onError))
   }
 
   func updateUIViewController(_ uiViewController: InkEditorViewController, context: Context) {
@@ -2698,6 +2704,38 @@ private struct InkEditorHost: UIViewControllerRepresentable {
       fingerDraws: fingerDraws,
       clippingsOpen: clippingsOpen)
   }
+}
+
+// Wraps a host callback so that a call during SwiftUI's update of the editor
+// logs a fault naming the callback.
+@MainActor
+private func duringUpdateTraced(_ name: String, _ body: @escaping () -> Void) -> () -> Void {
+  {
+    logIfDuringUpdate(name)
+    body()
+  }
+}
+
+@MainActor
+private func duringUpdateTraced<A>(_ name: String, _ body: @escaping (A) -> Void) -> (A) -> Void {
+  { a in
+    logIfDuringUpdate(name)
+    body(a)
+  }
+}
+
+@MainActor
+private func duringUpdateTraced<A, B>(_ name: String, _ body: @escaping (A, B) -> Void) -> (A, B) -> Void {
+  { a, b in
+    logIfDuringUpdate(name)
+    body(a, b)
+  }
+}
+
+@MainActor
+private func logIfDuringUpdate(_ name: String) {
+  guard InkEditorViewController.applyingHostState else { return }
+  Log.app.fault("\(name, privacy: .public) changed SwiftUI state during the editor's view update")
 }
 
 func modeBannerAccessibilityLabel(mode: String, showsBookmarkHint: Bool) -> String {
