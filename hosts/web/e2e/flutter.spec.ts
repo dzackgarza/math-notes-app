@@ -281,10 +281,11 @@ function opfsFiles(page: Page): Promise<Record<string, string>> {
   });
 }
 
-test("Flutter attaches a chosen notes folder, lists its notebook and changes nothing in it", async ({ page }) => {
+test("Flutter attaches a chosen notes folder, lists its notebook and note, and changes nothing in it", async ({ page }) => {
   test.setTimeout(60_000);
   const fixture = await filesUnder(fileURLToPath(new URL("../../../tests/documents/full", import.meta.url)));
-  const folder = Object.fromEntries(Object.entries(fixture).map(([path, bytes]) => [`Seminar/${path}`, bytes]));
+  // A notebook (folder) holding one note, as the library lists them.
+  const folder = Object.fromEntries(Object.entries(fixture).map(([path, bytes]) => [`Course/Seminar/${path}`, bytes]));
   await page.goto("version.json");
   await page.evaluate(async (files) => {
     const root = await navigator.storage.getDirectory();
@@ -308,6 +309,7 @@ test("Flutter attaches a chosen notes folder, lists its notebook and changes not
   });
   await page.goto("");
   await page.getByRole("button", { name: "Choose notes folder", exact: true }).click();
+  await page.getByRole("button", { name: "Open Course", exact: false }).click();
   await expect(page.getByRole("button", { name: "Open Seminar", exact: false })).toBeVisible();
   // The app keeps its thumbnail cache in the origin-private root, which here
   // is also the notes folder; on a device the two never coincide.
@@ -2645,11 +2647,13 @@ test("Flutter exports a ten-page notebook as a ten-page PDF with each page's ink
   const infoText = execFileSync("pdfinfo", [pdfPath], { encoding: "utf8" });
   expect(infoText).toMatch(/Pages:\s+10/);
   expect(infoText).toMatch(/Page size:\s+595 x 842 pts \(A4\)/);
-  // Each page rendered by poppler at 72 dpi; the paper's dots are lighter than ink.
+  // Each page rendered by poppler at 144 dpi, where the 1 pt pen line is dark
+  // enough to count as ink and the paper's dots are not (measured on CI's export:
+  // darkest dot 636, the line under 250).
   const inkOnPage = [];
   for (let pageNumber = 1; pageNumber <= 10; pageNumber++) {
     const prefix = info.outputPath(`ten-pages-${pageNumber}`);
-    execFileSync("pdftoppm", ["-r", "72", "-png", "-f", `${pageNumber}`, "-l", `${pageNumber}`, "-singlefile", pdfPath, prefix]);
+    execFileSync("pdftoppm", ["-r", "144", "-png", "-f", `${pageNumber}`, "-l", `${pageNumber}`, "-singlefile", pdfPath, prefix]);
     inkOnPage.push((await pngPixels(page, await readFile(`${prefix}.png`))).filter(isInk).length > 0);
   }
   expect(inkOnPage).toEqual(Array.from({ length: 10 }, (_, i) => inked.includes(i + 1)));
