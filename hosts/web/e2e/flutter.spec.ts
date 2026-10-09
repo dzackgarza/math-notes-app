@@ -60,6 +60,18 @@ async function closeNote(page: Page): Promise<void> {
 // once the app's writable stream has swapped a new file in (storage/browser/
 // blob/blob_reader.cc compares the modification time). The next read opens
 // the new file.
+// An uncaught error in the app fails the workflow that raised it: a Dart
+// exception otherwise shows only as a toast in an unread screenshot.
+const pageErrors = new WeakMap<Page, string[]>();
+test.beforeEach(async ({ page }) => {
+  const errors: string[] = [];
+  pageErrors.set(page, errors);
+  page.on("pageerror", (error) => errors.push(error.stack ?? error.message));
+});
+test.afterEach(async ({ page }) => {
+  expect(pageErrors.get(page), "uncaught errors in the app").toEqual([]);
+});
+
 async function whenSaved<T>(read: () => Promise<T>): Promise<T> {
   for (;;) {
     try {
@@ -1979,12 +1991,12 @@ test("Flutter rewinds handwriting with Ctrl+Z and the undo dial", async ({ page 
     }
     return lines;
   };
-  expect(await shown()).toEqual([true, true, true]);
+  await expect(async () => expect(await shown()).toEqual([true, true, true])).toPass();
 
   await page.keyboard.press("Control+z");
-  expect(await shown()).toEqual([true, true, false]);
+  await expect(async () => expect(await shown()).toEqual([true, true, false])).toPass();
   await page.keyboard.press("Control+Shift+z");
-  expect(await shown()).toEqual([true, true, true]);
+  await expect(async () => expect(await shown()).toEqual([true, true, true])).toPass();
 
   // A drag from the undo button turns the dial to the right of it, over the
   // page (undo_dial.dart): each 1/32 turn counterclockwise undoes a step,
@@ -2002,10 +2014,10 @@ test("Flutter rewinds handwriting with Ctrl+Z and the undo dial", async ({ page 
   await page.mouse.down();
   for (let degrees = -4; degrees >= -28; degrees -= 4) await page.mouse.move(at(degrees).x, at(degrees).y);
   await page.screenshot({ path: info.outputPath("dial-rewound.png") });
-  expect(await shown()).toEqual([true, false, false]);
+  await expect(async () => expect(await shown()).toEqual([true, false, false])).toPass();
   for (let degrees = -24; degrees <= -8; degrees += 4) await page.mouse.move(at(degrees).x, at(degrees).y);
   await page.mouse.up();
-  expect(await shown()).toEqual([true, true, false]);
+  await expect(async () => expect(await shown()).toEqual([true, true, false])).toPass();
 });
 
 test("Flutter writes a hard pen stroke visibly thicker than a light one", async ({ page }, info) => {
@@ -4077,7 +4089,7 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   // semantics node until the wheel scrolls it in.
   const clipping = async (number: number) => {
     const target = button(`Insert clipping ${number}`);
-    const panel = await boxOf(button("Save selected content"));
+    const panel = await boxOf(page.getByText("Drop a selection here to save it. Drag a clipping onto the page.", { exact: true }));
     await expect(async () => {
       if ((await target.count()) === 0) {
         await page.mouse.move(panel.x + panel.width / 2, panel.y + 250);
@@ -4151,6 +4163,7 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   await button("Create").click();
   await expect(page.getByRole("heading", { name: "Proofs", exact: true })).toBeVisible();
   await button("Clippings").click();
+  await clipping(5);
   await button("Insert clipping 5").click();
   await button("Clippings").click();
   let other = await saved(proofs);
@@ -4452,10 +4465,13 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   await closePopover(page);
   await penStroke(cdp, line(light.x - 60, light.x + 60, light.y), 0.6);
   // A second device later edits page 2 as it is now (the sync conflict below).
-  const remotePage2 = await whenSaved(() => page.evaluate(async ({ notebook, title }) => {
+  const readPage2 = () => whenSaved(() => page.evaluate(async ({ notebook, title }) => {
     const dir = await (await (await navigator.storage.getDirectory()).getDirectoryHandle(notebook)).getDirectoryHandle(title);
     return (await (await (await dir.getDirectoryHandle("pages")).getFileHandle("0002.svg")).getFile()).text();
   }, { notebook, title }));
+  // The app saves a second after the last stroke; read page 2 once both strokes are on disk.
+  await expect.poll(async () => (await readPage2()).match(/<path id="s-/g)?.length ?? 0).toBe(2);
+  const remotePage2 = await readPage2();
   await choose("Pages", "Paper for new pages");
   await button("Lined paper").click();
   await button("Done").click();
