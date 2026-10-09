@@ -18,6 +18,7 @@ private struct NotebookEditorDropDelegate: DropDelegate {
   let canDrop: () -> Bool
   let onFocus: () -> Void
   let onDropClipping: (String, CGPoint) async -> Bool
+  let onError: (Error) -> Void
 
   func dropUpdated(info: DropInfo) -> DropProposal? {
     DropProposal(operation: validateDrop(info: info) ? .copy : .cancel)
@@ -35,9 +36,13 @@ private struct NotebookEditorDropDelegate: DropDelegate {
     let location = info.location
     provider.loadDataRepresentation(
       forTypeIdentifier: notebookClippingDragType.identifier
-    ) { data, _ in
-      guard let data, let id = String(data: data, encoding: .utf8) else { return }
+    ) { data, error in
       Task { @MainActor in
+        // NSItemProvider passes an error whenever it passes no data.
+        guard let data else { return onError(error!) }
+        guard let id = String(data: data, encoding: .utf8) else {
+          return onError(ImageImportError.undecodableImage)
+        }
         guard canDrop() else { return }
         _ = await onDropClipping(id, location)
       }
@@ -826,155 +831,51 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
       guard let destinationPage = canvasView.page(at: point) else { return }
       let destinationRevision = documentRevision
       let provider = item.itemProvider
-      if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) &&
-        ![notebookSelectionCopyDragType, .svg, .utf8PlainText, .plainText, .png, .jpeg, .heic, .heif, .tiff].contains(where: {
-          provider.hasItemConformingToTypeIdentifier($0.identifier)
-        }) {
-        _ = provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { [weak self] item, _ in
-          let url: URL?
-          switch item {
-          case let value as URL:
-            url = value
-          case let value as Data:
-            url = URL(dataRepresentation: value, relativeTo: nil)
-          case let value as String:
-            url = URL(string: value)
-          default:
-            url = nil
-          }
-          guard let url, url.isFileURL else { return }
-          let scoped = url.startAccessingSecurityScopedResource()
-          let data = try? Data(contentsOf: url)
-          if scoped { url.stopAccessingSecurityScopedResource() }
-          guard let data else { return }
-          Task { @MainActor [weak self] in
-            guard let self, self.hostActive, !self.figureCaptureActive, !self.figureCompleting,
-              self.documentRevision == destinationRevision,
-              self.canvasView.page(at: point) == destinationPage
-            else { return }
-            do {
-              let svg: String
-              if url.pathExtension.lowercased() == "svg" {
-                guard let decoded = String(data: data, encoding: .utf8), decoded.contains("<svg") else { return }
-                svg = decoded
-              } else {
-                guard let image = UIImage(data: data)?.cgImage else { return }
-                let ext = url.pathExtension.lowercased()
-                guard ["png", "jpg", "jpeg", "heic", "heif", "tif", "tiff"].contains(ext) else { return }
-                let importedData: Data
-                let mimeType: String
-                switch ext {
-                case "png":
-                  importedData = data
-                  mimeType = "image/png"
-                case "jpg", "jpeg":
-                  importedData = data
-                  mimeType = "image/jpeg"
-                default:
-                  guard let png = UIImage(cgImage: image).pngData() else { return }
-                  importedData = png
-                  mimeType = "image/png"
-                }
-                let pageSize = try self.document.pageRect(index: destinationPage).size
-                svg = try imageImportSVG(
-                  data: importedData, mimeType: mimeType,
-                  imageSize: CGSize(width: image.width, height: image.height), pageSize: pageSize)
-              }
-              try self.canvasView.paste(svg, at: point, placeAtPointer: true)
-              self.onEditCommitted()
-              self.refreshSelectionBar()
-            } catch { self.onError(error) }
-          }
-        }
-        return
-      }
-      if ![notebookSelectionCopyDragType, .svg, .utf8PlainText, .plainText, .png, .jpeg, .heic, .heif, .tiff].contains(where: {
-        provider.hasItemConformingToTypeIdentifier($0.identifier)
-      }) {
-        _ = provider.loadObject(ofClass: UIImage.self) { [weak self] object, _ in
-          guard let image = object as? UIImage, let data = image.pngData() else { return }
-          Task { @MainActor [weak self] in
-            guard let self, self.hostActive, !self.figureCaptureActive, !self.figureCompleting,
-              self.documentRevision == destinationRevision,
-              self.canvasView.page(at: point) == destinationPage,
-              let cgImage = UIImage(data: data)?.cgImage
-            else { return }
-            do {
-              let pageSize = try self.document.pageRect(index: destinationPage).size
-              let svg = try imageImportSVG(
-                data: data, mimeType: "image/png",
-                imageSize: CGSize(width: cgImage.width, height: cgImage.height),
-                pageSize: pageSize)
-              try self.canvasView.paste(svg, at: point, placeAtPointer: true)
-              self.onEditCommitted()
-              self.refreshSelectionBar()
-            } catch {
-              self.onError(error)
-            }
-          }
-        }
-        return
-      }
-      let copyType: UTType
-      if item.itemProvider.hasItemConformingToTypeIdentifier(notebookSelectionCopyDragType.identifier) {
-        copyType = notebookSelectionCopyDragType
-      } else if item.itemProvider.hasItemConformingToTypeIdentifier(UTType.svg.identifier) {
-        copyType = .svg
-      } else if item.itemProvider.hasItemConformingToTypeIdentifier(UTType.png.identifier) {
-        copyType = .png
-      } else if item.itemProvider.hasItemConformingToTypeIdentifier(UTType.jpeg.identifier) {
-        copyType = .jpeg
-      } else if let rasterType = [UTType.heic, .heif, .tiff].first(where: {
-        item.itemProvider.hasItemConformingToTypeIdentifier($0.identifier)
-      }) {
-        copyType = rasterType
-      } else if item.itemProvider.hasItemConformingToTypeIdentifier(UTType.utf8PlainText.identifier) {
-        copyType = .utf8PlainText
-      } else {
-        copyType = .plainText
-      }
-      item.itemProvider.loadDataRepresentation(
-        forTypeIdentifier: copyType.identifier
-      ) { [weak self] data, _ in
-        guard let data else { return }
+      // Pastes what arrived, or reports why nothing did. A drop the page has
+      // since moved away from is logged, not pasted. NSItemProvider passes an
+      // error whenever it passes no data.
+      let insert: @Sendable (Result<ImportedContent, Error>) -> Void = { [weak self] result in
         Task { @MainActor [weak self] in
-          guard let self, self.hostActive, !self.figureCaptureActive, !self.figureCompleting,
+          guard let self else { return }
+          guard self.hostActive, !self.figureCaptureActive, !self.figureCompleting,
             self.documentRevision == destinationRevision,
             self.canvasView.page(at: point) == destinationPage
-          else { return }
+          else {
+            Log.ink.notice("drop discarded: the page changed while it loaded")
+            return
+          }
           do {
-            let svg: String
-            if [.png, .jpeg, .heic, .heif, .tiff].contains(copyType) {
-              guard let image = UIImage(data: data)?.cgImage else { return }
-              let pageSize = try self.document.pageRect(index: destinationPage).size
-              let importedData: Data
-              let mimeType: String
-              switch copyType {
-              case .png:
-                importedData = data
-                mimeType = "image/png"
-              case .jpeg:
-                importedData = data
-                mimeType = "image/jpeg"
-              default:
-                guard let png = UIImage(cgImage: image).pngData() else { return }
-                importedData = png
-                mimeType = "image/png"
-              }
-              svg = try imageImportSVG(
-                data: importedData, mimeType: mimeType,
-                imageSize: CGSize(width: image.width, height: image.height),
-                pageSize: pageSize)
-            } else {
-              guard let decoded = String(data: data, encoding: .utf8), decoded.contains("<svg") else { return }
-              svg = decoded
-            }
-            try self.canvasView.paste(svg, at: point, placeAtPointer: true)
+            let pageSize = try self.document.pageRect(index: destinationPage).size
+            try self.canvasView.paste(try result.get().svg(pageSize: pageSize), at: point, placeAtPointer: true)
             self.onEditCommitted()
             self.refreshSelectionBar()
           } catch {
             self.onError(error)
           }
+        }
+      }
+      let contentTypes: [UTType] = [notebookSelectionCopyDragType, .svg, .png, .jpeg, .heic, .heif, .tiff, .utf8PlainText, .plainText]
+      if let type = contentTypes.first(where: { provider.hasItemConformingToTypeIdentifier($0.identifier) }) {
+        provider.loadDataRepresentation(forTypeIdentifier: type.identifier) { data, error in
+          insert(Result {
+            guard let data else { throw error! }
+            return type.conforms(to: .image) ? .image(data) : .svg(data)
+          })
+        }
+      } else if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+        provider.loadFileRepresentation(forTypeIdentifier: UTType.item.identifier) { url, error in
+          // The file exists only until this handler returns.
+          insert(Result {
+            guard let url else { throw error! }
+            return try ImportedContent(file: url, data: Data(contentsOf: url))
+          })
+        }
+      } else {
+        provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, error in
+          insert(Result {
+            guard let data else { throw error! }
+            return .image(data)
+          })
         }
       }
       return
@@ -1626,65 +1527,29 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     ]]
   }
 
-  private func selectionFromPasteboard() -> String? {
-    if let data = UIPasteboard.general.data(forPasteboardType: UTType.svg.identifier),
-      let svg = String(data: data, encoding: .utf8) {
-      return svg
-    }
-    return UIPasteboard.general.string
-  }
-
   private func pasteFromPasteboard(at point: CGPoint, placeAtPointer: Bool = false) {
     guard hostActive, editorDocumentMutationAllowed(
       figureCaptureActive: figureCaptureActive, figureCompleting: figureCompleting),
-      canvasView.page(at: point) != nil
+      let page = canvasView.page(at: point)
     else { return }
-    if let svg = selectionFromPasteboard(), svg.contains("<svg") {
-      paste(svg, at: point, placeAtPointer: placeAtPointer)
-      return
-    }
     let pasteboard = UIPasteboard.general
-    let imageType: UTType
-    if pasteboard.data(forPasteboardType: UTType.png.identifier) != nil {
-      imageType = .png
-    } else if pasteboard.data(forPasteboardType: UTType.jpeg.identifier) != nil {
-      imageType = .jpeg
-    } else if let rasterType = [UTType.heic, .heif, .tiff].first(where: {
-      pasteboard.data(forPasteboardType: $0.identifier) != nil
-    }) {
-      imageType = rasterType
-    } else if pasteboard.image != nil {
-      imageType = .png
+    let content: ImportedContent
+    if let svg = pasteboard.data(forPasteboardType: UTType.svg.identifier) {
+      content = .svg(svg)
+    } else if let type = [UTType.png, .jpeg, .heic, .heif, .tiff].first(where: {
+      pasteboard.contains(pasteboardTypes: [$0.identifier])
+    }), let data = pasteboard.data(forPasteboardType: type.identifier) {
+      content = .image(data)
+    } else if let image = pasteboard.image {
+      guard let png = image.pngData() else { return onError(ImageImportError.unencodableImage) }
+      content = .image(png)
+    } else if let text = pasteboard.string {
+      content = .svg(Data(text.utf8))
     } else {
       return
     }
-    let data = pasteboard.data(forPasteboardType: imageType.identifier)
-      ?? (imageType == .png ? pasteboard.image?.pngData() : nil)
-    guard let data,
-      let image = UIImage(data: data)?.cgImage,
-      let page = canvasView.page(at: point)
-    else { return }
     do {
-      let bounds = try document.pageRect(index: page)
-      let importedData: Data
-      let mimeType: String
-      switch imageType {
-      case .png:
-        importedData = data
-        mimeType = "image/png"
-      case .jpeg:
-        importedData = data
-        mimeType = "image/jpeg"
-      default:
-        guard let png = UIImage(cgImage: image).pngData() else { return }
-        importedData = png
-        mimeType = "image/png"
-      }
-      let svg = try imageImportSVG(
-        data: importedData, mimeType: mimeType,
-        imageSize: CGSize(width: image.width, height: image.height),
-        pageSize: bounds.size)
-      paste(svg, at: point, placeAtPointer: placeAtPointer)
+      paste(try content.svg(pageSize: try document.pageRect(index: page).size), at: point, placeAtPointer: placeAtPointer)
     } catch {
       onError(error)
     }
@@ -2997,7 +2862,8 @@ struct InkEditorView: View {
       delegate: NotebookEditorDropDelegate(
         canDrop: { !drawing },
         onFocus: onFocus,
-        onDropClipping: onDropClipping))
+        onDropClipping: onDropClipping,
+        onError: onError))
     .onChange(of: documentRevision) {
       normalizeViewState()
     }

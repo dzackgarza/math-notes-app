@@ -878,7 +878,8 @@ struct ContentView: View {
           onMove: moveClipping,
           onDelete: deleteClipping,
           onRefresh: { await refreshClippings(viewState: viewState) },
-          onClose: { dismissClippings(viewState: viewState) })
+          onClose: { dismissClippings(viewState: viewState) },
+          onError: { errorMessage = $0.localizedDescription })
           .id(request.id)
           .transition(.move(edge: .trailing).combined(with: .opacity))
       }
@@ -1951,41 +1952,9 @@ struct ContentView: View {
     }
 
     do {
-      let data = try Data(contentsOf: url)
-      if url.pathExtension.lowercased() == "svg" {
-        guard let svg = String(data: data, encoding: .utf8), svg.contains("<svg") else {
-          throw EngineDocumentError.operation("Import SVG", "Invalid SVG document")
-        }
-        editorPageCommand = .pasteSVGAtCenter(svg, placeAtPointer: false)
-        return
-      }
-      guard let image = UIImage(data: data), let cgImage = image.cgImage else {
-        throw ImageImportError.invalidImageSize
-      }
+      let content = try ImportedContent(file: url, data: Data(contentsOf: url))
       let page = try session.document.pageRect(index: currentPage)
-      let contentType = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType
-      let ext = url.pathExtension.lowercased()
-      let mimeType: String
-      let importedData: Data
-      if ext == "png" || contentType == .png {
-        mimeType = "image/png"
-        importedData = data
-      } else if ext == "jpg" || ext == "jpeg" || contentType == .jpeg {
-        mimeType = "image/jpeg"
-        importedData = data
-      } else {
-        guard let png = UIImage(cgImage: cgImage).pngData() else {
-          throw ImageImportError.invalidImageSize
-        }
-        mimeType = "image/png"
-        importedData = png
-      }
-      let svg = try imageImportSVG(
-        data: importedData,
-        mimeType: mimeType,
-        imageSize: CGSize(width: CGFloat(cgImage.width), height: CGFloat(cgImage.height)),
-        pageSize: page.size)
-      editorPageCommand = .pasteSVGAtCenter(svg, placeAtPointer: false)
+      editorPageCommand = .pasteSVGAtCenter(try content.svg(pageSize: page.size), placeAtPointer: false)
     } catch {
       errorMessage = error.localizedDescription
     }

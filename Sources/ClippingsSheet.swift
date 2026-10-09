@@ -32,6 +32,7 @@ struct ClippingsSheet: View {
   let onDelete: (String) async -> Bool
   let onRefresh: () async -> [ClippingPreview]?
   let onClose: () -> Void
+  let onError: (Error) -> Void
 
   @State private var items: [ClippingPreview]
   @State private var dropTargeted = false
@@ -184,11 +185,13 @@ struct ClippingsSheet: View {
       let session = dropSession
       provider.loadDataRepresentation(
         forTypeIdentifier: notebookSelectionCopyDragType.identifier
-      ) { data, _ in
-        guard let data, let svg = String(data: data, encoding: .utf8),
-          svg.contains("<svg")
-        else { return }
+      ) { data, error in
         Task { @MainActor in
+          // NSItemProvider passes an error whenever it passes no data.
+          guard let data else { return onError(error!) }
+          guard let svg = String(data: data, encoding: .utf8), svg.contains("<svg") else {
+            return onError(ImageImportError.notSVG)
+          }
           guard session == dropSession else { return }
           guard ClippingsPanelAvailability(
             selectionActive: selectionActive, drawing: drawing
