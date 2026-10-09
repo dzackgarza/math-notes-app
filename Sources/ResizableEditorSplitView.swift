@@ -4,6 +4,7 @@ import SwiftUI
 struct ResizableEditorSplitView<Primary: View, Secondary: View>: View {
   let axis: EditorSplitAxis
   @Binding var fraction: Double
+  @State private var dragStartFraction: Double?
   let primary: Primary
   let secondary: Secondary
 
@@ -34,6 +35,7 @@ struct ResizableEditorSplitView<Primary: View, Secondary: View>: View {
               .frame(width: first)
             divider(total: total)
               .frame(width: Self.dividerThickness)
+              .zIndex(1)
             secondary
               .frame(maxWidth: .infinity)
           }
@@ -43,6 +45,7 @@ struct ResizableEditorSplitView<Primary: View, Secondary: View>: View {
               .frame(height: first)
             divider(total: total)
               .frame(height: Self.dividerThickness)
+              .zIndex(1)
             secondary
               .frame(maxHeight: .infinity)
           }
@@ -70,23 +73,28 @@ struct ResizableEditorSplitView<Primary: View, Secondary: View>: View {
             .frame(height: 1)
         }
       }
-      .contentShape(Rectangle())
-      .gesture(
-        DragGesture(
-          minimumDistance: 0,
-          coordinateSpace: .named(Self.coordinateSpace)
-        )
-        .onChanged { value in
-          let usable = max(1, total - Self.dividerThickness)
-          let position = axis == .horizontal
-            ? value.location.x
-            : value.location.y
-          let normalized =
-            (position - Self.dividerThickness / 2) / usable
-          fraction = min(
-            max(Double(normalized), Self.minimumFraction),
-            Self.maximumFraction)
-        })
+      // The HIG's 44 pt touch target, centered on the line and over the pane edges.
+      .overlay {
+        Color.clear
+          .frame(
+            width: axis == .horizontal ? Self.touchTarget : nil,
+            height: axis == .horizontal ? nil : Self.touchTarget)
+          .contentShape(Rectangle())
+          .gesture(
+            DragGesture(coordinateSpace: .named(Self.coordinateSpace))
+              .onChanged { value in
+                // Relative to where the drag began, so touching the divider
+                // does not move it.
+                let start = dragStartFraction ?? clampedFraction
+                dragStartFraction = start
+                let usable = max(1, total - Self.dividerThickness)
+                let moved = axis == .horizontal ? value.translation.width : value.translation.height
+                fraction = min(
+                  max(start + Double(moved / usable), Self.minimumFraction),
+                  Self.maximumFraction)
+              }
+              .onEnded { _ in dragStartFraction = nil })
+      }
       .accessibilityElement()
       .accessibilityLabel("Split divider")
       .accessibilityValue("\(Int(clampedFraction * 100)) percent")
@@ -103,6 +111,7 @@ struct ResizableEditorSplitView<Primary: View, Secondary: View>: View {
   }
 
   private static var dividerThickness: CGFloat { 12 }
+  private static var touchTarget: CGFloat { 44 }
   private static var minimumFraction: Double { 0.0 }
   private static var maximumFraction: Double { 1.0 }
   private static var coordinateSpace: String { "editor-split" }
