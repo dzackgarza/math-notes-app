@@ -203,6 +203,15 @@ jobs:
         run: |
           xcrun xcresulttool get build-results --path build/AppTests.xcresult
           xcrun xcresulttool get test-results summary --path build/AppTests.xcresult
+          # The simulator writes the host app's crash reports here: print each
+          # exception and the crashed thread's frames.
+          for report in ~/Library/Logs/DiagnosticReports/MathNotes*.ips; do
+            [ -e "$report" ] || continue
+            echo "== $report"
+            tail -n +2 "$report" | jq '. as $r | {exception: $r.exception, termination: $r.termination,
+              frames: [$r.threads[$r.faultingThread].frames[0:40][] |
+                "\($r.usedImages[.imageIndex].name) \(.symbol // "?") +\(.symbolLocation // .imageOffset)"]}'
+          done
           # When the app itself never built, its own build says why.
           xcodebuild -project MathNotes.xcodeproj -scheme MathNotes -showBuildSettings \
             -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \

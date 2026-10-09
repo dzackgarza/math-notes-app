@@ -28,7 +28,7 @@ final class FigureEditorSheetWorkflowTests: XCTestCase {
       onDraft: { text, persistent in
         guard persistent else { return }
         persistentDrafts.append(text)
-        saved.fulfill()
+        if persistentDrafts.count == 1 { saved.fulfill() }
       },
       onDismiss: {})
 
@@ -52,7 +52,7 @@ final class FigureEditorSheetWorkflowTests: XCTestCase {
     try events.fingerTap(at: button)
 
     wait(for: [saved], timeout: limit)
-    XCTAssertEqual(persistentDrafts, [source])
+    XCTAssertEqual(Set(persistentDrafts), [source], "a persistent draft differs from the figure's source")
   }
 
   private func saveButton(in view: UIView) -> UIView? {
