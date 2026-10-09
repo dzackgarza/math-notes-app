@@ -43,7 +43,7 @@ final class CrossNotebookRootMoveLinkTests: XCTestCase {
       mark: targetPage)
 
     try coordinatedMove(original, to: moved)
-    awaitRootURL(root, moved, in: self)
+    await awaitRootURL(root, moved, in: self)
 
     let resolved = try NotebookLink.resolve(
       source: source,

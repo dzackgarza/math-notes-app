@@ -22,7 +22,7 @@ final class RootMoveTests: XCTestCase {
     XCTAssertEqual(try root.notebooks(), [reference])
 
     try coordinatedMove(original, to: moved)
-    awaitRootURL(root, moved, in: self)
+    await awaitRootURL(root, moved, in: self)
 
     XCTAssertEqual(root.url.standardizedFileURL, moved.standardizedFileURL)
     XCTAssertEqual(try root.notebooks(), [reference])

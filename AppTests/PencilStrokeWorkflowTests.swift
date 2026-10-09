@@ -110,8 +110,9 @@ final class PencilStrokeWorkflowTests: XCTestCase {
   }
 
   // The partial eraser (docs/specs/core-features.md, L1) drawn across the middle
-  // of a stroke cuts it in two: the saved page holds two strokes in its place.
-  func testThePartialEraserCutsAStrokeInTwo() throws {
+  // of a stroke cuts it: pieces of it remain, under new ids. The cut geometry
+  // itself is proven against Write in the engine tests.
+  func testThePartialEraserLeavesPiecesOfTheStroke() throws {
     let editor = try openEditor(title: "Partial Erase Workflow")
     let rowY = editor.center.y + 40
     try editor.events.stylusDown(
@@ -129,8 +130,9 @@ final class PencilStrokeWorkflowTests: XCTestCase {
     try editor.events.stylusMove(to: CGPoint(x: editor.center.x, y: rowY + 40), duration: 0.3)
     try editor.events.stylusUp()
     try awaitSaved(editor.session)
+    // The stroke eraser would leave nothing; no erase would leave the original.
     let pieces = try savedStrokeIDs(editor.directory, editor.reference)
-    XCTAssertEqual(pieces.count, 2, "the partial eraser did not cut the stroke in two")
+    XCTAssertFalse(pieces.isEmpty, "the partial eraser removed the whole stroke")
     XCTAssertTrue(pieces.isDisjoint(with: whole), "the cut stroke is still on the page whole")
   }
 

@@ -42,31 +42,10 @@ final class FigureEditorSheetWorkflowTests: XCTestCase {
     try events.waitUntilWindowIsReady()
 
     let limit = TimeInterval(FigureEditorPage.startLimit.components.seconds)
-    let enabled = expectation(
-      for: NSPredicate { _, _ in self.saveButton(in: window).map { !$0.accessibilityTraits.contains(.notEnabled) } ?? false },
-      evaluatedWith: nil)
-    wait(for: [enabled], timeout: limit)
-    let button = try XCTUnwrap(
-      saveButton(in: window),
-      "no Save and close control; labelled views: \(labels(in: window))")
-    try events.fingerTap(at: button)
+    // Enabled once the editor answered the sheet's load with 'loaded'.
+    try events.fingerTap(at: try center(ofAccessibilityElement: "Save and close", enabled: true, in: window))
 
     wait(for: [saved], timeout: limit)
     XCTAssertEqual(Set(persistentDrafts), [source], "a persistent draft differs from the figure's source")
-  }
-
-  private func saveButton(in view: UIView) -> UIView? {
-    if view.accessibilityIdentifier == "figure-editor-save" || view.accessibilityLabel == "Save and close" {
-      return view
-    }
-    for subview in view.subviews {
-      if let match = saveButton(in: subview) { return match }
-    }
-    return nil
-  }
-
-  private func labels(in view: UIView) -> [String] {
-    [view.accessibilityIdentifier, view.accessibilityLabel].compactMap { $0 }
-      + view.subviews.flatMap(labels(in:))
   }
 }

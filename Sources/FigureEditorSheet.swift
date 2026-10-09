@@ -362,7 +362,6 @@ struct FigureEditorSheet: View {
           ToolbarItem(placement: .topBarTrailing) {
             Button(closing ? "Saving…" : "Save and close", action: requestClose)
               .disabled(closing || !ready)
-              .accessibilityIdentifier("figure-editor-save")
           }
         }
         .safeAreaInset(edge: .bottom) {

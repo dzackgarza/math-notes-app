@@ -27,11 +27,12 @@ func coordinatedMove(_ source: URL, to destination: URL) throws {
 }
 
 // Waits for the root's presenter to adopt the moved location. Presenter
-// callbacks are delivered in-process on the presenter's queue.
+// callbacks arrive on the presenter's queue and hop to the main thread, so
+// an async test must await rather than block the main thread in wait(for:).
 @MainActor
-func awaitRootURL(_ root: NotesRootAccess, _ url: URL, in test: XCTestCase) {
-  let adopted = test.expectation(
-    for: NSPredicate { _, _ in root.url.standardizedFileURL == url.standardizedFileURL },
-    evaluatedWith: nil)
-  test.wait(for: [adopted], timeout: 5)
+func awaitRootURL(_ root: NotesRootAccess, _ url: URL, in test: XCTestCase) async {
+  let adopted = XCTNSPredicateExpectation(
+    predicate: NSPredicate { _, _ in root.url.standardizedFileURL == url.standardizedFileURL },
+    object: nil)
+  await test.fulfillment(of: [adopted], timeout: 5)
 }
