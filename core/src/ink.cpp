@@ -11,7 +11,6 @@
 #include <nlohmann/json.hpp>
 
 #include "editor/canvas.h"
-#include "trace.h"
 #include "export/pdf.h"
 #include "document/templates.h"
 #include "document/layers.h"
@@ -158,19 +157,6 @@ extern "C" {
 const char *ink_version(void) { return INK_VERSION; }
 
 const char *ink_last_error(void) { return gLastError.c_str(); }
-
-namespace {
-InkLogHandler gLogHandler = nullptr;
-}  // namespace
-
-void ink_engine::Trace(const std::string &message) {
-  if (gLogHandler) gLogHandler(message.c_str());
-}
-
-InkStatus ink_set_log_handler(InkLogHandler handler) {
-  gLogHandler = handler;
-  return INK_OK;
-}
 
 // ---- Documents -----------------------------------------------------------
 

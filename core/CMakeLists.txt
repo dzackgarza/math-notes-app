@@ -52,6 +52,7 @@ unset(TEXT_FONT_BYTES)
 
 add_library(ink STATIC
   src/ink.cpp
+  src/trace.cpp
   src/geometry/hit_shapes.cpp
   src/format/numbers.cpp
   src/format/page_svg.cpp
