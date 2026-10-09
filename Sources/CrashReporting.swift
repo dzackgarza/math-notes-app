@@ -12,7 +12,14 @@ enum CrashReporting {
   static func install() throws {
     // The default monitors are the production set, which includes the
     // watchdog (main-thread hangs with backtraces) and termination monitors.
-    try KSCrash.shared.install(with: KSCrashConfiguration())
+    let configuration = KSCrashConfiguration()
+    // 2.6.0's __cxa_throw swap seals a page the Objective-C runtime later
+    // writes, so the first Metal device creation crashes with SIGBUS in
+    // map_images_nolock (kstenerud/KSCrash#947, fixed on develop by #914, not
+    // released). C++ exceptions are still caught; only their throw-site stack
+    // is lost.
+    configuration.enableSwapCxaThrow = false
+    try KSCrash.shared.install(with: configuration)
     let reason = KSCrash.shared.previousTerminationReason
     Log.app.notice(
       "previous run ended: \(String(cString: kstermination_reasonToString(reason)), privacy: .public); stored reports: \(KSCrash.shared.reportStore?.reportCount ?? 0, privacy: .public)")
