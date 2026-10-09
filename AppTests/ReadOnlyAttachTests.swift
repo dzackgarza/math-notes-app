@@ -8,7 +8,7 @@ import XCTest
 // .pens.json into it. Files are created only by an action that needs them.
 final class ReadOnlyAttachTests: XCTestCase {
   @MainActor
-  func testAttachingAndBrowsingAFolderWritesNothing() throws {
+  func testAttachingAndBrowsingAFolderWritesNothing() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     let notes = directory.appendingPathComponent("Dropbox Notes", isDirectory: true)
@@ -26,7 +26,7 @@ final class ReadOnlyAttachTests: XCTestCase {
       recoveryURL: directory.appendingPathComponent("recovery", isDirectory: true),
       thumbnailCacheURL: directory.appendingPathComponent("thumbnails", isDirectory: true))
     _ = try root.penLibrary()
-    _ = try root.library(in: FolderReference(path: []), overview: true, sort: .name, direction: .ascending)
+    _ = try await root.library(in: FolderReference(path: []), overview: true, sort: .name, direction: .ascending)
     let templates = try root.templateNames()
     XCTAssertTrue(templates.contains("blank"))
     _ = try root.paperPreview(template: "blank", pageSize: INK_PAGE_A4, orientation: INK_PORTRAIT)

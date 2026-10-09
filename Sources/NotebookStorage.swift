@@ -1046,6 +1046,10 @@ final class NotesRootAccess {
   }
 
   func folders() throws -> [FolderReference] {
+    try Self.folders(at: url)
+  }
+
+  private static func folders(at url: URL) throws -> [FolderReference] {
     try Self.coordinatedListing(at: url) { root in
       let fileManager = FileManager.default
       var folders = [FolderReference(path: [])]
@@ -1080,13 +1084,69 @@ final class NotesRootAccess {
     }
   }
 
+  // What a library walk reads from the root, taken on the main thread so the
+  // walk runs off it: a large or not-yet-downloaded folder must not stall the UI.
+  struct LibraryScan: Sendable {
+    let root: URL
+    let pendingDeletePaths: [NotebookReference: [String]]
+  }
+
+  private func libraryScan() -> LibraryScan {
+    LibraryScan(root: url, pendingDeletePaths: pendingDeleteConflicts.mapValues { Array($0.keys) })
+  }
+
   func library(
     in parent: FolderReference,
-    overview: Bool = false,
+    overview: Bool,
+    sort: LibrarySort,
+    direction: LibrarySortDirection
+  ) async throws -> LibraryListing {
+    let scan = libraryScan()
+    return try await Self.offMain {
+      try Self.library(scan, in: parent, overview: overview, sort: sort, direction: direction)
+    }
+  }
+
+  func searchLibrary(query: String, sort: LibrarySort, direction: LibrarySortDirection) async throws -> LibraryListing {
+    let scan = libraryScan()
+    return try await Self.offMain { try Self.searchLibrary(scan, query: query, sort: sort, direction: direction) }
+  }
+
+  func allNotes(sort: LibrarySort, direction: LibrarySortDirection) async throws -> LibraryListing {
+    let scan = libraryScan()
+    return try await Self.offMain { try Self.allNotes(scan, sort: sort, direction: direction) }
+  }
+
+  func favoriteNotes(sort: LibrarySort, direction: LibrarySortDirection) async throws -> LibraryListing {
+    let scan = libraryScan()
+    return try await Self.offMain { try Self.favoriteNotes(scan, sort: sort, direction: direction) }
+  }
+
+  func taggedLibrary(
+    tag: String,
+    query: String,
+    sort: LibrarySort,
+    direction: LibrarySortDirection
+  ) async throws -> LibraryListing {
+    let scan = libraryScan()
+    return try await Self.offMain {
+      try Self.taggedLibrary(scan, tag: tag, query: query, sort: sort, direction: direction)
+    }
+  }
+
+  func trashNotes(query: String, sort: LibrarySort, direction: LibrarySortDirection) async throws -> LibraryListing {
+    let scan = libraryScan()
+    return try await Self.offMain { try Self.trashNotes(scan, query: query, sort: sort, direction: direction) }
+  }
+
+  private static func library(
+    _ scan: LibraryScan,
+    in parent: FolderReference,
+    overview: Bool,
     sort: LibrarySort,
     direction: LibrarySortDirection
   ) throws -> LibraryListing {
-    try Self.coordinatedRead(at: url) { root in
+    try Self.coordinatedRead(at: scan.root) { root in
       let fileManager = FileManager.default
       let metadata = try LibraryMetadataFile.read(at: root)
       let favoritePaths = try LibraryMetadataFile.favoritePaths(in: metadata)
@@ -1099,8 +1159,8 @@ final class NotesRootAccess {
           includingPropertiesForKeys: [.isDirectoryKey],
           options: [.skipsHiddenFiles])
           .filter { child in
-            !child.lastPathComponent.hasPrefix(".") &&
-              (try? child.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+            try !child.lastPathComponent.hasPrefix(".") &&
+              child.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true
           }
       }
 
@@ -1110,7 +1170,8 @@ final class NotesRootAccess {
           reference: reference,
           modified: try Self.notebookModification(at: child),
           favorite: favoritePaths.contains(path.joined(separator: "/")),
-          conflicts: try combinedConflictCount(reference, at: child),
+          conflicts: try combinedConflictCount(
+                    scan,reference, at: child),
           details: try LibraryMetadataFile.noteDetails(in: metadata, path: path))
       }
 
@@ -1194,7 +1255,8 @@ final class NotesRootAccess {
     }
   }
 
-  func searchLibrary(
+  private static func searchLibrary(
+    _ scan: LibraryScan,
     query: String,
     sort: LibrarySort,
     direction: LibrarySortDirection
@@ -1202,13 +1264,14 @@ final class NotesRootAccess {
     let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !needle.isEmpty else {
       return try library(
+        scan,
         in: FolderReference(path: []),
         overview: true,
         sort: sort,
         direction: direction)
     }
 
-    return try Self.coordinatedRead(at: url) { root in
+    return try Self.coordinatedRead(at: scan.root) { root in
       let fileManager = FileManager.default
       let metadata = try LibraryMetadataFile.read(at: root)
       let favoritePaths = try LibraryMetadataFile.favoritePaths(in: metadata)
@@ -1244,6 +1307,7 @@ final class NotesRootAccess {
                   modified: try Self.notebookModification(at: child),
                   favorite: favoritePaths.contains(childPath.joined(separator: "/")),
                   conflicts: try combinedConflictCount(
+                    scan,
                     NotebookReference(path: childPath),
                     at: child),
                   details: details))
@@ -1324,11 +1388,12 @@ final class NotesRootAccess {
     }
   }
 
-  func allNotes(
+  private static func allNotes(
+    _ scan: LibraryScan,
     sort: LibrarySort,
     direction: LibrarySortDirection
   ) throws -> LibraryListing {
-    try Self.coordinatedRead(at: url) { root in
+    try Self.coordinatedRead(at: scan.root) { root in
       let fileManager = FileManager.default
       let favoritePaths = try LibraryMetadataFile.favoritePaths(
         in: LibraryMetadataFile.read(at: root))
@@ -1356,6 +1421,7 @@ final class NotesRootAccess {
               modified: try Self.notebookModification(at: child),
               favorite: favoritePaths.contains(childPath.joined(separator: "/")),
               conflicts: try combinedConflictCount(
+                    scan,
                 NotebookReference(path: childPath),
                 at: child),
               details: try LibraryMetadataFile.noteDetails(
@@ -1387,27 +1453,29 @@ final class NotesRootAccess {
     }
   }
 
-  func favoriteNotes(
+  private static func favoriteNotes(
+    _ scan: LibraryScan,
     sort: LibrarySort,
     direction: LibrarySortDirection
   ) throws -> LibraryListing {
-    let listing = try allNotes(sort: sort, direction: direction)
+    let listing = try allNotes(scan, sort: sort, direction: direction)
     return LibraryListing(
       folders: [],
       notebooks: listing.notebooks.filter(\.favorite))
   }
 
-  func taggedLibrary(
+  private static func taggedLibrary(
+    _ scan: LibraryScan,
     tag: String,
     query: String,
     sort: LibrarySort,
     direction: LibrarySortDirection
   ) throws -> LibraryListing {
     let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
-    let allNotebooks = try allNotes(sort: sort, direction: direction).notebooks
+    let allNotebooks = try allNotes(scan, sort: sort, direction: direction).notebooks
     var notebooks: [LibraryNotebookItem] = []
     for item in allNotebooks {
-      let details = try noteDetails(for: item.reference)
+      let details = try noteDetails(at: scan.root, for: item.reference)
       guard details.tags.contains(tag) else { continue }
       if needle.isEmpty || Self.matchesSearch(
         needle,
@@ -1420,14 +1488,14 @@ final class NotesRootAccess {
     }
 
     var folderItems: [LibraryFolderItem] = []
-    for reference in try folders() {
-      let directory = urlForPath(reference.path)
+    for reference in try folders(at: scan.root) {
+      let directory = reference.path.reduce(scan.root) { $0.appendingPathComponent($1, isDirectory: true) }
       let directNoteNames = try Self.coordinatedRead(at: directory) {
         try Self.directNotebookNames(in: $0)
       }
       if reference.path.isEmpty && directNoteNames.isEmpty { continue }
 
-      let details = try folderDetails(for: reference)
+      let details = try folderDetails(at: scan.root, for: reference)
       guard details.tags.contains(tag) else { continue }
       guard needle.isEmpty || Self.matchesSearch(
         needle,
@@ -1471,13 +1539,14 @@ final class NotesRootAccess {
     return LibraryListing(folders: folderItems, notebooks: notebooks)
   }
 
-  func trashNotes(
-    query: String = "",
+  private static func trashNotes(
+    _ scan: LibraryScan,
+    query: String,
     sort: LibrarySort,
     direction: LibrarySortDirection
   ) throws -> LibraryListing {
     let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
-    return try Self.coordinatedRead(at: url) { root in
+    return try Self.coordinatedRead(at: scan.root) { root in
       let trash = root.appendingPathComponent(".trash", isDirectory: true)
       guard FileManager.default.fileExists(atPath: trash.path) else {
         return LibraryListing(folders: [], notebooks: [])
@@ -1514,6 +1583,7 @@ final class NotesRootAccess {
                   modified: try Self.notebookModification(at: child),
                   favorite: favoritePaths.contains(childPath.joined(separator: "/")),
                   conflicts: try combinedConflictCount(
+                    scan,
                     NotebookReference(path: childPath),
                     at: child),
                   details: details))
@@ -1614,6 +1684,10 @@ final class NotesRootAccess {
   }
 
   func noteDetails(for reference: NotebookReference) throws -> LibraryNoteDetails {
+    try Self.noteDetails(at: url, for: reference)
+  }
+
+  private static func noteDetails(at url: URL, for reference: NotebookReference) throws -> LibraryNoteDetails {
     try Self.coordinatedRead(at: url) { root in
       try LibraryMetadataFile.noteDetails(
         in: LibraryMetadataFile.read(at: root),
@@ -1622,6 +1696,10 @@ final class NotesRootAccess {
   }
 
   func folderDetails(for reference: FolderReference) throws -> LibraryFolderDetails {
+    try Self.folderDetails(at: url, for: reference)
+  }
+
+  private static func folderDetails(at url: URL, for reference: FolderReference) throws -> LibraryFolderDetails {
     try Self.coordinatedRead(at: url) { root in
       try LibraryMetadataFile.folderDetails(
         in: LibraryMetadataFile.read(at: root),
@@ -2418,12 +2496,15 @@ final class NotesRootAccess {
     }
   }
 
-  private func combinedConflictCount(
+  private static func combinedConflictCount(
+    _ scan: LibraryScan,
     _ reference: NotebookReference,
     at notebookURL: URL
   ) throws -> Int {
-    let stored = try Self.conflictCount(at: notebookURL)
-    let pending = try pendingDeleteConflictCount(reference, at: notebookURL)
+    let stored = try conflictCount(at: notebookURL)
+    let pending = try (scan.pendingDeletePaths[reference] ?? []).reduce(into: 0) { count, path in
+      if try currentFile(in: notebookURL, path: path) != nil { count += 1 }
+    }
     return stored + pending
   }
 

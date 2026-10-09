@@ -154,6 +154,7 @@ struct ContentView: View {
   @State private var penLibrary = EditorPenLibrary.defaults
   @State private var sharePayload: SharePayload?
   @State private var previousFailure: PreviousFailure?
+  @State private var libraryRefresh: Task<Void, Never>?
   @State private var exportPayload: ExportPayload?
   @State private var pdfExport: PDFExportRequest?
   @State private var showingPDFImporter = false
@@ -1348,20 +1349,24 @@ struct ContentView: View {
 
   private func prepareOpenNotePicker(_ purpose: OpenNotePickerPurpose) {
     guard let root else { return }
-    do {
-      openNoteChoices = try root.folders().flatMap { folder in
-        try root.library(
-          in: folder,
-          overview: false,
-          sort: .name,
-          direction: .ascending).notebooks.sorted { left, right in
-            left.reference.name.localizedCompare(right.reference.name) == .orderedAscending
-          }
+    Task {
+      do {
+        var choices: [LibraryNotebookItem] = []
+        for folder in try root.folders() {
+          choices += try await root.library(
+            in: folder,
+            overview: false,
+            sort: .name,
+            direction: .ascending).notebooks.sorted { left, right in
+              left.reference.name.localizedCompare(right.reference.name) == .orderedAscending
+            }
+        }
+        openNoteChoices = choices
+        openNotePickerPurpose = purpose
+        showingOpenNotePicker = true
+      } catch {
+        errorMessage = error.localizedDescription
       }
-      openNotePickerPurpose = purpose
-      showingOpenNotePicker = true
-    } catch {
-      errorMessage = error.localizedDescription
     }
   }
 
@@ -1471,105 +1476,93 @@ struct ContentView: View {
 
   private func refreshLibrary(recountTags: Bool = true) {
     guard let root else {
+      libraryRefresh?.cancel()
       libraryListing = LibraryListing(folders: [], notebooks: [])
       libraryFolderDetails = nil
       libraryTagCounts = [:]
       return
     }
+    // The walks run off the main thread; a newer refresh supersedes this one.
+    libraryRefresh?.cancel()
+    libraryRefresh = Task { await loadLibrary(root, recountTags: recountTags) }
+  }
 
+  private func loadLibrary(_ root: NotesRootAccess, recountTags: Bool) async {
     do {
-      libraryTags = try root.libraryTags()
+      let tags = try root.libraryTags()
+      var tagCounts: [String: Int]?
       if recountTags {
-        let allNotesForTags = try root.allNotes(sort: .name, direction: .ascending)
-        libraryTagCounts = allNotesForTags.notebooks.reduce(into: [:]) { counts, note in
+        let allNotesForTags = try await root.allNotes(sort: .name, direction: .ascending)
+        tagCounts = allNotesForTags.notebooks.reduce(into: [:]) { counts, note in
           for tag in Set(note.details.tags) {
             counts[tag, default: 0] += 1
           }
         }
       }
-      let queryIsEmpty = libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-      libraryFolderDetails = libraryNotebookOpen
-        ? try root.folderDetails(for: libraryFolder)
-        : nil
+      let folderDetails = libraryNotebookOpen ? try root.folderDetails(for: libraryFolder) : nil
+      let listing: LibraryListing
       if libraryNotebookOpen {
-        libraryListing = try root.library(
+        listing = try await root.library(
           in: libraryFolder,
           overview: false,
           sort: librarySort,
           direction: librarySortDirection)
       } else if libraryScope == .tag, let libraryTag {
-        libraryListing = try root.taggedLibrary(
+        listing = try await root.taggedLibrary(
           tag: libraryTag,
           query: libraryQuery,
           sort: librarySort,
           direction: librarySortDirection)
       } else if !libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
         if libraryScope == .trash {
-          libraryListing = try root.trashNotes(
+          listing = try await root.trashNotes(
             query: libraryQuery,
             sort: librarySort,
             direction: librarySortDirection)
         } else {
-          let listing = try root.searchLibrary(
+          let found = try await root.searchLibrary(
             query: libraryQuery,
             sort: librarySort,
             direction: librarySortDirection)
           switch libraryScope {
           case .favorites:
-            libraryListing = LibraryListing(
-              folders: [],
-              notebooks: listing.notebooks.filter(\.favorite))
+            listing = LibraryListing(folders: [], notebooks: found.notebooks.filter(\.favorite))
           case .recent:
-            libraryListing = LibraryListing(folders: [], notebooks: listing.notebooks)
+            listing = LibraryListing(folders: [], notebooks: found.notebooks)
           default:
-            libraryListing = listing
+            listing = found
           }
         }
       } else if libraryScope == .recent {
-        libraryListing = try root.allNotes(
-          sort: librarySort,
-          direction: librarySortDirection)
+        listing = try await root.allNotes(sort: librarySort, direction: librarySortDirection)
       } else if libraryScope == .favorites {
-        libraryListing = try root.favoriteNotes(
-          sort: librarySort,
-          direction: librarySortDirection)
+        listing = try await root.favoriteNotes(sort: librarySort, direction: librarySortDirection)
       } else if libraryScope == .trash {
-        libraryListing = try root.trashNotes(
-          sort: librarySort,
-          direction: librarySortDirection)
+        listing = try await root.trashNotes(query: "", sort: librarySort, direction: librarySortDirection)
       } else {
-        libraryListing = try root.library(
+        listing = try await root.library(
           in: libraryFolder,
           overview: !libraryNotebookOpen,
           sort: librarySort,
           direction: librarySortDirection)
       }
-      if let session {
-        session.conflictCount = (try? root.conflictCount(session.reference)) ?? 0
-      }
+      let conflictCount = try session.map { try root.conflictCount($0.reference) }
+      guard !Task.isCancelled else { return }
+      libraryTags = tags
+      if let tagCounts { libraryTagCounts = tagCounts }
+      libraryFolderDetails = folderDetails
+      libraryListing = listing
+      if let session, let conflictCount { session.conflictCount = conflictCount }
     } catch {
+      guard !Task.isCancelled else { return }
       libraryFolderDetails = nil
       if recountTags { libraryTagCounts = [:] }
+      // The open folder was moved or deleted elsewhere: show the whole library.
       if libraryNotebookOpen {
         libraryFolder = FolderReference(path: [])
         libraryNotebookOpen = false
         refreshLibrary(recountTags: false)
         return
-      }
-      if libraryScope == .folder,
-        libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-      {
-        do {
-          libraryListing = try root.library(
-            in: libraryFolder,
-            overview: true,
-            sort: librarySort,
-            direction: librarySortDirection)
-          return
-        } catch {
-          errorMessage = error.localizedDescription
-          return
-        }
       }
       errorMessage = error.localizedDescription
     }
@@ -1800,7 +1793,7 @@ struct ContentView: View {
 
   private func renderNotebookPreview(_ folder: FolderReference) async throws -> Data? {
     guard let root else { throw NotebookStorageError.cannotAccessRoot }
-    let listing = try root.library(in: folder, sort: .modified, direction: .descending)
+    let listing = try await root.library(in: folder, overview: false, sort: .modified, direction: .descending)
     guard let first = listing.notebooks.first else { return nil }
     return try await root.thumbnail(first.reference)
   }

@@ -1433,7 +1433,7 @@ final class NotebookStorageTests: XCTestCase {
   }
 
   @MainActor
-  func testLibraryOverviewMatchesWebFlatFolderModel() throws {
+  func testLibraryOverviewMatchesWebFlatFolderModel() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -1459,7 +1459,7 @@ final class NotebookStorageTests: XCTestCase {
       title: "Exercises", parent: week, template: "blank",
       pageSize: INK_PAGE_A4, orientation: INK_PORTRAIT)
 
-    let overview = try root.library(
+    let overview = try await root.library(
       in: myNotes, overview: true, sort: .name, direction: .ascending)
     XCTAssertEqual(
       overview.folders.map(\.reference),
@@ -1470,21 +1470,21 @@ final class NotebookStorageTests: XCTestCase {
       [courseNote, weekNote, rootNote])
     XCTAssertTrue(overview.notebooks.isEmpty)
 
-    let rootOpen = try root.library(in: myNotes, sort: .name, direction: .ascending)
+    let rootOpen = try await root.library(in: myNotes, overview: false, sort: .name, direction: .ascending)
     XCTAssertTrue(rootOpen.folders.isEmpty)
     XCTAssertEqual(rootOpen.notebooks.map(\.reference), [rootNote])
 
-    let courseOpen = try root.library(in: course, sort: .name, direction: .ascending)
+    let courseOpen = try await root.library(in: course, overview: false, sort: .name, direction: .ascending)
     XCTAssertTrue(courseOpen.folders.isEmpty)
     XCTAssertEqual(courseOpen.notebooks.map(\.reference), [courseNote])
 
-    let weekOpen = try root.library(in: week, sort: .name, direction: .ascending)
+    let weekOpen = try await root.library(in: week, overview: false, sort: .name, direction: .ascending)
     XCTAssertTrue(weekOpen.folders.isEmpty)
     XCTAssertEqual(weekOpen.notebooks.map(\.reference), [weekNote])
   }
 
   @MainActor
-  func testLibrarySearchMatchesWebMetadataAndDirectNotePredicates() throws {
+  func testLibrarySearchMatchesWebMetadataAndDirectNotePredicates() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -1542,46 +1542,46 @@ final class NotebookStorageTests: XCTestCase {
         description: "Lebesgue integration"),
       for: measure)
 
-    func search(_ query: String) throws -> LibraryListing {
-      try root.searchLibrary(query: query, sort: .name, direction: .ascending)
+    func search(_ query: String) async throws -> LibraryListing {
+      try await root.searchLibrary(query: query, sort: .name, direction: .ascending)
     }
 
-    XCTAssertEqual(try search("Lebesgue").notebooks.map(\.reference), [measure])
-    XCTAssertEqual(try search("Analysis").notebooks.map(\.reference), [measure])
-    XCTAssertEqual(try search("Geometry").folders.map(\.reference), [course])
-    XCTAssertEqual(try search("Research").folders.map(\.reference), [course])
-    XCTAssertEqual(try search("Course").folders.map(\.reference), [course, week])
-    XCTAssertEqual(try search("Root shelf").folders.map(\.reference), [FolderReference(path: [])])
+    let lebesgue = try await search("Lebesgue")
+    XCTAssertEqual(lebesgue.notebooks.map(\.reference), [measure])
+    let analysis = try await search("Analysis")
+    XCTAssertEqual(analysis.notebooks.map(\.reference), [measure])
+    let geometry = try await search("Geometry")
+    XCTAssertEqual(geometry.folders.map(\.reference), [course])
+    let research = try await search("Research")
+    XCTAssertEqual(research.folders.map(\.reference), [course])
+    let courseSearch = try await search("Course")
+    XCTAssertEqual(courseSearch.folders.map(\.reference), [course, week])
+    let rootShelf = try await search("Root shelf")
+    XCTAssertEqual(rootShelf.folders.map(\.reference), [FolderReference(path: [])])
 
-    let rootDirectName = try search("Measure")
+    let rootDirectName = try await search("Measure")
     XCTAssertEqual(rootDirectName.folders.map(\.reference), [FolderReference(path: [])])
     XCTAssertEqual(rootDirectName.notebooks.map(\.reference), [measure])
 
-    let directName = try search("Spectral")
+    let directName = try await search("Spectral")
     XCTAssertEqual(directName.folders.map(\.reference), [course])
     XCTAssertEqual(directName.notebooks.map(\.reference), [spectral])
 
-    XCTAssertEqual(
-      try root.taggedLibrary(
-        tag: "Root", query: "Measure", sort: .name, direction: .ascending).folders.map(\.reference),
-      [FolderReference(path: [])])
-    XCTAssertEqual(
-      try root.taggedLibrary(
-        tag: "Research", query: "Spectral", sort: .name, direction: .ascending).folders.map(\.reference),
-      [course])
-    XCTAssertTrue(
-      try root.taggedLibrary(
-        tag: "Research", query: "Deep", sort: .name, direction: .ascending).folders.isEmpty)
+    let rootTagged = try await root.taggedLibrary(
+      tag: "Root", query: "Measure", sort: .name, direction: .ascending)
+    XCTAssertEqual(rootTagged.folders.map(\.reference), [FolderReference(path: [])])
+    let researchTagged = try await root.taggedLibrary(
+      tag: "Research", query: "Spectral", sort: .name, direction: .ascending)
+    XCTAssertEqual(researchTagged.folders.map(\.reference), [course])
+    let deepTagged = try await root.taggedLibrary(
+      tag: "Research", query: "Deep", sort: .name, direction: .ascending)
+    XCTAssertEqual(deepTagged.folders.map(\.reference), [])
 
     _ = try root.moveToTrash(path: measure.path)
-    XCTAssertEqual(
-      try root.trashNotes(query: "Lebesgue", sort: .name, direction: .ascending)
-        .notebooks.map(\.reference.name),
-      [measure.name])
-    XCTAssertEqual(
-      try root.trashNotes(query: "Analysis", sort: .name, direction: .ascending)
-        .notebooks.map(\.reference.name),
-      [measure.name])
+    let trashedByDescription = try await root.trashNotes(query: "Lebesgue", sort: .name, direction: .ascending)
+    XCTAssertEqual(trashedByDescription.notebooks.map(\.reference.name), [measure.name])
+    let trashedByTag = try await root.trashNotes(query: "Analysis", sort: .name, direction: .ascending)
+    XCTAssertEqual(trashedByTag.notebooks.map(\.reference.name), [measure.name])
   }
 
   func testLibraryMetadataUsesCanonicalFormatOrder() throws {
