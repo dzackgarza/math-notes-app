@@ -730,6 +730,16 @@ private struct NotebookRecoveryRecord: Codable {
   }
 }
 
+private final class CachedThumbnail {
+  let stamp: String
+  let data: Data
+
+  init(stamp: String, data: Data) {
+    self.stamp = stamp
+    self.data = data
+  }
+}
+
 private final class RootFilePresenter: NSObject, NSFilePresenter {
   private let urlLock = NSLock()
   private var itemURL: URL?
@@ -806,7 +816,13 @@ final class NotesRootAccess {
 #endif
   private var accessing = true
   private var presenterRegistered = false
-  private var thumbnailCache: [String: (stamp: String, data: Data)] = [:]
+  // Rendered covers in memory, evicted by the system under memory pressure and
+  // bounded to 32 MB of PNG; the disk cache keeps the rest.
+  private let thumbnailCache: NSCache<NSString, CachedThumbnail> = {
+    let cache = NSCache<NSString, CachedThumbnail>()
+    cache.totalCostLimit = 32 << 20
+    return cache
+  }()
   private var notebookBases: [NotebookReference: [String: Data]] = [:]
   private var recoveredChanges: [NotebookReference: [EngineFileChange]] = [:]
   private var recoveryFiles: [NotebookReference: URL] = [:]
@@ -1792,7 +1808,7 @@ final class NotesRootAccess {
     let destination = urlForPath(destinationPath)
     try coordinatedMove(from: source, to: destination, name: cleanName)
     try moveLibraryMetadata(from: path, to: destinationPath)
-    thumbnailCache.removeAll()
+    thumbnailCache.removeAllObjects()
     return destinationPath
   }
 
@@ -1826,11 +1842,11 @@ final class NotesRootAccess {
       }
     } catch {
       guard Self.isMissingFileError(error) else { throw error }
-      thumbnailCache.removeValue(forKey: reference.id)
+      thumbnailCache.removeObject(forKey: reference.id as NSString)
       return nil
     }
     guard let stamp else {
-      thumbnailCache.removeValue(forKey: reference.id)
+      thumbnailCache.removeObject(forKey: reference.id as NSString)
       return nil
     }
     let recovery = try recoveryRecord(for: reference)
@@ -1845,11 +1861,12 @@ final class NotesRootAccess {
     } else {
       effectiveStamp = stamp
     }
-    if let cached = thumbnailCache[reference.id], cached.stamp == effectiveStamp {
+    if let cached = thumbnailCache.object(forKey: reference.id as NSString), cached.stamp == effectiveStamp {
       return cached.data
     }
     if let data = try cachedThumbnail(reference, stamp: effectiveStamp) {
-      thumbnailCache[reference.id] = (stamp: effectiveStamp, data: data)
+      thumbnailCache.setObject(
+        CachedThumbnail(stamp: effectiveStamp, data: data), forKey: reference.id as NSString, cost: data.count)
       return data
     }
 
@@ -1857,11 +1874,12 @@ final class NotesRootAccess {
       let document = try await load(reference)
       let data = try renderThumbnail(document)
       try storeCachedThumbnail(data, reference: reference, stamp: effectiveStamp)
-      thumbnailCache[reference.id] = (stamp: effectiveStamp, data: data)
+      thumbnailCache.setObject(
+        CachedThumbnail(stamp: effectiveStamp, data: data), forKey: reference.id as NSString, cost: data.count)
       return data
     } catch {
       guard Self.isMissingFileError(error) else { throw error }
-      thumbnailCache.removeValue(forKey: reference.id)
+      thumbnailCache.removeObject(forKey: reference.id as NSString)
       return nil
     }
   }
