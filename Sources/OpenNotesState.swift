@@ -436,12 +436,10 @@ final class OpenNotesState {
   }
 
   func refreshConflictCounts(
-    _ count: (NotebookReference) -> Int?
-  ) {
+    _ count: (NotebookReference) throws -> Int
+  ) rethrows {
     for session in opened {
-      if let next = count(session.reference) {
-        session.conflictCount = next
-      }
+      session.conflictCount = try count(session.reference)
     }
   }
 

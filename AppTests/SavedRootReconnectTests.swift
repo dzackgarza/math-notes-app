@@ -17,7 +17,7 @@ final class SavedRootReconnectTests: XCTestCase {
 
     XCTAssertTrue(NotesRootAccess.hasSavedRoot)
     XCTAssertEqual(
-      NotesRootAccess.savedRootURL?.standardizedFileURL,
+      try NotesRootAccess.savedRootURL()?.standardizedFileURL,
       directory.standardizedFileURL)
   }
 }
@@ -38,7 +38,7 @@ final class RemovedSavedRootTests: XCTestCase {
     try FileManager.default.removeItem(at: directory)
 
     XCTAssertThrowsError(try NotesRootAccess.restore()) { error in
-      print("restoring a removed folder: \(error)")
+      XCTAssertEqual((error as? CocoaError)?.code, .fileReadNoSuchFile, "restoring a removed folder: \(error)")
     }
   }
 }

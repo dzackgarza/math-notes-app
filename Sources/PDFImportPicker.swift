@@ -40,9 +40,7 @@ final class PDFImportDocument {
   let pageCount: Int
 
   init(url: URL) throws {
-    guard let data = try? Data(contentsOf: url),
-      let document = PDFDocument(data: data)
-    else {
+    guard let document = PDFDocument(data: try Data(contentsOf: url)) else {
       throw PDFImportError.cannotOpen
     }
     guard !document.isLocked else {

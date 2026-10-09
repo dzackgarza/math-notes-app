@@ -287,8 +287,12 @@ struct ContentView: View {
           } actions: {
             if needsRootReconnect {
               Button("Reconnect folder") {
-                folderPickerDirectory = NotesRootAccess.savedRootURL
-                showingFolderPicker = true
+                do {
+                  folderPickerDirectory = try NotesRootAccess.savedRootURL()
+                  showingFolderPicker = true
+                } catch {
+                  errorMessage = error.localizedDescription
+                }
               }
               .buttonStyle(.borderedProminent)
             }
@@ -583,14 +587,16 @@ struct ContentView: View {
       Log.app.info("scene phase \(String(describing: phase), privacy: .public)")
       switch phase {
       case .active:
-        root?.resumeFilePresentation(refreshSavedLocation: true)
-        refreshLibrary()
-        reloadPenLibrary()
         if let root {
-          for note in openNotes.opened {
-            note.conflictCount = (try? root.conflictCount(note.reference)) ?? note.conflictCount
+          do {
+            try root.resumeAfterBackground()
+            try openNotes.refreshConflictCounts(root.conflictCount)
+          } catch {
+            errorMessage = error.localizedDescription
           }
         }
+        refreshLibrary()
+        reloadPenLibrary()
       case .background:
         // Background execution time for the save, so a coordinated write
         // waiting on a file provider is not suspended part way through.
@@ -1234,7 +1240,15 @@ struct ContentView: View {
       errorMessage = error.localizedDescription
       return
     }
-    guard let restored = NotesRootAccess.restore() else {
+    let restored: NotesRootAccess?
+    do {
+      restored = try NotesRootAccess.restore()
+    } catch {
+      Log.app.error("launch: the saved notes folder did not restore: \(error, privacy: .public)")
+      errorMessage = error.localizedDescription
+      return
+    }
+    guard let restored else {
       Log.app.info("launch: no saved notes folder to restore")
       return
     }
@@ -1428,11 +1442,16 @@ struct ContentView: View {
     libraryFolderDetails = nil
     root = newRoot
     reloadPenLibrary()
+    newRoot.onError = { error in
+      errorMessage = error.localizedDescription
+    }
     newRoot.onChange = { [weak newRoot] in
       guard let newRoot else { return }
       Task { @MainActor in
-        openNotes.refreshConflictCounts { reference in
-          try? newRoot.conflictCount(reference)
+        do {
+          try openNotes.refreshConflictCounts(newRoot.conflictCount)
+        } catch {
+          errorMessage = error.localizedDescription
         }
         if openNotes.inLibrary {
           refreshLibrary()

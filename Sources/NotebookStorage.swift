@@ -812,6 +812,9 @@ final class NotesRootAccess {
 
   private(set) var url: URL
   var onChange: (() -> Void)?
+  // Failures of work the presenter starts, such as re-saving the bookmark
+  // after the folder moved.
+  var onError: ((Error) -> Void)?
 
   private let presenter: RootFilePresenter
   private var scopedAccessURL: URL?
@@ -912,11 +915,8 @@ final class NotesRootAccess {
     presenterRegistered = false
   }
 
-  func resumeFilePresentation(refreshSavedLocation: Bool = false) {
+  func resumeFilePresentation() {
     guard !presenterRegistered else { return }
-    if refreshSavedLocation {
-      refreshRootLocationFromSavedBookmark()
-    }
     NSFileCoordinator.addFilePresenter(presenter)
     presenterRegistered = true
     Log.storage.info("presenter registered for \(self.url.path, privacy: .public)")
@@ -930,27 +930,39 @@ final class NotesRootAccess {
     // The presenter calls back on its own queue; the root and its owner live
     // on the main thread.
     presenter.onMove = { [weak self] newURL in
-      DispatchQueue.main.async { self?.adoptRootURL(newURL, refreshBookmark: true) }
+      DispatchQueue.main.async {
+        guard let self else { return }
+        do {
+          try self.adoptRootURL(newURL, refreshBookmark: true)
+        } catch {
+          self.onError?(error)
+        }
+      }
     }
     presenter.onChange = { [weak self] in
       DispatchQueue.main.async { self?.onChange?() }
     }
   }
 
-  private func refreshRootLocationFromSavedBookmark() {
+  // Back from the background: the folder may have moved while the presenter
+  // was not registered, so find it again through the saved bookmark first.
+  func resumeAfterBackground() throws {
+    guard !presenterRegistered else { return }
+    try refreshLocationFromSavedBookmark()
+    resumeFilePresentation()
+  }
+
+  private func refreshLocationFromSavedBookmark() throws {
     guard accessing,
       let bookmark = UserDefaults.standard.data(forKey: Self.bookmarkKey)
     else { return }
 
     var stale = false
-    guard let resolved = try? URL(
-      resolvingBookmarkData: bookmark,
-      bookmarkDataIsStale: &stale)
-    else { return }
-    adoptRootURL(resolved, refreshBookmark: stale || resolved.standardizedFileURL != url.standardizedFileURL)
+    let resolved = try URL(resolvingBookmarkData: bookmark, bookmarkDataIsStale: &stale)
+    try adoptRootURL(resolved, refreshBookmark: stale || resolved.standardizedFileURL != url.standardizedFileURL)
   }
 
-  private func adoptRootURL(_ newURL: URL, refreshBookmark: Bool) {
+  private func adoptRootURL(_ newURL: URL, refreshBookmark: Bool) throws {
     let standardized = newURL.standardizedFileURL
     if accessing, standardized != scopedAccessURL?.standardizedFileURL,
       newURL.startAccessingSecurityScopedResource()
@@ -962,38 +974,32 @@ final class NotesRootAccess {
     url = newURL
     presenter.updatePresentedItemURL(newURL)
     if accessing && refreshBookmark {
-      try? Self.saveBookmark(for: newURL)
+      try Self.saveBookmark(for: newURL)
     }
   }
 
-  static func restore() -> NotesRootAccess? {
+  // The saved folder, or nil when none was saved.
+  static func restore() throws -> NotesRootAccess? {
     guard let bookmark = UserDefaults.standard.data(forKey: bookmarkKey) else {
       return nil
     }
-
-    do {
-      var stale = false
-      let url = try URL(
-        resolvingBookmarkData: bookmark,
-        bookmarkDataIsStale: &stale)
-      return try NotesRootAccess(restoredURL: url, refreshBookmark: stale)
-    } catch {
-      return nil
-    }
+    var stale = false
+    let url = try URL(resolvingBookmarkData: bookmark, bookmarkDataIsStale: &stale)
+    // A bookmark can still resolve to the path of a folder that was removed.
+    _ = try url.checkResourceIsReachable()
+    return try NotesRootAccess(restoredURL: url, refreshBookmark: stale)
   }
 
   static var hasSavedRoot: Bool {
     UserDefaults.standard.data(forKey: bookmarkKey) != nil
   }
 
-  static var savedRootURL: URL? {
+  static func savedRootURL() throws -> URL? {
     guard let bookmark = UserDefaults.standard.data(forKey: bookmarkKey) else {
       return nil
     }
     var stale = false
-    return try? URL(
-      resolvingBookmarkData: bookmark,
-      bookmarkDataIsStale: &stale)
+    return try URL(resolvingBookmarkData: bookmark, bookmarkDataIsStale: &stale)
   }
 
   static func forgetSavedRoot() {
