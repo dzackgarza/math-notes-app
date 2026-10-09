@@ -8,6 +8,7 @@ enum Log {
   static let ink = Logger(subsystem: "dev.zack.mathnotes", category: "ink")
   static let storage = Logger(subsystem: "dev.zack.mathnotes", category: "storage")
   static let app = Logger(subsystem: "dev.zack.mathnotes", category: "app")
+  static let engine = Logger(subsystem: "dev.zack.mathnotes", category: "engine")
 
   // Main-thread work longer than this is logged as a fault: the watchdog kills
   // the app when the main thread stays blocked.

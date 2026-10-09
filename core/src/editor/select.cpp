@@ -15,6 +15,7 @@
 #include "layout/layout.h"
 #include "selection/ruled.h"
 #include "document/reflow.h"
+#include "trace.h"
 
 namespace ink_engine {
 namespace {
@@ -343,6 +344,7 @@ Editor::Route Editor::Begin(const InkPenSample &s) {
     }
     ClearSelection();
     if (!Erases(s) && !selector_active_) {
+      ink_engine::Trace("pen-down outside the selection only clears it; the stroke draws nothing");
       ignored_ = InkTool(s.tool);
       return Route::kIgnore;
     }

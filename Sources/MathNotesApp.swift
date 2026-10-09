@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import InkEngine
 import SwiftUI
 import UIKit
 import os
@@ -51,6 +52,11 @@ final class MathNotesAppDelegate: NSObject, UIApplicationDelegate {
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
     InputTrace.install()
+    // The engine reports its input decisions: routes, commits, discards, erasing.
+    ink_set_log_handler { message in
+      guard let message else { return }
+      Log.engine.info("\(String(cString: message), privacy: .public)")
+    }
     return true
   }
 

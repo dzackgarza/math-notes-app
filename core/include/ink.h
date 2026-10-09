@@ -28,6 +28,12 @@ const char *ink_version(void);
    next failing call. */
 const char *ink_last_error(void);
 
+/* Receives one line for each engine decision about input: the route a
+   pen-down takes, strokes started, committed or discarded and why, and what
+   an eraser gesture removed. NULL stops the lines. */
+typedef void (*InkLogHandler)(const char *message);
+InkStatus ink_set_log_handler(InkLogHandler handler);
+
 /* ---- Documents -------------------------------------------------------- */
 
 typedef struct InkDocument InkDocument;

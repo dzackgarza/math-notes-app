@@ -18,6 +18,7 @@
 #include "layout/layout.h"
 #include "strokes/clip.h"
 #include "strokes/outline.h"
+#include "trace.h"
 
 namespace ink_engine {
 namespace {
@@ -320,14 +321,30 @@ void Editor::Input(const InkPenSample *samples, size_t count) {
   for (size_t i = 0; i < count && idle; ++i) {
     const InkPenSample &s = samples[i];
     if (s.tool == INK_TOOL_TOUCH || s.phase == INK_PHASE_HOVER) continue;
-    erasing = s.phase == INK_PHASE_BEGIN && Begin(s) == Route::kErase;
+    if (s.phase == INK_PHASE_BEGIN) {
+      const Route route = Begin(s);
+      erasing = route == Route::kErase;
+      static constexpr const char *kRouteNames[] = {"draw", "erase", "select", "transform", "ignore"};
+      ink_engine::Trace(std::string("pen-down tool=") + std::to_string(s.tool) + " routed to " +
+                        kRouteNames[static_cast<int>(route)]);
+    }
     break;
   }
   if (transform_) return TransformInput(samples, count);
   if (select_) return SelectInput(samples, count);
   if (ignored_) return IgnoreInput(samples, count);
   if (erasing) return EraseInput(samples, count);
-  if (!ResolveActiveLayer()) { live_.reset(); return; }
+  if (!ResolveActiveLayer()) {
+    if (live_) ink_engine::Trace("live stroke discarded: the active layer is hidden or locked");
+    for (size_t i = 0; i < count; ++i) {
+      if (samples[i].phase == INK_PHASE_BEGIN && samples[i].tool != INK_TOOL_TOUCH) {
+        ink_engine::Trace("stroke not started: the active layer is hidden, locked or missing");
+        break;
+      }
+    }
+    live_.reset();
+    return;
+  }
 
   std::vector<InkPenSample> real, predicted;
   bool ended = false, cancelled = false;
@@ -339,8 +356,12 @@ void Editor::Input(const InkPenSample *samples, size_t count) {
       Point at = ToContent(view_, s.x, s.y);
       const std::vector<PagePlacement> layout = Layout(document());
       const PagePlacement *placement = PageAt(layout, at);
-      if (!placement) continue;
+      if (!placement) {
+        ink_engine::Trace("stroke not started: pen-down is off every page");
+        continue;
+      }
       if (figure_capture_ && placement->page != figure_capture_->page) {
+        ink_engine::Trace("stroke not started: pen-down is off the figure's page");
         figure_capture_->cross_page_input = true;
         continue;
       }
@@ -348,6 +369,7 @@ void Editor::Input(const InkPenSample *samples, size_t count) {
       live_.emplace(LiveStroke{.tool = InkTool(s.tool), .t0 = s.time, .pen = pen_,
                                .origin = {placement->x, placement->y}});
       live_->stroke.Start(MakeBrush(pen_));
+      ink_engine::Trace("stroke started on page " + std::to_string(page_) + " layer " + std::to_string(layer_));
     }
     if (!live_ || s.tool != live_->tool) continue;
     if (s.phase == INK_PHASE_CANCEL) {
@@ -366,6 +388,7 @@ void Editor::Input(const InkPenSample *samples, size_t count) {
     }
   }
   if (cancelled) {
+    ink_engine::Trace("live stroke discarded: the host cancelled it");
     live_.reset();
     return;
   }
@@ -393,7 +416,10 @@ void Editor::Commit() {
   ink::Stroke ink_stroke = live.updated
                                ? ink::Stroke(MakeBrush(live.pen), Batch(live.real, live.t0))
                                : live.stroke.CopyToStroke();
-  if (ink_stroke.GetInputs().IsEmpty()) return;
+  if (ink_stroke.GetInputs().IsEmpty()) {
+    ink_engine::Trace("stroke committed nothing: it has no inputs");
+    return;
+  }
 
   // Only the parts on the page are kept, each its own stroke; a stroke
   // entirely off the page commits nothing.
@@ -401,7 +427,10 @@ void Editor::Commit() {
   Page page = *next.pages[page_];
   std::vector<std::vector<InkPenSample>> pieces =
       PiecesInside(live.real, {.right = page.width, .bottom = page.height});
-  if (pieces.empty()) return;
+  if (pieces.empty()) {
+    ink_engine::Trace("stroke committed nothing: it lies entirely off its page");
+    return;
+  }
   bool whole = pieces.size() == 1 && pieces[0].size() == live.real.size() &&
                pieces[0].front().id != kInterpolatedSampleId &&
                pieces[0].back().id != kInterpolatedSampleId;
@@ -420,6 +449,9 @@ void Editor::Commit() {
   }
   next.pages = next.pages.set(page_, immer::box<Page>(std::move(page)));
   history_->Push(std::move(next));
+  ink_engine::Trace("stroke committed as " + std::to_string(pieces.size()) + " piece(s) on page " +
+                    std::to_string(page_) + " layer " + std::to_string(layer_) + ", last id " +
+                    committed_.back().id);
 }
 
 bool Editor::Erases(const InkPenSample &s) const {
@@ -435,7 +467,11 @@ void Editor::EraseInput(const InkPenSample *samples, size_t count) {
       Point at = ToContent(view_, s.x, s.y);
       const std::vector<PagePlacement> layout = Layout(document());
       const PagePlacement *placement = PageAt(layout, at);
-      if (!placement) continue;
+      if (!placement) {
+        ink_engine::Trace("erase not started: pen-down is off every page");
+        continue;
+      }
+      ink_engine::Trace("erase started on page " + std::to_string(placement->page));
       double scale = std::sqrt(std::abs(view_.a * view_.d - view_.b * view_.c));
       erase_.emplace(EraseGesture{.kind = eraser_kind_,
                                   .tool = InkTool(s.tool),
@@ -450,6 +486,7 @@ void Editor::EraseInput(const InkPenSample *samples, size_t count) {
     }
     if (!erase_ || s.tool != erase_->tool) continue;
     if (s.phase == INK_PHASE_CANCEL) {
+      ink_engine::Trace("erase discarded: the host cancelled it");
       erase_.reset();
       return;
     }
@@ -584,6 +621,8 @@ void Editor::UpdateShown() {
 }
 
 void Editor::CommitErase() {
+  ink_engine::Trace("erase ended: " + std::to_string(erase_->hit.size()) + " element(s) hit whole, " +
+                    std::to_string(erase_->free.size()) + " cut");
   if (!erase_->hit.empty() || !erase_->free.empty()) {
     Document next = document();
     next.pages = next.pages.set(erase_->page, immer::box<Page>(ErasedPage(&history_->ids())));
