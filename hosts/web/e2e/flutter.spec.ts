@@ -7,9 +7,8 @@ import { networkInterfaces } from "node:os";
 // whether each pen event reached Flutter and the engine, for a stroke that
 // left no ink (#72).
 test.afterEach(async ({ page }, info) => {
-  if (info.status === info.expectedStatus) return;
-  const log = await page.evaluate(() => (window as unknown as { mathNotesPointers?: string[] }).mathNotesPointers ?? [])
-    .catch(() => ["the page is gone"]);
+  if (info.status === info.expectedStatus || page.isClosed()) return;
+  const log = await page.evaluate(() => (window as unknown as { mathNotesPointers?: string[] }).mathNotesPointers ?? []);
   await info.attach("pointers.txt", { body: log.join("\n"), contentType: "text/plain" });
 });
 
@@ -55,11 +54,6 @@ async function closeNote(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Close note", exact: true }).click();
 }
 
-// A read of a saved file while the app may be saving it again. `getFile()`
-// snapshots the file, and Chromium refuses the snapshot with NotReadableError
-// once the app's writable stream has swapped a new file in (storage/browser/
-// blob/blob_reader.cc compares the modification time). The next read opens
-// the new file.
 // An uncaught error in the app fails the workflow that raised it: a Dart
 // exception otherwise shows only as a toast in an unread screenshot.
 const pageErrors = new WeakMap<Page, string[]>();
@@ -72,14 +66,17 @@ test.afterEach(async ({ page }) => {
   expect(pageErrors.get(page), "uncaught errors in the app").toEqual([]);
 });
 
+// A read of a saved file while the app may be saving it again. `getFile()`
+// snapshots the file, and Chromium refuses the snapshot with NotReadableError
+// once the app's writable stream has swapped a new file in (storage/browser/
+// blob/blob_reader.cc compares the modification time). The next read opens
+// the new file, so the read is retried until it succeeds.
 async function whenSaved<T>(read: () => Promise<T>): Promise<T> {
-  for (;;) {
-    try {
-      return await read();
-    } catch (error) {
-      if (!(error instanceof Error && error.message.includes("NotReadableError"))) throw error;
-    }
-  }
+  let value!: T;
+  await expect(async () => {
+    value = await read();
+  }).toPass();
+  return value;
 }
 
 async function addTag(page: Page, tag: string): Promise<void> {
@@ -861,20 +858,19 @@ test("Flutter partial and whole-stroke erases each undo and redo", async ({ page
       x: box.x + to[0], y: box.y + to[1], ...pen,
     });
   };
-  const savedStrokeCount = () => whenSaved(() => page.evaluate(async () => {
-    try {
-      const root = await navigator.storage.getDirectory();
-      const notebook = await root.getDirectoryHandle("Test Notebook");
-      const pages = await (await notebook.getDirectoryHandle("Erase history")).getDirectoryHandle("pages");
-      const svg = await (await (await pages.getFileHandle("0001.svg")).getFile()).text();
-      return svg.match(/<path id="s-/g)?.length ?? 0;
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "NotFoundError") return -1;
-      throw error;
-    }
-  }));
+  // The page file appears with the first save and is rewritten by each later
+  // one; a read that finds it missing or mid-swap is retried.
+  const savedStrokeCount = () => page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory();
+    const notebook = await root.getDirectoryHandle("Test Notebook");
+    const pages = await (await notebook.getDirectoryHandle("Erase history")).getDirectoryHandle("pages");
+    const svg = await (await (await pages.getFileHandle("0001.svg")).getFile()).text();
+    return svg.match(/<path id="s-/g)?.length ?? 0;
+  });
   const expectStrokes = async (count: number) => {
-    await expect.poll(savedStrokeCount, { timeout: 8_000 }).toBe(count);
+    await expect(async () => {
+      expect(await savedStrokeCount()).toBe(count);
+    }).toPass({ timeout: 8_000 });
   };
 
   await drag([150, 220], [350, 220]);
@@ -2431,16 +2427,15 @@ test("Flutter pen color and width changes affect only later strokes", async ({ p
   if (!viewport) throw new Error("Page has no viewport");
   await page.mouse.click(viewport.width - 20, viewport.height - 20);
   await pickColor(page, "#d92d39");
-  await expect.poll(() => whenSaved(() => page.evaluate(async () => {
-    try {
+  // The pen file is written with the first pen change; until then the read
+  // fails and is retried.
+  await expect(async () => {
+    expect(await page.evaluate(async () => {
       const root = await navigator.storage.getDirectory();
       const pens = JSON.parse(await (await (await root.getFileHandle(".pens.json")).getFile()).text());
       return { size: pens.pen.size, color: pens.pen.color };
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "NotFoundError") return null;
-      throw error;
-    }
-  }))).toEqual({ size: 3.6, color: "#D92D39" });
+    })).toEqual({ size: 3.6, color: "#D92D39" });
+  }).toPass();
 
   await draw(box.y + 260);
   await save(page);
