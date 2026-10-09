@@ -291,3 +291,29 @@ jobs:
           test "$(curl -fsSL "$url" | jq -r '.apps[0].versions[0].buildVersion')" = "$BUILD"
           ipa=$(jq -r '.apps[0].versions[0].downloadURL' source.json)
           test "$(curl -fsSL "$ipa" | wc -c | tr -d ' ')" = "$(stat -f %z MathNotes.ipa)"
+
+      # Subscribe to this topic in the ntfy app to get a system notification per build.
+      - name: Notify that the build is ready
+        if: github.ref == 'refs/heads/main'
+        run: &notify |
+          status=$(curl -sS -o /dev/stderr -w '%{http_code}' \
+            -H "Title: $TITLE" \
+            -H "Tags: $TAGS" \
+            -H "Click: $CLICK" \
+            -d "$MESSAGE" \
+            https://ntfy.sh/dzg-mathnotes-builds)
+          test "$status" = 200
+        env:
+          TITLE: Math Notes ${{ env.VERSION }} is ready
+          TAGS: white_check_mark,ipad
+          CLICK: https://github.com/${{ github.repository }}/releases/tag/${{ env.TAG }}
+          MESSAGE: Build ${{ env.BUILD }} from ${{ github.sha }} is published. Refresh the source in SideStore to install it.
+
+      - name: Notify that the release failed
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
+        run: *notify
+        env:
+          TITLE: Math Notes ${{ env.VERSION }} release failed
+          TAGS: x,ipad
+          CLICK: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          MESSAGE: Run ${{ github.run_id }} for ${{ github.sha }} failed; nothing was published.
