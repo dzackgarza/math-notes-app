@@ -7,8 +7,8 @@ import XCTest
 // The 0.1.293 watchdog reports (docs/reports/device-logs) show the main thread
 // waiting inside a coordinated read under NotesRootAccess.thumbnail, called from
 // LibraryNotebookCover's task, while Dropbox supplied a page on demand. A
-// coordinated write held on the page makes the thumbnail's coordinated read wait
-// the same way.
+// coordinated write held on the notebook folder makes the thumbnail's coordinated
+// read of that folder wait the same way.
 @MainActor
 final class LibraryCoverMainThreadTests: XCTestCase {
   func testCoverThumbnailKeepsMainThreadResponsiveWhileItsPageReadWaits() throws {
@@ -30,8 +30,9 @@ final class LibraryCoverMainThreadTests: XCTestCase {
     let item = try XCTUnwrap(listing.folders.first { $0.reference.path == folder.path })
     XCTAssertNotNil(item.coverNote)
 
-    let page = directory.appendingPathComponent("Dropbox/Lecture/pages/0001.svg")
-    let hold = CoordinatedWriteHold(on: page, for: 3)
+    // The watchdog stack shows the coordinated read of the notebook folder waiting.
+    let notebook = directory.appendingPathComponent("Dropbox/Lecture", isDirectory: true)
+    let hold = CoordinatedWriteHold(on: notebook, for: 3)
 
     // The cover's .task: a main-actor task that asks the root for the thumbnail.
     let cover = try XCTUnwrap(item.coverNote)
@@ -51,7 +52,7 @@ final class LibraryCoverMainThreadTests: XCTestCase {
 
     XCTAssertNotNil(try XCTUnwrap(outcome.result, "the thumbnail never finished").get())
     try hold.check()
-    XCTAssertGreaterThanOrEqual(outcome.seconds, 2.5, "the thumbnail did not wait for the held page")
+    XCTAssertGreaterThanOrEqual(outcome.seconds, 2.5, "the thumbnail did not wait for the held notebook folder")
     XCTAssertLessThan(
       heartbeat.longestGap, 0.5,
       "the main thread stalled \(heartbeat.longestGap) s while the thumbnail waited on its page file")
