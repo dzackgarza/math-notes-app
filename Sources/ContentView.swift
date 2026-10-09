@@ -63,7 +63,7 @@ private struct NotebookEditorPane: View {
   let onSaveClipping: (String) -> Void
   let onLinkSelectionRequested: (Int) -> Void
   let onFollowLink: (String, Int) -> Void
-  let onDropClipping: (String, CGPoint) -> Bool
+  let onDropClipping: (String, CGPoint) async -> Bool
   let onEditFigure: (String) -> Void
   let onError: (Error) -> Void
 
@@ -845,7 +845,7 @@ struct ContentView: View {
         },
         onDropClipping: { id, point in
           openNotes.focusRight(right)
-          return dropClipping(id, at: point, viewState: viewState)
+          return await dropClipping(id, at: point, viewState: viewState)
         },
         onEditFigure: { id in
           openNotes.focusRight(right)
@@ -863,7 +863,7 @@ struct ContentView: View {
           onSave: saveClippingDrop,
           onMove: moveClipping,
           onDelete: deleteClipping,
-          onRefresh: { refreshClippings(viewState: viewState) },
+          onRefresh: { await refreshClippings(viewState: viewState) },
           onClose: { dismissClippings(viewState: viewState) })
           .id(request.id)
           .transition(.move(edge: .trailing).combined(with: .opacity))
@@ -2394,9 +2394,9 @@ struct ContentView: View {
     }
   }
 
-  private func clippingItems() throws -> [ClippingPreview] {
+  private func clippingItems() async throws -> [ClippingPreview] {
     guard let root else { return [] }
-    return try root.clippingPreviews().enumerated().map {
+    return try await root.clippingPreviews().enumerated().map {
       ClippingPreview(id: $0.element.id, index: $0.offset, png: $0.element.png)
     }
   }
@@ -2406,16 +2406,18 @@ struct ContentView: View {
   }
 
   private func prepareClippings(viewState: OpenNotebookViewState) {
-    do {
-      viewState.clippingsRequest = ClippingsRequest(items: try clippingItems())
-    } catch {
-      errorMessage = error.localizedDescription
+    Task {
+      do {
+        viewState.clippingsRequest = ClippingsRequest(items: try await clippingItems())
+      } catch {
+        errorMessage = error.localizedDescription
+      }
     }
   }
 
-  private func refreshClippings(viewState: OpenNotebookViewState) -> [ClippingPreview]? {
+  private func refreshClippings(viewState: OpenNotebookViewState) async -> [ClippingPreview]? {
     do {
-      let items = try clippingItems()
+      let items = try await clippingItems()
       viewState.clippingsRequest = ClippingsRequest(items: items)
       return items
     } catch {
@@ -2425,14 +2427,17 @@ struct ContentView: View {
   }
 
   private func saveClipping(_ svg: String, viewState: OpenNotebookViewState) {
-    guard viewState.clippingsRequest != nil, saveClippingDrop(svg) else { return }
-    _ = refreshClippings(viewState: viewState)
+    guard viewState.clippingsRequest != nil else { return }
+    Task {
+      guard await saveClippingDrop(svg) else { return }
+      _ = await refreshClippings(viewState: viewState)
+    }
   }
 
-  private func saveClippingDrop(_ svg: String) -> Bool {
+  private func saveClippingDrop(_ svg: String) async -> Bool {
     guard let root else { return false }
     do {
-      try root.addClipping(svg: svg)
+      try await root.addClipping(svg: svg)
       return true
     } catch {
       errorMessage = error.localizedDescription
@@ -2442,20 +2447,22 @@ struct ContentView: View {
 
   private func insertClipping(_ id: String, viewState: OpenNotebookViewState) {
     guard let root else { return }
-    do {
-      viewState.editorPageCommand = .pasteSVGAtCenter(
-        try root.clippingSVG(id: id),
-        placeAtPointer: true)
-    } catch {
-      errorMessage = error.localizedDescription
+    Task {
+      do {
+        viewState.editorPageCommand = .pasteSVGAtCenter(
+          try await root.clippingSVG(id: id),
+          placeAtPointer: true)
+      } catch {
+        errorMessage = error.localizedDescription
+      }
     }
   }
 
-  private func dropClipping(_ id: String, at point: CGPoint, viewState: OpenNotebookViewState) -> Bool {
+  private func dropClipping(_ id: String, at point: CGPoint, viewState: OpenNotebookViewState) async -> Bool {
     guard let root else { return false }
     do {
       viewState.editorPageCommand = .pasteSVG(
-        try root.clippingSVG(id: id),
+        try await root.clippingSVG(id: id),
         at: point,
         placeAtPointer: true)
       return true
@@ -2465,10 +2472,10 @@ struct ContentView: View {
     }
   }
 
-  private func moveClipping(_ id: String, _ offset: Int) -> Bool {
+  private func moveClipping(_ id: String, _ offset: Int) async -> Bool {
     guard let root else { return false }
     do {
-      try root.moveClipping(id: id, by: offset)
+      try await root.moveClipping(id: id, by: offset)
       return true
     } catch {
       errorMessage = error.localizedDescription
@@ -2476,10 +2483,10 @@ struct ContentView: View {
     }
   }
 
-  private func deleteClipping(_ id: String) -> Bool {
+  private func deleteClipping(_ id: String) async -> Bool {
     guard let root else { return false }
     do {
-      try root.deleteClipping(id: id)
+      try await root.deleteClipping(id: id)
       return true
     } catch {
       errorMessage = error.localizedDescription

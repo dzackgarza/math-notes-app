@@ -27,10 +27,10 @@ struct ClippingsSheet: View {
   let drawing: Bool
   let onInsert: (String) -> Void
   let onSaveSelection: () -> Void
-  let onSave: (String) -> Bool
-  let onMove: (String, Int) -> Bool
-  let onDelete: (String) -> Bool
-  let onRefresh: () -> [ClippingPreview]?
+  let onSave: (String) async -> Bool
+  let onMove: (String, Int) async -> Bool
+  let onDelete: (String) async -> Bool
+  let onRefresh: () async -> [ClippingPreview]?
   let onClose: () -> Void
 
   @State private var items: [ClippingPreview]
@@ -43,10 +43,10 @@ struct ClippingsSheet: View {
     drawing: Bool,
     onInsert: @escaping (String) -> Void,
     onSaveSelection: @escaping () -> Void,
-    onSave: @escaping (String) -> Bool,
-    onMove: @escaping (String, Int) -> Bool,
-    onDelete: @escaping (String) -> Bool,
-    onRefresh: @escaping () -> [ClippingPreview]?,
+    onSave: @escaping (String) async -> Bool,
+    onMove: @escaping (String, Int) async -> Bool,
+    onDelete: @escaping (String) async -> Bool,
+    onRefresh: @escaping () async -> [ClippingPreview]?,
     onClose: @escaping () -> Void
   ) {
     self.selectionActive = selectionActive
@@ -151,8 +151,10 @@ struct ClippingsSheet: View {
       .toolbar {
         ToolbarItemGroup(placement: .topBarTrailing) {
           Button {
-            if let refreshed = onRefresh() {
-              items = refreshed
+            Task {
+              if let refreshed = await onRefresh() {
+                items = refreshed
+              }
             }
           } label: {
             Image(systemName: "arrow.clockwise")
@@ -190,8 +192,9 @@ struct ClippingsSheet: View {
           guard session == dropSession else { return }
           guard ClippingsPanelAvailability(
             selectionActive: selectionActive, drawing: drawing
-          ).canAcceptDrop, onSave(svg) else { return }
-          if let refreshed = onRefresh() { items = refreshed }
+          ).canAcceptDrop else { return }
+          guard await onSave(svg) else { return }
+          if let refreshed = await onRefresh() { items = refreshed }
         }
       }
       return true
@@ -205,12 +208,18 @@ struct ClippingsSheet: View {
   private func move(_ item: ClippingPreview, by offset: Int) {
     guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
     let target = index + offset
-    guard target >= 0, target < items.count, onMove(item.id, offset) else { return }
-    if let refreshed = onRefresh() { items = refreshed }
+    guard target >= 0, target < items.count else { return }
+    Task {
+      guard await onMove(item.id, offset) else { return }
+      if let refreshed = await onRefresh() { items = refreshed }
+    }
   }
 
   private func remove(_ item: ClippingPreview) {
-    guard items.contains(where: { $0.id == item.id }), onDelete(item.id) else { return }
-    if let refreshed = onRefresh() { items = refreshed }
+    guard items.contains(where: { $0.id == item.id }) else { return }
+    Task {
+      guard await onDelete(item.id) else { return }
+      if let refreshed = await onRefresh() { items = refreshed }
+    }
   }
 }

@@ -1999,10 +1999,10 @@ final class NotesRootAccess {
   }
 
   @MainActor
-  func loadClippings() throws -> (NotebookReference, EngineDocument) {
+  func loadClippings() async throws -> (NotebookReference, EngineDocument) {
     let reference = NotebookReference(path: [".clippings"])
     if try itemExists(at: [".clippings", "notebook.json"]) {
-      return (reference, try loadOnMainThread(reference))
+      return (reference, try await load(reference))
     }
 
     try ensureDirectory(path: reference.path)
@@ -2025,8 +2025,8 @@ final class NotesRootAccess {
   }
 
   @MainActor
-  func clippingPreviews(width: Int32 = 240) throws -> [(id: String, png: Data)] {
-    let (reference, document) = try loadClippings()
+  func clippingPreviews(width: Int32 = 240) async throws -> [(id: String, png: Data)] {
+    let (reference, document) = try await loadClippings()
     let ids = try clippingPageIDs(reference)
     let pageCount = try document.pageCount()
     guard ids.count == pageCount else {
@@ -2039,21 +2039,21 @@ final class NotesRootAccess {
   }
 
   @MainActor
-  func addClipping(svg: String) throws {
-    let (reference, document) = try loadClippings()
+  func addClipping(svg: String) async throws {
+    let (reference, document) = try await loadClippings()
     try document.addClipping(svg: svg)
     try save(document, notebook: reference)
   }
 
   @MainActor
-  func clippingSVG(id: String) throws -> String {
-    let (reference, document) = try loadClippings()
+  func clippingSVG(id: String) async throws -> String {
+    let (reference, document) = try await loadClippings()
     return try document.clippingSVG(index: clippingIndex(id, reference: reference))
   }
 
   @MainActor
-  func moveClipping(id: String, by offset: Int) throws {
-    let (reference, document) = try loadClippings()
+  func moveClipping(id: String, by offset: Int) async throws {
+    let (reference, document) = try await loadClippings()
     let index = try clippingIndex(id, reference: reference)
     let target = index + offset
     let pageCount = try document.pageCount()
@@ -2063,8 +2063,8 @@ final class NotesRootAccess {
   }
 
   @MainActor
-  func deleteClipping(id: String) throws {
-    let (reference, document) = try loadClippings()
+  func deleteClipping(id: String) async throws {
+    let (reference, document) = try await loadClippings()
     try document.deletePage(at: clippingIndex(id, reference: reference))
     try save(document, notebook: reference)
   }
@@ -2274,20 +2274,6 @@ final class NotesRootAccess {
     let template = try await Self.offMain {
       try Self.readTemplatePage(root: rootURL, restored: restored)
     }
-    return try makeDocument(
-      reference, snapshot: snapshot, restored: restored, recovery: recovery, template: template)
-  }
-
-  // Clippings still read .clippings on the main thread; the storage log marks
-  // any such read over Log.mainThreadBudget as a fault.
-  @MainActor
-  private func loadOnMainThread(_ reference: NotebookReference) throws -> EngineDocument {
-    let recovery = try recoveryRecord(for: reference)
-    let snapshot = try Self.readNotebookSnapshot(
-      at: urlForNotebook(reference),
-      recoveredNotebookJSON: Self.recoveredNotebookJSON(recovery))
-    let restored = try Self.restoredFiles(snapshot, recovery: recovery)
-    let template = try Self.readTemplatePage(root: url, restored: restored)
     return try makeDocument(
       reference, snapshot: snapshot, restored: restored, recovery: recovery, template: template)
   }

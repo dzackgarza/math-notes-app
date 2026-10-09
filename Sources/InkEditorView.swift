@@ -16,7 +16,7 @@ let notebookClippingDragType = UTType(
 private struct NotebookEditorDropDelegate: DropDelegate {
   let canDrop: () -> Bool
   let onFocus: () -> Void
-  let onDropClipping: (String, CGPoint) -> Bool
+  let onDropClipping: (String, CGPoint) async -> Bool
 
   func dropUpdated(info: DropInfo) -> DropProposal? {
     DropProposal(operation: validateDrop(info: info) ? .copy : .cancel)
@@ -38,7 +38,7 @@ private struct NotebookEditorDropDelegate: DropDelegate {
       guard let data, let id = String(data: data, encoding: .utf8) else { return }
       Task { @MainActor in
         guard canDrop() else { return }
-        _ = onDropClipping(id, location)
+        _ = await onDropClipping(id, location)
       }
     }
     return true
@@ -2742,7 +2742,7 @@ struct InkEditorView: View {
   let onSelectionChanged: (Bool) -> Void
   let onLinkSelectionRequested: (Int) -> Void
   let onFollowLink: (String, Int) -> Void
-  let onDropClipping: (String, CGPoint) -> Bool
+  let onDropClipping: (String, CGPoint) async -> Bool
   let onCaptureChanged: (Bool) -> Void
   let onEditFigure: (String) -> Void
   let onError: (Error) -> Void

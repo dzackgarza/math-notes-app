@@ -32,18 +32,18 @@ final class ClippingPersistenceTests: XCTestCase {
     let sourceIDs = elementIDs(in: selection)
     XCTAssertFalse(sourceIDs.isEmpty)
 
-    try root.addClipping(svg: selection)
-    let previews = try root.clippingPreviews(width: 120)
+    try await root.addClipping(svg: selection)
+    let previews = try await root.clippingPreviews(width: 120)
     XCTAssertEqual(previews.count, 5, "four built-ins plus the saved selection")
     let savedID = try XCTUnwrap(previews.last?.id)
-    let savedSVG = try root.clippingSVG(id: savedID)
+    let savedSVG = try await root.clippingSVG(id: savedID)
     XCTAssertTrue(savedSVG.contains("Reusable lemma"))
     XCTAssertTrue(
       FileManager.default.fileExists(
         atPath: directory.appendingPathComponent(".clippings/notebook.json").path))
 
     let reopenedRoot = NotesRootAccess(testURL: directory)
-    let reopenedSVG = try reopenedRoot.clippingSVG(id: savedID)
+    let reopenedSVG = try await reopenedRoot.clippingSVG(id: savedID)
     // Each clipboard export deliberately assigns fresh element identities.
     // Compare all content and geometry while excluding only those identities.
     let elementIDPattern = #"id="[sfg]-[^"]+""#
