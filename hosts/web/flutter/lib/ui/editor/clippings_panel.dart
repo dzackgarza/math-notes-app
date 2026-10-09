@@ -29,11 +29,17 @@ extension _ClippingsPanel on _EditorScreenState {
                 ),
                 CupertinoButton(
                   onPressed: () => run(refreshClippings),
-                  child: const Icon(CupertinoIcons.refresh),
+                  child: const Icon(
+                    CupertinoIcons.refresh,
+                    semanticLabel: 'Refresh clippings',
+                  ),
                 ),
                 CupertinoButton(
                   onPressed: () => clippingsOpen = false,
-                  child: const Icon(CupertinoIcons.xmark),
+                  child: const Icon(
+                    CupertinoIcons.xmark,
+                    semanticLabel: 'Close clippings',
+                  ),
                 ),
               ],
             ),

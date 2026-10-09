@@ -1293,6 +1293,15 @@ async function longPressDrag(page: Page, from: Box, to: Box): Promise<void> {
   await page.waitForTimeout(LONG_PRESS_MS);
   await frames(page);
   await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
+  // The drop takes the slot the dragged item has settled into: release once
+  // the items between start and target stop moving.
+  const left = Math.min(from.x, to.x);
+  const top = Math.min(from.y, to.y);
+  await settled(page, {
+    x: left, y: top,
+    width: Math.max(from.x + from.width, to.x + to.width) - left,
+    height: Math.max(from.y + from.height, to.y + to.height) - top,
+  });
   await page.mouse.up();
 }
 
@@ -4096,10 +4105,11 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   // semantics node until the wheel scrolls it in.
   const clipping = async (number: number) => {
     const target = button(`Insert clipping ${number}`);
-    const panel = await boxOf(page.getByText("Drop a selection here to save it. Drag a clipping onto the page.", { exact: true }));
     await expect(async () => {
       if ((await target.count()) === 0) {
-        await page.mouse.move(panel.x + panel.width / 2, panel.y + 250);
+        // The wheel scrolls the list under the pointer: a clipping in it.
+        const shown = await boxOf(page.getByRole("button", { name: /^Insert clipping \d+$/ }).first());
+        await page.mouse.move(shown.x + shown.width / 2, shown.y + shown.height / 2);
         await page.mouse.wheel(0, 200);
       }
       await expect(target).toBeVisible({ timeout: 500 });
