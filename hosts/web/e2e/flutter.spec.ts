@@ -110,9 +110,9 @@ test("Flutter creation sheets close on Escape and ask before they discard a chan
   await title.waitFor();
   expect(await contrastIn(page, page.getByRole("textbox", { name: "Description", exact: true })), "the Description placeholder is legible").toBeGreaterThan(4.5);
   const field = await boxOf(page.getByRole("textbox", { name: "Description", exact: true }));
-  expect(await capture(page, { x: field.x + 4, y: field.y + 4, width: 1, height: 1 }), "the field is paper").toEqual([[0xfb, 0xfa, 0xf6]]);
+  await expect(async () => expect(await capture(page, { x: field.x + 4, y: field.y + 4, width: 1, height: 1 }), "the field is paper").toEqual([[0xfb, 0xfa, 0xf6]])).toPass();
   const heading = await boxOf(page.getByRole("heading", { name: "New notebook", exact: true }));
-  expect(await capture(page, { x: heading.x - 6, y: heading.y + heading.height / 2, width: 1, height: 1 }), "the sheet is leaf").toEqual([[0xee, 0xf0, 0xea]]);
+  await expect(async () => expect(await capture(page, { x: heading.x - 6, y: heading.y + heading.height / 2, width: 1, height: 1 }), "the sheet is leaf").toEqual([[0xee, 0xf0, 0xea]])).toPass();
   expect(await contrastIn(page, button("Cancel")), "Cancel is legible").toBeGreaterThan(4.5);
   await page.keyboard.press("Escape");
   await expect(title, "an unchanged sheet closes at once").toHaveCount(0);
@@ -1359,7 +1359,7 @@ test("Flutter library shows board chrome, buckram cover colors, aligned creation
   // notebook again.
   await expect.poll(() => centerPixel(page, { x: card.x + card.width / 2, y: card.y + card.height / 3 }), { message: "the card has the chosen cover color" })
     .toEqual(covers.Ochre);
-  expect(await centerPixel(page, { x: 105, y: 560 }), "the sidebar is board").toEqual(BOARD);
+  await expect(async () => expect(await centerPixel(page, { x: 105, y: 560 }), "the sidebar is board").toEqual(BOARD)).toPass();
   expect((await textIn(page, await boxOf(text("Math Notes")))).contrast, "the sidebar title is legible").toBeGreaterThan(4.5);
   expect((await textIn(page, await boxOf(text("Tags")))).contrast, "the Tags heading is legible").toBeGreaterThan(4.5);
   for (const name of ["Library", "Recent", "Trash"]) {
@@ -1454,30 +1454,30 @@ test("Flutter lasso moves, cuts, pastes, copies, and deletes handwriting", async
   ], 0.6);
   await dragDown(written);
   await shot("moved");
-  expect(await inked()).toEqual([false, true, false]);
+  await expect(async () => expect(await inked()).toEqual([false, true, false])).toPass();
 
   await page.getByRole("button", { name: "Cut", exact: true }).click();
   await shot("cut");
-  expect(await inked()).toEqual([false, false, false]);
+  await expect(async () => expect(await inked()).toEqual([false, false, false])).toPass();
   const paste = async () => {
     await page.mouse.click(written.x, written.y, { button: "right" });
     await page.getByRole("button", { name: "Paste", exact: true }).click();
   };
   await paste();
-  expect(await inked()).toEqual([false, true, false]);
+  await expect(async () => expect(await inked()).toEqual([false, true, false])).toPass();
 
   // Copy leaves the selected handwriting in place; it then moves away, and
   // a paste puts the copy where the handwriting was copied from.
   await page.getByRole("button", { name: "Copy", exact: true }).click();
   await dragDown(moved);
-  expect(await inked()).toEqual([false, false, true]);
+  await expect(async () => expect(await inked()).toEqual([false, false, true])).toPass();
   await paste();
   await shot("copied");
-  expect(await inked()).toEqual([false, true, true]);
+  await expect(async () => expect(await inked()).toEqual([false, true, true])).toPass();
 
   await page.getByRole("button", { name: "Delete selection", exact: true }).click();
   await shot("deleted");
-  expect(await inked()).toEqual([false, false, true]);
+  await expect(async () => expect(await inked()).toEqual([false, false, true])).toPass();
 });
 
 test("Flutter rectangle and oval selections take the handwriting inside their shapes", async ({ page }, info) => {
@@ -1525,13 +1525,13 @@ test("Flutter rectangle and oval selections take the handwriting inside their sh
   await dragBox(left);
   await remove();
   await page.screenshot({ path: info.outputPath("rectangle.png") });
-  expect(await inked()).toEqual([false, true, true, true]);
+  await expect(async () => expect(await inked()).toEqual([false, true, true, true])).toPass();
 
   await lassoMode("Oval");
   await dragBox(right);
   await remove();
   await page.screenshot({ path: info.outputPath("oval.png") });
-  expect(await inked()).toEqual([false, false, true, true]);
+  await expect(async () => expect(await inked()).toEqual([false, false, true, true])).toPass();
 });
 
 test("Flutter resizes a selection by its corner handles and duplicates it", async ({ page }, info) => {
@@ -1765,7 +1765,7 @@ test("Flutter places typed text boxes, wraps them at a width, and edits and dele
   await page.screenshot({ path: info.outputPath("width-rejected.png") });
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await clear();
-  expect(await pixelBounds(page, firstRows, isInk)).toEqual(oneLine);
+  await expect(async () => expect(await pixelBounds(page, firstRows, isInk)).toEqual(oneLine)).toPass();
 
   // A box with no text is deleted; undo restores it.
   await edit({ x: lemma.left + 30, y: lemma.top + 10 }, "Lemma", "300");
@@ -1777,7 +1777,7 @@ test("Flutter places typed text boxes, wraps them at a width, and edits and dele
   const word = { x: lemma.left - 10, y: lemma.top - 10, width: size(lemma).width + 20, height: size(lemma).height + 20 };
   expect((await capture(page, word)).filter(isInk).length, "the empty box is deleted").toBe(0);
   await page.getByRole("button", { name: "Undo", exact: true }).click();
-  expect(await pixelBounds(page, word, isInk), "undo restores the box").toEqual(lemma);
+  await expect(async () => expect(await pixelBounds(page, word, isInk), "undo restores the box").toEqual(lemma)).toPass();
 
   // A right-to-left box ends its lines at the box's right edge.
   await edit(inside, sentence, "0");
@@ -1800,7 +1800,7 @@ test("Flutter places typed text boxes, wraps them at a width, and edits and dele
   await page.getByRole("button", { name: "More", exact: true }).waitFor();
   await expect.poll(() => pixelBounds(page, left, isInk), "the wrapped box reopens unchanged").toEqual(rightToLeft);
   await page.screenshot({ path: info.outputPath("reopened.png") });
-  expect(await pixelBounds(page, word, isInk), "the one-word box reopens unchanged").toEqual(lemma);
+  await expect(async () => expect(await pixelBounds(page, word, isInk), "the one-word box reopens unchanged").toEqual(lemma)).toPass();
 });
 
 test("Flutter imports a PDF, annotates its pages, and exports them with the annotations", async ({ page }, info) => {
@@ -1967,7 +1967,7 @@ test("Flutter pans the page with one finger and zooms it with a pinch", async ({
   await touch("touchEnd", []);
   await page.screenshot({ path: info.outputPath("zoomed.png") });
   const zoomed = await inkRow(page, column, top, bottom);
-  expect(await inkLength(page, zoomed, written.x - 300, written.x + 300)).toBeGreaterThan(1.5 * length);
+  await expect(async () => expect(await inkLength(page, zoomed, written.x - 300, written.x + 300)).toBeGreaterThan(1.5 * length)).toPass();
 });
 
 test("Flutter rewinds handwriting with Ctrl+Z and the undo dial", async ({ page }, info) => {
@@ -3539,7 +3539,7 @@ test("Flutter menus, alerts, action sheets, and sheets blur the handwriting behi
   const title = await boxOf(page.getByRole("alertdialog").getByText("Go to page", { exact: true }));
   await blurred(title.x - 10, title.y - 6, title.y + title.height + 6, "the alert");
   await blurred(box.x + 120, title.y - 20, title.y + 40, "the scrim beside the alert");
-  expect(await capture(page, { x: title.x - 10, y: title.y + title.height / 2, width: 1, height: 1 }), "the alert is leaf").toEqual([[0xee, 0xf0, 0xea]]);
+  await expect(async () => expect(await capture(page, { x: title.x - 10, y: title.y + title.height / 2, width: 1, height: 1 }), "the alert is leaf").toEqual([[0xee, 0xf0, 0xea]])).toPass();
   await page.screenshot({ path: info.outputPath("alert.png") });
   await button("Cancel").click();
 
@@ -3548,7 +3548,7 @@ test("Flutter menus, alerts, action sheets, and sheets blur the handwriting behi
   const action = await boxOf(button("Grid paper"));
   await blurred(action.x + 0.6 * action.width, action.y + 4, action.y + action.height - 4, "the action sheet");
   const heading = await boxOf(page.getByText("Paper for new pages", { exact: true }));
-  expect(await capture(page, { x: heading.x - 10, y: heading.y + heading.height / 2, width: 1, height: 1 }), "the action sheet is leaf").toEqual([[0xee, 0xf0, 0xea]]);
+  await expect(async () => expect(await capture(page, { x: heading.x - 10, y: heading.y + heading.height / 2, width: 1, height: 1 }), "the action sheet is leaf").toEqual([[0xee, 0xf0, 0xea]])).toPass();
   await button("Done").click();
 
   await button("Pages").click();
@@ -3663,7 +3663,7 @@ test("Flutter lifetime: first launch, folder choice, three written pages, restar
   };
   await write(rows[1]);
   await write(rows[2]);
-  expect(await inked()).toEqual([true, true, true, false]);
+  await expect(async () => expect(await inked()).toEqual([true, true, true, false])).toPass();
   expect(await strokes()).toEqual([3]);
   await shot("page-1-written");
 
@@ -3674,13 +3674,13 @@ test("Flutter lifetime: first launch, folder choice, three written pages, restar
   await button("Stroke").click();
   await closePopover(page);
   await penStroke(cdp, [-40, -20, 0, 20, 40].map((dy) => ({ x: rows[1].x, y: rows[1].y + dy })), 0.6);
-  expect(await inked()).toEqual([true, false, true, false]);
+  await expect(async () => expect(await inked()).toEqual([true, false, true, false])).toPass();
   expect(await strokes()).toEqual([2]);
   await button("Undo").click();
-  expect(await inked()).toEqual([true, true, true, false]);
+  await expect(async () => expect(await inked()).toEqual([true, true, true, false])).toPass();
   expect(await strokes()).toEqual([3]);
   await button("Redo").click();
-  expect(await inked()).toEqual([true, false, true, false]);
+  await expect(async () => expect(await inked()).toEqual([true, false, true, false])).toPass();
   expect(await strokes()).toEqual([2]);
 
   // A highlight across the first row leaves the handwriting dark.
@@ -3700,7 +3700,7 @@ test("Flutter lifetime: first launch, folder choice, three written pages, restar
   ], 0.6);
   await penStroke(cdp, [0, 40, 80, 120].map((dy) => ({ x: rows[2].x, y: rows[2].y + dy })), 0.6);
   await button("Pen").click();
-  expect(await inked()).toEqual([true, false, false, true]);
+  await expect(async () => expect(await inked()).toEqual([true, false, false, true])).toPass();
   expect(await strokes()).toEqual([3]);
   await shot("page-1-edited");
 
@@ -3726,13 +3726,13 @@ test("Flutter lifetime: first launch, folder choice, three written pages, restar
     await expect(page.getByText(`${number} / ${number}`, { exact: true })).toBeVisible();
   };
   await addPage(2);
-  expect(await inked(), "a new page is blank").toEqual([false, false, false, false]);
+  await expect(async () => expect(await inked(), "a new page is blank").toEqual([false, false, false, false])).toPass();
   await write(rows[0]);
   await write(rows[1]);
-  expect(await inked()).toEqual([true, true, false, false]);
+  await expect(async () => expect(await inked()).toEqual([true, true, false, false])).toPass();
   await addPage(3);
   await write(rows[2]);
-  expect(await inked()).toEqual([false, false, true, false]);
+  await expect(async () => expect(await inked()).toEqual([false, false, true, false])).toPass();
   expect(await strokes()).toEqual([3, 2, 1]);
   await shot("page-3-written");
   await button("Pages").click();
@@ -3741,7 +3741,7 @@ test("Flutter lifetime: first launch, folder choice, three written pages, restar
   await shot("page-overview");
   await button("Page 1").click();
   await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
-  expect(await inked()).toEqual([true, false, false, true]);
+  await expect(async () => expect(await inked()).toEqual([true, false, false, true])).toPass();
 
   // A restart: the saved folder opens without a gesture, and the note shows
   // the same ink on each page. The app finds the saved folder as a handle in
@@ -3771,13 +3771,13 @@ test("Flutter lifetime: first launch, folder choice, three written pages, restar
   await page.getByRole("button", { name: "Open Integrals", exact: false }).click();
   await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
   expect(await boxOf(canvas), "the canvas keeps its place after a restart").toEqual(box);
-  expect(await inked()).toEqual([true, false, false, true]);
+  await expect(async () => expect(await inked()).toEqual([true, false, false, true])).toPass();
   await goToPage(page, 2);
   await expect(page.getByText("2 / 3", { exact: true })).toBeVisible();
-  expect(await inked()).toEqual([true, true, false, false]);
+  await expect(async () => expect(await inked()).toEqual([true, true, false, false])).toPass();
   await goToPage(page, 3);
   await expect(page.getByText("3 / 3", { exact: true })).toBeVisible();
-  expect(await inked()).toEqual([false, false, true, false]);
+  await expect(async () => expect(await inked()).toEqual([false, false, true, false])).toPass();
   expect(await strokes()).toEqual([3, 2, 1]);
 
   // A restart whose folder needs a permission gesture.
@@ -3788,7 +3788,7 @@ test("Flutter lifetime: first launch, folder choice, three written pages, restar
   await openTestNotebook(page, "Analysis");
   await page.getByRole("button", { name: "Open Integrals", exact: false }).click();
   await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
-  expect(await inked()).toEqual([true, false, false, true]);
+  await expect(async () => expect(await inked()).toEqual([true, false, false, true])).toPass();
 
   // The library over time: a second notebook and note, a move, a search, a
   // favorite, the trash, a rename, and a tag.
@@ -3879,7 +3879,7 @@ test("Flutter lifetime: first launch, folder choice, three written pages, restar
   expect(stored[0].text).toContain("Theorem 1");
   await page.getByRole("button", { name: "Open Integrals", exact: false }).click();
   await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
-  expect(await inked()).toEqual([true, false, false, true]);
+  await expect(async () => expect(await inked()).toEqual([true, false, false, true])).toPass();
   await button("More").click();
   await button("Export PDF").click();
   const download = page.waitForEvent("download");
@@ -3982,7 +3982,7 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   // A second layer for sketches; new ink goes to the active layer.
   await layers(() => addLayer("Sketch"));
   await write(rows[1]);
-  expect(await inked()).toEqual([true, true, false]);
+  await expect(async () => expect(await inked()).toEqual([true, true, false])).toPass();
   let note = await saved(lecture);
   expect(note.layers.map((layer) => layer.name)).toEqual(["Ink", "Sketch"]);
   const [ink, sketch] = note.layers.map((layer) => layer.id);
@@ -3996,15 +3996,15 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   await button("Stroke").click();
   await closePopover(page);
   await penStroke(cdp, [130, 170, 210, 260, 300].map((y) => ({ x: rows[0].x, y: box.y + y })), 0.6);
-  expect(await inked(), "the eraser takes the sketch only").toEqual([true, false, false]);
+  await expect(async () => expect(await inked(), "the eraser takes the sketch only").toEqual([true, false, false])).toPass();
   await button("Undo").click();
-  expect(await inked()).toEqual([true, true, false]);
+  await expect(async () => expect(await inked()).toEqual([true, true, false])).toPass();
   await button("Lasso").click();
   await lasso(box.y + 130, box.y + 300);
   await button("Delete selection").click();
-  expect(await inked(), "the lasso takes the sketch only").toEqual([true, false, false]);
+  await expect(async () => expect(await inked(), "the lasso takes the sketch only").toEqual([true, false, false])).toPass();
   await button("Undo").click();
-  expect(await inked()).toEqual([true, true, false]);
+  await expect(async () => expect(await inked()).toEqual([true, true, false])).toPass();
   note = await saved(lecture);
   expect(note.layers.map((layer) => layer.locked)).toEqual([true, false]);
   expect(strokeCounts(note)).toEqual([1, 1]);
@@ -4023,21 +4023,21 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
 
   // A hidden layer is not drawn.
   await layers(() => button("Hide Sketch").click());
-  expect(await inked()).toEqual([true, false, false]);
+  await expect(async () => expect(await inked()).toEqual([true, false, false])).toPass();
   await layers(() => button("Show Sketch").click());
-  expect(await inked()).toEqual([true, true, false]);
+  await expect(async () => expect(await inked()).toEqual([true, true, false])).toPass();
 
   // A layer for labels, merged down into the ink.
   await layers(() => addLayer("Labels"));
   await button("Pen").click();
   await write(rows[2]);
-  expect(await inked()).toEqual([true, true, true]);
+  await expect(async () => expect(await inked()).toEqual([true, true, true])).toPass();
   await layers(() => button("Merge down Labels").click());
   note = await saved(lecture);
   expect(note.layers.map((layer) => layer.name)).toEqual(["Sketch", "Ink"]);
   expect(note.pages[0].groups.map((group) => group.id)).toEqual([sketch, ink]);
   expect(strokeCounts(note)).toEqual([1, 2]);
-  expect(await inked()).toEqual([true, true, true]);
+  await expect(async () => expect(await inked()).toEqual([true, true, true])).toPass();
 
   // An export without the sketch layer leaves out its ink: a render of the
   // PDF page at the screen page's width has ink at the first and third rows
@@ -4074,7 +4074,7 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
     await expect(page.getByRole("alertdialog").getByText("Delete Sketch?", { exact: true })).toBeVisible();
     await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
   });
-  expect(await inked()).toEqual([true, false, true]);
+  await expect(async () => expect(await inked()).toEqual([true, false, true])).toPass();
   note = await saved(lecture);
   expect(note.layers.map((layer) => layer.name)).toEqual(["Ink"]);
   expect(strokeCounts(note)).toEqual([2]);
@@ -4340,6 +4340,8 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   }
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", button: "left", clickCount: 1, x: slanted.x + 50, y: slanted.y + 20, ...pen });
+  // The page has stopped moving, if the palm moved it; then it must be where it was.
+  await settled(page, { x: column, y: hard.y - 20, width: 1, height: 40 });
   expect(await inkRow(page, column, hard.y - 20, hard.y + 20), "the palm does not scroll the page").toBe(before);
   expect(await strokes()).toEqual([4]);
   await shot("written");
@@ -4391,8 +4393,8 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   await button("Duplicate").click();
   await button("Delete selection").click();
   await expect(button("Delete selection")).toHaveCount(0);
-  expect(await inkAt(page, slanted, paper.get(slanted)!), "the slanted line left its place").toBeLessThan(0.1 * hardInk);
-  expect(await inkAt(page, moved, paper.get(moved)!), "the red copy is where the line was copied").toBeGreaterThan(0.3 * hardInk);
+  await expect(async () => expect(await inkAt(page, slanted, paper.get(slanted)!), "the slanted line left its place").toBeLessThan(0.1 * hardInk)).toPass();
+  await expect(async () => expect(await inkAt(page, moved, paper.get(moved)!), "the red copy is where the line was copied").toBeGreaterThan(0.3 * hardInk)).toPass();
   expect(await strokes()).toEqual([5]);
   expect(await storedFills(page, [notebook, title], "0001.svg"), "the heading and the copy are red")
     .toEqual(["#D92D39", "#1A1A1A", "#1A1A1A", "#1A1A1A", "#D92D39"]);
@@ -4569,7 +4571,7 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   const zoomedSpot = at(600, 330);
   const zoomedPaper = await screenPixels(page, zoomedSpot);
   await penStroke(cdp, line(zoomedSpot.x - 60, zoomedSpot.x + 60, zoomedSpot.y), 0.6);
-  expect(await inkAt(page, zoomedSpot, zoomedPaper), "the zoomed pen writes under the pen").toBeGreaterThan(0.3 * hardInk);
+  await expect(async () => expect(await inkAt(page, zoomedSpot, zoomedPaper), "the zoomed pen writes under the pen").toBeGreaterThan(0.3 * hardInk)).toPass();
   expect(await strokes()).toEqual([6, 3, 1]);
   await shot("zoomed");
   await button("View").click();
@@ -4586,7 +4588,7 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   await canvas.waitFor({ timeout: 30_000 });
   await expect(page.getByText(/^1 \/ 3$/)).toBeVisible();
   await expect.poll(() => inkAt(page, hard, paper.get(hard)!), { message: "the hard line returns" }).toBeGreaterThan(0.8 * hardInk);
-  expect(await inkAt(page, moved, paper.get(moved)!), "the red copy returns").toBeGreaterThan(0.3 * hardInk);
+  await expect(async () => expect(await inkAt(page, moved, paper.get(moved)!), "the red copy returns").toBeGreaterThan(0.3 * hardInk)).toPass();
   saved = await pages();
   expect(saved.map((p) => p.strokes)).toEqual([6, 3, 1]);
   expect(saved[0].text).toContain("Definition 1");
