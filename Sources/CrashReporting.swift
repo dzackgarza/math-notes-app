@@ -75,7 +75,7 @@ struct PreviousFailure: Identifiable {
   var summary: String { hang ? "Math Notes stopped responding" : "Math Notes crashed" }
 
   // The thread that crashed, or for a hang the main thread.
-  private var thread: KSCrashReportModel.Thread? {
+  private var thread: KSCrashReportModel.CrashReport<NoUserData>.Thread? {
     report.crash.crashedThread
       ?? report.crash.threads?.first(where: { $0.crashed })
       ?? report.crash.threads?.first(where: { $0.index == 0 })
