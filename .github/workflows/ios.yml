@@ -205,7 +205,8 @@ jobs:
           xcodebuild -project MathNotes.xcodeproj -scheme MathNotes -showBuildSettings \
             -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
             | grep -E '^ +(TARGET_NAME|PRODUCT_NAME|TEST_HOST|BUILT_PRODUCTS_DIR|SUPPORTED_PLATFORMS|SDKROOT) ='
-          xcodebuild build -project MathNotes.xcodeproj -target MathNotes -sdk iphonesimulator \
+          xcodebuild build -project MathNotes.xcodeproj -scheme MathNotes \
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tail -120
 
       - uses: actions/upload-artifact@v7
