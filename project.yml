@@ -1,13 +1,10 @@
 name: MathNotes
-
 options:
   bundleIdPrefix: dev.zack
-
 packages:
   MJRefresh:
     url: https://github.com/CoderMJLee/MJRefresh
     exactVersion: 3.7.9
-
 targets:
   MathNotes:
     type: application
@@ -67,6 +64,23 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: dev.zack.mathnotes.selection-drag
+            UTTypeDescription: Math Notes selection
+            UTTypeConformsTo:
+              - public.data
+          - UTTypeIdentifier: dev.zack.mathnotes.selection-copy-drag
+            UTTypeDescription: Math Notes selection copy
+            UTTypeConformsTo:
+              - public.data
+          - UTTypeIdentifier: dev.zack.mathnotes.clipping-drag
+            UTTypeDescription: Math Notes clipping
+            UTTypeConformsTo:
+              - public.data
+          - UTTypeIdentifier: dev.zack.mathnotes.page-overview-drag
+            UTTypeDescription: Math Notes page
+            UTTypeConformsTo:
+              - public.data
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.zack.mathnotes
@@ -76,7 +90,6 @@ targets:
     scheme:
       testTargets:
         - MathNotesTests
-
   MathNotesTests:
     type: bundle.unit-test
     platform: iOS
