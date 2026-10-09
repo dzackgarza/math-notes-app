@@ -1,10 +1,9 @@
 // google/ink core on the engine targets: outlines against Linux host goldens,
 // incremental strokes, hit tests, and an eraser split.
+#include <catch2/benchmark/catch_benchmark.hpp>
 #include <catch2/catch_test_macros.hpp>
 
-#include <chrono>
 #include <cmath>
-#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -160,27 +159,25 @@ TEST_CASE("An eraser segment splits a stroke's inputs into two strokes") {
   CHECK(std::abs(right.XMax() - (200 + 2.5f)) < 0.1f);
 }
 
-TEST_CASE("One 16-input frame of EnqueueInputs plus UpdateShape") {
+// A measurement, not a test: run with `ink_tests "[.benchmark]"`.
+TEST_CASE("EnqueueInputs plus UpdateShape per 16-input frame", "[.benchmark]") {
   auto frames = ink_test::ReadTrace(kFixtures + "spring_shape.trace");
   ink::Brush pen = ink_test::StockTestBrushes()[1].brush;
   ink::StrokeInputBatch all = ink_test::RealInputs(frames);
-
-  ink::InProgressStroke stroke;
-  stroke.Start(pen);
-  size_t frame_count = 0;
-  double total_ms = 0, worst_ms = 0;
+  std::vector<ink::StrokeInputBatch> batches;
   for (size_t i = 0; i + 16 <= all.Size(); i += 16) {
     ink::StrokeInputBatch frame;
     for (size_t j = i; j < i + 16; ++j) REQUIRE(frame.Append(all.Get(j)).ok());
-    auto start = std::chrono::steady_clock::now();
-    REQUIRE(stroke.EnqueueInputs(frame, {}).ok());
-    REQUIRE(stroke.UpdateShape(frame.Get(frame.Size() - 1).elapsed_time).ok());
-    double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
-    total_ms += ms;
-    worst_ms = std::max(worst_ms, ms);
-    ++frame_count;
+    batches.push_back(std::move(frame));
   }
-  REQUIRE(frame_count > 0);
-  std::printf("16-input frame: mean %.3f ms, worst %.3f ms over %zu frames\n",
-              total_ms / frame_count, worst_ms, frame_count);
+  REQUIRE_FALSE(batches.empty());
+  BENCHMARK("whole recorded stroke, frame by frame") {
+    ink::InProgressStroke stroke;
+    stroke.Start(pen);
+    for (const ink::StrokeInputBatch &frame : batches) {
+      REQUIRE(stroke.EnqueueInputs(frame, {}).ok());
+      REQUIRE(stroke.UpdateShape(frame.Get(frame.Size() - 1).elapsed_time).ok());
+    }
+    return stroke.BrushCoatCount();
+  };
 }

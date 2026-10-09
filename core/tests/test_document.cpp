@@ -111,7 +111,7 @@ TEST_CASE("Ids come from a seedable generator") {
   CHECK(stroke.find_first_not_of("abcdefghijklmnopqrstuvwxyz234567", 2) == std::string::npos);
 }
 
-TEST_CASE("A page with 400 recorded strokes") {
+TEST_CASE("A page of 400 recorded strokes reads back and writes the same bytes again") {
   auto inputs = ink_test::RealInputs(ink_test::ReadTrace(INK_FIXTURE_DIR "/ink/spring_shape.trace"));
   ink::Stroke recorded(ink_test::StockTestBrushes()[1].brush, inputs);
 
@@ -139,9 +139,9 @@ TEST_CASE("A page with 400 recorded strokes") {
   }
   page.layers.push_back(layer);
   std::string bytes = WritePage(page);
-  std::printf("400 recorded strokes (%zu samples, %zu outline vertices each): %zu bytes\n",
-              stroke.samples.size(), ink_test::Outline(recorded).size(), bytes.size());
-  CHECK(ReadPage(bytes, page.file, {layer.layer_id}).layers[0].elements.size() == 400);
+  Page read = ReadPage(bytes, page.file, {layer.layer_id});
+  REQUIRE(read.layers[0].elements.size() == 400);
+  CHECK(WritePage(read) == bytes);
 }
 
 TEST_CASE("A TikZ figure stays visible in standalone SVG and retains its editable references") {

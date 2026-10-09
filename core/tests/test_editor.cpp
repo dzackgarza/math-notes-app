@@ -1,11 +1,11 @@
 // Pen samples through the C ABI to live and committed strokes (issue #19).
+#include <catch2/benchmark/catch_benchmark.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 
 #include <algorithm>
-#include <chrono>
 #include <cmath>
-#include <cstdio>
+#include <memory>
 #include <numbers>
 #include <vector>
 
@@ -248,27 +248,29 @@ TEST_CASE("A highlighter stroke goes under the ink of its layer") {
   CHECK(std::get<Stroke>(elements[1]->value).brush == "marker");
 }
 
-TEST_CASE("One 16-sample event through ink_input") {
-  ink_test::Session canvas;
-  ink_test::SetTool(canvas.get(), INK_BRUSH_PRESSURE_PEN, 0x1A1A1A, 5);
-  double total = 0, worst = 0;
-  constexpr int kEvents = 20;
-  for (int e = 0; e < kEvents; ++e) {
+// A measurement, not a test: run with `ink_tests "[.benchmark]"`.
+TEST_CASE("ink_input over a stroke of twenty 16-sample events", "[.benchmark]") {
+  std::vector<std::vector<InkPenSample>> events;
+  for (int e = 0; e < 20; ++e) {
     std::vector<InkPenSample> event;
     for (int j = 0; j < 16; ++j) {
       int n = e * 16 + j;
       double t = n / 240.0, r = 20 + 40 * t;
       event.push_back(PenSample(250 + r * std::cos(8 * t), 250 + r * std::sin(8 * t), t * 1000,
-                          n == 0 ? INK_PHASE_BEGIN : INK_PHASE_MOVE));
+                                n == 0 ? INK_PHASE_BEGIN : INK_PHASE_MOVE));
     }
-    auto start = std::chrono::steady_clock::now();
-    ink_input(canvas.get(), event.data(), event.size());
-    double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
-    total += ms;
-    worst = std::max(worst, ms);
+    events.push_back(std::move(event));
   }
-  std::printf("16-sample ink_input event: mean %.3f ms, worst %.3f ms\n", total / kEvents, worst);
-  CHECK(canvas.canvas->editor.Drawing());
+  BENCHMARK_ADVANCED("20 events")(Catch::Benchmark::Chronometer meter) {
+    std::vector<std::unique_ptr<ink_test::Session>> sessions;
+    for (int i = 0; i < meter.runs(); ++i) {
+      sessions.push_back(std::make_unique<ink_test::Session>());
+      ink_test::SetTool(sessions.back()->get(), INK_BRUSH_PRESSURE_PEN, 0x1A1A1A, 5);
+    }
+    meter.measure([&](int i) {
+      for (auto &event : events) ink_input(sessions[i]->get(), event.data(), event.size());
+    });
+  };
 }
 
 TEST_CASE("Pen-up keeps only the part of a stroke on its page") {
