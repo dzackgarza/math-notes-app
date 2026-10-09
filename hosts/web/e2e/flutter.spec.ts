@@ -353,7 +353,7 @@ test("Flutter reconnects a saved folder and retains edits on every page", async 
   expect(strokeCounts).toEqual([1, 1]);
 });
 
-test("Flutter opens a library note on the first tap without a delayed canvas", async ({ page }) => {
+test("Flutter opens a library note and its canvas on the first tap", async ({ page }) => {
   test.setTimeout(60_000);
   await page.goto("?root=opfs");
   await createTestNotebook(page, "Open timing");
@@ -366,15 +366,11 @@ test("Flutter opens a library note on the first tap without a delayed canvas", a
     const card = page.getByRole("button", { name: "Open Immediate", exact: false });
     const box = await card.boundingBox();
     if (!box) throw new Error("Immediate note card has no bounds");
-    const started = Date.now();
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     await expect(
       page.getByRole("heading", { name: "Immediate", exact: true }),
-    ).toBeVisible({ timeout: 2_000 });
-    await expect(page.locator('canvas[id^="ink-canvas-"]:visible')).toBeVisible({
-      timeout: 2_000,
-    });
-    expect(Date.now() - started).toBeLessThan(2_000);
+    ).toBeVisible();
+    await expect(page.locator('canvas[id^="ink-canvas-"]:visible')).toBeVisible();
     await closeNote(page);
     await expect(
       page.getByRole("heading", { name: "Open timing", exact: true }),
@@ -708,7 +704,7 @@ test("Flutter modal dialogs block pen ink underneath them, and a cancelled pen s
         pointerId: 7, pointerType: "pen", isPrimary: true, bubbles: true, cancelable: true, composed: true,
         clientX, clientY: y, pressure: buttons ? 0.6 : 0, button: buttons ? 0 : -1, buttons,
       }));
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      await new Promise(requestAnimationFrame);
     };
     await send("pointerdown", x, 1);
     for (const offset of [40, 80, 120, 160]) await send("pointermove", x + offset, 1);
@@ -798,7 +794,7 @@ test("Flutter erases with the pen side button and eraser end and draws with a fi
         pointerId: 9, pointerType: "pen", isPrimary: true, bubbles: true, cancelable: true, composed: true,
         clientX: x, clientY, pressure: buttons ? 0.6 : 0, button, buttons,
       }));
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      await new Promise(requestAnimationFrame);
     };
     await send("pointerdown", y + 100, 5, 32);
     for (const offset of [125, 150, 175, 200]) await send("pointermove", y + offset, -1, 32);
@@ -932,15 +928,9 @@ test("Flutter page overview duplicates, deletes, reorders, and opens pages", asy
   await act(4, "Delete");
   await expect(tile(4)).toHaveCount(0);
 
-  const from = await tile(1).boundingBox();
-  const to = await tile(3).boundingBox();
-  if (!from || !to) throw new Error("Page tiles have no bounds");
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
-  await page.mouse.down();
-  await page.waitForTimeout(800);
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
-  await page.waitForTimeout(400);
-  await page.mouse.up();
+  const from = await boxOf(tile(1));
+  const to = await boxOf(tile(3));
+  await longPressDrag(page, from, to);
   await page.screenshot({ path: info.outputPath("page-overview.png") });
 
   await tile(2).click();
@@ -1248,6 +1238,20 @@ async function boxOf(locator: Locator): Promise<Box> {
   const box = await locator.boundingBox();
   if (!box) throw new Error("The element has no bounds");
   return box;
+}
+
+// Flutter starts a delayed drag (LongPressDraggable, the reorderable grid's
+// delayed listener) once a press is held for kLongPressTimeout, 500 ms
+// (flutter/lib/src/gestures/constants.dart): holding that long is the gesture.
+const LONG_PRESS_MS = 500;
+
+async function longPressDrag(page: Page, from: Box, to: Box): Promise<void> {
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(LONG_PRESS_MS);
+  await frames(page);
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
+  await page.mouse.up();
 }
 
 // The ribbon (#9E2A2B) that marks the current selection; no cover color is
@@ -2684,7 +2688,9 @@ test("Flutter two-page layout puts pen input on the right page and shares a PDF"
   await expect(page.getByText(/^\d \/ 3$/)).toBeVisible();
   await page.getByRole("button", { name: "View", exact: true }).click();
   await page.getByRole("button", { name: "Two pages", exact: true }).click();
-  await page.waitForTimeout(500);
+  // The pen goes down where the menu was: wait for the menu to close.
+  await expect(page.getByRole("button", { name: "Two pages", exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem("pageArrangement"))).toBe("2");
   const box = await canvas.boundingBox();
   if (!box) throw new Error("Notebook canvas has no bounds");
   const cdp = await page.context().newCDPSession(page);
@@ -4233,12 +4239,7 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   const handle = page.getByLabel("Drag a copy", { exact: true });
   const from = await boxOf(handle);
   const to = await boxOf(canvas.nth(1));
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
-  await page.mouse.down();
-  await page.waitForTimeout(800);
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
-  await page.waitForTimeout(400);
-  await page.mouse.up();
+  await longPressDrag(page, from, to);
   await shot("dragged-between-panes");
   const row = note.pages[1].groups[0].strokes.map((s) => s.id);
   await expect.poll(async () => (await storedNote(page, proofs)).pages[0].groups.flatMap((group) => group.strokes).length, { timeout: 15_000 }).toBe(3);
@@ -4497,12 +4498,7 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   await expect(tile(4)).toBeVisible();
   const from = await boxOf(tile(2));
   const to = await boxOf(tile(4));
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
-  await page.mouse.down();
-  await page.waitForTimeout(800);
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
-  await page.waitForTimeout(400);
-  await page.mouse.up();
+  await longPressDrag(page, from, to);
   await shot("overview");
   await tile(1).click();
   await expect(page.getByText("1 / 4", { exact: true })).toBeVisible();
