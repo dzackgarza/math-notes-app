@@ -22,14 +22,26 @@ final class PencilStrokeWorkflowTests: XCTestCase {
     if let directory { try FileManager.default.removeItem(at: directory) }
   }
 
-  func testPencilStrokesAndStrokeEraseReachTheSavedPage() throws {
+  private struct OpenEditor {
+    let events: EventGenerator
+    let canvas: InkCanvasView
+    let center: CGPoint
+    let session: OpenNotebookSession
+    let state: EditorWorkflowState
+    let directory: URL
+    let reference: NotebookReference
+  }
+
+  // A note created in a folder attached as the picker attaches it, open in the
+  // editor pane, saved by the app's own autosave.
+  private func openEditor(title: String) throws -> OpenEditor {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     self.directory = directory
     let root = try NotesRootAccess(selectedURL: directory)
     let (reference, document) = try root.createNote(
-      title: "Pencil Workflow",
+      title: title,
       parent: FolderReference(path: []),
       template: "blank",
       pageSize: INK_PAGE_A4,
@@ -59,7 +71,16 @@ final class PencilStrokeWorkflowTests: XCTestCase {
     let events = try EventGenerator(window: window)
     try events.waitUntilWindowIsReady()
     let canvas = try XCTUnwrap(firstSubview(of: InkCanvasView.self, in: window))
-    let center = canvas.convert(CGPoint(x: canvas.bounds.midX, y: canvas.bounds.midY), to: nil)
+    return OpenEditor(
+      events: events, canvas: canvas,
+      center: canvas.convert(CGPoint(x: canvas.bounds.midX, y: canvas.bounds.midY), to: nil),
+      session: session, state: state, directory: directory, reference: reference)
+  }
+
+  func testPencilStrokesAndStrokeEraseReachTheSavedPage() throws {
+    let editor = try openEditor(title: "Pencil Workflow")
+    let (events, center, session, state, directory, reference) =
+      (editor.events, editor.center, editor.session, editor.state, editor.directory, editor.reference)
 
     // A short tick, the kind that vanished on lift.
     try events.stylusDown(at: center, azimuth: 0.8, altitude: 0.9, pressure: 0.5)
@@ -86,6 +107,30 @@ final class PencilStrokeWorkflowTests: XCTestCase {
     try events.stylusUp()
     try awaitSaved(session)
     XCTAssertEqual(try savedStrokeIDs(directory, reference), tick, "the stroke eraser must remove the long stroke and only it")
+  }
+
+  // Finger drawing (docs/specs/core-features.md, L1): off, a finger drag moves
+  // the page and leaves the document unchanged; on, it draws a stroke that
+  // reaches the saved page.
+  func testAFingerDrawsOnlyWhenFingerDrawingIsOn() throws {
+    let editor = try openEditor(title: "Finger Workflow")
+    let rowY = editor.center.y + 60
+    let unsavedBefore = try editor.session.document.dirtyFiles()
+
+    try editor.events.fingerDown(at: CGPoint(x: editor.center.x - 120, y: rowY))
+    try editor.events.fingerMove(to: CGPoint(x: editor.center.x + 120, y: rowY), duration: 0.4)
+    try editor.events.fingerUp()
+    XCTAssertEqual(
+      try editor.session.document.dirtyFiles(), unsavedBefore, "a finger drew with finger drawing off")
+
+    editor.state.fingerDraws = true
+    let adopted = expectation(for: NSPredicate { _, _ in editor.canvas.fingerDrawing }, evaluatedWith: nil)
+    wait(for: [adopted], timeout: 5)
+    try editor.events.fingerDown(at: CGPoint(x: editor.center.x - 120, y: rowY))
+    try editor.events.fingerMove(to: CGPoint(x: editor.center.x + 120, y: rowY), duration: 0.4)
+    try editor.events.fingerUp()
+    try awaitSaved(editor.session)
+    XCTAssertEqual(try savedStrokeIDs(editor.directory, editor.reference).count, 1, "the finger stroke was not saved")
   }
 
   // The app's autosave runs a second after the last edit; this waits for the
@@ -146,6 +191,7 @@ final class EditorWorkflowState {
   var selectorMode: EditorSelectorMode = .freehand
   var spaceMode: EditorSpaceMode = .reflow
   var previousPencilTool: EditorTool?
+  var fingerDraws = false
 }
 
 // The editor pane with ContentView's initial tool state for one open note.
@@ -163,7 +209,7 @@ private struct EditorWorkflowHost: View {
       linked: false,
       linkedViewport: nil,
       arrangement: .vertical,
-      fingerDraws: false,
+      fingerDraws: state.fingerDraws,
       hiddenTools: [],
       penLibrary: $state.penLibrary,
       tool: $state.tool,

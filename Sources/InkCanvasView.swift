@@ -23,7 +23,7 @@ final class InkCanvasView: UIView {
   private var sampleIDs = PencilSampleIDs()
   private var hostActive = true
   private var drawingSuppressed = false
-  private var fingerDrawing = false
+  private(set) var fingerDrawing = false
   private var fingerTouch: UITouch?
   private var pencilTouch: UITouch?
   private let onInteractionBegan: () -> Void
