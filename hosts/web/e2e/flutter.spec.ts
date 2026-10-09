@@ -3952,6 +3952,48 @@ function storedNote(page: Page, path: string[]) {
   }, path));
 }
 
+// Opening split view narrows the note's pane; the reader stays where they
+// were: handwriting at the top of page 2 is still on screen beside the
+// reference note.
+test("Flutter split view keeps the handwriting the reader was looking at in view", async ({ page }) => {
+  test.setTimeout(180_000);
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  const canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
+  await page.goto("?root=opfs");
+  await createTestNotebook(page, "Topology");
+  for (const title of ["Proofs", "Lecture"]) {
+    if (title === "Lecture") await button("Library").click();
+    await button("New note").click();
+    await enterText(page.getByRole("textbox", { name: "Title", exact: true }), title);
+    await button("Create").click();
+    await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible({ timeout: 30_000 });
+  }
+  await canvas.waitFor({ timeout: 30_000 });
+  await button("Pages").click();
+  await button("Add page").click();
+  await goToPage(page, 2);
+  await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
+  const box = await boxOf(canvas);
+  const cdp = await page.context().newCDPSession(page);
+  await penStroke(cdp, line(box.x + 160, box.x + 280, box.y + 170), 0.6);
+  // Dark pixels in the upper half of the note's pane: the stroke, never the
+  // dotted paper.
+  const ink = async () => {
+    const pane = await boxOf(canvas.first());
+    return (await capture(page, { ...pane, height: pane.height / 2 })).filter((rgb) => brightness(rgb) < 100).length;
+  };
+  await expect.poll(ink, "the stroke is on screen").toBeGreaterThan(50);
+
+  await button("View").click();
+  await button("Split view").click();
+  await page.getByRole("button", { name: /^Reference: / }).click();
+  await page.getByRole("group", { name: "Proofs Topology", exact: true }).click();
+  await expect(button("Reference: Proofs")).toBeVisible();
+  await expect(canvas).toHaveCount(2);
+  await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
+  await expect.poll(ink, "the stroke is still on screen beside the reference").toBeGreaterThan(50);
+});
+
 test("Flutter research session: layers, clippings, bookmarks, links between notes, split view, reload, and export", async ({ page }, info) => {
   test.setTimeout(480_000);
   const shot = (name: string) => page.screenshot({ path: info.outputPath(`${name}.png`) });
