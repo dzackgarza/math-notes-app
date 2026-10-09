@@ -1055,20 +1055,15 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     let location = configuration.sourcePoint
     let pressedPage = canvasView.page(at: location)
     guard pressedPage != nil || canvasView.selectionFrame() != nil else { return nil }
-    let svg = selectionFromPasteboard()
     let selectedPage = canvasView.selectionPage()
     let selectedFrame = canvasView.selectionFrame()
     let menuRevision = documentRevision
     let canSaveClipping = canvasView.selectionFrame() != nil &&
       (pressedPage == nil || selectedPage == pressedPage)
     var actions: [UIMenuElement] = []
-    if pressedPage != nil && ((svg?.contains("<svg") == true) ||
-      UIPasteboard.general.data(forPasteboardType: UTType.png.identifier) != nil ||
-      UIPasteboard.general.data(forPasteboardType: UTType.jpeg.identifier) != nil ||
-      UIPasteboard.general.data(forPasteboardType: UTType.heic.identifier) != nil ||
-      UIPasteboard.general.data(forPasteboardType: UTType.heif.identifier) != nil ||
-      UIPasteboard.general.data(forPasteboardType: UTType.tiff.identifier) != nil ||
-      UIPasteboard.general.image != nil) {
+    // Probing types does not read the content, so it raises no paste prompt.
+    if pressedPage != nil && (UIPasteboard.general.hasImages || UIPasteboard.general.contains(
+      pasteboardTypes: [UTType.svg, .png, .jpeg, .heic, .heif, .tiff].map(\.identifier))) {
       actions.append(UIAction(
         title: "Paste",
         image: UIImage(systemName: "doc.on.clipboard")
