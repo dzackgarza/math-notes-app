@@ -44,7 +44,15 @@ final class ClippingPersistenceTests: XCTestCase {
 
     let reopenedRoot = NotesRootAccess(testURL: directory)
     let reopenedSVG = try reopenedRoot.clippingSVG(id: savedID)
-    XCTAssertEqual(reopenedSVG, savedSVG)
+    // Each clipboard export deliberately assigns fresh element identities.
+    // Compare all content and geometry while excluding only those identities.
+    let elementIDPattern = #"id="[sfg]-[^"]+""#
+    XCTAssertEqual(
+      reopenedSVG.replacingOccurrences(
+        of: elementIDPattern, with: #"id="copied-element""#, options: .regularExpression),
+      savedSVG.replacingOccurrences(
+        of: elementIDPattern, with: #"id="copied-element""#, options: .regularExpression))
+    XCTAssertTrue(elementIDs(in: reopenedSVG).isDisjoint(with: elementIDs(in: savedSVG)))
 
     let (targetReference, target) = try reopenedRoot.createNote(
       title: "Clipping Target",

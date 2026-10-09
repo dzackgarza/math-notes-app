@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import InkEngine
 import XCTest
@@ -12,7 +13,7 @@ final class CrossHostConflictCompatibilityTests: XCTestCase {
     defer { try? FileManager.default.removeItem(at: directory) }
 
     let root = NotesRootAccess(testURL: directory)
-    let (reference, _) = try root.createNote(
+    let (reference, document) = try root.createNote(
       title: "Shared Dropbox Note",
       parent: FolderReference(path: []),
       template: "blank",
@@ -23,8 +24,18 @@ final class CrossHostConflictCompatibilityTests: XCTestCase {
     let originalURL = pageDirectory.appendingPathComponent("0001.svg")
     let original = try Data(contentsOf: originalURL)
 
-    var dropboxCopy = original
-    dropboxCopy.append(contentsOf: "\n<!-- Dropbox edit -->\n".utf8)
+    let canvas = InkCanvasView(document: document)
+    canvas.frame = CGRect(x: 0, y: 0, width: 1024, height: 1200)
+    canvas.layoutIfNeeded()
+    canvas.setViewTransform(.identity)
+    try canvas.editText(
+      EngineTextProperties(content: "Dropbox revision", width: 170, rtl: false),
+      at: CGPoint(x: 90, y: 120), existing: false)
+    let editedPage = try XCTUnwrap(document.dirtyFiles().first { $0.path == "pages/0001.svg" })
+    guard case let .write(dropboxCopy) = editedPage.kind else {
+      XCTFail("Editing text must produce a page write")
+      return
+    }
     let conflictURL = pageDirectory
       .appendingPathComponent("0001 (Zack's conflicted copy 2026-10-07).svg")
     try dropboxCopy.write(to: conflictURL, options: .atomic)
@@ -52,6 +63,15 @@ final class CrossHostConflictCompatibilityTests: XCTestCase {
       return try Data(contentsOf: url)
     }
     XCTAssertTrue(pageBytes.contains(original))
-    XCTAssertTrue(pageBytes.contains(dropboxCopy))
+    let copiedPage = try XCTUnwrap(pageBytes.last)
+    XCTAssertTrue(String(decoding: copiedPage, as: UTF8.self).contains("Dropbox revision"))
+    XCTAssertFalse(String(decoding: original, as: UTF8.self).contains("Dropbox revision"))
+    let verificationCanvas = InkCanvasView(document: reopened)
+    verificationCanvas.frame = CGRect(x: 0, y: 0, width: 1024, height: 1200)
+    verificationCanvas.layoutIfNeeded()
+    verificationCanvas.setViewTransform(.identity)
+    try verificationCanvas.selectAll(page: 1)
+    let copiedContent = try XCTUnwrap(verificationCanvas.copySelection())
+    XCTAssertTrue(copiedContent.contains("Dropbox revision"))
   }
 }
