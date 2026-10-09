@@ -316,7 +316,7 @@ void PenLine(InkCanvas *canvas, double x0, double x1, double y, double t0, bool 
   }
 }
 
-size_t Elements(const ink_test::Session &session, size_t layer) {
+size_t ElementCount(const ink_test::Session &session, size_t layer) {
   return session.doc().pages[0]->layers[layer].elements.size();
 }
 
@@ -331,11 +331,11 @@ TEST_CASE("A pen stroke off the selection only clears it; the next stroke draws"
 
   PenLine(canvas.get(), 100, 300, 500, 1000);
   CHECK_FALSE(canvas.canvas->editor.CurrentSelection());
-  CHECK(Elements(canvas, 0) == 1);
+  CHECK(ElementCount(canvas, 0) == 1);
   CHECK(canvas.document->history.size() == steps);
 
   PenLine(canvas.get(), 100, 300, 600, 2000);
-  CHECK(Elements(canvas, 0) == 2);
+  CHECK(ElementCount(canvas, 0) == 2);
   CHECK(canvas.document->history.size() == steps + 1);
 }
 
@@ -349,8 +349,8 @@ TEST_CASE("A stroke on a hidden or locked active layer commits nothing") {
   const size_t steps = canvas.document->history.size();
 
   PenLine(canvas.get(), 100, 300, 200, 0);
-  CHECK(Elements(canvas, 0) == 0);
-  CHECK(Elements(canvas, 1) == 0);
+  CHECK(ElementCount(canvas, 0) == 0);
+  CHECK(ElementCount(canvas, 1) == 0);
   CHECK(canvas.document->history.size() == steps);
 }
 
@@ -360,11 +360,11 @@ TEST_CASE("Locking the active layer during a stroke discards it; the next stroke
   REQUIRE(ink_document_set_layer(canvas.document, 0, "Layer 1", 0, 1) == INK_OK);
   InkPenSample up = PenSample(310, 200, 120, INK_PHASE_END);
   REQUIRE(ink_input(canvas.get(), &up, 1) == INK_OK);
-  CHECK(Elements(canvas, 0) == 0);
+  CHECK(ElementCount(canvas, 0) == 0);
 
   REQUIRE(ink_document_set_layer(canvas.document, 0, "Layer 1", 0, 0) == INK_OK);
   PenLine(canvas.get(), 100, 300, 300, 1000);
-  CHECK(Elements(canvas, 0) == 1);
+  CHECK(ElementCount(canvas, 0) == 1);
 }
 
 TEST_CASE("A host cancel discards the live stroke; the next stroke draws") {
@@ -373,9 +373,9 @@ TEST_CASE("A host cancel discards the live stroke; the next stroke draws") {
   CHECK(MaxX(canvas.canvas->editor.LiveOutline()) >= 250);
   InkPenSample cancel = PenSample(300, 200, 100, INK_PHASE_CANCEL);
   REQUIRE(ink_input(canvas.get(), &cancel, 1) == INK_OK);
-  CHECK(Elements(canvas, 0) == 0);
+  CHECK(ElementCount(canvas, 0) == 0);
   CHECK(canvas.canvas->editor.LiveOutline().empty());
 
   PenLine(canvas.get(), 100, 300, 300, 1000);
-  CHECK(Elements(canvas, 0) == 1);
+  CHECK(ElementCount(canvas, 0) == 1);
 }
