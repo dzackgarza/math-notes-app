@@ -48,7 +48,8 @@ struct ClippingsSheet: View {
     onMove: @escaping (String, Int) async -> Bool,
     onDelete: @escaping (String) async -> Bool,
     onRefresh: @escaping () async -> [ClippingPreview]?,
-    onClose: @escaping () -> Void
+    onClose: @escaping () -> Void,
+    onError: @escaping (Error) -> Void
   ) {
     self.selectionActive = selectionActive
     self.drawing = drawing
@@ -59,6 +60,7 @@ struct ClippingsSheet: View {
     self.onDelete = onDelete
     self.onRefresh = onRefresh
     self.onClose = onClose
+    self.onError = onError
     _items = State(initialValue: request.items)
   }
 
