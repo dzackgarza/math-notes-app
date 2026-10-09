@@ -312,3 +312,74 @@ Guidance: `anthropics/skills` at `8a1541c` (2026-09-28), `skills/frontend-design
 | Not measured | 3 |
 
 The two audits agree on the cause and differ on the remedy. ui-ux-pro-max says the app breaks platform rules (contrast, targets, focus order, navigation hierarchy). frontend-design says that even with those fixed, nothing in the app was chosen for handwritten mathematics: the typeface, the neutrals, the sheets, the cover, and the empty state are all what the framework produced unprompted, and the one choice the brief did make (navy plus one blue) is spent on every row and link instead of on the page.
+
+# iPad host: deviations from platform frameworks and established patterns (2026-10-09)
+
+Here are the audit's findings, merged across the four agents with duplicates removed. Each item was checked against `docs/ARCHITECTURE.md`. Nearly every one is a deviation the docs don't record. The exceptions are the custom engine and canvas, the scroll-view-plus-Metal structure, MJRefresh, the custom library and tab strip (which `DocumentGroup` and the document browser can't express without changing the shared format), and the split divider (iPadOS has no native equivalent).
+
+Separately, the batch run failed to compile the new engine trace (a C/C++ linkage error). That's fixed in `e520892`, which passes a local syntax check, and the batch is rerunning.
+
+## Storage and documents (highest impact)
+
+| # | Hand-built or deviating | Standard | What the standard prevents |
+|---|---|---|---|
+| S1 | The file presenter runs on the main queue, and coordinators are created without it | Give the presenter a private queue, and pass it to `NSFileCoordinator(filePresenter:)` | The app being notified of its own writes (each save triggers conflict recounts and library rescans), and a documented deadlock on the `.forDeleting` rollback paths |
+| S2 | Saves, the per-stroke recovery checkpoint, library scans, `conflictCount`, cover rendering and PDF import all run on the main thread | Queue-based `coordinate(with:queue:byAccessor:)` behind an actor; `UIDocument` writes in the background | The watchdog kills in your reports, plus per-stroke jank. The batch moves only the cover, open-notebook and clipping reads off the main thread. |
+| S3 | A hand-built document lifecycle: 1-second autosave, save status, base snapshots, recovery journal. No per-document presenter, so changes from the web host are never reloaded. | `UIDocument` per notebook. It can keep the folder-of-SVGs format with an incremental `writeContents` that writes only changed files, in place. | Autosave, background saving, document state, reloading on external change, and `savePresentedItemChanges` |
+| S4 | Saving on backgrounding runs without `beginBackgroundTask` | A background-task assertion, which `UIDocument` takes for itself | Saves to Dropbox killed or cancelled on suspension |
+| S5 | Library listings coordinate full reads | `.immediatelyAvailableMetadataOnly` | Likely forced downloads of the whole tree, and the slow library on Dropbox. Needs a device check. |
+| S6 | No handling of undownloaded files | `ubiquitousItemDownloadingStatus` and `startDownloadingUbiquitousItem` | A bare spinner with no progress or cancel |
+| S7 | `offMain` blocks Swift's cooperative thread pool | Queue-based coordination with a continuation | Pool starvation when many covers load at once |
+| S8 | No state restoration | `@SceneStorage` or `NSUserActivity` | Open tabs and position lost when iOS kills the app |
+| S9 | Bookmark, conflict-count and theme-color failures swallowed with `try?` or fallback values | Throw and report | Silent failures, which your no-fallback rule forbids |
+
+## Editor and input
+
+| # | Hand-built or deviating | Standard | What the standard prevents |
+|---|---|---|---|
+| E1 | The long-press menu reads pasteboard content to decide whether to offer Paste | `hasStrings`/`hasImages` checks, then read only in `paste(_:)` or through `UIPasteControl` | The "Allow Paste?" alert on every long-press |
+| E2 | Undo bypasses `UndoManager`; 28 custom key commands; no menu builder | An `undoManager` adapter over the engine's history, the standard edit actions, and `UIMenuBuilder` | System three-finger undo/redo (which currently competes with the custom three-finger tap), shake to undo, the Edit menu, the menu bar and validated enabled states |
+| E3 | Editor commands passed as SwiftUI state diffs plus 22 callbacks | A reference controller or model that calls the editor directly | "Modifying state during view update", and lost or reordered commands |
+| E4 | Likely stroke-cancelling setup: a SwiftUI `TapGesture` over the canvas, `delaysTouchesEnded` left on for the pencil tap, a drag interaction over the whole canvas, recognizers toggled per stroke | Fixed `allowedTouchTypes`, no delay flags (as Write and SDL do), no SwiftUI gesture over the canvas, drag only on the selection | The lost-strokes class of bug |
+| E5 | The render loop runs continuously while idle | Continuous updates only during strokes and animation | Battery drain and heat |
+| E6 | A hand-built selection bar duplicates the edit menu | One `UIEditMenuInteraction` anchored to the selection | Positioning, accessibility and keyboard handling for two parallel UIs |
+| E7 | The canvas exposes nothing to accessibility; the system "only draw with Pencil" setting is ignored | Accessibility elements per page with `.allowsDirectInteraction`; `prefersPencilOnlyDrawing` | Unusable with VoiceOver; behaves differently from system apps |
+| E8 | Page reordering hand-built; page thumbnails rendered on the main thread | A collection view with reordering handlers | No insertion indicator, and jank |
+
+## App structure and UI
+
+| # | Hand-built or deviating | Standard |
+|---|---|---|
+| A1 | One `ContentView` holds about 60 state properties, 20 sheets and the storage calls | Feature models plus one presentation enum |
+| A2 | Navigation is driven by opacity flags and a fixed sidebar | `NavigationSplitView` with `NavigationStack(path:)` |
+| A3 | A single error-string slot, which can't show over an open sheet | Error alerts presented by the view that owns them, using `LocalizedError` |
+| A4 | Fixed light-only colors, while system parts still switch to dark | Lock the app to light, or add dark variants. Your decision. |
+| A5 | Fixed font sizes | Fonts declared `relativeTo:` a text style, and `@ScaledMetric` |
+| A6 | Share sheet wrapped in `.sheet`; custom export, folder and PDF pickers | `ShareLink`, `.fileExporter`, `.fileImporter` |
+| A7 | VoiceOver announces every autosave | Announce only meaningful changes |
+| A8 | My stall watchdog has no stacks, and the input trace costs time on every touch | MetricKit hang diagnostics; the trace for diagnosis only |
+
+## PDF, media and figures
+
+| # | Hand-built or deviating | Standard |
+|---|---|---|
+| P1 | Image intake ignores EXIF orientation and doesn't downsample, and that logic is duplicated four times | ImageIO thumbnailing with the orientation transform, behind one `Transferable` type. A Photos picker is absent; your call. |
+| P2 | The figure editor's message bridge and `file://` loading differ from the recorded decision (`callAsyncJavaScript` plus a scheme handler) | Implement the recorded decision. `file://` may block the editor's module workers, which is a candidate cause of the editor never starting. |
+| P3 | TikZ generation runs in a hidden web view that never recovers if its process crashes | JavaScriptCore; the scripts don't use the DOM |
+| P4 | PDF import reads files without coordination, swallows errors with `try?`, and renders on the main thread | Coordinated reads off the main thread; `PDFPage.thumbnail(of:for:)` |
+| P5 | Copying or dragging a selection out gives other apps raw SVG text | Also offer PNG |
+| P6 | Drag-and-drop errors dropped silently; fonts and the font fallback list stored twice | Report the errors; keep one source for fonts |
+
+The docs also conflict on the figure editor: `tikz-drawing-mode.md` and `ARCHITECTURE.md` name different owners.
+
+**Decisions only you can make:**
+1. Adopt `UIDocument` per notebook (S3 and S4) instead of patching the hand-built lifecycle. Recommended. It needs your approval and a decision record.
+2. Multiple windows instead of the custom split view.
+3. Dark mode: lock to light or define dark colors.
+4. A Photos picker for inserting images.
+
+**Proposed order, after the current batch ships:**
+1. S1, S4, E1 and E4, as targeted fixes.
+2. S2, S5 and S7: move the remaining I/O off the main thread with metadata-only listings.
+3. S3, E2 and E3 as framework adoptions, once you've decided.
+4. The rest.
