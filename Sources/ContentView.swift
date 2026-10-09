@@ -3,6 +3,7 @@ import InkEngine
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
+import os
 
 private enum OpenNotePickerPurpose {
   case tab
@@ -567,6 +568,10 @@ struct ContentView: View {
     }
     .onChange(of: sceneDelegate.incomingDocument) { _, _ in
       consumeIncomingDocument()
+    }
+    .onChange(of: errorMessage) { _, message in
+      guard let message else { return }
+      Log.app.error("error shown: \(message, privacy: .public)")
     }
     .onChange(of: scenePhase) { _, phase in
       switch phase {
@@ -1203,8 +1208,14 @@ struct ContentView: View {
   private func restoreSavedRoot() {
     guard !restoredRoot else { return }
     restoredRoot = true
-    guard let restored = NotesRootAccess.restore() else { return }
+    guard let restored = NotesRootAccess.restore() else {
+      Log.app.info("launch: no saved notes folder to restore")
+      return
+    }
+    Log.app.info("launch: restoring the saved notes folder")
+    let started = ContinuousClock.now
     installRoot(restored)
+    Log.app.info("launch: notes folder installed in \((ContinuousClock.now - started).milliseconds, format: .fixed(precision: 0), privacy: .public) ms")
   }
 
   private var needsRootReconnect: Bool {

@@ -1,6 +1,7 @@
 import CryptoKit
 import Foundation
 import InkEngine
+import os
 
 struct FolderReference: Hashable, Identifiable {
   let path: [String]
@@ -2747,6 +2748,8 @@ final class NotesRootAccess {
       try document.markSaved()
     }
     guard conflicts.isEmpty else {
+      Log.storage.error(
+        "save found external changes; kept as conflicts: \(conflicts.map(\.path).joined(separator: ", "), privacy: .public)")
       throw NotebookStorageError.externalChanges(conflicts.map { $0.path })
     }
   }
@@ -3043,6 +3046,7 @@ final class NotesRootAccess {
   ) throws -> T {
     var coordinatorError: NSError?
     var result: Result<T, Error>?
+    let started = ContinuousClock.now
     NSFileCoordinator().coordinate(
       readingItemAt: target,
       options: [],
@@ -3050,10 +3054,18 @@ final class NotesRootAccess {
     ) { coordinatedURL in
       result = Result { try body(coordinatedURL) }
     }
+    Self.logCoordination("read", target, ContinuousClock.now - started)
 
-    if let coordinatorError { throw coordinatorError }
+    if let coordinatorError {
+      Log.storage.error("coordinated read failed for \(target.path, privacy: .public): \(coordinatorError, privacy: .public)")
+      throw coordinatorError
+    }
     guard let result else {
+      Log.storage.error("coordinated read never ran its accessor for \(target.path, privacy: .public)")
       throw NotebookStorageError.coordinationFailed(target.path)
+    }
+    if case let .failure(error) = result {
+      Log.storage.error("coordinated read of \(target.path, privacy: .public) failed: \(String(describing: error), privacy: .public)")
     }
     return try result.get()
   }
@@ -3065,6 +3077,7 @@ final class NotesRootAccess {
   ) throws -> T {
     var coordinatorError: NSError?
     var result: Result<T, Error>?
+    let started = ContinuousClock.now
     NSFileCoordinator().coordinate(
       writingItemAt: target,
       options: options,
@@ -3072,12 +3085,30 @@ final class NotesRootAccess {
     ) { coordinatedURL in
       result = Result { try body(coordinatedURL) }
     }
+    Self.logCoordination("write", target, ContinuousClock.now - started)
 
-    if let coordinatorError { throw coordinatorError }
+    if let coordinatorError {
+      Log.storage.error("coordinated write failed for \(target.path, privacy: .public): \(coordinatorError, privacy: .public)")
+      throw coordinatorError
+    }
     guard let result else {
+      Log.storage.error("coordinated write never ran its accessor for \(target.path, privacy: .public)")
       throw NotebookStorageError.coordinationFailed(target.path)
     }
+    if case let .failure(error) = result {
+      Log.storage.error("coordinated write of \(target.path, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+    }
     return try result.get()
+  }
+
+  private static func logCoordination(_ kind: String, _ target: URL, _ elapsed: Duration) {
+    if Thread.isMainThread && elapsed > Log.mainThreadBudget {
+      Log.storage.fault(
+        "coordinated \(kind, privacy: .public) blocked the main thread for \(elapsed.milliseconds, format: .fixed(precision: 0), privacy: .public) ms: \(target.path, privacy: .public)")
+    } else {
+      Log.storage.debug(
+        "coordinated \(kind, privacy: .public) \(elapsed.milliseconds, format: .fixed(precision: 0), privacy: .public) ms main=\(Thread.isMainThread, privacy: .public): \(target.path, privacy: .public)")
+    }
   }
 
   private struct StoredFile {
