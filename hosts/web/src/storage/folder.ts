@@ -121,35 +121,47 @@ export async function writeFiles(dir: FileSystemDirectoryHandle, files: readonly
 
 const TEMPLATES = ".templates";
 
-// Creates Notes/.templates/<name>/ for each built-in template that is
-// missing (docs/FORMAT.md, Other files).
-export async function ensureTemplates(root: FileSystemDirectoryHandle, engine: Engine): Promise<void> {
+// Writes built-in template `name` to Notes/.templates/<name>/ when a notebook
+// first uses it (docs/FORMAT.md, Other files). Choosing or browsing a folder
+// writes nothing.
+export async function storeTemplateForUse(root: FileSystemDirectoryHandle, engine: Engine, name: string): Promise<void> {
+  const stored = await subdirectory(root, TEMPLATES);
+  if (stored && await subdirectory(stored, name)) return;
+  if (!engine.builtinTemplates().includes(name)) throw new Error(`Template ${name} is not in this notes folder.`);
   const templates = await root.getDirectoryHandle(TEMPLATES, { create: true });
-  for (const name of engine.builtinTemplates()) {
-    if (await subdirectory(templates, name)) continue;
-    const document = engine.createBuiltinTemplate(name, 1n);
-    try {
-      await writeFiles(await templates.getDirectoryHandle(name, { create: true }), document.dirtyFiles());
-    } finally {
-      document.free();
-    }
+  const document = engine.createBuiltinTemplate(name, 1n);
+  try {
+    await writeFiles(await templates.getDirectoryHandle(name, { create: true }), document.dirtyFiles());
+  } finally {
+    document.free();
   }
 }
 
-export async function listTemplates(root: FileSystemDirectoryHandle): Promise<string[]> {
+// The built-in templates and any the folder stores.
+export async function listTemplates(root: FileSystemDirectoryHandle, engine: Engine): Promise<string[]> {
   const templates = await subdirectory(root, TEMPLATES);
-  return templates ? listNotebooks(templates) : [];
+  const stored = templates ? await listNotebooks(templates) : [];
+  return [...new Set([...engine.builtinTemplates(), ...stored])].sort();
 }
 
-// Page 1 of template `name`, whose background new pages copy.
-export async function readTemplatePage(root: FileSystemDirectoryHandle, name: string): Promise<Uint8Array<ArrayBuffer> | null> {
+// Page 1 of template `name`, whose background new pages copy: the folder's
+// stored copy, otherwise the engine's built-in page.
+export async function readTemplatePage(root: FileSystemDirectoryHandle, engine: Engine, name: string): Promise<Uint8Array<ArrayBuffer>> {
   try {
     const templates = await root.getDirectoryHandle(TEMPLATES);
     const pages = await (await templates.getDirectoryHandle(name)).getDirectoryHandle("pages");
     const file = await (await pages.getFileHandle("0001.svg")).getFile();
     return new Uint8Array(await file.arrayBuffer());
   } catch (e) {
-    if (e instanceof DOMException && e.name === "NotFoundError") return null;
-    throw e;
+    if (!(e instanceof DOMException && e.name === "NotFoundError")) throw e;
+  }
+  if (!engine.builtinTemplates().includes(name)) throw new Error(`Template ${name} is not in this notes folder.`);
+  const document = engine.createBuiltinTemplate(name, 1n);
+  try {
+    const page = document.dirtyFiles().find((file) => file.path === "pages/0001.svg");
+    if (!page || page.kind !== "write") throw new Error(`Built-in template ${name} has no first page.`);
+    return page.bytes;
+  } finally {
+    document.free();
   }
 }

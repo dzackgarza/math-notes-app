@@ -8,19 +8,18 @@ import { loadEngine } from "./engine/load.ts";
 import type { Canvas, Engine, ToolSettings } from "./engine/engine.ts";
 import { Orientation, PageSize, Phase, Tool } from "./engine/engine.ts";
 import { capabilities, penSamples } from "./input/pointer.ts";
-import { ensureTemplates, files, hasPermission, listTemplates, pickRoot, readTemplatePage, requestPermission, savedRoot, watchRoot } from "./storage/folder.ts";
+import { files, hasPermission, listTemplates, pickRoot, readTemplatePage, requestPermission, savedRoot, watchRoot } from "./storage/folder.ts";
 import { createFolder, moveEntry, moveToTrash, scanLibrary, scanTrash, type Note } from "./storage/library.ts";
 import { emptyFolder, emptyNote, moveNotes, readMetadata, writeMetadata, TAG_COLORS } from "./storage/metadata.ts";
 import { noteThumbnail } from "./storage/thumbnails.ts";
-import { ensurePens, readPens, writePens } from "./storage/pens.ts";
+import { readPens, writePens } from "./storage/pens.ts";
 import { importPdf } from "./editor/pdf.ts";
 import { conflictCount, noteConflicts, resolveConflict } from "./storage/conflicts.ts";
 import { listClippings, saveClipping, clippingSvg, changeClipping } from "./editor/clippings.ts";
 import { mountFigureEditor } from "./editor/figure-editor.ts";
 
 async function paperPreview(engine: Engine, root: FileSystemDirectoryHandle, paper: string, size: "a4" | "letter", orientation: "portrait" | "landscape"): Promise<Uint8Array<ArrayBuffer>> {
-  const page = await readTemplatePage(root, paper);
-  if (!page) throw new Error(`Template ${paper} has no first page.`);
+  const page = await readTemplatePage(root, engine, paper);
   const document = engine.createDocumentFromTemplate(1n, paper, page, PageSize[size], Orientation[orientation]);
   try {
     return document.pagePng(0, 480);
@@ -135,19 +134,10 @@ async function startRoot() {
   return { root: root ?? null, needsGesture: root ? !(await hasPermission(root)) : false };
 }
 
-// Creates the root-owned defaults once, when the app connects to a notes
-// folder. This keeps first-use writes out of the editor's critical path.
-function prepareRoot(root: FileSystemDirectoryHandle, engine: Engine): Promise<void> {
-  return files(async () => {
-    await ensureTemplates(root, engine);
-    await ensurePens(root, engine);
-  });
-}
-
-function library(root: FileSystemDirectoryHandle) {
+function library(root: FileSystemDirectoryHandle, engine: Engine) {
   return files(async () => {
     const [folders, trash, metadata, templates] = await Promise.all([
-      scanLibrary(root), scanTrash(root), readMetadata(root), listTemplates(root),
+      scanLibrary(root), scanTrash(root), readMetadata(root), listTemplates(root, engine),
     ]);
     return { folders, trash, metadata, templates };
   }, "shared");
@@ -260,10 +250,10 @@ const api = {
   listClippings, saveClipping, clippingSvg, changeClipping,
   conflictCount: reading(conflictCount), noteConflicts: reading(noteConflicts), resolveConflict,
   importPdf,
-  applyTemplate: reading(applyTemplate), listTemplates: reading(listTemplates), finishFigure, figureSource,
+  applyTemplate: writing(applyTemplate), listTemplates: reading(listTemplates), finishFigure, figureSource,
   thumbnail: reading(thumbnail), tagColors: TAG_COLORS,
   cacheApp, paperPreview: reading(paperPreview), exportPdf, sharePdf, insertImage, checkPlatform, loadEngine, startRoot, pickRoot, requestPermission, watchRoot,
-  prepareRoot, library,
+  library,
   createNotebook, openNotebook,
   createFolder: writing(createFolder), moveEntry: writing(moveEntry), moveToTrash: writing(moveToTrash),
   emptyFolder, emptyNote, moveNotes,
