@@ -297,3 +297,85 @@ TEST_CASE("Pen-up keeps only the part of a stroke on its page") {
   CHECK(canvas.document->history.size() == steps);
   CHECK(canvas.doc().pages[0]->layers[0].elements.size() == 1);
 }
+
+namespace {
+
+// A horizontal pen stroke shaped as the iPad host sends it: the pen-down alone,
+// then four frames of three coalesced moves, the last ending in the lift.
+void PenLine(InkCanvas *canvas, double x0, double x1, double y, double t0, bool lift = true) {
+  InkPenSample down = PenSample(x0, y, t0, INK_PHASE_BEGIN);
+  REQUIRE(ink_input(canvas, &down, 1) == INK_OK);
+  for (int frame = 0; frame < 4; ++frame) {
+    std::vector<InkPenSample> moves;
+    for (int i = 1; i <= 3; ++i) {
+      const int n = frame * 3 + i;
+      moves.push_back(PenSample(x0 + (x1 - x0) * n / 12.0, y, t0 + 8.0 * n, INK_PHASE_MOVE));
+    }
+    if (lift && frame == 3) moves.back().phase = INK_PHASE_END;
+    REQUIRE(ink_input(canvas, moves.data(), moves.size()) == INK_OK);
+  }
+}
+
+size_t Elements(const ink_test::Session &session, size_t layer) {
+  return session.doc().pages[0]->layers[layer].elements.size();
+}
+
+}  // namespace
+
+TEST_CASE("A pen stroke off the selection only clears it; the next stroke draws") {
+  ink_test::Session canvas;
+  PenLine(canvas.get(), 100, 300, 100, 0);
+  REQUIRE(ink_canvas_select_all(canvas.get(), 0) == INK_OK);
+  REQUIRE(canvas.canvas->editor.CurrentSelection());
+  const size_t steps = canvas.document->history.size();
+
+  PenLine(canvas.get(), 100, 300, 500, 1000);
+  CHECK_FALSE(canvas.canvas->editor.CurrentSelection());
+  CHECK(Elements(canvas, 0) == 1);
+  CHECK(canvas.document->history.size() == steps);
+
+  PenLine(canvas.get(), 100, 300, 600, 2000);
+  CHECK(Elements(canvas, 0) == 2);
+  CHECK(canvas.document->history.size() == steps + 1);
+}
+
+TEST_CASE("A stroke on a hidden or locked active layer commits nothing") {
+  const auto [hidden, locked] = GENERATE(table<int, int>({{1, 0}, {0, 1}}));
+  CAPTURE(hidden, locked);
+  ink_test::Session canvas;
+  REQUIRE(ink_document_add_layer(canvas.document, "Second") == INK_OK);
+  REQUIRE(ink_canvas_set_layer(canvas.get(), 1) == INK_OK);
+  REQUIRE(ink_document_set_layer(canvas.document, 1, "Second", hidden, locked) == INK_OK);
+  const size_t steps = canvas.document->history.size();
+
+  PenLine(canvas.get(), 100, 300, 200, 0);
+  CHECK(Elements(canvas, 0) == 0);
+  CHECK(Elements(canvas, 1) == 0);
+  CHECK(canvas.document->history.size() == steps);
+}
+
+TEST_CASE("Locking the active layer during a stroke discards it; the next stroke after unlocking draws") {
+  ink_test::Session canvas;
+  PenLine(canvas.get(), 100, 300, 200, 0, false);
+  REQUIRE(ink_document_set_layer(canvas.document, 0, "Layer 1", 0, 1) == INK_OK);
+  InkPenSample up = PenSample(310, 200, 120, INK_PHASE_END);
+  REQUIRE(ink_input(canvas.get(), &up, 1) == INK_OK);
+  CHECK(Elements(canvas, 0) == 0);
+
+  REQUIRE(ink_document_set_layer(canvas.document, 0, "Layer 1", 0, 0) == INK_OK);
+  PenLine(canvas.get(), 100, 300, 300, 1000);
+  CHECK(Elements(canvas, 0) == 1);
+}
+
+TEST_CASE("A host cancel discards the live stroke; the next stroke draws") {
+  ink_test::Session canvas;
+  PenLine(canvas.get(), 100, 300, 200, 0, false);
+  CHECK(MaxX(canvas.canvas->editor.LiveOutline()) >= 250);
+  InkPenSample cancel = PenSample(300, 200, 100, INK_PHASE_CANCEL);
+  REQUIRE(ink_input(canvas.get(), &cancel, 1) == INK_OK);
+  CHECK(Elements(canvas, 0) == 0);
+  CHECK(canvas.canvas->editor.LiveOutline().empty());
+
+  PenLine(canvas.get(), 100, 300, 300, 1000);
+  CHECK(Elements(canvas, 0) == 1);
+}
