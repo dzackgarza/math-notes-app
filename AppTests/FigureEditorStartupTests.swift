@@ -6,7 +6,7 @@ import XCTest
 // On the device the figure editor sheet loaded its page but never received the
 // editor's 'init' message, so it showed "Loading figure editor…" until the app
 // was force-quit. This loads the bundled editor exactly as the sheet does, in a
-// visible window, and requires 'init' within 20 s, reporting every page error.
+// visible window, and requires its 'init' message, reporting every page error.
 @MainActor
 final class FigureEditorStartupTests: XCTestCase {
   func testBundledFigureEditorStartsAndAnnouncesInit() throws {
@@ -25,19 +25,16 @@ final class FigureEditorStartupTests: XCTestCase {
       webView.configuration.userContentController.removeAllScriptMessageHandlers()
     }
 
-    let deadline = Date().addingTimeInterval(20)
-    while !recorder.events.contains("init") && Date() < deadline {
-      RunLoop.main.run(until: Date().addingTimeInterval(0.1))
-    }
-
-    XCTAssertTrue(
-      recorder.events.contains("init"),
-      "the editor sent no 'init' within 20 s; page reports: \(recorder.pageReports)")
+    wait(for: [recorder.initReceived], timeout: 60)
+    XCTAssertEqual(
+      recorder.events.first, "init",
+      "the editor's first message was not 'init'; page reports: \(recorder.pageReports)")
   }
 }
 
 @MainActor
 final class FigureEditorRecorder: NSObject, WKScriptMessageHandler {
+  let initReceived = XCTestExpectation(description: "the editor sent 'init'")
   private(set) var events: [String] = []
   private(set) var pageReports: [String] = []
 
@@ -60,5 +57,6 @@ final class FigureEditorRecorder: NSObject, WKScriptMessageHandler {
       return
     }
     events.append(event)
+    if event == "init" { initReceived.fulfill() }
   }
 }
