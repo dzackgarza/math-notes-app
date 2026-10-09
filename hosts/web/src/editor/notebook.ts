@@ -4,8 +4,20 @@ import { createStore, del, entries, set } from "idb-keyval";
 import type { Engine, FileChange, InkDocument, NotebookFile } from "../engine/engine.ts";
 import { EngineError, Orientation, PageSize, Status } from "../engine/engine.ts";
 import { files as fileTask, readNotebook, readTemplatePage, storeTemplateForUse, writeFiles, type NotebookFiles } from "../storage/folder.ts";
-import { directoryAt, entryNames, nameError } from "../storage/library.ts";
+import { checkName, directoryAt, entryNames } from "../storage/library.ts";
 import type { OrientationSetting, PageSizeSetting } from "../storage/metadata.ts";
+
+// A save found files changed outside the app since they were read; the
+// local versions were written beside them as conflict copies.
+export class ExternalChangesError extends Error {
+  readonly paths: string[];
+
+  constructor(paths: string[]) {
+    super(`External changes in ${paths.join(", ")}. Compare the conflict copies before saving.`);
+    this.name = "ExternalChangesError";
+    this.paths = paths;
+  }
+}
 
 export const SAVE_DELAY_MS = 1000;
 
@@ -190,7 +202,7 @@ export class Saver extends EventTarget {
             this.conflictCopies.set(change.path, change);
           }
           await this.checkpoint();
-          throw new Error(`External changes in ${conflicts.map((change) => change.path).join(", ")}. Compare the conflict copies before saving.`);
+          throw new ExternalChangesError(conflicts.map((change) => change.path));
         }
         await writeFiles(this.dir, changes);
       } catch (error) {
@@ -242,8 +254,7 @@ export async function createNotebook(
 ): Promise<OpenNotebook> {
   const title = name.trim();
   const { dir, page1 } = await fileTask(async () => {
-    const error = nameError(title, await entryNames(root, parent));
-    if (error) throw new Error(error);
+    checkName(title, await entryNames(root, parent));
     await storeTemplateForUse(root, engine, template);
     const dir = await (await directoryAt(root, parent)).getDirectoryHandle(title, { create: true });
     return { dir, page1: await readTemplatePage(root, engine, template) };

@@ -115,13 +115,38 @@ export async function scanTrash(root: FileSystemDirectoryHandle): Promise<Note[]
 // (syncscribble/documentlist.cpp:836-854, styluslabs/Write 401b65d): empty,
 // "/" or an existing name is refused. A leading "." is refused too: the scan
 // skips dot entries, as Write's list does (documentlist.cpp:418).
-export function nameError(name: string, siblings: readonly string[]): string | null {
+export type NameRejection = "empty" | "separator" | "dot" | "taken";
+
+export function nameRejection(name: string, siblings: readonly string[]): NameRejection | null {
   const trimmed = name.trim();
-  if (!trimmed) return "Enter a name.";
-  if (trimmed.includes("/") || trimmed.includes("\\")) return "A name cannot contain / or \\.";
-  if (trimmed.startsWith(".")) return "A name cannot start with a dot.";
-  if (siblings.includes(trimmed)) return `“${trimmed}” already exists here.`;
+  if (!trimmed) return "empty";
+  if (trimmed.includes("/") || trimmed.includes("\\")) return "separator";
+  if (trimmed.startsWith(".")) return "dot";
+  if (siblings.includes(trimmed)) return "taken";
   return null;
+}
+
+const nameRejectionMessages: Record<NameRejection, (name: string) => string> = {
+  empty: () => "Enter a name.",
+  separator: () => "A name cannot contain / or \\.",
+  dot: () => "A name cannot start with a dot.",
+  taken: (name) => `“${name}” already exists here.`,
+};
+
+export class NameRejectedError extends Error {
+  readonly reason: NameRejection;
+
+  constructor(reason: NameRejection, name: string) {
+    super(nameRejectionMessages[reason](name.trim()));
+    this.name = "NameRejectedError";
+    this.reason = reason;
+  }
+}
+
+// Throws NameRejectedError when `name` cannot name a new entry beside `siblings`.
+export function checkName(name: string, siblings: readonly string[]): void {
+  const reason = nameRejection(name, siblings);
+  if (reason) throw new NameRejectedError(reason, name);
 }
 
 // The names in the directory at `path`.
@@ -132,8 +157,7 @@ export async function entryNames(root: FileSystemDirectoryHandle, path: readonly
 }
 
 export async function createFolder(root: FileSystemDirectoryHandle, parent: readonly string[], name: string): Promise<string[]> {
-  const error = nameError(name, await entryNames(root, parent));
-  if (error) throw new Error(error);
+  checkName(name, await entryNames(root, parent));
   await (await directoryAt(root, parent)).getDirectoryHandle(name.trim(), { create: true });
   return [...parent, name.trim()];
 }
@@ -171,8 +195,7 @@ export async function moveEntry(
   if (toParent.length >= from.length && from.every((part, i) => toParent[i] === part)) {
     throw new Error("A folder cannot move into itself.");
   }
-  const error = nameError(name, await entryNames(root, toParent));
-  if (error) throw new Error(error);
+  checkName(name, await entryNames(root, toParent));
   const source = await directoryAt(root, from);
   await copyDirectory(source, await directoryAt(root, toParent), name.trim());
   await (await directoryAt(root, from.slice(0, -1))).removeEntry(from[from.length - 1], { recursive: true });

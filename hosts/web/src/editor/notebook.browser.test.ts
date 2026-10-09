@@ -2,8 +2,8 @@ import { expect, test } from "vitest";
 
 import { loadEngine } from "../engine/load.ts";
 import { readNotebook, writeFiles } from "../storage/folder.ts";
-import { createFolder, scanLibrary } from "../storage/library.ts";
-import { createNotebook, Saver } from "./notebook.ts";
+import { createFolder, NameRejectedError, scanLibrary } from "../storage/library.ts";
+import { createNotebook, ExternalChangesError, Saver } from "./notebook.ts";
 
 test("new notes keep existing notebook folders and their contents", async () => {
   const engine = await loadEngine();
@@ -14,10 +14,12 @@ test("new notes keep existing notebook folders and their contents", async () => 
     await createFolder(root, [], "Course");
     const lecture = await createNotebook(engine, root, ["Course"], "Lecture", "dotted", "a4", "portrait");
     lecture.document.free();
-    await expect(createNotebook(engine, root, [], "Course", "blank", "a4", "portrait").then((note) => {
+    const duplicate = createNotebook(engine, root, [], "Course", "blank", "a4", "portrait").then((note) => {
       note.document.free();
       return note.name;
-    })).rejects.toThrow("already exists");
+    });
+    await expect(duplicate).rejects.toBeInstanceOf(NameRejectedError);
+    await expect(duplicate).rejects.toMatchObject({ reason: "taken" });
     const folders = await scanLibrary(root);
     expect(folders.find((folder) => folder.name === "Course")?.notes.map((note) => note.name)).toEqual(["Lecture"]);
     const notes = await createNotebook(engine, root, [], "Notes", "blank", "a4", "portrait");
@@ -43,7 +45,9 @@ test("an external notebook edit survives a pending local save", async () => {
     const external = new TextEncoder().encode(JSON.stringify(changed));
     await writeFiles(dir, [{ kind: "write", path: "notebook.json", bytes: external }]);
     document.insertPage(1);
-    await expect(saver.save()).rejects.toThrow("External changes in notebook.json");
+    const conflicted = saver.save();
+    await expect(conflicted).rejects.toBeInstanceOf(ExternalChangesError);
+    await expect(conflicted).rejects.toMatchObject({ paths: ["notebook.json"] });
     expect((await readNotebook(dir)).notebookJson).toEqual(external);
     expect(saver.state.status).toBe("error");
     await writeFiles(dir, [{ kind: "write", path: "notebook.json", bytes: before.notebookJson }]);
