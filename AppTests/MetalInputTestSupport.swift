@@ -3,6 +3,8 @@ import InkEngine
 import Metal
 import QuartzCore
 
+@testable import MathNotes
+
 final class MetalInputTestHarness {
   let canvas: OpaquePointer
   private let device: MTLDevice
