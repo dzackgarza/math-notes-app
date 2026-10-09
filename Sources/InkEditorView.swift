@@ -223,7 +223,7 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   private var pencilStrokeActive = false
   private var pageEditMenuInteraction: UIEditMenuInteraction?
   private var pageLongPress: UILongPressGestureRecognizer?
-  private var directTap: UITapGestureRecognizer?
+  private(set) var directTap: UITapGestureRecognizer?
   private var undoTap: UITapGestureRecognizer?
   private var redoTap: UITapGestureRecognizer?
   private var applyingLinkedViewport = false

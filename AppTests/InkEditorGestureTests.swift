@@ -121,7 +121,10 @@ final class InkEditorGestureTests: XCTestCase {
     let canvas = try XCTUnwrap(findSubview(in: controller.view) { $0 is InkCanvasView })
     let taps = (canvas.gestureRecognizers ?? [])
       .compactMap { $0 as? UITapGestureRecognizer }
-    let primary = try XCTUnwrap(taps.first { $0.buttonMaskRequired == .primary })
+    // System interactions also install primary-button taps on the canvas.
+    let primary = try XCTUnwrap(controller.directTap)
+    XCTAssertTrue(taps.contains(primary))
+    XCTAssertEqual(primary.buttonMaskRequired, .primary)
     let secondary = try XCTUnwrap(taps.first { $0.buttonMaskRequired == .secondary })
 
     XCTAssertEqual(primary.allowedTouchTypes,

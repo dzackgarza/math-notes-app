@@ -2676,12 +2676,6 @@ final class NotesRootAccess {
     var conflicts: [EngineFileChange] = []
     var nextPending = pendingDeleteConflicts[reference] ?? [:]
 
-    for change in changes {
-      try ensureParentDirectory(
-        for: change.path,
-        notebookURL: notebookURL)
-    }
-
     try coordinatedWrite(at: notebookURL, options: .forMerging) { coordinatedNotebook in
       for change in changes {
         let current = try Self.currentFile(in: coordinatedNotebook, path: change.path)
@@ -2725,8 +2719,7 @@ final class NotesRootAccess {
       for change in conflicts {
         guard case let .write(data) = change.kind else { continue }
         let copyPath = Self.conflictCopyPath(for: change.path)
-        let target = Self.fileURL(in: coordinatedNotebook, path: copyPath)
-        try data.write(to: target, options: .atomic)
+        try Self.writeFile(data, to: Self.fileURL(in: coordinatedNotebook, path: copyPath))
       }
     }
 
@@ -2788,12 +2781,20 @@ final class NotesRootAccess {
       let target = Self.fileURL(in: notebookURL, path: change.path)
       switch change.kind {
       case let .write(data):
-        try data.write(to: target, options: .atomic)
+        try writeFile(data, to: target)
       case .delete:
         guard FileManager.default.fileExists(atPath: target.path) else { continue }
         try FileManager.default.removeItem(at: target)
       }
     }
+  }
+
+  // A change can be the first file in its directory, such as a page's first asset.
+  private static func writeFile(_ data: Data, to target: URL) throws {
+    try FileManager.default.createDirectory(
+      at: target.deletingLastPathComponent(),
+      withIntermediateDirectories: true)
+    try data.write(to: target, options: .atomic)
   }
 
   @MainActor
@@ -3034,27 +3035,6 @@ final class NotesRootAccess {
 
   private func urlForNotebook(_ reference: NotebookReference) -> URL {
     urlForPath(reference.path)
-  }
-
-  private func ensureParentDirectory(for path: String, notebookURL: URL) throws {
-    let components = path.split(separator: "/").dropLast()
-    guard !components.isEmpty else { return }
-
-    var expected = notebookURL
-    for component in components {
-      expected.appendPathComponent(String(component), isDirectory: true)
-    }
-    guard !FileManager.default.fileExists(atPath: expected.path) else { return }
-
-    try coordinatedWrite(at: notebookURL, options: .forMerging) { coordinatedNotebook in
-      var directory = coordinatedNotebook
-      for component in components {
-        directory.appendPathComponent(String(component), isDirectory: true)
-      }
-      try FileManager.default.createDirectory(
-        at: directory,
-        withIntermediateDirectories: true)
-    }
   }
 
   private func coordinatedRead<T>(
