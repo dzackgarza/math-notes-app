@@ -593,8 +593,12 @@ struct ContentView: View {
           }
         }
       case .background:
+        // Background execution time for the save, so a coordinated write
+        // waiting on a file provider is not suspended part way through.
+        let task = UIApplication.shared.beginBackgroundTask(withName: "Save open notes", expirationHandler: nil)
         flushPendingSaves()
         root?.suspendFilePresentation()
+        UIApplication.shared.endBackgroundTask(task)
       default:
         break
       }
