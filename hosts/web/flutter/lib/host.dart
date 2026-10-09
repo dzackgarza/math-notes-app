@@ -337,6 +337,9 @@ extension type Clipping(JSObject value) implements JSObject {
 }
 
 extension type Host(JSObject value) implements JSObject {
+  // The class of a save's rejection when files changed outside the app.
+  @JS('ExternalChangesError')
+  external JSFunction get externalChangesError;
   external FigureEditor mountFigureEditor(
     OpenNote note,
     String id,

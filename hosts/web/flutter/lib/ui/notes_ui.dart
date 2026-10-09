@@ -268,9 +268,10 @@ Future<void> reviewConflicts(
   var conflicts = await folder.conflicts(note.dir);
   try {
     await note.saver.save().toDart;
-  } catch (_) {
+  } on JSObject catch (error) {
+    // The save wrote the local versions as conflict copies.
+    if (!error.instanceof(native.host.externalChangesError)) rethrow;
     conflicts = await folder.conflicts(note.dir);
-    if (conflicts.isEmpty) rethrow;
   }
   var changed = false;
   while (conflicts.isNotEmpty && context.mounted) {

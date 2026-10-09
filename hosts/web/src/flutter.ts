@@ -1,6 +1,6 @@
 // The Dart host calls the existing engine and filesystem services through
 // dart:js_interop. Flutter owns controls, hit testing, and notebook motion.
-import { applyTemplate, createNotebook, openNotebook } from "./editor/notebook.ts";
+import { applyTemplate, createNotebook, ExternalChangesError, openNotebook } from "./editor/notebook.ts";
 import { deserializeScene } from "@dzackgarza/freetikz/scene";
 import { generateTikz } from "@dzackgarza/freetikz/tikz";
 import type { OpenNotebook } from "./editor/notebook.ts";
@@ -254,7 +254,7 @@ const api = {
   thumbnail: reading(thumbnail), tagColors: TAG_COLORS,
   cacheApp, paperPreview: reading(paperPreview), exportPdf, sharePdf, insertImage, checkPlatform, loadEngine, startRoot, pickRoot, requestPermission, watchRoot,
   library,
-  createNotebook, openNotebook,
+  createNotebook, openNotebook, ExternalChangesError,
   createFolder: writing(createFolder), moveEntry: writing(moveEntry), moveToTrash: writing(moveToTrash),
   emptyFolder, emptyNote, moveNotes,
   readMetadata: reading(readMetadata), writeMetadata: writing(writeMetadata),
