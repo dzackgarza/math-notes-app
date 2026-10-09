@@ -51,6 +51,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Booting now overlaps the simulator's cold start with the engine build.
+      - name: Boot an iPad Simulator
+        id: simulator
+        run: |
+          udid=$(xcrun simctl list devices available -j \
+            | jq -r '[.devices[][] | select(.name | startswith("iPad"))][0].udid')
+          xcrun simctl boot "$udid"
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
       - name: Install tools
         run: brew install xcodegen ninja ccache
 
@@ -116,13 +125,6 @@ jobs:
 
       - name: Generate Xcode project
         run: xcodegen generate
-
-      - name: Pick an iPad Simulator
-        id: simulator
-        run: |
-          udid=$(xcrun simctl list devices available -j \
-            | jq -r '[.devices[][] | select(.name | startswith("iPad"))][0].udid')
-          echo "udid=$udid" >> "$GITHUB_OUTPUT"
 
       # App tests run before the slower Catch2 build so their failures surface first.
       - name: Test the app's engine link on the iPad Simulator
