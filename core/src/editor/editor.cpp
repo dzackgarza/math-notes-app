@@ -276,8 +276,10 @@ ink::StrokeInput Editor::ToStrokeInput(const InkPenSample &s, double t0) const {
   if (s.has & INK_HAS_ALTITUDE) {
     input.tilt = ink::Angle::Radians(std::numbers::pi_v<float> / 2 - s.altitude);
   }
-  if (s.has & INK_HAS_AZIMUTH) input.orientation = ink::Angle::Radians(s.azimuth);
-  if (s.has & INK_HAS_ROLL) input.barrel_twist = ink::Angle::Radians(s.roll);
+  // google/ink accepts orientation and barrel twist only in [0, 2π]; hosts
+  // report them in any radian range (UIKit's azimuth, the web's twist).
+  if (s.has & INK_HAS_AZIMUTH) input.orientation = ink::Angle::Radians(s.azimuth).Normalized();
+  if (s.has & INK_HAS_ROLL) input.barrel_twist = ink::Angle::Radians(s.roll).Normalized();
   return input;
 }
 
