@@ -12,7 +12,7 @@ import XCTest
 // delivers the bytes.
 @MainActor
 final class LibraryCoverMainThreadTests: XCTestCase {
-  func testCoverKeepsMainThreadResponsiveWhileItsPageReadWaits() throws {
+  func testCoverThumbnailKeepsMainThreadResponsiveWhileItsPageReadWaits() throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -35,25 +35,31 @@ final class LibraryCoverMainThreadTests: XCTestCase {
     let server = try SlowFileServer(replacing: page, delay: 3)
     defer { server.stop() }
 
-    // A window shows, and SwiftUI runs the cover's task, only inside a window scene.
-    let scene = try XCTUnwrap(
-      UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
-    let window = UIWindow(windowScene: scene)
-    window.frame = CGRect(x: 0, y: 0, width: 400, height: 400)
-    window.rootViewController = UIHostingController(
-      rootView: LibraryNotebookCover(root: root, item: item, titled: true))
-    window.makeKeyAndVisible()
-    defer { window.isHidden = true }
-
+    // The cover's .task: a main-actor task that asks the root for the thumbnail.
+    let cover = try XCTUnwrap(item.coverNote)
+    let outcome = ThumbnailOutcome()
     let heartbeat = MainThreadHeartbeat()
-    RunLoop.main.run(until: Date().addingTimeInterval(5))
+    Task { @MainActor in
+      do {
+        outcome.result = .success(try await root.thumbnail(cover))
+      } catch {
+        outcome.result = .failure(error)
+      }
+    }
+    RunLoop.main.run(until: Date().addingTimeInterval(8))
     heartbeat.stop()
 
-    XCTAssertGreaterThan(server.servedReads, 0, "the cover never read its page file")
+    XCTAssertNotNil(try XCTUnwrap(outcome.result, "the thumbnail never finished").get())
+    XCTAssertGreaterThan(server.servedReads, 0, "the thumbnail never read the page file")
     XCTAssertLessThan(
       heartbeat.longestGap, 0.5,
-      "the main thread stalled \(heartbeat.longestGap) s while the cover waited on its page file")
+      "the main thread stalled \(heartbeat.longestGap) s while the thumbnail waited on its page file")
   }
+}
+
+@MainActor
+final class ThumbnailOutcome {
+  var result: Result<Data?, Error>?
 }
 
 // Records the longest interval between main-run-loop timer ticks.
