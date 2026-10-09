@@ -135,7 +135,8 @@ jobs:
           path: &engine-paths |
             build/InkEngine.xcframework
             .ci/fonts
-          key: ios-engine-v2-${{ steps.xcode.outputs.version }}-${{ hashFiles('core/**') }}
+          # The framework is built from everything in core/ except its tests.
+          key: ios-engine-v2-${{ steps.xcode.outputs.version }}-${{ hashFiles('core/**', '!core/tests/**') }}
 
       - name: Set up vcpkg for the engine build
         if: steps.engine-cache.outputs.cache-hit != 'true'
