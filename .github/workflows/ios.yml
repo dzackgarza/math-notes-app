@@ -184,13 +184,29 @@ jobs:
 
       # App tests run before the slower Catch2 build so their failures surface first.
       - name: Test the app's engine link on the iPad Simulator
+        id: app-tests
         run: |
           set -o pipefail
           xcodebuild test \
             -project MathNotes.xcodeproj \
             -scheme MathNotes \
             -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
+            -resultBundlePath build/AppTests.xcresult \
             CODE_SIGNING_ALLOWED=NO
+
+      # xcodebuild puts some failures, such as a package or scheme problem
+      # that stops the build being planned, only in the result bundle.
+      - name: Report the app-test result bundle
+        if: ${{ failure() && steps.app-tests.conclusion == 'failure' }}
+        run: |
+          xcrun xcresulttool get build-results --path build/AppTests.xcresult
+          xcrun xcresulttool get test-results summary --path build/AppTests.xcresult
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ failure() && steps.app-tests.conclusion == 'failure' }}
+        with:
+          name: app-tests-xcresult
+          path: build/AppTests.xcresult
 
       - name: Set up vcpkg for the Catch2 build
         if: ${{ !cancelled() && steps.engine-cache.outputs.cache-hit == 'true' }}
