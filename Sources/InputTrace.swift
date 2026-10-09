@@ -71,8 +71,12 @@ extension UIWindow {
         let point = touch.location(in: nil)
         let view = touch.view.map { String(describing: type(of: $0)) } ?? "none"
         let recognizers = (touch.gestureRecognizers ?? []).map(InputTrace.describe).joined(separator: "; ")
+        let angles =
+          touch.type == .pencil
+          ? " altitude=\(touch.altitudeAngle) azimuth=\(touch.azimuthAngle(in: touch.view)) roll=\(touch.rollAngle)"
+          : ""
         InputTrace.log.info(
-          "touch \(UInt(bitPattern: ObjectIdentifier(touch).hashValue), privacy: .public) type=\(touch.type.rawValue, privacy: .public) phase=\(touch.phase.rawValue, privacy: .public) x=\(Double(point.x), format: .fixed(precision: 1), privacy: .public) y=\(Double(point.y), format: .fixed(precision: 1), privacy: .public) force=\(Double(touch.force), format: .fixed(precision: 2), privacy: .public) view=\(view, privacy: .public) recognizers=[\(recognizers, privacy: .public)]")
+          "touch \(UInt(bitPattern: ObjectIdentifier(touch).hashValue), privacy: .public) type=\(touch.type.rawValue, privacy: .public) phase=\(touch.phase.rawValue, privacy: .public) x=\(Double(point.x), format: .fixed(precision: 1), privacy: .public) y=\(Double(point.y), format: .fixed(precision: 1), privacy: .public) force=\(Double(touch.force), format: .fixed(precision: 2), privacy: .public)\(angles, privacy: .public) view=\(view, privacy: .public) recognizers=[\(recognizers, privacy: .public)]")
       }
     }
     mathNotesTracedSendEvent(event)

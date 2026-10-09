@@ -28,6 +28,13 @@ enum FigureEditorPage {
     let bridge = """
       const report = (text) => window.webkit.messageHandlers.mathNotesFigureLog.postMessage(String(text));
       window.addEventListener('error', (event) => report('error: ' + event.message + ' at ' + event.filename + ':' + event.lineno));
+      // A module script or stylesheet that fails to load fires 'error' on its
+      // element, which reaches window only in the capture phase.
+      window.addEventListener('error', (event) => {
+        if (event.target !== window) report('resource failed to load: ' + (event.target.src || event.target.href));
+      }, true);
+      document.addEventListener('DOMContentLoaded', () => report('lifecycle: DOMContentLoaded'));
+      window.addEventListener('load', () => report('lifecycle: load'));
       window.addEventListener('unhandledrejection', (event) => report('unhandled rejection: ' + event.reason));
       const consoleError = console.error;
       console.error = (...args) => { report('console.error: ' + args.join(' ')); consoleError(...args); };
@@ -95,6 +102,7 @@ final class BundledEditorSchemeHandler: NSObject, WKURLSchemeHandler {
   func webView(_ webView: WKWebView, start task: any WKURLSchemeTask) {
     do {
       let (url, data, contentType) = try resource(for: task.request)
+      Log.app.info("figure editor resource \(url.path, privacy: .public) served \(data.count, privacy: .public) bytes")
       let response = HTTPURLResponse(
         url: url,
         statusCode: 200,
@@ -230,7 +238,7 @@ private struct FigureEditorWebView: UIViewRepresentable {
     ) {
       guard let raw = message.body as? String else { return }
       if message.name == "mathNotesFigureLog" {
-        Log.app.error("figure editor page \(raw, privacy: .public)")
+        Log.app.notice("figure editor page \(raw, privacy: .public)")
         return
       }
       Log.app.info("figure editor message \(String(raw.prefix(80)), privacy: .public)")
