@@ -79,6 +79,8 @@ add_library(ink STATIC
   src/selection/ruled.cpp)
 target_include_directories(ink PUBLIC include src PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(ink PRIVATE INK_VERSION="${PROJECT_VERSION}")
+# A C entry point that falls off its end returns an arbitrary status.
+target_compile_options(ink PRIVATE -Werror=return-type)
 target_link_libraries(ink PUBLIC Skia::skia inkcore pugixml::pugixml FastFloat::fast_float immer
   nlohmann_json::nlohmann_json Boost::icl Boost::geometry)
 
