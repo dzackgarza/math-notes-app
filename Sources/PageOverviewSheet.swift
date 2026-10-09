@@ -9,10 +9,10 @@ struct PageOverviewSheet: View {
   @Binding var currentPage: Int
   let onSelect: (Int) -> Void
   let onEdit: (Int) -> Void
-  let onError: (Error) -> Void
   let onDone: () -> Void
 
   @State private var pageCount: Int
+  @State private var failure: String?
   @State private var thumbnailRevision = 0
 
   init(
@@ -20,16 +20,15 @@ struct PageOverviewSheet: View {
     currentPage: Binding<Int>,
     onSelect: @escaping (Int) -> Void,
     onEdit: @escaping (Int) -> Void,
-    onError: @escaping (Error) -> Void,
     onDone: @escaping () -> Void
   ) {
     self.document = document
     _currentPage = currentPage
     self.onSelect = onSelect
     self.onEdit = onEdit
-    self.onError = onError
     self.onDone = onDone
-    _pageCount = State(initialValue: (try? document.pageCount()) ?? 0)
+    // The page count of a document in memory always reads.
+    _pageCount = State(initialValue: try! document.pageCount())
   }
 
   var body: some View {
@@ -51,6 +50,15 @@ struct PageOverviewSheet: View {
       .foregroundStyle(NativeTheme.ink)
       .font(NativeTheme.body)
       .tint(NativeTheme.ink)
+      // Errors show over this sheet: an alert on the view behind it cannot.
+      .alert(
+        "Math Notes",
+        isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })
+      ) {
+        Button("OK", role: .cancel) {}
+      } message: {
+        Text(failure ?? "")
+      }
       .navigationTitle("Pages")
       .navigationBarTitleDisplayMode(.inline)
       .toolbarBackground(NativeTheme.leaf, for: .navigationBar)
@@ -147,7 +155,7 @@ struct PageOverviewSheet: View {
       onEdit(currentPage)
       return true
     } catch {
-      onError(error)
+      failure = error.localizedDescription
       return false
     }
   }
@@ -162,7 +170,7 @@ struct PageOverviewSheet: View {
       thumbnailRevision &+= 1
       onEdit(currentPage)
     } catch {
-      onError(error)
+      failure = error.localizedDescription
     }
   }
 
@@ -178,7 +186,7 @@ struct PageOverviewSheet: View {
       thumbnailRevision &+= 1
       onEdit(currentPage)
     } catch {
-      onError(error)
+      failure = error.localizedDescription
     }
   }
 }

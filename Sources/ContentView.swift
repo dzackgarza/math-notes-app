@@ -495,7 +495,6 @@ struct ContentView: View {
             set: { viewState.currentPage = $0 }),
           onSelect: selectOverviewPage,
           onEdit: pageOverviewEdited,
-          onError: { errorMessage = $0.localizedDescription },
           onDone: { showingPageOverview = false })
       }
     }
@@ -507,7 +506,6 @@ struct ContentView: View {
             get: { viewState.activeLayerID },
             set: { viewState.activeLayerID = $0 }),
           onEdit: layerEdited,
-          onError: { errorMessage = $0.localizedDescription },
           onDone: { showingLayers = false })
       }
     }

@@ -9,7 +9,6 @@ struct LayersSheet: View {
   let document: EngineDocument
   @Binding var activeLayerID: String?
   let onEdit: () -> Void
-  let onError: (Error) -> Void
   let onDone: () -> Void
 
   @State private var layers: [EngineLayer] = []
@@ -17,6 +16,7 @@ struct LayersSheet: View {
   @State private var addingLayer = false
   @State private var layerName = ""
   @State private var deleteLayerID: String?
+  @State private var failure: String?
 
   var body: some View {
     NavigationStack {
@@ -115,6 +115,15 @@ struct LayersSheet: View {
       }
       .scrollContentBackground(.hidden)
       .nativeSheetSurface()
+      // Errors show over this sheet: an alert on the view behind it cannot.
+      .alert(
+        "Math Notes",
+        isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })
+      ) {
+        Button("OK", role: .cancel) {}
+      } message: {
+        Text(failure ?? "")
+      }
       .navigationTitle("Layers")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
@@ -194,7 +203,7 @@ struct LayersSheet: View {
         activeLayerID = layers.last?.id
         onEdit()
       } catch {
-        onError(error)
+        failure = error.localizedDescription
       }
       addingLayer = false
       return
@@ -233,7 +242,7 @@ struct LayersSheet: View {
         preferred: activeLayerID == removedID ? preferredID : nil)
       onEdit()
     } catch {
-      onError(error)
+      failure = error.localizedDescription
     }
   }
 
@@ -244,7 +253,7 @@ struct LayersSheet: View {
       activeLayerID = editableActiveLayerID(layers: layers, current: activeLayerID)
       onEdit()
     } catch {
-      onError(error)
+      failure = error.localizedDescription
     }
   }
 
@@ -252,7 +261,7 @@ struct LayersSheet: View {
     do {
       try reloadThrowing()
     } catch {
-      onError(error)
+      failure = error.localizedDescription
     }
   }
 
