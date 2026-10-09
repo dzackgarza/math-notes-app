@@ -697,9 +697,11 @@ struct ContentView: View {
               viewState?.captureActive == true ? "Drawing in progress" : session.saveStatus.label)
             .onChange(of: session.saveStatus) { _, status in
               guard viewState?.captureActive != true else { return }
-              UIAccessibility.post(
-                notification: .announcement,
-                argument: "Notebook save, \(status.label)")
+              // A polite status, as the web host's live region: queued behind
+              // speech, except a failed save.
+              var announcement = AttributedString("Notebook save, \(status.label)")
+              announcement.accessibilitySpeechAnnouncementPriority = status == .failed ? .high : .low
+              AccessibilityNotification.Announcement(announcement).post()
             }
             .onChange(of: viewState?.captureActive) { _, active in
               UIAccessibility.post(
