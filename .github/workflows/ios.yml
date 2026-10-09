@@ -2,13 +2,23 @@ name: Build iPad IPA
 
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows:
-      - Engine (wasm32)
-    types:
-      - completed
-    branches:
-      - main
+  push:
+    branches: [main]
+    paths:
+      - Sources/**
+      - AppTests/**
+      - core/**
+      - hosts/web/build-tikz.mjs
+      - hosts/web/ipad-figure-generator.js
+      - hosts/web/tikz-embed.html
+      - Resources/TikZRuntime/**
+      - Resources/Fonts/**
+      - tests/documents/**
+      - project.yml
+      - sidestore-source.jq
+      - .github/workflows/ios.yml
+
+# The build runs alongside Engine (wasm32); only publishing waits for its wasm check.
 permissions:
   contents: write
   checks: read
@@ -23,27 +33,7 @@ env:
   TAG: v${{ github.run_number }}
 
 jobs:
-  engine-check:
-    runs-on: ubuntu-24.04
-    outputs:
-      sha: ${{ steps.engine.outputs.sha }}
-    steps:
-      - name: Require successful engine tests for the release revision
-        id: engine
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const sha = context.payload.workflow_run?.head_sha ?? context.sha;
-            const { data } = await github.rest.checks.listForRef({
-              ...context.repo, ref: sha, check_name: 'wasm', filter: 'latest',
-            });
-            const check = data.check_runs.find(run => run.app.slug === 'github-actions');
-            if (!check || check.status !== 'completed' || check.conclusion !== 'success') {
-              throw new Error(`Engine (wasm32) must pass for ${sha} before starting the iPad build.`);
-            }
-            core.setOutput('sha', sha);
   build:
-    needs: engine-check
     runs-on: macos-26
     timeout-minutes: 150
 
@@ -51,15 +41,25 @@ jobs:
       SKIA_DIR: ${{ github.workspace }}/.ci/skia
       VCPKG_ROOT: ${{ github.workspace }}/.ci/vcpkg
       VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/.ci/vcpkg-bin,readwrite
-
-      SOURCE_SHA: ${{ needs.engine-check.outputs.sha }}
+      # CMake reads these at configure time for the engine and Catch2 builds.
+      CMAKE_C_COMPILER_LAUNCHER: ccache
+      CMAKE_CXX_COMPILER_LAUNCHER: ccache
+      CCACHE_DIR: ${{ github.workspace }}/.ci/ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_MAXSIZE: 2G
+      SOURCE_SHA: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v7
 
-        with:
-          ref: ${{ needs.engine-check.outputs.sha }}
       - name: Install tools
-        run: brew install xcodegen ninja
+        run: brew install xcodegen ninja ccache
+
+      - name: Restore compiler cache
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-ios-${{ github.sha }}
+          restore-keys: ccache-ios-
 
       # Restore and save are separate so a later failing step keeps the build.
       - name: Restore iOS Skia build
@@ -124,9 +124,7 @@ jobs:
             | jq -r '[.devices[][] | select(.name | startswith("iPad"))][0].udid')
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
 
-      - name: Run the engine Catch2 tests in the iPad Simulator
-        run: core/scripts/test-ios-simulator.sh "$SKIA_DIR" "$VCPKG_ROOT" "${{ steps.simulator.outputs.udid }}"
-
+      # App tests run before the slower Catch2 build so their failures surface first.
       - name: Test the app's engine link on the iPad Simulator
         run: |
           set -o pipefail
@@ -135,6 +133,17 @@ jobs:
             -scheme MathNotes \
             -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
             CODE_SIGNING_ALLOWED=NO
+
+      - name: Run the engine Catch2 tests in the iPad Simulator
+        if: ${{ !cancelled() }}
+        run: core/scripts/test-ios-simulator.sh "$SKIA_DIR" "$VCPKG_ROOT" "${{ steps.simulator.outputs.udid }}"
+
+      - name: Save compiler cache
+        if: ${{ !cancelled() }}
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-ios-${{ github.sha }}
 
       - name: Build unsigned archive
         run: |
@@ -176,6 +185,28 @@ jobs:
             --argjson size "$(stat -f %z MathNotes.ipa)" \
             --arg base "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG" \
             -f sidestore-source.jq > source.json
+
+      # A release requires a successful Engine (wasm32) wasm check for this revision.
+      # Any successful run counts; a newer run still in progress does not hide it.
+      - name: Wait for the engine tests of the release revision
+        if: github.ref == 'refs/heads/main'
+        timeout-minutes: 60
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          while :; do
+            state=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SOURCE_SHA/check-runs?check_name=wasm&filter=all" --jq '
+              [.check_runs[] | select(.app.slug == "github-actions")] as $runs
+              | if any($runs[]; .conclusion == "success") then "success"
+                elif any($runs[]; .status != "completed") then "pending"
+                else "failure" end')
+            echo "Engine (wasm32) for $SOURCE_SHA: $state"
+            case $state in
+              success) break ;;
+              pending) sleep 30 ;;
+              *) exit 1 ;;
+            esac
+          done
 
       # Re-running a run reuses its number, so replace that release's assets.
       - name: Publish IPA and source as a release
