@@ -87,7 +87,7 @@ struct PreviousFailure: Identifiable {
     let frames = (thread?.backtrace?.contents ?? []).prefix(40).enumerated().map { index, frame in
       let image = frame.objectName ?? "?"
       let symbol = frame.symbolName.map { " \($0)" } ?? ""
-      return String(format: "%2d %@ 0x%llx%@", index, image, frame.instructionAddr, symbol)
+      return String(format: "%2ld %@ 0x%llx%@", index, image, frame.instructionAddr, symbol)
     }
     let images = Set((thread?.backtrace?.contents ?? []).compactMap { frame in
       frame.objectName.flatMap { name in frame.objectUUID.map { "\(name) \($0)" } }
