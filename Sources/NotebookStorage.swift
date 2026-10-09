@@ -1834,9 +1834,13 @@ final class NotesRootAccess {
   }
 
 
+  // A notes folder without .pens.json uses the default tools; the file is
+  // written only when the user changes a tool.
   @MainActor
   func penLibrary() throws -> EditorPenLibrary {
-    try ensurePenFile()
+    guard try itemExists(at: [".pens.json"]) else {
+      return try EditorPenLibrary(json: EditorPenLibrary.defaultJSON())
+    }
     let fileURL = url.appendingPathComponent(".pens.json")
     let data = try coordinatedRead(at: fileURL) { coordinatedURL in
       try Data(contentsOf: coordinatedURL)
@@ -1846,7 +1850,6 @@ final class NotesRootAccess {
 
   @MainActor
   func savePenLibrary(_ library: EditorPenLibrary) throws {
-    try ensurePenFile()
     let data = try library.json()
     let fileURL = url.appendingPathComponent(".pens.json")
     try coordinatedWrite(at: fileURL, options: .forReplacing) { coordinatedURL in
@@ -1854,52 +1857,66 @@ final class NotesRootAccess {
     }
   }
 
-  @MainActor
-  func prepareRoot() throws {
-    try ensureBuiltinTemplates()
-    try ensurePenFile()
-  }
-
-  @MainActor
-  private func ensurePenFile() throws {
-    guard try !itemExists(at: [".pens.json"]) else { return }
-    let data = try EditorPenLibrary.defaultJSON()
-    try coordinatedWrite(at: url, options: .forMerging) { coordinatedRoot in
-      let fileURL = coordinatedRoot.appendingPathComponent(".pens.json")
-      guard !FileManager.default.fileExists(atPath: fileURL.path) else { return }
-      try data.write(to: fileURL, options: .atomic)
-    }
-  }
-  @MainActor
-  func ensureBuiltinTemplates() throws {
-    for name in try EngineDocument.builtinTemplateNames() {
-      let reference = NotebookReference(path: [".templates", name])
-      if try itemExists(at: reference.path + ["notebook.json"]) { continue }
-      try ensureDirectory(path: reference.path)
-      let document = try EngineDocument.builtinTemplate(
-        name: name,
-        seed: UInt64.random(in: 1...UInt64.max))
-      try save(document, notebook: reference)
-    }
-  }
-
+  // Built-in templates are listed and previewed from the engine; a template is
+  // written to .templates only when a notebook first uses it (docs/FORMAT.md).
   @MainActor
   func templateNames() throws -> [String] {
-    try ensureBuiltinTemplates()
     let templatesURL = url.appendingPathComponent(".templates", isDirectory: true)
-    return try coordinatedRead(at: templatesURL) { directory in
-      try FileManager.default.contentsOfDirectory(
-        at: directory,
-        includingPropertiesForKeys: [.isDirectoryKey],
-        options: [.skipsHiddenFiles])
-        .filter { candidate in
-          (try? candidate.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true &&
-            FileManager.default.fileExists(
-              atPath: candidate.appendingPathComponent("notebook.json").path)
-        }
-        .map(\.lastPathComponent)
-        .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    var names = Set(try EngineDocument.builtinTemplateNames())
+    if FileManager.default.fileExists(atPath: templatesURL.path) {
+      let stored = try coordinatedRead(at: templatesURL) { directory in
+        try FileManager.default.contentsOfDirectory(
+          at: directory,
+          includingPropertiesForKeys: [.isDirectoryKey],
+          options: [.skipsHiddenFiles])
+          .filter { candidate in
+            (try? candidate.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true &&
+              FileManager.default.fileExists(
+                atPath: candidate.appendingPathComponent("notebook.json").path)
+          }
+          .map(\.lastPathComponent)
+      }
+      names.formUnion(stored)
     }
+    return names.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+  }
+
+  // Page 1 of template `name`: the stored copy when the folder has one,
+  // otherwise the engine's built-in page.
+  @MainActor
+  private func templatePage(_ name: String) throws -> Data {
+    if try itemExists(at: [".templates", name, "pages", "0001.svg"]) {
+      let pageURL = url
+        .appendingPathComponent(".templates", isDirectory: true)
+        .appendingPathComponent(name, isDirectory: true)
+        .appendingPathComponent("pages", isDirectory: true)
+        .appendingPathComponent("0001.svg")
+      return try coordinatedRead(at: pageURL) { try Data(contentsOf: $0) }
+    }
+    guard try EngineDocument.builtinTemplateNames().contains(name) else {
+      throw NotebookStorageError.missingTemplate(name)
+    }
+    let document = try EngineDocument.builtinTemplate(name: name, seed: 1)
+    let page = try document.dirtyFiles().first { $0.path == "pages/0001.svg" }
+    guard case let .write(data) = page?.kind else {
+      throw NotebookStorageError.missingTemplate(name)
+    }
+    return data
+  }
+
+  // Writes built-in template `name` to .templates when a notebook first uses it.
+  @MainActor
+  private func storeTemplateForUse(_ name: String) throws {
+    let reference = NotebookReference(path: [".templates", name])
+    if try itemExists(at: reference.path + ["notebook.json"]) { return }
+    guard try EngineDocument.builtinTemplateNames().contains(name) else {
+      throw NotebookStorageError.missingTemplate(name)
+    }
+    try ensureDirectory(path: reference.path)
+    let document = try EngineDocument.builtinTemplate(
+      name: name,
+      seed: UInt64.random(in: 1...UInt64.max))
+    try save(document, notebook: reference)
   }
 
   func templateName(for reference: NotebookReference) throws -> String? {
@@ -1917,16 +1934,7 @@ final class NotesRootAccess {
     orientation: InkOrientation,
     width: Int32 = 480
   ) throws -> Data {
-    try ensureBuiltinTemplates()
-    let pageURL = url
-      .appendingPathComponent(".templates", isDirectory: true)
-      .appendingPathComponent(template, isDirectory: true)
-      .appendingPathComponent("pages", isDirectory: true)
-      .appendingPathComponent("0001.svg")
-    guard try itemExists(at: [".templates", template, "pages", "0001.svg"]) else {
-      throw NotebookStorageError.missingTemplate(template)
-    }
-    let page = try coordinatedRead(at: pageURL) { try Data(contentsOf: $0) }
+    let page = try templatePage(template)
     let document = try EngineDocument.createFromTemplate(
       seed: 1,
       name: template,
@@ -1938,17 +1946,8 @@ final class NotesRootAccess {
 
   @MainActor
   func applyTemplate(name: String, to document: EngineDocument) throws {
-    try ensureBuiltinTemplates()
-    let pageURL = url
-      .appendingPathComponent(".templates", isDirectory: true)
-      .appendingPathComponent(name, isDirectory: true)
-      .appendingPathComponent("pages", isDirectory: true)
-      .appendingPathComponent("0001.svg")
-    guard try itemExists(at: [".templates", name, "pages", "0001.svg"]) else {
-      throw NotebookStorageError.missingTemplate(name)
-    }
-    let page = try coordinatedRead(at: pageURL) { try Data(contentsOf: $0) }
-    try document.setTemplate(name: name, page: page)
+    try storeTemplateForUse(name)
+    try document.setTemplate(name: name, page: templatePage(name))
   }
 
   @MainActor
@@ -1961,18 +1960,10 @@ final class NotesRootAccess {
   ) throws -> (NotebookReference, EngineDocument) {
     let name = try validatedLibraryName(title)
 
-    try ensureBuiltinTemplates()
+    try storeTemplateForUse(template)
     let reference = NotebookReference(path: parent.path + [name])
     let notebookURL = urlForNotebook(reference)
-    let templatePageURL = url
-      .appendingPathComponent(".templates", isDirectory: true)
-      .appendingPathComponent(template, isDirectory: true)
-      .appendingPathComponent("pages", isDirectory: true)
-      .appendingPathComponent("0001.svg")
-    guard try itemExists(at: [".templates", template, "pages", "0001.svg"]) else {
-      throw NotebookStorageError.missingTemplate(template)
-    }
-    let page = try coordinatedRead(at: templatePageURL) { try Data(contentsOf: $0) }
+    let page = try templatePage(template)
     let document = try EngineDocument.createFromTemplate(
       seed: UInt64.random(in: 1...UInt64.max),
       name: template,
