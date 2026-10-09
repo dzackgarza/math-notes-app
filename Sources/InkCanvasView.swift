@@ -57,9 +57,9 @@ final class InkCanvasView: UIView {
 
     super.init(frame: .zero)
 
+    // The engine draws every pixel of the surface: the desk and the pages.
     isOpaque = true
     isMultipleTouchEnabled = true
-    backgroundColor = .clear
 
     metalLayer.device = device
     metalLayer.pixelFormat = .bgra8Unorm
@@ -723,7 +723,10 @@ final class InkCanvasView: UIView {
 
   private func updateSurfaceSize() {
     guard let canvas else { return }
-    let scale = window?.screen.scale ?? UIScreen.main.scale
+    // Zero until the view joins a window's trait hierarchy; the window
+    // attachment calls this again.
+    let scale = traitCollection.displayScale
+    guard scale > 0 else { return }
     metalLayer.contentsScale = scale
     let width = Int32(ceil(bounds.width * scale))
     let height = Int32(ceil(bounds.height * scale))
