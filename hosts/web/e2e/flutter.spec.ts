@@ -3976,13 +3976,17 @@ test("Flutter split view keeps the handwriting the reader was looking at in view
   const box = await boxOf(canvas);
   const cdp = await page.context().newCDPSession(page);
   await penStroke(cdp, line(box.x + 160, box.x + 280, box.y + 170), 0.6);
-  // Dark pixels in the upper half of the note's pane: the stroke, never the
-  // dotted paper.
+  // Dark pixels in the upper half of the note's pane right of its tool rail:
+  // the stroke (55 below 400 at the narrowed fit), never the paper or its
+  // dots (above 600).
   const ink = async () => {
     const pane = await boxOf(canvas.first());
-    return (await capture(page, { ...pane, height: pane.height / 2 })).filter((rgb) => brightness(rgb) < 100).length;
+    const rail = await boxOf(button("Undo").first());
+    const left = rail.x + rail.width;
+    return (await capture(page, { x: left, y: pane.y, width: pane.x + pane.width - left, height: pane.height / 2 }))
+      .filter((rgb) => brightness(rgb) < 400).length;
   };
-  await expect.poll(ink, "the stroke is on screen").toBeGreaterThan(50);
+  await expect.poll(ink, "the stroke is on screen").toBeGreaterThan(40);
 
   await button("View").click();
   await button("Split view").click();
@@ -3991,7 +3995,7 @@ test("Flutter split view keeps the handwriting the reader was looking at in view
   await expect(button("Reference: Proofs")).toBeVisible();
   await expect(canvas).toHaveCount(2);
   await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
-  await expect.poll(ink, "the stroke is still on screen beside the reference").toBeGreaterThan(50);
+  await expect.poll(ink, "the stroke is still on screen beside the reference").toBeGreaterThan(40);
 });
 
 test("Flutter research session: layers, clippings, bookmarks, links between notes, split view, reload, and export", async ({ page }, info) => {
