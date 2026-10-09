@@ -173,3 +173,7 @@ write-fixtures:
     done
     # replay every case; upstream-test<N> cases are also compared with Write's test<N>_ref.html
     (cd "$W/syncscribble" && WRITE_REPLAY_DIR="$F" WRITE_REPLAY_TMP="$tmp/replay" run --replaytest)
+
+# Each pencil stroke in an iPad log (idevicesyslog capture or CI app-test log), with every stroke that did not commit.
+stroke-timeline capture:
+    uv run --script scripts/stroke-timeline.py {{capture}}
