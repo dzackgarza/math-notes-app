@@ -3952,6 +3952,45 @@ function storedNote(page: Page, path: string[]) {
   }, path));
 }
 
+// A sync client rewrote page 1 while the note had unsaved strokes. The save
+// keeps the outside version and writes the local one beside it as a conflict
+// copy; comparing them and keeping both makes the local version a page.
+test("Flutter keeps both versions when a save finds the page changed outside the app", async ({ page }) => {
+  test.setTimeout(180_000);
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  const path = ["Test Notebook", "Sync"];
+  const status = page.getByRole("status", { name: /^Notebook save/ });
+  const { box, cdp } = await openNewNote(page, "Sync");
+  const write = (y: number) => penStroke(cdp, line(box.x + 200, box.x + 320, box.y + y), 0.6);
+  await write(150);
+  await save(page);
+  await expect(status).toHaveAccessibleName("Notebook save Saved");
+
+  // The outside version: the saved page with a comment added, as another
+  // device's writer might leave it.
+  await page.evaluate(async (path) => {
+    let dir = await navigator.storage.getDirectory();
+    for (const part of path) dir = await dir.getDirectoryHandle(part);
+    const file = await (await dir.getDirectoryHandle("pages")).getFileHandle("0001.svg");
+    const text = await (await file.getFile()).text();
+    const writable = await file.createWritable();
+    await writable.write(text.replace("</svg>", "<!-- other device --></svg>"));
+    await writable.close();
+  }, path);
+  await write(250);
+  await save(page);
+  await expect(status).toHaveAccessibleName("Notebook save Save failed");
+
+  await button("More").click();
+  await button("Compare conflicting versions").click();
+  await button("Keep both pages").click();
+  await expect(page.getByText("1 / 2", { exact: true }).or(page.getByText("2 / 2", { exact: true }))).toBeVisible({ timeout: 30_000 });
+  await save(page);
+  await expect(status).toHaveAccessibleName("Notebook save Saved");
+  const stored = await storedNote(page, path);
+  expect(stored.pages.map((saved) => saved.groups.flatMap((group) => group.strokes).length).toSorted(), "the outside page and the local page").toEqual([1, 2]);
+});
+
 // Opening split view narrows the note's pane; the reader stays where they
 // were: handwriting at the top of page 2 is still on screen beside the
 // reference note.
