@@ -771,20 +771,24 @@ private final class RootFilePresenter: NSObject, NSFilePresenter {
   }
 
   func presentedItemDidChange() {
+    Log.storage.info("presenter: root changed")
     onChange?()
   }
 
   func presentedItemDidMove(to newURL: URL) {
+    Log.storage.info("presenter: root moved to \(newURL.path, privacy: .public)")
     updatePresentedItemURL(newURL)
     onMove?(newURL)
     onChange?()
   }
 
   func presentedSubitemDidAppear(at url: URL) {
+    Log.storage.info("presenter: appeared \(url.path, privacy: .public)")
     onChange?()
   }
 
   func presentedSubitemDidChange(at url: URL) {
+    Log.storage.info("presenter: changed \(url.path, privacy: .public)")
     onChange?()
   }
 
@@ -792,11 +796,13 @@ private final class RootFilePresenter: NSObject, NSFilePresenter {
     at url: URL,
     completionHandler: @escaping ((any Error)?) -> Void
   ) {
+    Log.storage.info("presenter: deleting \(url.path, privacy: .public)")
     completionHandler(nil)
     onChange?()
   }
 
   func presentedSubitem(at oldURL: URL, didMoveTo newURL: URL) {
+    Log.storage.info("presenter: moved \(oldURL.path, privacy: .public) to \(newURL.path, privacy: .public)")
     onChange?()
   }
 }
@@ -913,6 +919,7 @@ final class NotesRootAccess {
     }
     NSFileCoordinator.addFilePresenter(presenter)
     presenterRegistered = true
+    Log.storage.info("presenter registered for \(self.url.path, privacy: .public)")
   }
 
 #if DEBUG
