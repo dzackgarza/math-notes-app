@@ -4640,7 +4640,9 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   await enterText(page.getByRole("textbox", { name: "Name", exact: true }), "Lecture 1 Compactness");
   await button("Rename").click();
   title = "Lecture 1 Compactness";
-  await expect(page.getByRole("button", { name: `Open ${title}`, exact: false })).toBeVisible();
+  // Chrome cannot move a directory (FileSystemHandle.move() moves files
+  // only), so a rename copies the note's files and removes the original.
+  await expect(page.getByRole("button", { name: `Open ${title}`, exact: false })).toBeVisible({ timeout: 30_000 });
   await button("Back to library").click();
   await button("Search").click();
   await enterText(page.getByRole("textbox", { name: "Search notebooks and notes", exact: true }), "Compact");
@@ -4687,7 +4689,8 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
     await writable.close();
   }, { notebook, title, svg: remotePage2 });
   await choose("More", "Compare conflicting versions");
-  await expect(page.getByText("Syncthing: pages/0002.svg", { exact: true })).toBeVisible();
+  // The comparison saves the note and reads both versions first.
+  await expect(page.getByText("Syncthing: pages/0002.svg", { exact: true })).toBeVisible({ timeout: 30_000 });
   await shot("conflict");
   await button("Keep both pages").click();
   await expect(page.getByText(/^\d \/ 4$/)).toBeVisible({ timeout: 30_000 });
@@ -4706,7 +4709,9 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   const pdfInfo = execFileSync("pdfinfo", [pdfPath], { encoding: "utf8" });
   expect(pdfInfo).toMatch(/Pages:\s+4/);
   expect(pdfInfo).toMatch(/\(A4\)/);
-  expect(execFileSync("pdftotext", [pdfPath, "-"], { encoding: "utf8" })).toContain("Definition 1");
+  // Shaping sets "fi" as its ligature, which the PDF maps to U+FB01; NFKC
+  // folds it back to the two letters.
+  expect(execFileSync("pdftotext", [pdfPath, "-"], { encoding: "utf8" }).normalize("NFKC")).toContain("Definition 1");
   const prefix = info.outputPath("lecture-1");
   execFileSync("pdftoppm", ["-r", "72", "-png", "-f", "1", "-l", "1", "-singlefile", pdfPath, prefix]);
   const exported = await pngPixels(page, await readFile(`${prefix}.png`));
