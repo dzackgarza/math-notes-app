@@ -259,6 +259,14 @@ final class InkCanvasView: UIView {
     let pencilCancelled = touches.contains { $0 === pencilTouch }
     Log.ink.error(
       "UIKit cancelled touches: pencilStroke=\(pencilCancelled, privacy: .public) count=\(touches.count, privacy: .public)")
+    // The recognizer that began or recognized with cancelsTouchesInView is the one
+    // that took the touch from the canvas.
+    for touch in touches {
+      for recognizer in touch.gestureRecognizers ?? [] {
+        Log.ink.error(
+          "  recognizer \(String(describing: type(of: recognizer)), privacy: .public) state=\(recognizer.state.rawValue, privacy: .public) cancels=\(recognizer.cancelsTouchesInView, privacy: .public) view=\(recognizer.view.map { String(describing: type(of: $0)) } ?? "none", privacy: .public) name=\(recognizer.name ?? "", privacy: .public)")
+      }
+    }
     let fingerHandled = sendFingerTouches(touches, event: event)
     let pencilHandled = sendPencilTouches(touches, event: event)
     if pencilCancelled {
