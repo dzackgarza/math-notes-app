@@ -88,11 +88,12 @@ jobs:
           key: ${{ steps.skia-cache.outputs.cache-primary-key }}
 
       - name: Restore vcpkg binary cache
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: ${{ github.workspace }}/.ci/vcpkg-bin
           key: vcpkg-ios-${{ hashFiles('core/vcpkg.json', 'core/triplets/**') }}
 
+        id: vcpkg-cache
       - name: Set up vcpkg
         run: |
           git clone -q https://github.com/microsoft/vcpkg "$VCPKG_ROOT"
@@ -102,6 +103,12 @@ jobs:
       - name: Build engine xcframework
         run: core/scripts/build-ios-xcframework.sh "$SKIA_DIR" "$VCPKG_ROOT"
 
+      - name: Save iOS dependency cache
+        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ github.workspace }}/.ci/vcpkg-bin
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
       - uses: oven-sh/setup-bun@v2
 
       - name: Build iPad TikZ resources
