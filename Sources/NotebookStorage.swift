@@ -985,8 +985,6 @@ final class NotesRootAccess {
     }
     var stale = false
     let url = try URL(resolvingBookmarkData: bookmark, bookmarkDataIsStale: &stale)
-    // A bookmark can still resolve to the path of a folder that was removed.
-    _ = try url.checkResourceIsReachable()
     return try NotesRootAccess(restoredURL: url, refreshBookmark: stale)
   }
 

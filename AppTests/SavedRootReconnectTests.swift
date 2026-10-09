@@ -38,7 +38,7 @@ final class RemovedSavedRootTests: XCTestCase {
     try FileManager.default.removeItem(at: directory)
 
     XCTAssertThrowsError(try NotesRootAccess.restore()) { error in
-      XCTAssertEqual((error as? CocoaError)?.code, .fileReadNoSuchFile, "restoring a removed folder: \(error)")
+      XCTAssertEqual((error as? CocoaError)?.code, .fileNoSuchFile, "restoring a removed folder: \(error)")
     }
   }
 }
