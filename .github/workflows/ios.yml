@@ -24,7 +24,6 @@ env:
 
 jobs:
   engine-check:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     outputs:
       sha: ${{ steps.engine.outputs.sha }}
