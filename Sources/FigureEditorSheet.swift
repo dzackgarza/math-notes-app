@@ -53,19 +53,79 @@ enum FigureEditorPage {
     configuration.userContentController.add(handler, name: "mathNotesFigure")
     configuration.userContentController.add(handler, name: "mathNotesFigureLog")
 
-    let webView = WKWebView(frame: .zero, configuration: configuration)
-    guard let index = Bundle.main.url(
-      forResource: "index",
-      withExtension: "html",
-      subdirectory: "TikZEditor")
-    else {
+    guard let root = Bundle.main.url(forResource: "TikZEditor", withExtension: nil) else {
       throw NSError(
         domain: "MathNotes.FigureEditor",
         code: 1,
         userInfo: [NSLocalizedDescriptionKey: "Missing bundled TikZ editor."])
     }
-    webView.loadFileURL(index, allowingReadAccessTo: index.deletingLastPathComponent())
+    configuration.setURLSchemeHandler(
+      BundledEditorSchemeHandler(root: root), forURLScheme: BundledEditorSchemeHandler.scheme)
+
+    let webView = WKWebView(frame: .zero, configuration: configuration)
+    webView.load(URLRequest(url: BundledEditorSchemeHandler.indexURL))
     return webView
+  }
+}
+
+// Serves the bundled TikZ editor from one origin, mathnotes://tikz-editor/.
+// Loaded from file:// the page has origin null, and WebKit rejects its
+// crossorigin module scripts and stylesheets, so the editor never starts. The
+// recorded decision (docs/research_notes/Component ownership decisions/tikz.md)
+// and Capacitor's WebViewAssetHandler serve app bundles this way.
+final class BundledEditorSchemeHandler: NSObject, WKURLSchemeHandler {
+  static let scheme = "mathnotes"
+  static let host = "tikz-editor"
+  static let indexURL = URL(string: "\(scheme)://\(host)/index.html")!
+
+  // The editor bundle holds only these file types (hosts/web/build-tikz.mjs).
+  private static let contentTypes = [
+    "html": "text/html; charset=utf-8",
+    "js": "text/javascript; charset=utf-8",
+    "css": "text/css; charset=utf-8",
+    "woff2": "font/woff2",
+  ]
+
+  private let root: URL
+
+  init(root: URL) {
+    self.root = root.standardizedFileURL
+  }
+
+  func webView(_ webView: WKWebView, start task: any WKURLSchemeTask) {
+    do {
+      let (url, data, contentType) = try resource(for: task.request)
+      let response = HTTPURLResponse(
+        url: url,
+        statusCode: 200,
+        httpVersion: "HTTP/1.1",
+        headerFields: ["Content-Type": contentType, "Content-Length": String(data.count)])!
+      task.didReceive(response)
+      task.didReceive(data)
+      task.didFinish()
+    } catch {
+      Log.app.error("figure editor resource \(task.request.url?.absoluteString ?? "none", privacy: .public) failed: \(String(describing: error), privacy: .public)")
+      task.didFailWithError(error)
+    }
+  }
+
+  func webView(_ webView: WKWebView, stop task: any WKURLSchemeTask) {}
+
+  private func resource(for request: URLRequest) throws -> (URL, Data, String) {
+    guard let url = request.url, url.host == Self.host else {
+      throw URLError(.unsupportedURL)
+    }
+    let file = root.appendingPathComponent(String(url.path.dropFirst())).standardizedFileURL
+    guard file.path.hasPrefix(root.path + "/") else {
+      throw URLError(.noPermissionsToReadFile)
+    }
+    guard let contentType = Self.contentTypes[file.pathExtension] else {
+      throw NSError(
+        domain: "MathNotes.FigureEditor",
+        code: 4,
+        userInfo: [NSLocalizedDescriptionKey: "The figure editor requested an unsupported file type: \(file.lastPathComponent)"])
+    }
+    return (url, try Data(contentsOf: file), contentType)
   }
 }
 
