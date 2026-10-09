@@ -25,7 +25,9 @@ final class FigureEditorStartupTests: XCTestCase {
       webView.configuration.userContentController.removeAllScriptMessageHandlers()
     }
 
-    wait(for: [recorder.initReceived], timeout: 60)
+    // The editor announces itself within half a second of loading in WebKit;
+    // the bound allows for the first WebContent process launch on a cold simulator.
+    wait(for: [recorder.initReceived], timeout: 5)
     XCTAssertEqual(
       recorder.events.first, "init",
       "the editor's first message was not 'init'; page reports: \(recorder.pageReports)")
