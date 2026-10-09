@@ -227,7 +227,7 @@ final class InkEditorGestureTests: XCTestCase {
     (view.gestureRecognizers ?? []) + view.subviews.flatMap { gestureRecognizers(in: $0) }
   }
 
-  private func findSubview(in view: UIView, matching predicate: (UIView) -> Bool) -> UIView? {
+  private func findSubview(in view: UIView, matching predicate: @escaping (UIView) -> Bool) -> UIView? {
     if predicate(view) { return view }
     return view.subviews.lazy.compactMap { self.findSubview(in: $0, matching: predicate) }.first
   }
