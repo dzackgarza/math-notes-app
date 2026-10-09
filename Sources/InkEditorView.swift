@@ -309,6 +309,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
 
   override var canBecomeFirstResponder: Bool { true }
 
+  // The canvas owns two- and three-finger taps (undo, redo: docs/specs/core-features.md);
+  // the system's three-finger editing gestures and editing bar would take them.
+  override var editingInteractionConfiguration: UIEditingInteractionConfiguration { .none }
+
   override var keyCommands: [UIKeyCommand]? {
     [
       editorKeyCommand(UIKeyCommand.inputEscape, modifiers: [], action: #selector(keyboardEscape), title: "Cancel Drawing or Selection"),
