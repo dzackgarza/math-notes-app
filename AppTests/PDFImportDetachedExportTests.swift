@@ -7,7 +7,7 @@ import XCTest
 
 final class PDFImportDetachedExportTests: XCTestCase {
   @MainActor
-  func testImportedNotebookExportsAfterSourcePdfIsDeleted() throws {
+  func testImportedNotebookExportsAfterSourcePdfIsDeleted() async throws {
     let bounds = CGRect(x: 0, y: 0, width: 612, height: 792)
     let pdf = UIGraphicsPDFRenderer(bounds: bounds).pdfData { context in
       context.beginPage()
@@ -49,7 +49,7 @@ final class PDFImportDetachedExportTests: XCTestCase {
 
     try FileManager.default.removeItem(at: sourceURL)
 
-    let reopened = try NotesRootAccess(testURL: rootDirectory).load(reference)
+    let reopened = try await NotesRootAccess(testURL: rootDirectory).load(reference)
     let exported = try reopened.exportPDF(title: reference.name)
     let provider = try XCTUnwrap(CGDataProvider(data: exported as CFData))
     let exportedPDF = try XCTUnwrap(CGPDFDocument(provider))

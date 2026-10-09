@@ -6,7 +6,7 @@ import XCTest
 
 final class RuledEraserPersistenceTests: XCTestCase {
   @MainActor
-  func testRuledEraseOnBlankPaperSurvivesSaveAndKeepsPaperBlank() throws {
+  func testRuledEraseOnBlankPaperSurvivesSaveAndKeepsPaperBlank() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -49,7 +49,7 @@ final class RuledEraserPersistenceTests: XCTestCase {
       encoding: .utf8)
     XCTAssertTrue(savedPage.contains("mn:ruling=\"blank\""))
 
-    let reopened = try NotesRootAccess(testURL: directory).load(reference)
+    let reopened = try await NotesRootAccess(testURL: directory).load(reference)
     let reopenedCanvas = InkCanvasView(document: reopened)
     reopenedCanvas.frame = CGRect(x: 0, y: 0, width: 1024, height: 1200)
     reopenedCanvas.layoutIfNeeded()

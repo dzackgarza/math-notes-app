@@ -6,7 +6,7 @@ import XCTest
 
 final class InsertSpacePersistenceTests: XCTestCase {
   @MainActor
-  func testVerticalInsertSpaceOverflowSurvivesIPadSaveAndReopen() throws {
+  func testVerticalInsertSpaceOverflowSurvivesIPadSaveAndReopen() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -37,7 +37,7 @@ final class InsertSpacePersistenceTests: XCTestCase {
     XCTAssertEqual(try document.pageCount(), 2)
     try root.save(document, notebook: reference)
 
-    let reopened = try NotesRootAccess(testURL: directory).load(reference)
+    let reopened = try await NotesRootAccess(testURL: directory).load(reference)
     XCTAssertEqual(try reopened.pageCount(), 2)
     let reopenedCanvas = InkCanvasView(document: reopened)
     reopenedCanvas.frame = CGRect(x: 0, y: 0, width: 1024, height: 1600)

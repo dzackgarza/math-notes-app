@@ -6,7 +6,7 @@ import XCTest
 
 final class CrossHostConflictCompatibilityTests: XCTestCase {
   @MainActor
-  func testDropboxPageConflictKeepsBothVersionsAndClearsConflict() throws {
+  func testDropboxPageConflictKeepsBothVersionsAndClearsConflict() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -49,7 +49,7 @@ final class CrossHostConflictCompatibilityTests: XCTestCase {
 
     XCTAssertEqual(try root.conflictCount(reference), 0)
     XCTAssertFalse(FileManager.default.fileExists(atPath: conflictURL.path))
-    let reopened = try root.load(reference)
+    let reopened = try await root.load(reference)
     XCTAssertEqual(try reopened.pageCount(), 2)
 
     let indexData = try Data(contentsOf: noteDirectory.appendingPathComponent("notebook.json"))

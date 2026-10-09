@@ -5,7 +5,7 @@ import XCTest
 
 final class PDFImportedBlankPageTests: XCTestCase {
   @MainActor
-  func testBlankPageCanBeInsertedBetweenImportedPdfPages() throws {
+  func testBlankPageCanBeInsertedBetweenImportedPdfPages() async throws {
     let rootDirectory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: rootDirectory, withIntermediateDirectories: true)
@@ -40,7 +40,7 @@ final class PDFImportedBlankPageTests: XCTestCase {
     XCTAssertEqual(try document.pageCount(), 3)
     try root.save(document, notebook: reference)
 
-    let reopened = try NotesRootAccess(testURL: rootDirectory).load(reference)
+    let reopened = try await NotesRootAccess(testURL: rootDirectory).load(reference)
     XCTAssertEqual(try reopened.pageCount(), 3)
     let first = try reopened.pageRect(index: 0)
     let inserted = try reopened.pageRect(index: 1)

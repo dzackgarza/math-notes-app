@@ -4,7 +4,7 @@ import XCTest
 
 final class CrossHostNotebookCompatibilityTests: XCTestCase {
   @MainActor
-  func testSharedFixtureKeepsExistingPagesByteIdenticalAfterIPadEdit() throws {
+  func testSharedFixtureKeepsExistingPagesByteIdenticalAfterIPadEdit() async throws {
     let repository = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()
       .deletingLastPathComponent()
@@ -25,7 +25,7 @@ final class CrossHostNotebookCompatibilityTests: XCTestCase {
 
     let reference = NotebookReference(path: ["Shared Fixture"])
     let root = NotesRootAccess(testURL: rootDirectory)
-    let document = try root.load(reference)
+    let document = try await root.load(reference)
     // 0005.svg is deliberately unlisted; all five files must survive unchanged.
     XCTAssertEqual(try document.pageCount(), 4)
 
@@ -40,7 +40,7 @@ final class CrossHostNotebookCompatibilityTests: XCTestCase {
       FileManager.default.fileExists(
         atPath: noteDirectory.appendingPathComponent("pages/0006.svg").path))
 
-    let reopened = try NotesRootAccess(testURL: rootDirectory).load(reference)
+    let reopened = try await NotesRootAccess(testURL: rootDirectory).load(reference)
     XCTAssertEqual(try reopened.pageCount(), 5)
     XCTAssertTrue(try reopened.navigation().contains { $0.id == "b-bookmark0001" })
   }

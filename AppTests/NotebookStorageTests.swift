@@ -662,7 +662,7 @@ final class NotebookStorageTests: XCTestCase {
   }
 
   @MainActor
-  func testKeepBothConflictCreatesSecondPageAndDeletesConflictCopy() throws {
+  func testKeepBothConflictCreatesSecondPageAndDeletesConflictCopy() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(
@@ -693,11 +693,12 @@ final class NotebookStorageTests: XCTestCase {
     XCTAssertFalse(FileManager.default.fileExists(atPath: conflictURL.path))
     XCTAssertEqual(try Data(contentsOf: sentinelURL), sentinel)
     XCTAssertEqual(try root.conflictCount(reference), 0)
-    XCTAssertEqual(try root.load(reference).pageCount(), 2)
+    let loaded1 = try await root.load(reference)
+    XCTAssertEqual(try loaded1.pageCount(), 2)
   }
 
   @MainActor
-  func testExternalEditAgainstLocalPageDeletionCanKeepTheExternalPage() throws {
+  func testExternalEditAgainstLocalPageDeletionCanKeepTheExternalPage() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(
@@ -741,11 +742,12 @@ final class NotebookStorageTests: XCTestCase {
     XCTAssertFalse(root.hasRecoveredChanges(reference))
     XCTAssertEqual(try Data(contentsOf: pageURL), external)
     XCTAssertEqual(try root.conflictCount(reference), 0)
-    XCTAssertEqual(try root.load(reference).pageCount(), 2)
+    let loaded2 = try await root.load(reference)
+    XCTAssertEqual(try loaded2.pageCount(), 2)
   }
 
   @MainActor
-  func testExternalEditAgainstLocalPageDeletionCanKeepTheDeletion() throws {
+  func testExternalEditAgainstLocalPageDeletionCanKeepTheDeletion() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(
@@ -781,11 +783,12 @@ final class NotebookStorageTests: XCTestCase {
     XCTAssertFalse(root.hasRecoveredChanges(reference))
     XCTAssertFalse(FileManager.default.fileExists(atPath: pageURL.path))
     XCTAssertEqual(try root.conflictCount(reference), 0)
-    XCTAssertEqual(try root.load(reference).pageCount(), 1)
+    let loaded3 = try await root.load(reference)
+    XCTAssertEqual(try loaded3.pageCount(), 1)
   }
 
   @MainActor
-  func testPendingEditsRecoverAfterRelaunchAndRetireAfterSave() throws {
+  func testPendingEditsRecoverAfterRelaunchAndRetireAfterSave() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     let recovery = FileManager.default.temporaryDirectory
@@ -808,18 +811,19 @@ final class NotebookStorageTests: XCTestCase {
     XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: recovery.path).count, 1)
 
     let relaunched = NotesRootAccess(testURL: directory, recoveryURL: recovery)
-    let recovered = try relaunched.load(reference)
+    let recovered = try await relaunched.load(reference)
     XCTAssertEqual(try recovered.pageCount(), 2)
     XCTAssertTrue(relaunched.hasRecoveredChanges(reference))
 
     try relaunched.save(recovered, notebook: reference)
     XCTAssertFalse(relaunched.hasRecoveredChanges(reference))
     XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: recovery.path), [])
-    XCTAssertEqual(try NotesRootAccess(testURL: directory, recoveryURL: recovery).load(reference).pageCount(), 2)
+    let loaded4 = try await NotesRootAccess(testURL: directory, recoveryURL: recovery).load(reference)
+    XCTAssertEqual(try loaded4.pageCount(), 2)
   }
 
   @MainActor
-  func testRecoveryCanOpenWhenNotebookIndexIsTemporarilyMissing() throws {
+  func testRecoveryCanOpenWhenNotebookIndexIsTemporarilyMissing() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     let recovery = FileManager.default.temporaryDirectory
@@ -845,13 +849,14 @@ final class NotebookStorageTests: XCTestCase {
     try FileManager.default.removeItem(at: indexURL)
 
     let relaunched = NotesRootAccess(testURL: directory, recoveryURL: recovery)
-    XCTAssertEqual(try relaunched.load(reference).pageCount(), 2)
+    let loaded5 = try await relaunched.load(reference)
+    XCTAssertEqual(try loaded5.pageCount(), 2)
     XCTAssertTrue(relaunched.hasRecoveredChanges(reference))
     XCTAssertEqual(try relaunched.conflictCount(reference), 0)
   }
 
   @MainActor
-  func testLaterCheckpointCanRevertEarlierPendingEdits() throws {
+  func testLaterCheckpointCanRevertEarlierPendingEdits() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     let recovery = FileManager.default.temporaryDirectory
@@ -875,11 +880,12 @@ final class NotebookStorageTests: XCTestCase {
     try root.checkpointRecovery(document, notebook: reference)
 
     let relaunched = NotesRootAccess(testURL: directory, recoveryURL: recovery)
-    XCTAssertEqual(try relaunched.load(reference).pageCount(), 1)
+    let loaded6 = try await relaunched.load(reference)
+    XCTAssertEqual(try loaded6.pageCount(), 1)
   }
 
   @MainActor
-  func testMalformedRecoveryForAnotherNotebookDoesNotBlockOpen() throws {
+  func testMalformedRecoveryForAnotherNotebookDoesNotBlockOpen() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     let recovery = FileManager.default.temporaryDirectory
@@ -917,16 +923,20 @@ final class NotebookStorageTests: XCTestCase {
       .write(to: recoveryFile, options: .atomic)
 
     let relaunched = NotesRootAccess(testURL: directory, recoveryURL: recovery)
-    XCTAssertEqual(try relaunched.load(cleanReference).pageCount(), 1)
-    XCTAssertThrowsError(try relaunched.load(damagedReference)) { error in
-      guard case NotebookStorageError.invalidRecovery = error else {
-        return XCTFail("Unexpected error: \(error)")
-      }
+    let loaded7 = try await relaunched.load(cleanReference)
+    XCTAssertEqual(try loaded7.pageCount(), 1)
+    do {
+      _ = try await relaunched.load(damagedReference)
+      XCTFail("Loading an invalid recovery record must throw")
+    } catch {
+        guard case NotebookStorageError.invalidRecovery = error else {
+          return XCTFail("Unexpected error: \(error)")
+        }
     }
   }
 
   @MainActor
-  func testMultiplePendingRecoveryRecordsAreRejected() throws {
+  func testMultiplePendingRecoveryRecordsAreRejected() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     let recovery = FileManager.default.temporaryDirectory
@@ -954,11 +964,14 @@ final class NotebookStorageTests: XCTestCase {
       to: recovery.appendingPathComponent(UUID().uuidString).appendingPathExtension("json"))
 
     let relaunched = NotesRootAccess(testURL: directory, recoveryURL: recovery)
-    XCTAssertThrowsError(try relaunched.load(reference)) { error in
-      guard case NotebookStorageError.multipleRecoveries(let name) = error else {
-        return XCTFail("Unexpected error: \(error)")
-      }
-      XCTAssertEqual(name, reference.name)
+    do {
+      _ = try await relaunched.load(reference)
+      XCTFail("Loading an invalid recovery record must throw")
+    } catch {
+        guard case NotebookStorageError.multipleRecoveries(let name) = error else {
+          return XCTFail("Unexpected error: \(error)")
+        }
+        XCTAssertEqual(name, reference.name)
     }
   }
 
@@ -1193,7 +1206,7 @@ final class NotebookStorageTests: XCTestCase {
   }
 
   @MainActor
-  func testThumbnailPersistsInAppCacheAcrossRootInstances() throws {
+  func testThumbnailPersistsInAppCacheAcrossRootInstances() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     let cache = FileManager.default.temporaryDirectory
@@ -1213,7 +1226,8 @@ final class NotebookStorageTests: XCTestCase {
       orientation: INK_PORTRAIT)
     try document.insertPage(at: 1)
     try root.save(document, notebook: reference)
-    let first = try XCTUnwrap(root.thumbnail(reference))
+    let loaded8 = try await root.thumbnail(reference)
+    let first = try XCTUnwrap(loaded8)
 
     let cachedFiles = try FileManager.default.subpathsOfDirectory(atPath: cache.path)
       .filter { $0.hasSuffix(".png") }
@@ -1227,11 +1241,12 @@ final class NotebookStorageTests: XCTestCase {
     try Data("not svg".utf8).write(to: secondPage, options: .atomic)
 
     let relaunched = NotesRootAccess(testURL: directory, thumbnailCacheURL: cache)
-    XCTAssertEqual(try relaunched.thumbnail(reference), first)
+    let loaded9 = try await relaunched.thumbnail(reference)
+    XCTAssertEqual(loaded9, first)
   }
 
   @MainActor
-  func testThumbnailCacheCountsHitsAndFirstPageInvalidation() throws {
+  func testThumbnailCacheCountsHitsAndFirstPageInvalidation() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     let cache = FileManager.default.temporaryDirectory
@@ -1256,15 +1271,17 @@ final class NotebookStorageTests: XCTestCase {
       pageSize: INK_PAGE_A4,
       orientation: INK_PORTRAIT)
 
-    XCTAssertNotNil(try root.thumbnail(reference))
+    let loaded10 = try await root.thumbnail(reference)
+    XCTAssertNotNil(loaded10)
     XCTAssertEqual(renders, 1)
 
     let relaunched = NotesRootAccess(
       testURL: directory, thumbnailCacheURL: cache, thumbnailRenderer: render)
-    XCTAssertNotNil(try relaunched.thumbnail(reference))
+    let loaded11 = try await relaunched.thumbnail(reference)
+    XCTAssertNotNil(loaded11)
     XCTAssertEqual(renders, 1, "Persistent cache hit must avoid a second render")
 
-    let document = try relaunched.load(reference)
+    let document = try await relaunched.load(reference)
     let canvas = InkCanvasView(document: document)
     canvas.frame = CGRect(x: 0, y: 0, width: 1024, height: 1024)
     canvas.layoutIfNeeded()
@@ -1276,12 +1293,13 @@ final class NotebookStorageTests: XCTestCase {
       existing: false)
     try relaunched.save(document, notebook: reference)
 
-    XCTAssertNotNil(try relaunched.thumbnail(reference))
+    let loaded12 = try await relaunched.thumbnail(reference)
+    XCTAssertNotNil(loaded12)
     XCTAssertEqual(renders, 2, "Changing page 1 must render a new thumbnail")
   }
 
   @MainActor
-  func testThumbnailCacheIgnoresRecoveryOutsideTheFirstPage() throws {
+  func testThumbnailCacheIgnoresRecoveryOutsideTheFirstPage() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     let cache = FileManager.default.temporaryDirectory
@@ -1299,7 +1317,8 @@ final class NotebookStorageTests: XCTestCase {
       template: "blank",
       pageSize: INK_PAGE_A4,
       orientation: INK_PORTRAIT)
-    XCTAssertNotNil(try root.thumbnail(reference))
+    let loaded13 = try await root.thumbnail(reference)
+    XCTAssertNotNil(loaded13)
     let before = try FileManager.default.subpathsOfDirectory(atPath: cache.path)
       .filter { $0.hasSuffix(".png") }
     XCTAssertEqual(before.count, 1)
@@ -1308,18 +1327,20 @@ final class NotebookStorageTests: XCTestCase {
     try root.checkpointRecovery(document, notebook: reference)
 
     let relaunched = NotesRootAccess(testURL: directory, thumbnailCacheURL: cache)
-    XCTAssertNotNil(try relaunched.thumbnail(reference))
+    let loaded14 = try await relaunched.thumbnail(reference)
+    XCTAssertNotNil(loaded14)
     let after = try FileManager.default.subpathsOfDirectory(atPath: cache.path)
       .filter { $0.hasSuffix(".png") }
     XCTAssertEqual(after.count, 1)
     XCTAssertEqual(after, before)
+    let reloaded = try await relaunched.load(reference)
     XCTAssertEqual(
-      try relaunched.load(reference).pageSize().orientation,
+      try reloaded.pageSize().orientation,
       INK_LANDSCAPE)
   }
 
   @MainActor
-  func testThumbnailCacheKeyIncludesRecoveredFirstPageEdit() throws {
+  func testThumbnailCacheKeyIncludesRecoveredFirstPageEdit() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     let cache = FileManager.default.temporaryDirectory
@@ -1337,7 +1358,8 @@ final class NotebookStorageTests: XCTestCase {
       template: "blank",
       pageSize: INK_PAGE_A4,
       orientation: INK_PORTRAIT)
-    XCTAssertNotNil(try root.thumbnail(reference))
+    let loaded15 = try await root.thumbnail(reference)
+    XCTAssertNotNil(loaded15)
     let before = try FileManager.default.subpathsOfDirectory(atPath: cache.path)
       .filter { $0.hasSuffix(".png") }
     XCTAssertEqual(before.count, 1)
@@ -1354,7 +1376,8 @@ final class NotebookStorageTests: XCTestCase {
     try root.checkpointRecovery(document, notebook: reference)
 
     let relaunched = NotesRootAccess(testURL: directory, thumbnailCacheURL: cache)
-    XCTAssertNotNil(try relaunched.thumbnail(reference))
+    let loaded16 = try await relaunched.thumbnail(reference)
+    XCTAssertNotNil(loaded16)
     let after = try FileManager.default.subpathsOfDirectory(atPath: cache.path)
       .filter { $0.hasSuffix(".png") }
     XCTAssertEqual(after.count, 1)
@@ -1362,7 +1385,7 @@ final class NotebookStorageTests: XCTestCase {
   }
 
   @MainActor
-  func testThumbnailTreatsDisappearedNoteAsAbsent() throws {
+  func testThumbnailTreatsDisappearedNoteAsAbsent() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -1372,18 +1395,20 @@ final class NotebookStorageTests: XCTestCase {
     let (reference, _) = try root.createNote(
       title: "Transient", parent: FolderReference(path: []), template: "blank",
       pageSize: INK_PAGE_A4, orientation: INK_PORTRAIT)
-    XCTAssertNotNil(try root.thumbnail(reference))
+    let loaded17 = try await root.thumbnail(reference)
+    XCTAssertNotNil(loaded17)
 
     let noteURL = reference.path.reduce(directory) { partial, component in
       partial.appendingPathComponent(component, isDirectory: true)
     }
     try FileManager.default.removeItem(at: noteURL)
 
-    XCTAssertNil(try root.thumbnail(reference))
+    let loaded18 = try await root.thumbnail(reference)
+    XCTAssertNil(loaded18)
   }
 
   @MainActor
-  func testThumbnailTreatsDisappearedFirstPageAsAbsent() throws {
+  func testThumbnailTreatsDisappearedFirstPageAsAbsent() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -1393,7 +1418,8 @@ final class NotebookStorageTests: XCTestCase {
     let (reference, _) = try root.createNote(
       title: "Transient", parent: FolderReference(path: []), template: "blank",
       pageSize: INK_PAGE_A4, orientation: INK_PORTRAIT)
-    XCTAssertNotNil(try root.thumbnail(reference))
+    let loaded19 = try await root.thumbnail(reference)
+    XCTAssertNotNil(loaded19)
 
     let pageURL = reference.path.reduce(directory) { partial, component in
       partial.appendingPathComponent(component, isDirectory: true)
@@ -1402,7 +1428,8 @@ final class NotebookStorageTests: XCTestCase {
       .appendingPathComponent("0001.svg")
     try FileManager.default.removeItem(at: pageURL)
 
-    XCTAssertNil(try root.thumbnail(reference))
+    let loaded20 = try await root.thumbnail(reference)
+    XCTAssertNil(loaded20)
   }
 
   @MainActor

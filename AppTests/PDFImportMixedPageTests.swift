@@ -6,7 +6,7 @@ import XCTest
 
 final class PDFImportMixedPageTests: XCTestCase {
   @MainActor
-  func testMixedSizePdfImportsEachPageAtItsOwnSize() throws {
+  func testMixedSizePdfImportsEachPageAtItsOwnSize() async throws {
     let pageBounds = [
       CGRect(x: 0, y: 0, width: 595.28, height: 841.89),
       CGRect(x: 0, y: 0, width: 960, height: 540),
@@ -68,7 +68,7 @@ final class PDFImportMixedPageTests: XCTestCase {
     try document.deletePage(at: pages.count)
     try root.save(document, notebook: reference)
 
-    let reopened = try NotesRootAccess(testURL: rootDirectory).load(reference)
+    let reopened = try await NotesRootAccess(testURL: rootDirectory).load(reference)
     XCTAssertEqual(try reopened.pageCount(), pageBounds.count)
     let noteURL = rootDirectory.appendingPathComponent(reference.name, isDirectory: true)
     let notebookData = try Data(contentsOf: noteURL.appendingPathComponent("notebook.json"))

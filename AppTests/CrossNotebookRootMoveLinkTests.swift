@@ -4,7 +4,7 @@ import XCTest
 
 final class CrossNotebookRootMoveLinkTests: XCTestCase {
   @MainActor
-  func testCrossNotebookLinkStillOpensAfterWholeRootMoves() throws {
+  func testCrossNotebookLinkStillOpensAfterWholeRootMoves() async throws {
     let parent = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     let original = parent.appendingPathComponent("Notes", isDirectory: true)
@@ -56,6 +56,7 @@ final class CrossNotebookRootMoveLinkTests: XCTestCase {
     XCTAssertEqual(file, targetPage.file)
     XCTAssertTrue(id.isEmpty)
     XCTAssertEqual(root.url.standardizedFileURL, moved.standardizedFileURL)
-    XCTAssertEqual(try root.load(reference).pageCount(), 1)
+    let loaded1 = try await root.load(reference)
+    XCTAssertEqual(try loaded1.pageCount(), 1)
   }
 }

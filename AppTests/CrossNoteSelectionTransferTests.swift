@@ -4,7 +4,7 @@ import XCTest
 
 final class CrossNoteSelectionTransferTests: XCTestCase {
   @MainActor
-  func testSelectionCopiesIntoAnotherNotebookAndSurvivesReopen() throws {
+  func testSelectionCopiesIntoAnotherNotebookAndSurvivesReopen() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -47,7 +47,7 @@ final class CrossNoteSelectionTransferTests: XCTestCase {
       placeAtPointer: true)
     try root.save(target, notebook: targetReference)
 
-    let reopened = try NotesRootAccess(testURL: directory).load(targetReference)
+    let reopened = try await NotesRootAccess(testURL: directory).load(targetReference)
     XCTAssertEqual(try reopened.pageCount(), 1)
     let noteURL = directory.appendingPathComponent(targetReference.name, isDirectory: true)
     let indexData = try Data(contentsOf: noteURL.appendingPathComponent("notebook.json"))

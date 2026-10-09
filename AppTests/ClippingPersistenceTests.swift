@@ -6,7 +6,7 @@ import XCTest
 
 final class ClippingPersistenceTests: XCTestCase {
   @MainActor
-  func testSavedSelectionClippingSurvivesRootReopenAndPastesWithFreshIdentity() throws {
+  func testSavedSelectionClippingSurvivesRootReopenAndPastesWithFreshIdentity() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -70,7 +70,7 @@ final class ClippingPersistenceTests: XCTestCase {
       placeAtPointer: true)
     try reopenedRoot.save(target, notebook: targetReference)
 
-    let reopenedTarget = try NotesRootAccess(testURL: directory).load(targetReference)
+    let reopenedTarget = try await NotesRootAccess(testURL: directory).load(targetReference)
     let verificationCanvas = InkCanvasView(document: reopenedTarget)
     verificationCanvas.frame = CGRect(x: 0, y: 0, width: 1024, height: 1200)
     verificationCanvas.layoutIfNeeded()

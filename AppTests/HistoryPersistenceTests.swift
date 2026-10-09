@@ -6,7 +6,7 @@ import XCTest
 
 final class HistoryPersistenceTests: XCTestCase {
   @MainActor
-  func testUndoRestoresPageBytesBeforeSave() throws {
+  func testUndoRestoresPageBytesBeforeSave() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -51,7 +51,7 @@ final class HistoryPersistenceTests: XCTestCase {
     XCTAssertNotEqual(try Data(contentsOf: page1URL), page1Before)
     XCTAssertEqual(try Data(contentsOf: page2URL), page2Before)
 
-    let reopened = try NotesRootAccess(testURL: directory).load(reference)
+    let reopened = try await NotesRootAccess(testURL: directory).load(reference)
     XCTAssertEqual(try reopened.pageCount(), 2)
   }
 }

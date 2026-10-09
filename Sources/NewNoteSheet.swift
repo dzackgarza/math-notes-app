@@ -165,7 +165,7 @@ struct NewNoteSheet: View {
   let onSaveDraft: (NewNoteDraft) -> Void
   let onSaveTemplate: (NewNoteStartingTemplate) -> Void
   let renderPreview: (String, InkPageSize, InkOrientation) throws -> Data
-  let renderNotebookPreview: (FolderReference) throws -> Data?
+  let renderNotebookPreview: (FolderReference) async throws -> Data?
   let onCancel: () -> Void
 
   @State private var form: NewNoteFormState
@@ -189,7 +189,7 @@ struct NewNoteSheet: View {
     onSaveDraft: @escaping (NewNoteDraft) -> Void,
     onSaveTemplate: @escaping (NewNoteStartingTemplate) -> Void,
     renderPreview: @escaping (String, InkPageSize, InkOrientation) throws -> Data,
-    renderNotebookPreview: @escaping (FolderReference) throws -> Data?,
+    renderNotebookPreview: @escaping (FolderReference) async throws -> Data?,
     onCancel: @escaping () -> Void
   ) {
     self.folders = folders
@@ -459,7 +459,7 @@ struct CreationPaperPreview: View {
 @MainActor
 struct CreationNotebookPreview: View {
   let folder: FolderReference
-  let render: (FolderReference) throws -> Data?
+  let render: (FolderReference) async throws -> Data?
 
   @State private var image: UIImage?
   @State private var failed = false
@@ -488,7 +488,7 @@ struct CreationNotebookPreview: View {
       image = nil
       failed = false
       do {
-        if let data = try render(folder) {
+        if let data = try await render(folder) {
           image = UIImage(data: data)
         } else {
           image = nil

@@ -947,7 +947,7 @@ struct LibraryThumbnail: View {
       missing = false
       failureMessage = nil
       do {
-        guard let data = try root.thumbnail(item.reference) else {
+        guard let data = try await root.thumbnail(item.reference) else {
           missing = true
           return
         }
@@ -1076,7 +1076,7 @@ struct LibraryNotebookCover: View {
       thumbnailConflicts = false
       guard let coverNote = item.coverNote else { return }
       do {
-        guard let data = try root.thumbnail(coverNote) else {
+        guard let data = try await root.thumbnail(coverNote) else {
           thumbnailMissing = true
           return
         }

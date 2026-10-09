@@ -6,7 +6,7 @@ import XCTest
 
 final class CrossNotebookLinkPersistenceTests: XCTestCase {
   @MainActor
-  func testCrossNotebookBookmarkLinkSurvivesIPadSaveAndReopen() throws {
+  func testCrossNotebookBookmarkLinkSurvivesIPadSaveAndReopen() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -63,7 +63,7 @@ final class CrossNotebookLinkPersistenceTests: XCTestCase {
     try root.save(source, notebook: sourceReference)
 
     let reopenedRoot = NotesRootAccess(testURL: directory)
-    let reopenedSource = try reopenedRoot.load(sourceReference)
+    let reopenedSource = try await reopenedRoot.load(sourceReference)
     let persistedLink = try XCTUnwrap(
       reopenedSource.navigation().first { !$0.href.isEmpty })
     XCTAssertEqual(persistedLink.href, href)
@@ -75,6 +75,7 @@ final class CrossNotebookLinkPersistenceTests: XCTestCase {
     XCTAssertEqual(
       resolved,
       .page(reference: targetReference, file: bookmark.file, id: bookmark.id))
-    XCTAssertTrue(try reopenedRoot.load(targetReference).navigation().contains { $0.id == bookmark.id })
+    let loaded1 = try await reopenedRoot.load(targetReference)
+    XCTAssertTrue(try loaded1.navigation().contains { $0.id == bookmark.id })
   }
 }

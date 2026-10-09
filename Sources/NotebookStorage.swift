@@ -1008,7 +1008,7 @@ final class NotesRootAccess {
   }
 
   func notebooks() throws -> [NotebookReference] {
-    try coordinatedRead(at: url) { root in
+    try Self.coordinatedRead(at: url) { root in
       let fileManager = FileManager.default
       var notebooks: [NotebookReference] = []
 
@@ -1043,7 +1043,7 @@ final class NotesRootAccess {
   }
 
   func folders() throws -> [FolderReference] {
-    try coordinatedRead(at: url) { root in
+    try Self.coordinatedRead(at: url) { root in
       let fileManager = FileManager.default
       var folders = [FolderReference(path: [])]
 
@@ -1083,7 +1083,7 @@ final class NotesRootAccess {
     sort: LibrarySort,
     direction: LibrarySortDirection
   ) throws -> LibraryListing {
-    try coordinatedRead(at: url) { root in
+    try Self.coordinatedRead(at: url) { root in
       let fileManager = FileManager.default
       let metadata = try LibraryMetadataFile.read(at: root)
       let favoritePaths = try LibraryMetadataFile.favoritePaths(in: metadata)
@@ -1205,7 +1205,7 @@ final class NotesRootAccess {
         direction: direction)
     }
 
-    return try coordinatedRead(at: url) { root in
+    return try Self.coordinatedRead(at: url) { root in
       let fileManager = FileManager.default
       let metadata = try LibraryMetadataFile.read(at: root)
       let favoritePaths = try LibraryMetadataFile.favoritePaths(in: metadata)
@@ -1325,7 +1325,7 @@ final class NotesRootAccess {
     sort: LibrarySort,
     direction: LibrarySortDirection
   ) throws -> LibraryListing {
-    try coordinatedRead(at: url) { root in
+    try Self.coordinatedRead(at: url) { root in
       let fileManager = FileManager.default
       let favoritePaths = try LibraryMetadataFile.favoritePaths(
         in: LibraryMetadataFile.read(at: root))
@@ -1419,7 +1419,7 @@ final class NotesRootAccess {
     var folderItems: [LibraryFolderItem] = []
     for reference in try folders() {
       let directory = urlForPath(reference.path)
-      let directNoteNames = try coordinatedRead(at: directory) {
+      let directNoteNames = try Self.coordinatedRead(at: directory) {
         try Self.directNotebookNames(in: $0)
       }
       if reference.path.isEmpty && directNoteNames.isEmpty { continue }
@@ -1437,7 +1437,7 @@ final class NotesRootAccess {
       folderItems.append(
         LibraryFolderItem(
           reference: reference,
-          modified: try coordinatedRead(at: directory) {
+          modified: try Self.coordinatedRead(at: directory) {
             try Self.latestDirectNotebookModification(in: $0)
           },
           noteCount: directNoteNames.count,
@@ -1474,7 +1474,7 @@ final class NotesRootAccess {
     direction: LibrarySortDirection
   ) throws -> LibraryListing {
     let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
-    return try coordinatedRead(at: url) { root in
+    return try Self.coordinatedRead(at: url) { root in
       let trash = root.appendingPathComponent(".trash", isDirectory: true)
       guard FileManager.default.fileExists(atPath: trash.path) else {
         return LibraryListing(folders: [], notebooks: [])
@@ -1555,19 +1555,19 @@ final class NotesRootAccess {
   }
 
   func libraryTags() throws -> [LibraryTag] {
-    try coordinatedRead(at: url) { root in
+    try Self.coordinatedRead(at: url) { root in
       try LibraryMetadataFile.tags(in: LibraryMetadataFile.read(at: root))
     }
   }
 
   func newNoteDraft() throws -> NewNoteDraft? {
-    try coordinatedRead(at: url) { root in
+    try Self.coordinatedRead(at: url) { root in
       try LibraryMetadataFile.newNoteDraft(in: LibraryMetadataFile.read(at: root))
     }
   }
 
   func newNoteStartingTemplates() throws -> [NewNoteStartingTemplate] {
-    try coordinatedRead(at: url) { root in
+    try Self.coordinatedRead(at: url) { root in
       try LibraryMetadataFile.newNoteStartingTemplates(
         in: LibraryMetadataFile.read(at: root))
     }
@@ -1611,7 +1611,7 @@ final class NotesRootAccess {
   }
 
   func noteDetails(for reference: NotebookReference) throws -> LibraryNoteDetails {
-    try coordinatedRead(at: url) { root in
+    try Self.coordinatedRead(at: url) { root in
       try LibraryMetadataFile.noteDetails(
         in: LibraryMetadataFile.read(at: root),
         path: reference.path)
@@ -1619,7 +1619,7 @@ final class NotesRootAccess {
   }
 
   func folderDetails(for reference: FolderReference) throws -> LibraryFolderDetails {
-    try coordinatedRead(at: url) { root in
+    try Self.coordinatedRead(at: url) { root in
       try LibraryMetadataFile.folderDetails(
         in: LibraryMetadataFile.read(at: root),
         path: reference.path)
@@ -1734,12 +1734,14 @@ final class NotesRootAccess {
   }
 
   @MainActor
-  func thumbnail(_ reference: NotebookReference) throws -> Data? {
+  func thumbnail(_ reference: NotebookReference) async throws -> Data? {
     let notebookURL = urlForNotebook(reference)
     let stamp: String?
     do {
-      stamp = try coordinatedRead(at: notebookURL) { coordinatedNotebook in
-        try Self.thumbnailStamp(at: coordinatedNotebook)
+      stamp = try await Self.offMain {
+        try Self.coordinatedRead(at: notebookURL) { coordinatedNotebook in
+          try Self.thumbnailStamp(at: coordinatedNotebook)
+        }
       }
     } catch {
       guard Self.isMissingFileError(error) else { throw error }
@@ -1752,9 +1754,11 @@ final class NotesRootAccess {
     }
     let recovery = try recoveryRecord(for: reference)
     let effectiveStamp: String
-    if let recovery,
-      let recoveryStamp = try Self.thumbnailRecoveryStamp(
-        at: notebookURL, record: recovery.record)
+    let pendingRecord = recovery?.record
+    if let pendingRecord,
+      let recoveryStamp = try await Self.offMain({
+        try Self.thumbnailRecoveryStamp(at: notebookURL, record: pendingRecord)
+      })
     {
       effectiveStamp = "\(stamp)\nrecovery:\(recoveryStamp)"
     } else {
@@ -1769,7 +1773,7 @@ final class NotesRootAccess {
     }
 
     do {
-      let document = try load(reference)
+      let document = try await load(reference)
       let data = try renderThumbnail(document)
       try storeCachedThumbnail(data, reference: reference, stamp: effectiveStamp)
       thumbnailCache[reference.id] = (stamp: effectiveStamp, data: data)
@@ -1838,7 +1842,7 @@ final class NotesRootAccess {
   func penLibrary() throws -> EditorPenLibrary {
     try ensurePenFile()
     let fileURL = url.appendingPathComponent(".pens.json")
-    let data = try coordinatedRead(at: fileURL) { coordinatedURL in
+    let data = try Self.coordinatedRead(at: fileURL) { coordinatedURL in
       try Data(contentsOf: coordinatedURL)
     }
     return try EditorPenLibrary(json: data)
@@ -1887,7 +1891,7 @@ final class NotesRootAccess {
   func templateNames() throws -> [String] {
     try ensureBuiltinTemplates()
     let templatesURL = url.appendingPathComponent(".templates", isDirectory: true)
-    return try coordinatedRead(at: templatesURL) { directory in
+    return try Self.coordinatedRead(at: templatesURL) { directory in
       try FileManager.default.contentsOfDirectory(
         at: directory,
         includingPropertiesForKeys: [.isDirectoryKey],
@@ -1904,7 +1908,7 @@ final class NotesRootAccess {
 
   func templateName(for reference: NotebookReference) throws -> String? {
     let indexURL = urlForNotebook(reference).appendingPathComponent("notebook.json")
-    return try coordinatedRead(at: indexURL) { coordinatedURL in
+    return try Self.coordinatedRead(at: indexURL) { coordinatedURL in
       let data = try Data(contentsOf: coordinatedURL)
       return try JSONDecoder().decode(NotebookIndex.self, from: data).template
     }
@@ -1926,7 +1930,7 @@ final class NotesRootAccess {
     guard try itemExists(at: [".templates", template, "pages", "0001.svg"]) else {
       throw NotebookStorageError.missingTemplate(template)
     }
-    let page = try coordinatedRead(at: pageURL) { try Data(contentsOf: $0) }
+    let page = try Self.coordinatedRead(at: pageURL) { try Data(contentsOf: $0) }
     let document = try EngineDocument.createFromTemplate(
       seed: 1,
       name: template,
@@ -1947,7 +1951,7 @@ final class NotesRootAccess {
     guard try itemExists(at: [".templates", name, "pages", "0001.svg"]) else {
       throw NotebookStorageError.missingTemplate(name)
     }
-    let page = try coordinatedRead(at: pageURL) { try Data(contentsOf: $0) }
+    let page = try Self.coordinatedRead(at: pageURL) { try Data(contentsOf: $0) }
     try document.setTemplate(name: name, page: page)
   }
 
@@ -1972,7 +1976,7 @@ final class NotesRootAccess {
     guard try itemExists(at: [".templates", template, "pages", "0001.svg"]) else {
       throw NotebookStorageError.missingTemplate(template)
     }
-    let page = try coordinatedRead(at: templatePageURL) { try Data(contentsOf: $0) }
+    let page = try Self.coordinatedRead(at: templatePageURL) { try Data(contentsOf: $0) }
     let document = try EngineDocument.createFromTemplate(
       seed: UInt64.random(in: 1...UInt64.max),
       name: template,
@@ -1998,7 +2002,7 @@ final class NotesRootAccess {
   func loadClippings() throws -> (NotebookReference, EngineDocument) {
     let reference = NotebookReference(path: [".clippings"])
     if try itemExists(at: [".clippings", "notebook.json"]) {
-      return (reference, try load(reference))
+      return (reference, try loadOnMainThread(reference))
     }
 
     try ensureDirectory(path: reference.path)
@@ -2067,7 +2071,7 @@ final class NotesRootAccess {
 
   private func clippingPageIDs(_ reference: NotebookReference) throws -> [String] {
     let indexURL = urlForNotebook(reference).appendingPathComponent("notebook.json")
-    let data = try coordinatedRead(at: indexURL) { try Data(contentsOf: $0) }
+    let data = try Self.coordinatedRead(at: indexURL) { try Data(contentsOf: $0) }
     let pages = try JSONDecoder().decode(NotebookIndex.self, from: data).pages ?? []
     return try pages.map {
       guard let id = $0.id, !id.isEmpty else {
@@ -2258,18 +2262,57 @@ final class NotesRootAccess {
   }
 
   @MainActor
-  func load(_ reference: NotebookReference) throws -> EngineDocument {
+  func load(_ reference: NotebookReference) async throws -> EngineDocument {
     let notebookURL = urlForNotebook(reference)
+    let rootURL = url
     let recovery = try recoveryRecord(for: reference)
-    let recoveredNotebookJSON = recovery?.record.changes.first {
+    let recoveredNotebookJSON = Self.recoveredNotebookJSON(recovery)
+    let snapshot = try await Self.offMain {
+      try Self.readNotebookSnapshot(at: notebookURL, recoveredNotebookJSON: recoveredNotebookJSON)
+    }
+    let restored = try Self.restoredFiles(snapshot, recovery: recovery)
+    let template = try await Self.offMain {
+      try Self.readTemplatePage(root: rootURL, restored: restored)
+    }
+    return try makeDocument(
+      reference, snapshot: snapshot, restored: restored, recovery: recovery, template: template)
+  }
+
+  // Clippings still read .clippings on the main thread; the storage log marks
+  // any such read over Log.mainThreadBudget as a fault.
+  @MainActor
+  private func loadOnMainThread(_ reference: NotebookReference) throws -> EngineDocument {
+    let recovery = try recoveryRecord(for: reference)
+    let snapshot = try Self.readNotebookSnapshot(
+      at: urlForNotebook(reference),
+      recoveredNotebookJSON: Self.recoveredNotebookJSON(recovery))
+    let restored = try Self.restoredFiles(snapshot, recovery: recovery)
+    let template = try Self.readTemplatePage(root: url, restored: restored)
+    return try makeDocument(
+      reference, snapshot: snapshot, restored: restored, recovery: recovery, template: template)
+  }
+
+  private static func recoveredNotebookJSON(
+    _ recovery: (file: URL, record: NotebookRecoveryRecord)?
+  ) -> Data? {
+    recovery?.record.changes.first {
       $0.path == "notebook.json" && $0.kind == .write
     }?.data
-    let snapshot = try coordinatedRead(at: notebookURL) { coordinatedURL in
-      try Self.readSnapshot(
-        at: coordinatedURL,
-        recoveredNotebookJSON: recoveredNotebookJSON)
-    }
+  }
 
+  private static func readNotebookSnapshot(
+    at notebookURL: URL,
+    recoveredNotebookJSON: Data?
+  ) throws -> Snapshot {
+    try coordinatedRead(at: notebookURL) { coordinatedURL in
+      try readSnapshot(at: coordinatedURL, recoveredNotebookJSON: recoveredNotebookJSON)
+    }
+  }
+
+  private static func restoredFiles(
+    _ snapshot: Snapshot,
+    recovery: (file: URL, record: NotebookRecoveryRecord)?
+  ) throws -> [String: Data] {
     var restored = snapshot.base
     if let recovery {
       for change in recovery.record.changes {
@@ -2279,13 +2322,38 @@ final class NotesRootAccess {
         }
       }
     }
-    guard let notebookJSON = restored["notebook.json"] else {
+    guard restored["notebook.json"] != nil else {
       throw NotebookStorageError.invalidRecovery("The recovered notebook has no notebook.json.")
     }
-    let index = try JSONDecoder().decode(NotebookIndex.self, from: notebookJSON)
+    return restored
+  }
 
+  private static func readTemplatePage(
+    root: URL,
+    restored: [String: Data]
+  ) throws -> (name: String, page: Data)? {
+    let notebookJSON = restored["notebook.json"]!
+    guard let template = try JSONDecoder().decode(NotebookIndex.self, from: notebookJSON).template
+    else { return nil }
+    let pageURL = root
+      .appendingPathComponent(".templates", isDirectory: true)
+      .appendingPathComponent(template, isDirectory: true)
+      .appendingPathComponent("pages", isDirectory: true)
+      .appendingPathComponent("0001.svg")
+    guard FileManager.default.fileExists(atPath: pageURL.path) else { return nil }
+    return (template, try coordinatedRead(at: pageURL) { try Data(contentsOf: $0) })
+  }
+
+  @MainActor
+  private func makeDocument(
+    _ reference: NotebookReference,
+    snapshot: Snapshot,
+    restored: [String: Data],
+    recovery: (file: URL, record: NotebookRecoveryRecord)?,
+    template: (name: String, page: Data)?
+  ) throws -> EngineDocument {
     let document = EngineDocument(seed: UInt64.random(in: 1...UInt64.max))
-    try document.loadNotebook(notebookJSON)
+    try document.loadNotebook(restored["notebook.json"]!)
     for (path, data) in restored.sorted(by: { $0.key < $1.key })
       where path.hasPrefix("pages/") && path.hasSuffix(".svg")
     {
@@ -2296,17 +2364,8 @@ final class NotesRootAccess {
     {
       try document.loadAsset(path: path, data: data)
     }
-
-    if let template = index.template {
-      let pageURL = url
-        .appendingPathComponent(".templates", isDirectory: true)
-        .appendingPathComponent(template, isDirectory: true)
-        .appendingPathComponent("pages", isDirectory: true)
-        .appendingPathComponent("0001.svg")
-      if FileManager.default.fileExists(atPath: pageURL.path) {
-        let page = try coordinatedRead(at: pageURL) { try Data(contentsOf: $0) }
-        try document.setTemplate(name: template, page: page)
-      }
+    if let template {
+      try document.setTemplate(name: template.name, page: template.page)
     }
 
     var base = snapshot.base
@@ -2394,7 +2453,7 @@ final class NotesRootAccess {
     let recoveredNotebookJSON = recovery?.record.changes.first {
       $0.path == "notebook.json" && $0.kind == .write
     }?.data
-    return try coordinatedRead(at: notebookURL) { coordinatedNotebook in
+    return try Self.coordinatedRead(at: notebookURL) { coordinatedNotebook in
       let stored = try Self.conflictCount(
         at: coordinatedNotebook,
         recoveredNotebookJSON: recoveredNotebookJSON)
@@ -2406,7 +2465,7 @@ final class NotesRootAccess {
   @MainActor
   func conflicts(_ reference: NotebookReference) throws -> [NotebookConflict] {
     let notebookURL = urlForNotebook(reference)
-    return try coordinatedRead(at: notebookURL) { coordinatedNotebook in
+    return try Self.coordinatedRead(at: notebookURL) { coordinatedNotebook in
       let snapshot = try Self.readSnapshot(at: coordinatedNotebook)
       let index = try JSONDecoder().decode(NotebookIndex.self, from: snapshot.notebookJSON)
       let listedPages = (index.pages ?? []).map(\.file)
@@ -2940,7 +2999,7 @@ final class NotesRootAccess {
 
   private func entryNames(at path: [String]) throws -> [String] {
     let directory = urlForPath(path)
-    return try coordinatedRead(at: directory) { coordinatedDirectory in
+    return try Self.coordinatedRead(at: directory) { coordinatedDirectory in
       try FileManager.default.contentsOfDirectory(atPath: coordinatedDirectory.path)
     }
   }
@@ -2989,7 +3048,7 @@ final class NotesRootAccess {
   }
 
   private func itemExists(at path: [String]) throws -> Bool {
-    try coordinatedRead(at: url) { root in
+    try Self.coordinatedRead(at: url) { root in
       let target = path.reduce(root) { partial, component in
         partial.appendingPathComponent(component)
       }
@@ -3040,7 +3099,7 @@ final class NotesRootAccess {
     urlForPath(reference.path)
   }
 
-  private func coordinatedRead<T>(
+  private static func coordinatedRead<T>(
     at target: URL,
     _ body: (URL) throws -> T
   ) throws -> T {
@@ -3099,6 +3158,14 @@ final class NotesRootAccess {
       Log.storage.error("coordinated write of \(target.path, privacy: .public) failed: \(String(describing: error), privacy: .public)")
     }
     return try result.get()
+  }
+
+  // A file in the notes folder may be a provider placeholder (an undownloaded
+  // Dropbox file): reading it waits for the download, so reads run off the main thread.
+  private static func offMain<T: Sendable>(
+    _ work: @escaping @Sendable () throws -> T
+  ) async throws -> T {
+    try await Task.detached(priority: .userInitiated) { try work() }.value
   }
 
   private static func logCoordination(_ kind: String, _ target: URL, _ elapsed: Duration) {

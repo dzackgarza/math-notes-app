@@ -1234,8 +1234,8 @@ struct ContentView: View {
     _ reference: NotebookReference,
     using root: NotesRootAccess,
     currentPage: Int = 0
-  ) throws -> OpenNotebookSession {
-    let document = try root.load(reference)
+  ) async throws -> OpenNotebookSession {
+    let document = try await root.load(reference)
     let pageCount = try document.pageCount()
     let session = OpenNotebookSession(
       reference: reference,
@@ -1772,11 +1772,11 @@ struct ContentView: View {
     }
   }
 
-  private func renderNotebookPreview(_ folder: FolderReference) throws -> Data? {
+  private func renderNotebookPreview(_ folder: FolderReference) async throws -> Data? {
     guard let root else { throw NotebookStorageError.cannotAccessRoot }
     let listing = try root.library(in: folder, sort: .modified, direction: .descending)
     guard let first = listing.notebooks.first else { return nil }
-    return try root.thumbnail(first.reference)
+    return try await root.thumbnail(first.reference)
   }
 
   private func renderPaperPreview(
@@ -1990,53 +1990,79 @@ struct ContentView: View {
 
   private func openNotebook(_ reference: NotebookReference) {
     guard let root else { return }
-    do {
-      _ = try openNotes.open(
-        reference,
-        save: { note in
-          try saveSession(note, using: root)
-        },
-        load: { reference in
-          try makeOpenSession(reference, using: root)
-        })
-      conflictReview = nil
-    } catch {
-      handleOpenNotesError(error)
+    Task {
+      do {
+        let session = try await sessionToOpen(reference, using: root)
+        _ = try openNotes.open(
+          reference,
+          save: { note in
+            try saveSession(note, using: root)
+          },
+          load: preloaded(session, for: reference))
+        conflictReview = nil
+      } catch {
+        handleOpenNotesError(error)
+      }
+    }
+  }
+
+  // Reads a notebook that is not open yet off the main thread, before any
+  // open-notes state changes. OpenNotesState calls `load` only for such a notebook.
+  private func sessionToOpen(
+    _ reference: NotebookReference,
+    using root: NotesRootAccess
+  ) async throws -> OpenNotebookSession? {
+    guard openNotes.find(reference) == nil else { return nil }
+    return try await makeOpenSession(reference, using: root)
+  }
+
+  private func preloaded(
+    _ session: OpenNotebookSession?,
+    for reference: NotebookReference
+  ) -> (NotebookReference) throws -> OpenNotebookSession {
+    { requested in
+      guard requested == reference, let session else {
+        throw EngineDocumentError.operation(
+          "Open notebook", "\(requested.id) was not loaded before opening")
+      }
+      return session
     }
   }
 
   private func reviewLibraryConflicts(_ reference: NotebookReference) {
     guard let root else { return }
-    do {
-      _ = try openNotes.open(
-        reference,
-        save: { note in
-          try saveSession(note, using: root)
-        },
-        load: { reference in
-          try makeOpenSession(reference, using: root)
-        })
-      conflictReview = nil
-      prepareConflicts(reference)
-    } catch {
-      handleOpenNotesError(error)
+    Task {
+      do {
+        let session = try await sessionToOpen(reference, using: root)
+        _ = try openNotes.open(
+          reference,
+          save: { note in
+            try saveSession(note, using: root)
+          },
+          load: preloaded(session, for: reference))
+        conflictReview = nil
+        prepareConflicts(reference)
+      } catch {
+        handleOpenNotesError(error)
+      }
     }
   }
 
   private func showReference(_ reference: NotebookReference) {
     guard let root else { return }
-    do {
-      _ = try openNotes.showReference(
-        reference,
-        save: { note in
-          try saveSession(note, using: root)
-        },
-        load: { reference in
-          try makeOpenSession(reference, using: root)
-        })
-      conflictReview = nil
-    } catch {
-      handleOpenNotesError(error)
+    Task {
+      do {
+        let session = try await sessionToOpen(reference, using: root)
+        _ = try openNotes.showReference(
+          reference,
+          save: { note in
+            try saveSession(note, using: root)
+          },
+          load: preloaded(session, for: reference))
+        conflictReview = nil
+      } catch {
+        handleOpenNotesError(error)
+      }
     }
   }
 
@@ -2153,13 +2179,15 @@ struct ContentView: View {
   }
 
   private func prepareLinkDestinations(_ reference: NotebookReference) {
-    guard let root, var pending = pendingLink else { return }
+    guard let root, let request = pendingLink else { return }
+    Task {
+    var pending = request
     do {
       let document: EngineDocument
       if let opened = openNotes.find(reference) {
         document = opened.document
       } else {
-        document = try root.load(reference)
+        document = try await root.load(reference)
       }
       pending.targetReference = reference
       pendingLink = pending
@@ -2168,6 +2196,7 @@ struct ContentView: View {
         destinations: try bookmarkDestinations(document))
     } catch {
       errorMessage = error.localizedDescription
+    }
     }
   }
 
@@ -2187,6 +2216,7 @@ struct ContentView: View {
     page: Int
   ) {
     guard let root else { return }
+    Task {
     do {
       let sourceFile = try pageFile(source.document, page: page)
       switch try NotebookLink.resolve(
@@ -2203,14 +2233,13 @@ struct ContentView: View {
         UIApplication.shared.open(url, options: [:])
 
       case let .page(reference, file, id):
+        let session = try await sessionToOpen(reference, using: root)
         let target = try openNotes.openLinkTarget(
           reference,
           save: { note in
             try saveSession(note, using: root)
           },
-          load: { reference in
-            try makeOpenSession(reference, using: root)
-          })
+          load: preloaded(session, for: reference))
         let targetDocument = target.document
         let targetView = target.primaryView
 
@@ -2231,6 +2260,7 @@ struct ContentView: View {
       }
     } catch {
       handleOpenNotesError(error)
+    }
     }
   }
 
@@ -2344,19 +2374,23 @@ struct ContentView: View {
       conflictReviewChanged = false
       return
     }
+    Task {
     do {
       let changed = conflictReviewChanged
       if changed, openNotes.find(reference) != nil {
+        // reloadIfOpen releases the open session, so its load always runs.
+        let session = try await makeOpenSession(reference, using: root)
         _ = try openNotes.reloadIfOpen(
           reference,
           save: { note in try saveSession(note, using: root) },
-          load: { target in try makeOpenSession(target, using: root) })
+          load: preloaded(session, for: reference))
       }
       conflictReview = nil
       conflictReviewChanged = false
       if changed { refreshLibrary() }
     } catch {
       errorMessage = error.localizedDescription
+    }
     }
   }
 

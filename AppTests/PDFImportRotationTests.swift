@@ -8,7 +8,7 @@ import XCTest
 
 final class PDFImportRotationTests: XCTestCase {
   @MainActor
-  func testRotatedPDFPageKeepsDisplayedSizeThroughImportAndExport() throws {
+  func testRotatedPDFPageKeepsDisplayedSizeThroughImportAndExport() async throws {
     let sourceBounds = CGRect(x: 0, y: 0, width: 300, height: 500)
     let format = UIGraphicsImageRendererFormat()
     format.scale = 1
@@ -59,7 +59,7 @@ final class PDFImportRotationTests: XCTestCase {
     try document.deletePage(at: 1)
     try root.save(document, notebook: reference)
 
-    let reopened = try NotesRootAccess(testURL: rootDirectory).load(reference)
+    let reopened = try await NotesRootAccess(testURL: rootDirectory).load(reference)
     let rect = try reopened.pageRect(index: 0)
     XCTAssertEqual(rect.width, 500, accuracy: 0.01)
     XCTAssertEqual(rect.height, 300, accuracy: 0.01)

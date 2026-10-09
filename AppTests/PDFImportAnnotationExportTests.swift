@@ -7,7 +7,7 @@ import XCTest
 
 final class PDFImportAnnotationExportTests: XCTestCase {
   @MainActor
-  func testImportedBackgroundAndVectorInkSurviveExport() throws {
+  func testImportedBackgroundAndVectorInkSurviveExport() async throws {
     let bounds = CGRect(x: 0, y: 0, width: 612, height: 792)
     let pdf = UIGraphicsPDFRenderer(bounds: bounds).pdfData { context in
       context.beginPage()
@@ -90,7 +90,7 @@ final class PDFImportAnnotationExportTests: XCTestCase {
     XCTAssertTrue(savedPage.contains("<image"), "Imported PDF background must remain embedded")
     XCTAssertTrue(savedPage.contains("mn:brush"), "Annotation must remain vector ink")
 
-    let reopened = try NotesRootAccess(testURL: directory).load(reference)
+    let reopened = try await NotesRootAccess(testURL: directory).load(reference)
     let exported = try reopened.exportPDF(title: reference.name)
     let provider = try XCTUnwrap(CGDataProvider(data: exported as CFData))
     let exportedPDF = try XCTUnwrap(CGPDFDocument(provider))

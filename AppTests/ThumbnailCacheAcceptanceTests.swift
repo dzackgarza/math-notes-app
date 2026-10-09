@@ -6,7 +6,7 @@ import XCTest
 
 final class ThumbnailCacheAcceptanceTests: XCTestCase {
   @MainActor
-  func testThumbnailRendersAgainOnlyAfterFirstPageChanges() throws {
+  func testThumbnailRendersAgainOnlyAfterFirstPageChanges() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     let cache = FileManager.default.temporaryDirectory
@@ -31,15 +31,17 @@ final class ThumbnailCacheAcceptanceTests: XCTestCase {
       pageSize: INK_PAGE_A4,
       orientation: INK_PORTRAIT)
 
-    XCTAssertNotNil(try root.thumbnail(reference))
+    let loaded1 = try await root.thumbnail(reference)
+    XCTAssertNotNil(loaded1)
     XCTAssertEqual(renders, 1)
 
     let relaunched = NotesRootAccess(
       testURL: directory, thumbnailCacheURL: cache, thumbnailRenderer: render)
-    XCTAssertNotNil(try relaunched.thumbnail(reference))
+    let loaded2 = try await relaunched.thumbnail(reference)
+    XCTAssertNotNil(loaded2)
     XCTAssertEqual(renders, 1, "persistent cache hit must avoid a second render")
 
-    let document = try relaunched.load(reference)
+    let document = try await relaunched.load(reference)
     let canvas = InkCanvasView(document: document)
     canvas.frame = CGRect(x: 0, y: 0, width: 1024, height: 1024)
     canvas.layoutIfNeeded()
@@ -51,7 +53,8 @@ final class ThumbnailCacheAcceptanceTests: XCTestCase {
       existing: false)
     try relaunched.save(document, notebook: reference)
 
-    XCTAssertNotNil(try relaunched.thumbnail(reference))
+    let loaded3 = try await relaunched.thumbnail(reference)
+    XCTAssertNotNil(loaded3)
     XCTAssertEqual(renders, 2, "changing page 1 must render a new thumbnail")
   }
 }

@@ -5,7 +5,7 @@ import XCTest
 
 final class TextPersistenceTests: XCTestCase {
   @MainActor
-  func testMultilineComplexScriptTextSurvivesSaveAndReopen() throws {
+  func testMultilineComplexScriptTextSurvivesSaveAndReopen() async throws {
     let directory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -30,7 +30,7 @@ final class TextPersistenceTests: XCTestCase {
     try canvas.editText(properties, at: point, existing: false)
     try root.save(document, notebook: reference)
 
-    let reopened = try NotesRootAccess(testURL: directory).load(reference)
+    let reopened = try await NotesRootAccess(testURL: directory).load(reference)
     let reopenedCanvas = InkCanvasView(document: reopened)
     reopenedCanvas.frame = CGRect(x: 0, y: 0, width: 1024, height: 1024)
     reopenedCanvas.layoutIfNeeded()

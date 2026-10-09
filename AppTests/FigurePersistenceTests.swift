@@ -4,7 +4,7 @@ import XCTest
 
 final class FigurePersistenceTests: XCTestCase {
   @MainActor
-  func testFigureIdentityAndDraftSourceSurviveSaveAndReopen() throws {
+  func testFigureIdentityAndDraftSourceSurviveSaveAndReopen() async throws {
     let rootDirectory = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     let noteDirectory = rootDirectory.appendingPathComponent("Figure Note", isDirectory: true)
@@ -57,13 +57,13 @@ final class FigurePersistenceTests: XCTestCase {
 
     let reference = NotebookReference(path: ["Figure Note"])
     let root = NotesRootAccess(testURL: rootDirectory)
-    let document = try root.load(reference)
+    let document = try await root.load(reference)
     XCTAssertEqual(try document.figureSource(id: figureID), originalSource)
 
     try document.saveFigureDraft(id: figureID, source: draftSource)
     try root.save(document, notebook: reference)
 
-    let reopened = try NotesRootAccess(testURL: rootDirectory).load(reference)
+    let reopened = try await NotesRootAccess(testURL: rootDirectory).load(reference)
     XCTAssertEqual(try reopened.figureSource(id: figureID), draftSource)
 
     let savedPage = try String(

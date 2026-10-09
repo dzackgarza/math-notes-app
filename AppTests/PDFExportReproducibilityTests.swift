@@ -18,7 +18,7 @@ final class PDFExportReproducibilityTests: XCTestCase {
     XCTAssertEqual(first, second)
   }
   @MainActor
-  func testSharedFixturesExportEveryPageAtItsDocumentSize() throws {
+  func testSharedFixturesExportEveryPageAtItsDocumentSize() async throws {
     let repository = URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()
       .deletingLastPathComponent()
@@ -35,7 +35,7 @@ final class PDFExportReproducibilityTests: XCTestCase {
       try FileManager.default.copyItem(
         at: fixtures.appendingPathComponent(fixtureName, isDirectory: true),
         to: rootDirectory.appendingPathComponent(fixtureName, isDirectory: true))
-      let document = try NotesRootAccess(testURL: rootDirectory).load(reference)
+      let document = try await NotesRootAccess(testURL: rootDirectory).load(reference)
       let exported = try document.exportPDF(title: fixtureName)
       let provider = try XCTUnwrap(CGDataProvider(data: exported as CFData))
       let pdf = try XCTUnwrap(CGPDFDocument(provider))

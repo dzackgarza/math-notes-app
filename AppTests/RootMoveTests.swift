@@ -4,7 +4,7 @@ import XCTest
 
 final class RootMoveTests: XCTestCase {
   @MainActor
-  func testPresentedRootMoveRebasesStorageOperations() throws {
+  func testPresentedRootMoveRebasesStorageOperations() async throws {
     let parent = FileManager.default.temporaryDirectory
       .appendingPathComponent(UUID().uuidString, isDirectory: true)
     let original = parent.appendingPathComponent("Notes", isDirectory: true)
@@ -26,6 +26,7 @@ final class RootMoveTests: XCTestCase {
 
     XCTAssertEqual(root.url.standardizedFileURL, moved.standardizedFileURL)
     XCTAssertEqual(try root.notebooks(), [reference])
-    XCTAssertEqual(try root.load(reference).pageCount(), 1)
+    let loaded1 = try await root.load(reference)
+    XCTAssertEqual(try loaded1.pageCount(), 1)
   }
 }
