@@ -4315,7 +4315,7 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   await shot("split-view");
   await button("Pages").first().click();
   await button("Select page").click();
-  const handle = page.getByLabel("Drag a copy", { exact: true });
+  const handle = page.getByText("Drag a copy", { exact: true });
   const from = await boxOf(handle);
   const to = await boxOf(canvas.nth(1));
   await longPressDrag(page, from, to);
