@@ -1,5 +1,6 @@
 // Pen samples through the C ABI to live and committed strokes (issue #19).
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <algorithm>
 #include <chrono>
@@ -162,6 +163,57 @@ TEST_CASE("ink_input_update after the end phase rebuilds the committed stroke") 
   const Stroke &after = OnlyStroke(canvas.get());
   CHECK(after.outline != before);
   CHECK(after.samples[10].force == 1.0);
+}
+
+// ink.h gives azimuth and roll in radians with no range; UIKit's azimuthAngle
+// and rollAngle are not limited to google/ink's [0, 2π). A stroke whose later
+// samples carry such angles must still commit along its whole path.
+static std::vector<InkPenSample> AngledStroke(float tail_azimuth, float tail_roll) {
+  std::vector<InkPenSample> event;
+  for (uint32_t i = 0; i <= 20; ++i) {
+    InkPhase phase = i == 0 ? INK_PHASE_BEGIN : i == 20 ? INK_PHASE_END : INK_PHASE_MOVE;
+    InkPenSample s = PenSample(i * 10, 100, i * 8, phase, i);
+    s.has = kAll | INK_HAS_ROLL;
+    s.altitude = 1.0f;
+    s.azimuth = i < 10 ? 1.0f : tail_azimuth;
+    s.roll = i < 10 ? 1.0f : tail_roll;
+    event.push_back(s);
+  }
+  return event;
+}
+
+TEST_CASE("A stroke commits along its whole path whatever the radian range of its angles") {
+  auto [azimuth, roll] = GENERATE(table<float, float>({
+      {-1.0f, 1.0f}, {7.0f, 1.0f}, {1.0f, -1.0f}, {1.0f, 7.0f}}));
+  CAPTURE(azimuth, roll);
+  ink_test::Session canvas;
+  ink_test::SetTool(canvas.get(), INK_BRUSH_PRESSURE_PEN, 0x1A1A1A, 5);
+  std::vector<InkPenSample> event = AngledStroke(azimuth, roll);
+  ink_input(canvas.get(), event.data(), event.size());
+
+  const Stroke &stroke = OnlyStroke(canvas.get());
+  CHECK(stroke.samples.size() == event.size());
+  CHECK(MaxX(stroke.outline) >= 200);
+}
+
+TEST_CASE("An estimated update after the end keeps the stroke along its whole path") {
+  auto [azimuth, roll] = GENERATE(table<float, float>({
+      {-1.0f, 1.0f}, {7.0f, 1.0f}, {1.0f, -1.0f}, {1.0f, 7.0f}}));
+  CAPTURE(azimuth, roll);
+  ink_test::Session canvas;
+  ink_test::SetTool(canvas.get(), INK_BRUSH_PRESSURE_PEN, 0x1A1A1A, 5);
+  std::vector<InkPenSample> event = AngledStroke(1.0f, 1.0f);
+  ink_input(canvas.get(), event.data(), event.size());
+  REQUIRE(MaxX(OnlyStroke(canvas.get()).outline) >= 200);
+
+  // UIKit refines azimuth and altitude after touchesEnded.
+  std::vector<InkPenSample> updates(event.begin() + 10, event.end());
+  for (InkPenSample &u : updates) {
+    u.azimuth = azimuth;
+    u.roll = roll;
+  }
+  ink_input_update(canvas.get(), updates.data(), updates.size());
+  CHECK(MaxX(OnlyStroke(canvas.get()).outline) >= 200);
 }
 
 TEST_CASE("Touch samples during a pen stroke do not reach it") {
