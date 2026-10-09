@@ -3608,7 +3608,9 @@ test("Flutter lifetime: first launch, folder choice, three written pages, restar
   await shot("first-launch");
   await button("Choose notes folder").click();
   await expect(page.getByText("Your notebooks appear here.", { exact: true })).toBeVisible();
-  expect((await opfs()).folders, "the app prepares the folder's templates and pens").toEqual(expect.arrayContaining([".templates", ".pens.json"]));
+  const chosen = (await opfs()).folders;
+  expect(chosen, "choosing a folder writes no templates").not.toContain(".templates");
+  expect(chosen, "choosing a folder writes no pen settings").not.toContain(".pens.json");
   await shot("empty-library");
 
   // The first notebook and its first note.

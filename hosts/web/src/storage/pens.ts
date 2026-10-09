@@ -5,21 +5,16 @@ import { writeFiles } from "./folder.ts";
 
 const FILE = ".pens.json";
 
-// Creates the default settings on first use. Root preparation owns this write,
-// so later editor reads never need an exclusive filesystem lock.
-export async function ensurePens(root: FileSystemDirectoryHandle, engine: Engine): Promise<void> {
+// The settings in the root. A folder without the file uses the default tools;
+// the file is written only when the user changes a tool.
+export async function readPens(root: FileSystemDirectoryHandle, engine: Engine): Promise<PenFile> {
   try {
-    await root.getFileHandle(FILE);
+    const bytes = new Uint8Array(await (await (await root.getFileHandle(FILE)).getFile()).arrayBuffer());
+    return engine.readPens(bytes);
   } catch (e) {
     if (!(e instanceof DOMException && e.name === "NotFoundError")) throw e;
-    await writeFiles(root, [{ kind: "write", path: FILE, bytes: engine.defaultPens() }]);
+    return engine.readPens(engine.defaultPens());
   }
-}
-
-// The settings in the root. prepareRoot has already ensured the file exists.
-export async function readPens(root: FileSystemDirectoryHandle, engine: Engine): Promise<PenFile> {
-  const bytes = new Uint8Array(await (await (await root.getFileHandle(FILE)).getFile()).arrayBuffer());
-  return engine.readPens(bytes);
 }
 
 export async function writePens(root: FileSystemDirectoryHandle, engine: Engine, pens: PenFile): Promise<void> {

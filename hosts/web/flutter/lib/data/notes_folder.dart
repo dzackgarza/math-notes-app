@@ -60,11 +60,6 @@ class NotesFolder extends ChangeNotifier {
     reconnect = false;
     library = null;
     notifyListeners();
-    await deadline(
-      'Preparing the notes folder',
-      const Duration(seconds: 30),
-      native.host.prepareRoot(chosen, engine!).toDart,
-    );
     await watch();
     await refresh();
   }
@@ -77,7 +72,7 @@ class NotesFolder extends ChangeNotifier {
     final result = await deadline(
       'Reading the notes folder',
       const Duration(seconds: 60),
-      native.host.library(root!).toDart,
+      native.host.library(root!, engine!).toDart,
     );
     if (read != reads) return;
     library = result;

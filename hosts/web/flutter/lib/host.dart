@@ -312,6 +312,7 @@ extension type OpenNote(JSObject value) implements JSObject {
   external String get name;
   external JSArray<JSString> get path;
   external Directory get root;
+  external Engine get engine;
   external Document get document;
   external Saver get saver;
 }
@@ -377,7 +378,7 @@ extension type Host(JSObject value) implements JSObject {
     Document document,
     String name,
   );
-  external JSPromise<JSArray<JSString>> listTemplates(Directory root);
+  external JSPromise<JSArray<JSString>> listTemplates(Directory root, Engine engine);
   external String finishFigure(Canvas canvas);
   external String figureSource(OpenNote note, Canvas canvas, bool capturing);
   external JSPromise<JSUint8Array?> thumbnail(
@@ -422,8 +423,7 @@ extension type Host(JSObject value) implements JSObject {
     Directory root,
     JSFunction changed,
   );
-  external JSPromise<VoidResult> prepareRoot(Directory root, Engine engine);
-  external JSPromise<Library> library(Directory root);
+  external JSPromise<Library> library(Directory root, Engine engine);
   external NoteMetadata emptyNote();
   external FolderMetadata emptyFolder();
   external JSPromise<LibraryMetadata> readMetadata(Directory root);

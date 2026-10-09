@@ -126,7 +126,7 @@ extension _EditorDialogs on _EditorScreenState {
   // once, as the toolbar sheet's switches do.
   Future<void> paperMenu() async {
     final templates =
-        (await native.host.listTemplates(widget.note.root).toDart).toDart
+        (await native.host.listTemplates(widget.note.root, widget.note.engine).toDart).toDart
             .map((name) => name.toDart)
             .toList()
           ..sort(

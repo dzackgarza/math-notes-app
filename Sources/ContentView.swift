@@ -1381,7 +1381,6 @@ struct ContentView: View {
     }
 
     do {
-      try newRoot.prepareRoot()
       if persistBookmark {
         try newRoot.persistAsSavedRoot()
       }

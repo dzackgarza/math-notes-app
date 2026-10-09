@@ -3,7 +3,7 @@
 import { createStore, del, entries, set } from "idb-keyval";
 import type { Engine, FileChange, InkDocument, NotebookFile } from "../engine/engine.ts";
 import { EngineError, Orientation, PageSize, Status } from "../engine/engine.ts";
-import { files as fileTask, readNotebook, readTemplatePage, writeFiles, type NotebookFiles } from "../storage/folder.ts";
+import { files as fileTask, readNotebook, readTemplatePage, storeTemplateForUse, writeFiles, type NotebookFiles } from "../storage/folder.ts";
 import { directoryAt, entryNames, nameError } from "../storage/library.ts";
 import type { OrientationSetting, PageSizeSetting } from "../storage/metadata.ts";
 
@@ -223,10 +223,11 @@ function randomSeed(): bigint {
   return crypto.getRandomValues(new BigUint64Array(1))[0];
 }
 
-// Gives the document its template's page 1 from Notes/.templates/.
+// Gives the document template `name`, storing the template in Notes/.templates/
+// when a notebook first uses it.
 export async function applyTemplate(root: FileSystemDirectoryHandle, document: InkDocument, name: string): Promise<void> {
-  const page1 = await readTemplatePage(root, name);
-  if (page1) document.setTemplate(name, page1);
+  await storeTemplateForUse(root, document.engine, name);
+  document.setTemplate(name, await readTemplatePage(root, document.engine, name));
 }
 
 // A new notebook directory `name` in folder `parent`, with template `template`.
@@ -243,10 +244,10 @@ export async function createNotebook(
   const { dir, page1 } = await fileTask(async () => {
     const error = nameError(title, await entryNames(root, parent));
     if (error) throw new Error(error);
+    await storeTemplateForUse(root, engine, template);
     const dir = await (await directoryAt(root, parent)).getDirectoryHandle(title, { create: true });
-    return { dir, page1: await readTemplatePage(root, template) };
+    return { dir, page1: await readTemplatePage(root, engine, template) };
   });
-  if (!page1) throw new Error(`template ${template} has no pages/0001.svg`);
   const document = engine.createDocumentFromTemplate(randomSeed(), template, page1, PageSize[pageSize], Orientation[orientation]);
   const saver = new Saver(document, dir, []);
   await saver.save();

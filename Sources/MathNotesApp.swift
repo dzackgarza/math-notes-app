@@ -2,6 +2,7 @@ import Combine
 import Foundation
 import SwiftUI
 import UIKit
+import os
 
 struct IncomingDocument: Equatable, Identifiable {
   let id = UUID()
@@ -34,6 +35,10 @@ final class MathNotesSceneDelegate: NSObject, UIWindowSceneDelegate, ObservableO
   }
 
   private func receive(_ contexts: Set<UIOpenURLContext>) {
+    for context in contexts {
+      Log.app.info(
+        "opened with URL scheme=\(context.url.scheme ?? "none", privacy: .public) extension=\(context.url.pathExtension, privacy: .public) source=\(context.options.sourceApplication ?? "unknown", privacy: .public) inPlace=\(context.options.openInPlace, privacy: .public) path=\(context.url.path, privacy: .public)")
+    }
     guard let context = contexts.first else { return }
     receiveIncomingDocumentURL(context.url)
   }
