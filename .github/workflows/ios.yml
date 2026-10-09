@@ -112,8 +112,11 @@ jobs:
         id: engine-cache
         uses: actions/cache/restore@v6
         with:
-          path: build/InkEngine.xcframework
-          key: ios-engine-${{ steps.xcode.outputs.version }}-${{ hashFiles('core/**') }}
+          # TextFonts.cmake downloads the bundled Noto fonts while configuring the engine.
+          path: &engine-paths |
+            build/InkEngine.xcframework
+            .ci/fonts
+          key: ios-engine-v2-${{ steps.xcode.outputs.version }}-${{ hashFiles('core/**') }}
 
       - name: Set up vcpkg for the engine build
         if: steps.engine-cache.outputs.cache-hit != 'true'
@@ -130,7 +133,7 @@ jobs:
         if: steps.engine-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v6
         with:
-          path: build/InkEngine.xcframework
+          path: *engine-paths
           key: ${{ steps.engine-cache.outputs.cache-primary-key }}
 
       - uses: oven-sh/setup-bun@v2
