@@ -109,6 +109,31 @@ final class PencilStrokeWorkflowTests: XCTestCase {
     XCTAssertEqual(try savedStrokeIDs(directory, reference), tick, "the stroke eraser must remove the long stroke and only it")
   }
 
+  // The partial eraser (docs/specs/core-features.md, L1) drawn across the middle
+  // of a stroke cuts it in two: the saved page holds two strokes in its place.
+  func testThePartialEraserCutsAStrokeInTwo() throws {
+    let editor = try openEditor(title: "Partial Erase Workflow")
+    let rowY = editor.center.y + 40
+    try editor.events.stylusDown(
+      at: CGPoint(x: editor.center.x - 150, y: rowY), azimuth: 0.8, altitude: 0.9, pressure: 0.5)
+    try editor.events.stylusMove(to: CGPoint(x: editor.center.x + 150, y: rowY), duration: 0.5)
+    try editor.events.stylusUp()
+    try awaitSaved(editor.session)
+    let whole = try savedStrokeIDs(editor.directory, editor.reference)
+    XCTAssertEqual(whole.count, 1)
+
+    editor.state.tool = .eraser
+    editor.state.eraserMode = .partial
+    try editor.events.stylusDown(
+      at: CGPoint(x: editor.center.x, y: rowY - 40), azimuth: 0.8, altitude: 0.9, pressure: 0.5)
+    try editor.events.stylusMove(to: CGPoint(x: editor.center.x, y: rowY + 40), duration: 0.3)
+    try editor.events.stylusUp()
+    try awaitSaved(editor.session)
+    let pieces = try savedStrokeIDs(editor.directory, editor.reference)
+    XCTAssertEqual(pieces.count, 2, "the partial eraser did not cut the stroke in two")
+    XCTAssertTrue(pieces.isDisjoint(with: whole), "the cut stroke is still on the page whole")
+  }
+
   // Finger drawing (docs/specs/core-features.md, L1): off, a finger drag moves
   // the page and leaves the document unchanged; on, it draws a stroke that
   // reaches the saved page.
