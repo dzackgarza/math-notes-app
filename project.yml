@@ -5,6 +5,10 @@ packages:
   MJRefresh:
     url: https://github.com/CoderMJLee/MJRefresh
     exactVersion: 3.7.9
+  # Crash, hang and termination capture (docs/research_notes/Component ownership decisions/diagnostics.md).
+  KSCrash:
+    url: https://github.com/kstenerud/KSCrash
+    exactVersion: 2.6.0
   # Touch and stylus synthesis through UIKit's event path; private APIs, so tests only.
   Hammer:
     url: https://github.com/lyft/Hammer
@@ -36,6 +40,12 @@ targets:
       - framework: build/InkEngine.xcframework
         embed: false
       - package: MJRefresh
+      - package: KSCrash
+        product: Recording
+      - package: KSCrash
+        product: Filters
+      - package: KSCrash
+        product: Report
       - sdk: PDFKit.framework
       - sdk: WebKit.framework
       - sdk: libc++.tbd

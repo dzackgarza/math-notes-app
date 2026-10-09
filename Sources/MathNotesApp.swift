@@ -51,6 +51,11 @@ final class MathNotesAppDelegate: NSObject, UIApplicationDelegate {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
+    do {
+      try CrashReporting.install()
+    } catch {
+      fatalError("Crash reporting did not install: \(error)")
+    }
     InputTrace.install()
     // The engine reports its input decisions: routes, commits, discards, erasing.
     ink_set_log_handler { message in

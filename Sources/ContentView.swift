@@ -153,6 +153,7 @@ struct ContentView: View {
   @State private var previousPencilTool: EditorTool?
   @State private var penLibrary = EditorPenLibrary.defaults
   @State private var sharePayload: SharePayload?
+  @State private var previousFailure: PreviousFailure?
   @State private var exportPayload: ExportPayload?
   @State private var pdfExport: PDFExportRequest?
   @State private var showingPDFImporter = false
@@ -376,6 +377,12 @@ struct ContentView: View {
     }
     .sheet(item: $sharePayload) { payload in
       ActivityShareSheet(url: payload.url)
+    }
+    .sheet(item: $previousFailure) { failure in
+      PreviousFailureSheet(failure: failure) {
+        CrashReporting.forget(failure)
+        previousFailure = nil
+      }
     }
     .sheet(item: $exportPayload) { payload in
       DocumentExportPicker(url: payload.url)
@@ -1209,6 +1216,18 @@ struct ContentView: View {
   private func restoreSavedRoot() {
     guard !restoredRoot else { return }
     restoredRoot = true
+    // Crash-loop guard: after a crash or a hang, do not reconnect the saved
+    // folder automatically; the library offers to reconnect it.
+    do {
+      if let failure = try CrashReporting.previousFailure() {
+        Log.app.fault("launch: \(failure.summary, privacy: .public) last run; not reconnecting the saved notes folder")
+        previousFailure = failure
+        return
+      }
+    } catch {
+      errorMessage = error.localizedDescription
+      return
+    }
     guard let restored = NotesRootAccess.restore() else {
       Log.app.info("launch: no saved notes folder to restore")
       return
