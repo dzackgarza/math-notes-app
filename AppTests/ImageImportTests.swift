@@ -73,10 +73,13 @@ final class ImageImportTests: XCTestCase {
   // 0 red, 1 green, 2 blue: the strongest channel at a pixel, top-left origin.
   private func dominantChannel(_ image: CGImage, x: Int, y: Int) throws -> Int {
     var pixel = [UInt8](repeating: 0, count: 4)
-    let context = try XCTUnwrap(CGContext(
-      data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
-      space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
-    context.draw(image, in: CGRect(x: -x, y: y - image.height + 1, width: image.width, height: image.height))
+    try pixel.withUnsafeMutableBytes { bytes in
+      // The context writes into `bytes`, which outlive it inside this closure.
+      let context = try XCTUnwrap(CGContext(
+        data: bytes.baseAddress, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+        space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+      context.draw(image, in: CGRect(x: -x, y: y - image.height + 1, width: image.width, height: image.height))
+    }
     let rgb = pixel.prefix(3).map(Int.init)
     return rgb.firstIndex(of: rgb.max()!)!
   }
