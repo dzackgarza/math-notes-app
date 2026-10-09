@@ -1,0 +1,42 @@
+name: Spike - File Provider in the iPad Simulator
+
+on:
+  workflow_dispatch:
+
+jobs:
+  spike:
+    runs-on: macos-26
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: spikes/fileprovider-sim
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install tools
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Boot an iPad Simulator
+        id: simulator
+        run: |
+          udid=$(xcrun simctl list devices available -j \
+            | jq -r '[.devices[][] | select(.name | startswith("iPad"))][0].udid')
+          xcrun simctl boot "$udid"
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
+      - name: Run the dataless read test
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project FPSpike.xcodeproj \
+            -scheme FPSpikeHost \
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}"
+
+      - name: File Provider logs
+        if: ${{ !cancelled() }}
+        run: |
+          xcrun simctl spawn "${{ steps.simulator.outputs.udid }}" log show --last 15m --style compact \
+            --predicate 'process == "fileproviderd" OR eventMessage CONTAINS "FPSpike"' | tail -200

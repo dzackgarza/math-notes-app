@@ -1,0 +1,62 @@
+name: FPSpike
+
+targets:
+  FPSpikeHost:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources: [Host]
+    dependencies:
+      - target: FPSpikeExtension
+    info:
+      path: Host/Info.plist
+      properties:
+        UILaunchScreen: {}
+    entitlements:
+      path: Host/Host.entitlements
+      properties:
+        com.apple.security.application-groups: [group.dev.zack.fpspike]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.zack.fpspike
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+    scheme:
+      testTargets: [FPSpikeTests]
+
+  FPSpikeExtension:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources: [Extension]
+    info:
+      path: Extension/Info.plist
+      properties:
+        CFBundleDisplayName: FPSpike
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.fileprovider-nonui
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).Extension
+          NSExtensionFileProviderSupportsEnumeration: true
+          NSExtensionFileProviderDocumentGroup: group.dev.zack.fpspike
+    entitlements:
+      path: Extension/Extension.entitlements
+      properties:
+        com.apple.security.application-groups: [group.dev.zack.fpspike]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.zack.fpspike.extension
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+
+  FPSpikeTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources: [Tests]
+    dependencies:
+      - target: FPSpikeHost
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
