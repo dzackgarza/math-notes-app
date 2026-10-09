@@ -82,6 +82,11 @@ class EditorScreen extends StatefulWidget {
 
 class _EditorScreenState extends State<EditorScreen> {
   final scroll = ScrollController();
+  // The scroll position in document units and the fit it was read at: when
+  // the pane's size changes the fit, the view returns to the same place in the
+  // document, not the same pixel offset (which the scroll view also clamps).
+  double? scrolledFit;
+  double documentScroll = 0;
   final focus = FocusNode();
   bool applyingViewport = false;
   final transform = PageTransform();
@@ -342,6 +347,16 @@ class _EditorScreenState extends State<EditorScreen> {
     if (target == null) return;
     final matrix = transform.value;
     final scale = matrix.getMaxScaleOnAxis();
+    if (scroll.hasClients) {
+      final fitted = fit;
+      if (scrolledFit != null && scrolledFit != fitted) {
+        scroll.jumpTo(
+          (documentScroll * fitted).clamp(0.0, scroll.position.maxScrollExtent),
+        );
+      }
+      scrolledFit = fitted;
+      documentScroll = scroll.offset / fitted;
+    }
     final offset = scroll.hasClients ? scroll.offset : 0.0;
     updatePull();
     final ratio = web.window.devicePixelRatio;
