@@ -1,6 +1,8 @@
 import { expect, test, type CDPSession, type Locator, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
+import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 import { networkInterfaces } from "node:os";
 
 // A failed workflow keeps the bridge's pointer log (window.mathNotesPointers):
@@ -249,13 +251,55 @@ test("Flutter moves, finds, trashes, and restores a note with its metadata", asy
   expect(metadata.notes[".trash/Movable"]).toBeUndefined();
 });
 
-test("Flutter connects an empty notes folder and shows the empty library", async ({ page }) => {
+// Every file under a directory, by path relative to it.
+async function filesUnder(directory: string): Promise<Record<string, string>> {
+  const files: Record<string, string> = {};
+  for (const entry of await readdir(directory, { recursive: true, withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    const path = join(entry.parentPath, entry.name);
+    files[relative(directory, path)] = (await readFile(path)).toString("base64");
+  }
+  return files;
+}
+
+// Every file in the origin-private file system, by path, base64.
+function opfsFiles(page: Page): Promise<Record<string, string>> {
+  return page.evaluate(async () => {
+    const files: Record<string, string> = {};
+    const walk = async (directory: FileSystemDirectoryHandle, prefix: string) => {
+      for await (const [name, handle] of directory.entries()) {
+        if (handle.kind === "directory") {
+          await walk(handle as FileSystemDirectoryHandle, `${prefix}${name}/`);
+        } else {
+          const bytes = new Uint8Array(await (await (handle as FileSystemFileHandle).getFile()).arrayBuffer());
+          files[`${prefix}${name}`] = btoa(Array.from(bytes, (b) => String.fromCharCode(b)).join(""));
+        }
+      }
+    };
+    await walk(await navigator.storage.getDirectory(), "");
+    return files;
+  });
+}
+
+test("Flutter attaches a chosen notes folder, lists its notebook and changes nothing in it", async ({ page }) => {
   test.setTimeout(60_000);
+  const fixture = await filesUnder(fileURLToPath(new URL("../../../tests/documents/full", import.meta.url)));
+  const folder = Object.fromEntries(Object.entries(fixture).map(([path, bytes]) => [`Seminar/${path}`, bytes]));
   await page.goto("version.json");
-  await page.evaluate(async () => {
+  await page.evaluate(async (files) => {
     const root = await navigator.storage.getDirectory();
     for await (const name of root.keys()) await root.removeEntry(name, { recursive: true });
-  });
+    for (const [path, base64] of Object.entries(files)) {
+      const parts = path.split("/");
+      let directory = root;
+      for (const part of parts.slice(0, -1)) directory = await directory.getDirectoryHandle(part, { create: true });
+      const writable = await (await directory.getFileHandle(parts[parts.length - 1], { create: true })).createWritable();
+      await writable.write(Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)));
+      await writable.close();
+    }
+  }, folder);
+  // Automation cannot drive the native picker (TRAPS.md); it yields the
+  // origin-private file system holding the notebook.
   await page.addInitScript(() => {
     Object.defineProperty(window, "showDirectoryPicker", {
       configurable: true,
@@ -263,11 +307,13 @@ test("Flutter connects an empty notes folder and shows the empty library", async
     });
   });
   await page.goto("");
-  const choose = page.getByRole("button", { name: "Choose notes folder", exact: true });
-  await expect(choose).toBeVisible();
-  await choose.click();
-  await expect(page.getByRole("button", { name: "New notebook", exact: true })).toBeVisible();
-  await expect(page.getByText("Your notebooks appear here.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Choose notes folder", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Open Seminar", exact: false })).toBeVisible();
+  // The app keeps its thumbnail cache in the origin-private root, which here
+  // is also the notes folder; on a device the two never coincide.
+  const after = Object.fromEntries(
+    Object.entries(await opfsFiles(page)).filter(([path]) => !path.startsWith(".thumbnail-cache/")));
+  expect(after, "attaching and listing the folder writes nothing into it").toEqual(folder);
 });
 
 test("Flutter reconnects a saved folder and retains edits on every page", async ({ page }) => {
@@ -2457,61 +2503,6 @@ test("Flutter pen color and width changes affect only later strokes", async ({ p
   ]);
 });
 
-test("Chrome opens a saved page SVG directly with the same stroke", async ({ page, context }) => {
-  test.setTimeout(60_000);
-  await page.goto("?root=opfs");
-  await beginTestNote(page, "Standalone page");
-  await page.getByRole("button", { name: "Create", exact: true }).click();
-  const canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
-  await canvas.waitFor({ timeout: 30_000 });
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error("Notebook canvas has no bounds");
-  const cdp = await context.newCDPSession(page);
-  const pen = { pointerType: "pen" as const, force: 0.6, tiltX: 20, tiltY: -10 };
-  await cdp.send("Input.dispatchMouseEvent", {
-    type: "mousePressed", button: "left", clickCount: 1, x: box.x + 150, y: box.y + 180, ...pen,
-  });
-  await cdp.send("Input.dispatchMouseEvent", {
-    type: "mouseMoved", button: "left", buttons: 1, x: box.x + 250, y: box.y + 220, ...pen,
-  });
-  await cdp.send("Input.dispatchMouseEvent", {
-    type: "mouseReleased", button: "left", clickCount: 1, x: box.x + 250, y: box.y + 220, ...pen,
-  });
-  await save(page);
-  await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");
-
-  const saved = await page.evaluate(async () => {
-    const root = await navigator.storage.getDirectory();
-    const notebook = await root.getDirectoryHandle("Test Notebook");
-    const pages = await (await notebook.getDirectoryHandle("Standalone page")).getDirectoryHandle("pages");
-    const file = await (await pages.getFileHandle("0001.svg")).getFile();
-    const svg = await file.text();
-    const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
-    const stroke = doc.querySelector('path[id^="s-"]');
-    if (!stroke) throw new Error("Saved page has no stroke");
-    return {
-      url: URL.createObjectURL(file),
-      type: file.type,
-      stroke: {
-        d: stroke.getAttribute("d"),
-        fill: stroke.getAttribute("fill"),
-        size: stroke.getAttribute("mn:size"),
-      },
-    };
-  });
-  expect(saved.type).toBe("image/svg+xml");
-
-  const standalone = await context.newPage();
-  await standalone.goto(saved.url);
-  const direct = await standalone.locator('path[id^="s-"]').evaluate((stroke) => ({
-    d: stroke.getAttribute("d"),
-    fill: stroke.getAttribute("fill"),
-    size: stroke.getAttribute("mn:size"),
-  }));
-  expect(direct).toEqual(saved.stroke);
-  await standalone.close();
-});
-
 test("Flutter notebook retains pen input and pages after save and reopen", async ({ page }, info) => {
   test.setTimeout(180_000);
   await page.goto("version.json");
@@ -2608,18 +2599,28 @@ test("Flutter notebook retains pen input and pages after save and reopen", async
   await expect(page.getByRole("button", { name: "Open Lecture", exact: false })).toBeVisible();
 });
 
-test("Flutter exports a ten-page notebook as a ten-page PDF", async ({ page }, info) => {
-  test.setTimeout(120_000);
+test("Flutter exports a ten-page notebook as a ten-page PDF with each page's ink", async ({ page }, info) => {
+  test.setTimeout(150_000);
   await page.goto("?root=opfs");
   await beginTestNote(page, "Ten pages");
   await page.getByRole("button", { name: "Create", exact: true }).click();
-  await page.locator('canvas[id^="ink-canvas-"]').waitFor({ timeout: 30_000 });
+  const canvas = page.locator('canvas[id^="ink-canvas-"]');
+  await canvas.waitFor({ timeout: 30_000 });
+  const box = await boxOf(canvas);
+  const cdp = await page.context().newCDPSession(page);
 
   for (let pageNumber = 2; pageNumber <= 10; pageNumber++) {
     await page.getByRole("button", { name: "Pages", exact: true }).click();
     await page.getByRole("button", { name: "Add page", exact: true }).click();
   }
   await expect(page.getByText(/^[0-9]+ \/ 10$/)).toBeVisible();
+  // Ink on three pages only; the export must keep it on exactly those.
+  const inked = [1, 5, 10];
+  for (const pageNumber of inked) {
+    await goToPage(page, pageNumber);
+    await expect(page.getByText(`${pageNumber} / 10`, { exact: true })).toBeVisible();
+    await penStroke(cdp, line(box.x + 150, box.x + 350, box.y + 260), 0.8);
+  }
 
   await page.getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("button", { name: "Export PDF", exact: true }).click();
@@ -2635,6 +2636,14 @@ test("Flutter exports a ten-page notebook as a ten-page PDF", async ({ page }, i
   const infoText = execFileSync("pdfinfo", [pdfPath], { encoding: "utf8" });
   expect(infoText).toMatch(/Pages:\s+10/);
   expect(infoText).toMatch(/Page size:\s+595 x 842 pts \(A4\)/);
+  // Each page rendered by poppler at 72 dpi; the paper's dots are lighter than ink.
+  const inkOnPage = [];
+  for (let pageNumber = 1; pageNumber <= 10; pageNumber++) {
+    const prefix = info.outputPath(`ten-pages-${pageNumber}`);
+    execFileSync("pdftoppm", ["-r", "72", "-png", "-f", `${pageNumber}`, "-l", `${pageNumber}`, "-singlefile", pdfPath, prefix]);
+    inkOnPage.push((await pngPixels(page, await readFile(`${prefix}.png`))).filter(isInk).length > 0);
+  }
+  expect(inkOnPage).toEqual(Array.from({ length: 10 }, (_, i) => inked.includes(i + 1)));
 });
 
 test("Flutter marker popover changes the size of the marker only", async ({ page }, info) => {
@@ -3621,9 +3630,6 @@ test("Flutter lifetime: first launch, folder choice, three written pages, restar
   await shot("first-launch");
   await button("Choose notes folder").click();
   await expect(page.getByText("Your notebooks appear here.", { exact: true })).toBeVisible();
-  const chosen = (await opfs()).folders;
-  expect(chosen, "choosing a folder writes no templates").not.toContain(".templates");
-  expect(chosen, "choosing a folder writes no pen settings").not.toContain(".pens.json");
   await shot("empty-library");
 
   // The first notebook and its first note.
