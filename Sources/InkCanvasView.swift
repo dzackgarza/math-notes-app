@@ -15,6 +15,9 @@ struct EngineTextProperties: Codable, Equatable {
 final class InkCanvasView: UIView {
   override class var layerClass: AnyClass { CAMetalLayer.self }
 
+  private let document: EngineDocument
+  private var eraserActive = false
+  private var eraserStrokeStart: Int?
   private let device: any MTLDevice
   private let queue: any MTLCommandQueue
   private var canvas: OpaquePointer?
@@ -46,6 +49,7 @@ final class InkCanvasView: UIView {
     else {
       fatalError("Metal is unavailable")
     }
+    self.document = document
     self.device = device
     self.queue = queue
     self.onInteractionBegan = onInteractionBegan
@@ -141,6 +145,7 @@ final class InkCanvasView: UIView {
         operation: "ink_canvas_set_selector")
     }
 
+    eraserActive = tool == .eraser
     switch tool {
     case .eraser:
       if let selector = eraserMode.selectorValue {
@@ -278,6 +283,20 @@ final class InkCanvasView: UIView {
     if fingerHandled || pencilHandled {
       onInteractionEnded()
     }
+  }
+
+  // The unsaved changes; an eraser stroke that erased something changes them.
+  private func documentDigest() -> Int {
+    var hasher = Hasher()
+    do {
+      for change in try document.dirtyFiles() {
+        hasher.combine(change.path)
+        if case let .write(data) = change.kind { hasher.combine(data) }
+      }
+    } catch {
+      Log.ink.fault("reading unsaved changes failed: \(String(describing: error), privacy: .public)")
+    }
+    return hasher.finalize()
   }
 
   private func logDroppedInput(_ phase: String, _ touches: Set<UITouch>) {
@@ -430,6 +449,7 @@ final class InkCanvasView: UIView {
       if touch.phase == .began {
         pencilTouch = touch
         Log.ink.info("pencil stroke began")
+        eraserStrokeStart = eraserActive ? documentDigest() : nil
       } else if pencilTouch !== touch {
         Log.ink.error("pencil sample from an untracked touch dropped, phase=\(touch.phase.rawValue, privacy: .public)")
         continue
@@ -475,6 +495,12 @@ final class InkCanvasView: UIView {
       ink_input(canvas, buffer.baseAddress, buffer.count)
     }
     check(status, operation: "ink_input")
+    if let start = eraserStrokeStart,
+      touches.contains(where: { $0.type == .pencil && $0.phase == .ended })
+    {
+      eraserStrokeStart = nil
+      Log.ink.info("eraser stroke changed the document: \(self.documentDigest() != start, privacy: .public)")
+    }
     return status == INK_OK && touches.contains {
       $0.type == .pencil && ($0.phase == .ended || $0.phase == .cancelled)
     }
