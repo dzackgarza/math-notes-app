@@ -1447,9 +1447,11 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
 
   @objc private func keyboardSelectAll() {
     guard keyboardEditingAllowed else { return }
-    let center = CGPoint(x: canvasView.bounds.midX, y: canvasView.bounds.midY)
-    let page = reportedPage >= 0 ? reportedPage : (canvasView.page(at: center) ?? 0)
     do {
+      let count = try document.pageCount()
+      guard count > 0 else { return }
+      let center = CGPoint(x: canvasView.bounds.midX, y: canvasView.bounds.midY)
+      let page = min(max(canvasView.page(at: center) ?? reportedPage, 0), count - 1)
       try canvasView.selectAll(page: page)
       refreshSelectionBar()
     } catch {
@@ -1614,6 +1616,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
   }
 
   private func pasteFromPasteboard(at point: CGPoint, placeAtPointer: Bool = false) {
+    guard hostActive, editorDocumentMutationAllowed(
+      figureCaptureActive: figureCaptureActive, figureCompleting: figureCompleting),
+      canvasView.page(at: point) != nil
+    else { return }
     if let svg = selectionFromPasteboard(), svg.contains("<svg") {
       paste(svg, at: point, placeAtPointer: placeAtPointer)
       return

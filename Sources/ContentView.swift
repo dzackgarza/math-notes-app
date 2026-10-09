@@ -1032,6 +1032,7 @@ struct ContentView: View {
       Button("Page overview", systemImage: "square.grid.2x2") {
         showingPageOverview = true
       }
+      .keyboardShortcut("p", modifiers: [.command, .shift])
       .disabled(!availability.pageOverview)
       Button("Go to page", systemImage: "number") {
         goToPage = GoToPageRequest(
