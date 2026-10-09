@@ -16,21 +16,11 @@ private struct FigureEditorMessage: Decodable {
   let error: String?
 }
 
+// Builds the figure editor's web view and message bridge and loads the bundled
+// editor. The sheet and its tests load the editor through this one path.
 @MainActor
-private struct FigureEditorWebView: UIViewRepresentable {
-  let initialSource: String
-  let saveRevision: Int
-  let onEvent: (FigureEditorMessage) -> Void
-  let onError: (Error) -> Void
-
-  func makeCoordinator() -> Coordinator {
-    Coordinator(
-      initialSource: initialSource,
-      onEvent: onEvent,
-      onError: onError)
-  }
-
-  func makeUIView(context: Context) -> WKWebView {
+enum FigureEditorPage {
+  static func makeWebView(handler: WKScriptMessageHandler) throws -> WKWebView {
     let configuration = WKWebViewConfiguration()
     configuration.defaultWebpagePreferences.allowsContentJavaScript = true
     // Forwards the editor's protocol messages, and reports the page's own
@@ -60,27 +50,49 @@ private struct FigureEditorWebView: UIViewRepresentable {
         source: bridge,
         injectionTime: .atDocumentStart,
         forMainFrameOnly: true))
-    configuration.userContentController.add(context.coordinator, name: "mathNotesFigure")
-    configuration.userContentController.add(context.coordinator, name: "mathNotesFigureLog")
+    configuration.userContentController.add(handler, name: "mathNotesFigure")
+    configuration.userContentController.add(handler, name: "mathNotesFigureLog")
 
     let webView = WKWebView(frame: .zero, configuration: configuration)
-    context.coordinator.webView = webView
-    webView.navigationDelegate = context.coordinator
-
     guard let index = Bundle.main.url(
       forResource: "index",
       withExtension: "html",
       subdirectory: "TikZEditor")
     else {
-      onError(
-        NSError(
-          domain: "MathNotes.FigureEditor",
-          code: 1,
-          userInfo: [NSLocalizedDescriptionKey: "Missing bundled TikZ editor."]))
-      return webView
+      throw NSError(
+        domain: "MathNotes.FigureEditor",
+        code: 1,
+        userInfo: [NSLocalizedDescriptionKey: "Missing bundled TikZ editor."])
     }
     webView.loadFileURL(index, allowingReadAccessTo: index.deletingLastPathComponent())
     return webView
+  }
+}
+
+@MainActor
+private struct FigureEditorWebView: UIViewRepresentable {
+  let initialSource: String
+  let saveRevision: Int
+  let onEvent: (FigureEditorMessage) -> Void
+  let onError: (Error) -> Void
+
+  func makeCoordinator() -> Coordinator {
+    Coordinator(
+      initialSource: initialSource,
+      onEvent: onEvent,
+      onError: onError)
+  }
+
+  func makeUIView(context: Context) -> WKWebView {
+    do {
+      let webView = try FigureEditorPage.makeWebView(handler: context.coordinator)
+      context.coordinator.webView = webView
+      webView.navigationDelegate = context.coordinator
+      return webView
+    } catch {
+      onError(error)
+      return WKWebView(frame: .zero)
+    }
   }
 
   func updateUIView(_ webView: WKWebView, context: Context) {
