@@ -36,6 +36,17 @@ jobs:
             -scheme FPSpikeHost \
             -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}"
 
+      - name: PluginKit registration of the extension
+        if: ${{ !cancelled() }}
+        run: |
+          xcrun simctl spawn "${{ steps.simulator.outputs.udid }}" pluginkit -mAvvv -p com.apple.fileprovider-nonui
+          app=$(find ~/Library/Developer/Xcode/DerivedData -path '*Debug-iphonesimulator/FPSpikeHost.app' -maxdepth 6 | head -1)
+          codesign -d --entitlements - "$app/PlugIns/FPSpikeExtension.appex"
+          plutil -p "$app/PlugIns/FPSpikeExtension.appex/Info.plist"
+          xcrun simctl spawn "${{ steps.simulator.outputs.udid }}" log show --last 10m --style compact \
+            --predicate 'process == "pkd" OR subsystem == "com.apple.PlugInKit" OR eventMessage CONTAINS[c] "fpspike"' \
+            | grep -iE "fpspike|reject|ignor|sandbox|invalid|fileprovider" | tail -80
+
       - name: File Provider logs
         if: ${{ !cancelled() }}
         run: |
