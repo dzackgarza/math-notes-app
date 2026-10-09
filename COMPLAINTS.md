@@ -383,3 +383,25 @@ The docs also conflict on the figure editor: `tikz-drawing-mode.md` and `ARCHITE
 2. S2, S5 and S7: move the remaining I/O off the main thread with metadata-only listings.
 3. S3, E2 and E3 as framework adoptions, once you've decided.
 4. The rest.
+
+# iPad host: hand-built save lifecycle instead of UIDocument (2026-10-09)
+
+I didn't claim that, and the reviewing agent didn't either. Your diagnosis is right in substance, though. Looking at the code:
+
+- The save is debounced. scheduleAutosave cancels the previous save task and waits one second (OpenNotesState.swift:98-122).
+- The recovery checkpoint is not debounced. It runs synchronously on every stroke commit, before the debounce, via onEditCommitted → scheduleNotebookSave → checkpointRecovery. Each time, it serializes every unsaved file and writes a recovery record on the main thread, inside the pencil-lift handler. That's the per-stroke coordinated write in your capture. It's I/O on the touch path that grows with how many pages you've changed since the last save.
+
+What reference implementations do instead is let the framework own this. On iOS that's UIDocument:
+
+- Change tracking: edits are recorded with updateChangeCount(.done), which is cheap and touches no files.
+- Autosave: the system saves periodically and on backgrounding, writing in place.
+- Background writes: data is captured on the main thread with contents(forType:), and the file write happens on a background queue.
+- Coordination and conflicts: writes are file-coordinated, and conflicts are surfaced through NSFileVersion.
+- Crash safety: comes from the autosave and atomic writes, not from a hand-built per-stroke recovery journal.
+
+Our storage layer reimplements all of that by hand in NotebookStorage and OpenNotesState, on the main thread. That's the same class of mistake as the main-thread reads you hit at launch.
+
+There are two ways to fix it:
+
+1. Move document saving onto UIDocument, recommended. Each open notebook becomes a UIDocument subclass whose contents are its dirty files. Edits mark changes, and the system handles autosave, background writes, coordination and conflict versions. The hand-written save, autosave and recovery-checkpoint code is deleted. This changes the storage architecture, so AGENTS.md requires your explicit approval and a written decision before I build it.
+2. Patch inside the current design. Fold the checkpoint into the existing one-second debounce and move its serialization and write off the main thread. It's smaller, but it keeps a hand-built save system that the framework already provides.
