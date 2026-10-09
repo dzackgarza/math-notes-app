@@ -22,10 +22,11 @@ on:
 permissions:
   contents: write
   checks: read
-# Releases must land in run order so the newest one is "latest".
+# One release run at a time; a newer push to main cancels the run it
+# supersedes, so the newest commit is the one built, tested and published.
 concurrency:
   group: ${{ github.ref == 'refs/heads/main' && 'release' || github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   VERSION: 0.1.${{ github.run_number }}
