@@ -201,6 +201,12 @@ jobs:
         run: |
           xcrun xcresulttool get build-results --path build/AppTests.xcresult
           xcrun xcresulttool get test-results summary --path build/AppTests.xcresult
+          # When the app itself never built, its own build says why.
+          xcodebuild -project MathNotes.xcodeproj -scheme MathNotes -showBuildSettings \
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
+            | grep -E '^ +(TARGET_NAME|PRODUCT_NAME|TEST_HOST|BUILT_PRODUCTS_DIR|SUPPORTED_PLATFORMS|SDKROOT) ='
+          xcodebuild build -project MathNotes.xcodeproj -target MathNotes -sdk iphonesimulator \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tail -120
 
       - uses: actions/upload-artifact@v7
         if: ${{ failure() && steps.app-tests.conclusion == 'failure' }}
