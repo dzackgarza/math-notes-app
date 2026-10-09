@@ -61,8 +61,26 @@ jobs:
           xcrun simctl boot "$udid"
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
 
+      # Pinned release binaries: brew install took from 3 s to over 2 min per run.
       - name: Install tools
-        run: brew install xcodegen ninja ccache
+        run: |
+          set -euo pipefail
+          tools="$RUNNER_TEMP/tools"
+          mkdir -p "$tools/bin"
+          cd "$tools"
+          curl -fsSLo xcodegen.zip https://github.com/yonaskolb/XcodeGen/releases/download/2.46.0/xcodegen.zip
+          curl -fsSLo ninja-mac.zip https://github.com/ninja-build/ninja/releases/download/v1.13.2/ninja-mac.zip
+          curl -fsSLo ccache.tar.gz https://github.com/ccache/ccache/releases/download/v4.14.1/ccache-4.14.1-darwin.tar.gz
+          shasum -a 256 -c <<'SUMS'
+          4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806  xcodegen.zip
+          c99048673aa765960a99cf10c6ddb9f1fad506099ff0a0e137ad8960a88f321b  ninja-mac.zip
+          c279fa81e2e806b4d9e64d4a06cb569a84ef54151feef796e5d4f4e95a464563  ccache.tar.gz
+          SUMS
+          unzip -q xcodegen.zip && cp xcodegen/bin/xcodegen bin/
+          unzip -q ninja-mac.zip -d bin
+          tar xzf ccache.tar.gz && cp ccache-4.14.1-darwin/ccache bin/
+          echo "$tools/bin" >> "$GITHUB_PATH"
+          bin/xcodegen --version && bin/ninja --version && bin/ccache --version | head -1
 
       - name: Restore compiler cache
         uses: actions/cache/restore@v6
