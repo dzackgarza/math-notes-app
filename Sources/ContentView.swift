@@ -2229,7 +2229,7 @@ struct ContentView: View {
             "Open link",
             "No application can open this link.")
         }
-        UIApplication.shared.open(url, options: [:])
+        _ = await UIApplication.shared.open(url, options: [:])
 
       case let .page(reference, file, id):
         let session = try await sessionToOpen(reference, using: root)
