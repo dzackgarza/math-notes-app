@@ -63,6 +63,9 @@ targets:
             LSItemContentTypes:
               - com.adobe.pdf
         UILaunchScreen: {}
+        # As the web host (theme.dart: Brightness.light): system surfaces carry the
+        # app's ink-colored text, which dark system surfaces would hide.
+        UIUserInterfaceStyle: Light
         UIAppFonts:
           - AlegreyaSans-Regular.ttf
           - AlegreyaSans-Medium.ttf
