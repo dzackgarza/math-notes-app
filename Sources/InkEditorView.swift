@@ -4,6 +4,7 @@ import QuartzCore
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
+import os
 
 private let notebookSelectionDragType = UTType(
   exportedAs: "dev.zack.mathnotes.selection-drag")
@@ -2660,6 +2661,8 @@ private struct InkEditorHost: UIViewControllerRepresentable {
   }
 
   func updateUIViewController(_ uiViewController: InkEditorViewController, context: Context) {
+    Log.ink.info(
+      "editor update tool=\(String(describing: tool), privacy: .public) eraser=\(String(describing: eraserMode), privacy: .public) selector=\(String(describing: selectorMode), privacy: .public) space=\(String(describing: spaceMode), privacy: .public) active=\(active, privacy: .public) focused=\(focused, privacy: .public) fingerDraws=\(fingerDraws, privacy: .public) bookmarkMode=\(bookmarkMode, privacy: .public) clippingsOpen=\(clippingsOpen, privacy: .public) linked=\(linked, privacy: .public) revision=\(revision, privacy: .public) targetPage=\(targetPage, privacy: .public) navigationRevision=\(navigationRevision, privacy: .public) fitRevision=\(fitRevision, privacy: .public) layer=\(activeLayerID ?? "none", privacy: .public) arrangement=\(String(describing: arrangement), privacy: .public) pageCommand=\(pageCommand.map { String(describing: $0) } ?? "none", privacy: .public)")
     uiViewController.applyHostState(
       tool: tool,
       eraserMode: eraserMode,

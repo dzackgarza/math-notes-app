@@ -16,8 +16,7 @@ final class InkCanvasView: UIView {
   override class var layerClass: AnyClass { CAMetalLayer.self }
 
   private let document: EngineDocument
-  private var eraserActive = false
-  private var eraserStrokeStart: Int?
+  private var strokeStartDigest: Int?
   private let device: any MTLDevice
   private let queue: any MTLCommandQueue
   private var canvas: OpaquePointer?
@@ -145,7 +144,6 @@ final class InkCanvasView: UIView {
         operation: "ink_canvas_set_selector")
     }
 
-    eraserActive = tool == .eraser
     switch tool {
     case .eraser:
       if let selector = eraserMode.selectorValue {
@@ -264,14 +262,6 @@ final class InkCanvasView: UIView {
     let pencilCancelled = touches.contains { $0 === pencilTouch }
     Log.ink.error(
       "UIKit cancelled touches: pencilStroke=\(pencilCancelled, privacy: .public) count=\(touches.count, privacy: .public)")
-    // The recognizer that began or recognized with cancelsTouchesInView is the one
-    // that took the touch from the canvas.
-    for touch in touches {
-      for recognizer in touch.gestureRecognizers ?? [] {
-        Log.ink.error(
-          "  recognizer \(String(describing: type(of: recognizer)), privacy: .public) state=\(recognizer.state.rawValue, privacy: .public) cancels=\(recognizer.cancelsTouchesInView, privacy: .public) view=\(recognizer.view.map { String(describing: type(of: $0)) } ?? "none", privacy: .public) name=\(recognizer.name ?? "", privacy: .public)")
-      }
-    }
     let fingerHandled = sendFingerTouches(touches, event: event)
     let pencilHandled = sendPencilTouches(touches, event: event)
     if pencilCancelled {
@@ -285,7 +275,7 @@ final class InkCanvasView: UIView {
     }
   }
 
-  // The unsaved changes; an eraser stroke that erased something changes them.
+  // The unsaved changes; a stroke that drew or erased something changes them.
   private func documentDigest() -> Int {
     var hasher = Hasher()
     do {
@@ -449,7 +439,7 @@ final class InkCanvasView: UIView {
       if touch.phase == .began {
         pencilTouch = touch
         Log.ink.info("pencil stroke began")
-        eraserStrokeStart = eraserActive ? documentDigest() : nil
+        strokeStartDigest = documentDigest()
       } else if pencilTouch !== touch {
         Log.ink.error("pencil sample from an untracked touch dropped, phase=\(touch.phase.rawValue, privacy: .public)")
         continue
@@ -495,11 +485,11 @@ final class InkCanvasView: UIView {
       ink_input(canvas, buffer.baseAddress, buffer.count)
     }
     check(status, operation: "ink_input")
-    if let start = eraserStrokeStart,
+    if let start = strokeStartDigest,
       touches.contains(where: { $0.type == .pencil && $0.phase == .ended })
     {
-      eraserStrokeStart = nil
-      Log.ink.info("eraser stroke changed the document: \(self.documentDigest() != start, privacy: .public)")
+      strokeStartDigest = nil
+      Log.ink.info("pencil stroke changed the document: \(self.documentDigest() != start, privacy: .public)")
     }
     return status == INK_OK && touches.contains {
       $0.type == .pencil && ($0.phase == .ended || $0.phase == .cancelled)
@@ -767,11 +757,13 @@ final class InkCanvasView: UIView {
     guard let canvas else { return }
     var drew: Int32 = 0
     check(ink_render(canvas, &drew), operation: "ink_render")
+    if drew != 0 { Log.ink.debug("frame drawn") }
   }
 
   // Release builds compile assertionFailure away, so the fault log is what
   // records an engine failure on the device.
   private func check(_ status: InkStatus, operation: String) {
+    Log.ink.debug("\(operation, privacy: .public) status=\(status.rawValue, privacy: .public)")
     guard status != INK_OK else { return }
     let message = EngineDocument.lastError()
     Log.ink.fault("\(operation, privacy: .public) failed: \(message, privacy: .public)")
