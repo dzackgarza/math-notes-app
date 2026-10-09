@@ -437,6 +437,10 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     let secondaryClick = UITapGestureRecognizer(target: self, action: #selector(handlePageSecondaryClick))
     secondaryClick.name = "canvas.secondaryClick"
     secondaryClick.buttonMaskRequired = .secondary
+    // A secondary click comes only from a mouse or trackpad. Accepting pencil
+    // touches, it recognized short pencil strokes as taps on lift and, with
+    // cancelsTouchesInView, cancelled them.
+    secondaryClick.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.indirectPointer.rawValue)]
     canvasView.addGestureRecognizer(secondaryClick)
     canvasView.addInteraction(UIDragInteraction(delegate: self))
     canvasView.addInteraction(UIDropInteraction(delegate: self))
@@ -451,6 +455,9 @@ final class InkEditorViewController: UIViewController, UIScrollViewDelegate, UIE
     let pencilTap = UITapGestureRecognizer(target: self, action: #selector(handlePencilModeTap))
     pencilTap.name = "canvas.pencilTap"
     pencilTap.cancelsTouchesInView = false
+    // While a tap is possible UIKit would hold the stroke's lift back and, once
+    // the tap recognized, deliver it as touchesCancelled (delaysTouchesEnded).
+    pencilTap.delaysTouchesEnded = false
     pencilTap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.pencil.rawValue)]
     canvasView.addGestureRecognizer(pencilTap)
 
@@ -2991,8 +2998,6 @@ struct InkEditorView: View {
         canDrop: { !drawing },
         onFocus: onFocus,
         onDropClipping: onDropClipping))
-    .simultaneousGesture(
-      TapGesture().onEnded { onFocus() })
     .onChange(of: documentRevision) {
       normalizeViewState()
     }
