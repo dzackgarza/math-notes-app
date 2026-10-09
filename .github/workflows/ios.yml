@@ -76,7 +76,9 @@ jobs:
           c99048673aa765960a99cf10c6ddb9f1fad506099ff0a0e137ad8960a88f321b  ninja-mac.zip
           c279fa81e2e806b4d9e64d4a06cb569a84ef54151feef796e5d4f4e95a464563  ccache.tar.gz
           SUMS
-          unzip -q xcodegen.zip && cp xcodegen/bin/xcodegen bin/
+          # XcodeGen reads its setting presets from share/ beside bin/; its own
+          # installer puts both there.
+          unzip -q xcodegen.zip && xcodegen/install.sh "$tools"
           unzip -q ninja-mac.zip -d bin
           tar xzf ccache.tar.gz && cp ccache-4.14.1-darwin/ccache bin/
           echo "$tools/bin" >> "$GITHUB_PATH"
