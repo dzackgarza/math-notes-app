@@ -1,0 +1,182 @@
+import Hammer
+import InkEngine
+import SwiftUI
+import UIKit
+import XCTest
+
+@testable import MathNotes
+
+// On the device small strokes vanished as the pencil lifted, larger ones at
+// random, and erasing sometimes did nothing. This drives the editor pane the
+// app shows for an open note with pencil events through UIKit's real event
+// path (Hammer), lets the app's own autosave write the notebook, and counts the
+// strokes in the page file it wrote.
+@MainActor
+final class PencilStrokeWorkflowTests: XCTestCase {
+  private var window: UIWindow?
+  private var directory: URL?
+
+  override func tearDown() async throws {
+    window?.isHidden = true
+    window = nil
+    if let directory { try FileManager.default.removeItem(at: directory) }
+  }
+
+  func testPencilStrokesAndStrokeEraseReachTheSavedPage() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    self.directory = directory
+    let root = try NotesRootAccess(selectedURL: directory)
+    let (reference, document) = try root.createNote(
+      title: "Pencil Workflow",
+      parent: FolderReference(path: []),
+      template: "blank",
+      pageSize: INK_PAGE_A4,
+      orientation: INK_PORTRAIT)
+    let session = OpenNotebookSession(reference: reference, document: document)
+    let state = EditorWorkflowState()
+
+    let scene = try XCTUnwrap(
+      UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+    let window = UIWindow(windowScene: scene)
+    window.rootViewController = UIHostingController(
+      rootView: EditorWorkflowHost(session: session, state: state) {
+        // ContentView.scheduleNotebookSave and saveSession, against this root.
+        session.scheduleAutosave(
+          checkpoint: { try root.checkpointRecovery(session.document, notebook: session.reference) }
+        ) {
+          do {
+            try session.performSave { try root.save(session.document, notebook: session.reference) }
+          } catch {
+            XCTFail("autosave failed: \(error)")
+          }
+        }
+      })
+    window.makeKeyAndVisible()
+    self.window = window
+
+    let events = try EventGenerator(window: window)
+    try events.waitUntilWindowIsReady()
+    let canvas = try XCTUnwrap(firstSubview(of: InkCanvasView.self, in: window))
+    let center = canvas.convert(CGPoint(x: canvas.bounds.midX, y: canvas.bounds.midY), to: nil)
+
+    // A short tick, the kind that vanished on lift.
+    try events.stylusDown(at: center, azimuth: 0.8, altitude: 0.9, pressure: 0.5)
+    try events.stylusMove(to: CGPoint(x: center.x + 6, y: center.y + 4), duration: 0.05)
+    try events.stylusUp()
+    try awaitSaved(session)
+    XCTAssertEqual(try savedStrokeCount(directory, reference), 1, "the short pencil stroke was not saved")
+
+    // A long stroke across the page.
+    let rowY = center.y + 80
+    try events.stylusDown(at: CGPoint(x: center.x - 150, y: rowY), azimuth: 0.8, altitude: 0.9, pressure: 0.5)
+    try events.stylusMove(to: CGPoint(x: center.x + 150, y: rowY), duration: 0.5)
+    try events.stylusUp()
+    try awaitSaved(session)
+    XCTAssertEqual(try savedStrokeCount(directory, reference), 2, "the long pencil stroke was not saved")
+
+    // The stroke eraser drawn across the long stroke removes it and only it.
+    state.tool = .eraser
+    try events.stylusDown(at: CGPoint(x: center.x, y: rowY - 40), azimuth: 0.8, altitude: 0.9, pressure: 0.5)
+    try events.stylusMove(to: CGPoint(x: center.x, y: rowY + 40), duration: 0.3)
+    try events.stylusUp()
+    try awaitSaved(session)
+    XCTAssertEqual(try savedStrokeCount(directory, reference), 1, "the stroke eraser did not remove the long stroke")
+  }
+
+  // The app's autosave runs a second after the last edit; this waits for the
+  // edit's save to finish, bounded so a save that never runs fails the test.
+  private func awaitSaved(_ session: OpenNotebookSession) throws {
+    let unsaved = expectation(for: NSPredicate { _, _ in session.saveStatus != .saved }, evaluatedWith: nil)
+    wait(for: [unsaved], timeout: 5)
+    let saved = expectation(for: NSPredicate { _, _ in session.saveStatus == .saved }, evaluatedWith: nil)
+    wait(for: [saved], timeout: 5)
+  }
+
+  private func savedStrokeCount(_ directory: URL, _ reference: NotebookReference) throws -> Int {
+    let page = directory.appendingPathComponent(reference.name, isDirectory: true)
+      .appendingPathComponent("pages/0001.svg")
+    let counter = BrushElementCounter()
+    let parser = try XCTUnwrap(XMLParser(contentsOf: page))
+    parser.delegate = counter
+    XCTAssertTrue(parser.parse(), "the saved page is not well-formed: \(String(describing: parser.parserError))")
+    return counter.strokes
+  }
+
+  private func firstSubview<T: UIView>(of type: T.Type, in view: UIView) -> T? {
+    if let match = view as? T { return match }
+    for subview in view.subviews {
+      if let match = firstSubview(of: type, in: subview) { return match }
+    }
+    return nil
+  }
+}
+
+// Each saved stroke is an element carrying its brush (mn:brush).
+private final class BrushElementCounter: NSObject, XMLParserDelegate {
+  var strokes = 0
+
+  func parser(
+    _ parser: XMLParser,
+    didStartElement elementName: String,
+    namespaceURI: String?,
+    qualifiedName: String?,
+    attributes: [String: String]
+  ) {
+    if attributes["mn:brush"] != nil { strokes += 1 }
+  }
+}
+
+@MainActor
+@Observable
+final class EditorWorkflowState {
+  var penLibrary = EditorPenLibrary.defaults
+  var tool: EditorTool = .pen
+  var drawingTool: EditorTool = .pen
+  var eraserMode: EditorEraserMode = .stroke
+  var selectorMode: EditorSelectorMode = .freehand
+  var spaceMode: EditorSpaceMode = .reflow
+  var previousPencilTool: EditorTool?
+}
+
+// The editor pane with ContentView's initial tool state for one open note.
+private struct EditorWorkflowHost: View {
+  let session: OpenNotebookSession
+  @Bindable var state: EditorWorkflowState
+  let onEditCommitted: () -> Void
+
+  var body: some View {
+    NotebookEditorPane(
+      session: session,
+      viewState: session.primaryView,
+      active: true,
+      focused: true,
+      linked: false,
+      linkedViewport: nil,
+      arrangement: .vertical,
+      fingerDraws: false,
+      hiddenTools: [],
+      penLibrary: $state.penLibrary,
+      tool: $state.tool,
+      drawingTool: $state.drawingTool,
+      eraserMode: $state.eraserMode,
+      selectorMode: $state.selectorMode,
+      spaceMode: $state.spaceMode,
+      previousPencilTool: $state.previousPencilTool,
+      onFocus: {},
+      onViewportChanged: { _ in },
+      onEditCommitted: onEditCommitted,
+      onSaveRequested: {},
+      onPensChanged: { _ in },
+      onInsertImage: {},
+      clippingsOpen: false,
+      onShowClippings: {},
+      onSaveClipping: { _ in },
+      onLinkSelectionRequested: { _ in },
+      onFollowLink: { _, _ in },
+      onDropClipping: { _, _ in false },
+      onEditFigure: { _ in },
+      onError: { XCTFail("editor error: \($0)") })
+  }
+}

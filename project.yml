@@ -5,6 +5,10 @@ packages:
   MJRefresh:
     url: https://github.com/CoderMJLee/MJRefresh
     exactVersion: 3.7.9
+  # Touch and stylus synthesis through UIKit's event path; private APIs, so tests only.
+  Hammer:
+    url: https://github.com/lyft/Hammer
+    exactVersion: 0.18.0
 targets:
   MathNotes:
     type: application
@@ -100,6 +104,7 @@ targets:
       - target: MathNotes
       - framework: build/InkEngine.xcframework
         embed: false
+      - package: Hammer
       - sdk: libc++.tbd
     settings:
       base:

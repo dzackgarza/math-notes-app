@@ -35,7 +35,7 @@ private struct DeletedPageToast: Identifiable {
 }
 
 @MainActor
-private struct NotebookEditorPane: View {
+struct NotebookEditorPane: View {
   @Bindable var session: OpenNotebookSession
   @Bindable var viewState: OpenNotebookViewState
   let active: Bool
