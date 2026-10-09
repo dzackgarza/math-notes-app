@@ -1,7 +1,8 @@
 name: Spike - File Provider in the iPad Simulator
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [spike/fileprovider-sim]
 
 jobs:
   spike:
