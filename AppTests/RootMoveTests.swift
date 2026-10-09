@@ -21,8 +21,8 @@ final class RootMoveTests: XCTestCase {
       orientation: INK_PORTRAIT)
     XCTAssertEqual(try root.notebooks(), [reference])
 
-    try FileManager.default.moveItem(at: original, to: moved)
-    root.simulatePresentedRootMove(to: moved)
+    try coordinatedMove(original, to: moved)
+    awaitRootURL(root, moved, in: self)
 
     XCTAssertEqual(root.url.standardizedFileURL, moved.standardizedFileURL)
     XCTAssertEqual(try root.notebooks(), [reference])

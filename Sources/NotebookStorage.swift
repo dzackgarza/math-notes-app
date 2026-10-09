@@ -733,7 +733,14 @@ private struct NotebookRecoveryRecord: Codable {
 private final class RootFilePresenter: NSObject, NSFilePresenter {
   private let urlLock = NSLock()
   private var itemURL: URL?
-  let presentedItemOperationQueue: OperationQueue = .main
+  // Its own serial queue: on the main queue it would wait on the main thread
+  // that a coordinated write there blocks (NSFileCoordinator init(filePresenter:)).
+  let presentedItemOperationQueue: OperationQueue = {
+    let queue = OperationQueue()
+    queue.name = "dev.zack.mathnotes.root-presenter"
+    queue.maxConcurrentOperationCount = 1
+    return queue
+  }()
   var onChange: (() -> Void)?
   var onMove: ((URL) -> Void)?
 
@@ -776,9 +783,7 @@ private final class RootFilePresenter: NSObject, NSFilePresenter {
     completionHandler: @escaping ((any Error)?) -> Void
   ) {
     completionHandler(nil)
-    DispatchQueue.main.async { [weak self] in
-      self?.onChange?()
-    }
+    onChange?()
   }
 
   func presentedSubitem(at oldURL: URL, didMoveTo newURL: URL) {
@@ -899,10 +904,14 @@ final class NotesRootAccess {
 #endif
 
   private func configurePresenterCallbacks() {
+    // The presenter calls back on its own queue; the root and its owner live
+    // on the main thread.
     presenter.onMove = { [weak self] newURL in
-      self?.adoptRootURL(newURL, refreshBookmark: true)
+      DispatchQueue.main.async { self?.adoptRootURL(newURL, refreshBookmark: true) }
     }
-    presenter.onChange = { [weak self] in self?.onChange?() }
+    presenter.onChange = { [weak self] in
+      DispatchQueue.main.async { self?.onChange?() }
+    }
   }
 
   private func refreshRootLocationFromSavedBookmark() {
@@ -933,12 +942,6 @@ final class NotesRootAccess {
       try? Self.saveBookmark(for: newURL)
     }
   }
-
-#if DEBUG
-  func simulatePresentedRootMove(to newURL: URL) {
-    presenter.presentedItemDidMove(to: newURL)
-  }
-#endif
 
   static func restore() -> NotesRootAccess? {
     guard let bookmark = UserDefaults.standard.data(forKey: bookmarkKey) else {
@@ -2999,7 +3002,7 @@ final class NotesRootAccess {
     let destinationParent = destination.deletingLastPathComponent()
     var coordinatorError: NSError?
     var result: Result<Void, Error>?
-    let coordinator = NSFileCoordinator()
+    let coordinator = NSFileCoordinator(filePresenter: presenter)
     coordinator.coordinate(
       writingItemAt: source,
       options: .forMoving,
@@ -3114,7 +3117,8 @@ final class NotesRootAccess {
     var coordinatorError: NSError?
     var result: Result<T, Error>?
     let started = ContinuousClock.now
-    NSFileCoordinator().coordinate(
+    // With the root presenter, the app is not told about its own writes.
+    NSFileCoordinator(filePresenter: presenter).coordinate(
       writingItemAt: target,
       options: options,
       error: &coordinatorError

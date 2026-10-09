@@ -42,8 +42,8 @@ final class CrossNotebookRootMoveLinkTests: XCTestCase {
       target: target,
       mark: targetPage)
 
-    try FileManager.default.moveItem(at: original, to: moved)
-    root.simulatePresentedRootMove(to: moved)
+    try coordinatedMove(original, to: moved)
+    awaitRootURL(root, moved, in: self)
 
     let resolved = try NotebookLink.resolve(
       source: source,
