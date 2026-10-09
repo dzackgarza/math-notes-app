@@ -1011,7 +1011,7 @@ final class NotesRootAccess {
   }
 
   func notebooks() throws -> [NotebookReference] {
-    try Self.coordinatedRead(at: url) { root in
+    try Self.coordinatedListing(at: url) { root in
       let fileManager = FileManager.default
       var notebooks: [NotebookReference] = []
 
@@ -1046,7 +1046,7 @@ final class NotesRootAccess {
   }
 
   func folders() throws -> [FolderReference] {
-    try Self.coordinatedRead(at: url) { root in
+    try Self.coordinatedListing(at: url) { root in
       let fileManager = FileManager.default
       var folders = [FolderReference(path: [])]
 
@@ -2979,7 +2979,7 @@ final class NotesRootAccess {
 
   private func entryNames(at path: [String]) throws -> [String] {
     let directory = urlForPath(path)
-    return try Self.coordinatedRead(at: directory) { coordinatedDirectory in
+    return try Self.coordinatedListing(at: directory) { coordinatedDirectory in
       try FileManager.default.contentsOfDirectory(atPath: coordinatedDirectory.path)
     }
   }
@@ -3028,7 +3028,7 @@ final class NotesRootAccess {
   }
 
   private func itemExists(at path: [String]) throws -> Bool {
-    try Self.coordinatedRead(at: url) { root in
+    try Self.coordinatedListing(at: url) { root in
       let target = path.reduce(root) { partial, component in
         partial.appendingPathComponent(component)
       }
@@ -3083,12 +3083,30 @@ final class NotesRootAccess {
     at target: URL,
     _ body: (URL) throws -> T
   ) throws -> T {
+    try coordinatedRead(at: target, options: [], body)
+  }
+
+  // A listing or existence check: metadata only, so a file provider grants
+  // access at once instead of downloading contents first
+  // (NSFileCoordinator.ReadingOptions.immediatelyAvailableMetadataOnly).
+  private static func coordinatedListing<T>(
+    at target: URL,
+    _ body: (URL) throws -> T
+  ) throws -> T {
+    try coordinatedRead(at: target, options: .immediatelyAvailableMetadataOnly, body)
+  }
+
+  private static func coordinatedRead<T>(
+    at target: URL,
+    options: NSFileCoordinator.ReadingOptions,
+    _ body: (URL) throws -> T
+  ) throws -> T {
     var coordinatorError: NSError?
     var result: Result<T, Error>?
     let started = ContinuousClock.now
     NSFileCoordinator().coordinate(
       readingItemAt: target,
-      options: [],
+      options: options,
       error: &coordinatorError
     ) { coordinatedURL in
       result = Result { try body(coordinatedURL) }
