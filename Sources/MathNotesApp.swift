@@ -31,7 +31,11 @@ final class MathNotesSceneDelegate: NSObject, UIWindowSceneDelegate, ObservableO
     incomingDocument = nil
   }
 
+  // SideStore adds the scheme sidestore-<bundle identifier> to the apps it
+  // installs, and its Open button launches the app with that URL: a launch,
+  // not a document.
   func receiveIncomingDocumentURL(_ url: URL) {
+    if url.scheme?.lowercased() == "sidestore-\(Bundle.main.bundleIdentifier!)".lowercased() { return }
     incomingDocument = IncomingDocument(url: url)
   }
 
