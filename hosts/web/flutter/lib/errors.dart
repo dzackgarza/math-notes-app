@@ -1,4 +1,5 @@
 import 'dart:js_interop';
+import 'dart:ui' show SemanticsRole;
 
 import 'package:flutter/cupertino.dart';
 import 'package:overlay_support/overlay_support.dart';
@@ -20,13 +21,18 @@ void showError(Object error, [StackTrace? stack]) {
         Flexible(
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('Error', style: subhead.copyWith(color: destructive)),
-                Text(error.toString(), style: callout),
-              ],
+            child: Semantics(
+              container: true,
+              role: SemanticsRole.alert,
+              liveRegion: true,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Error', style: subhead.copyWith(color: destructive)),
+                  Text(error.toString(), style: callout),
+                ],
+              ),
             ),
           ),
         ),

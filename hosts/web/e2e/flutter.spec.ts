@@ -3617,11 +3617,11 @@ test("Flutter at a LAN address says the address is not secure and names the loca
   if (!baseURL) throw new Error("The Playwright configuration has no baseURL");
   await page.goto(lanAddress(baseURL));
   expect(await page.evaluate(() => window.isSecureContext), "the LAN address is not a secure context").toBe(false);
-  const error = page.getByRole("button", { name: /is not a secure address/ });
+  const error = page.getByRole("alert", { name: /is not a secure address/ });
   await expect(error).toBeVisible();
   await expect(error).toHaveAccessibleName(new RegExp(`Open http://localhost${new URL(baseURL).pathname} on this machine`));
-  await expect(page.getByRole("button", { name: /reading 'controller'/ }), "the service worker failure is not a second error").toHaveCount(0);
-  await expect(page.getByRole("button", { name: /showDirectoryPicker/ })).toHaveCount(0);
+  await expect(page.getByRole("alert", { name: /reading 'controller'/ }), "the service worker failure is not a second error").toHaveCount(0);
+  await expect(page.getByRole("alert", { name: /showDirectoryPicker/ })).toHaveCount(0);
   await page.screenshot({ path: info.outputPath("lan-address.png") });
 });
 
