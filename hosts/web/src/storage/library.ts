@@ -168,15 +168,16 @@ export async function createFolder(root: FileSystemDirectoryHandle, parent: read
 // move is this copy, then the removal of the source.
 async function copyDirectory(source: FileSystemDirectoryHandle, parent: FileSystemDirectoryHandle, name: string): Promise<void> {
   const target = await parent.getDirectoryHandle(name, { create: true });
+  const copies: Promise<void>[] = [];
   for await (const [entry, handle] of source.entries()) {
-    if (handle.kind === "directory") {
-      await copyDirectory(handle, target, entry);
-      continue;
-    }
-    const writable = await (await target.getFileHandle(entry, { create: true })).createWritable();
-    await writable.write(await handle.getFile());
-    await writable.close();
+    copies.push(handle.kind === "directory" ? copyDirectory(handle, target, entry) : (async () => {
+      const writable = await (await target.getFileHandle(entry, { create: true })).createWritable();
+      await writable.write(await handle.getFile());
+      await writable.close();
+    })());
   }
+  // Each write waits on the storage, not on the others: they run together.
+  await Promise.all(copies);
 }
 
 // Moves the notebook or folder at `from` into folder `toParent` as `name`: a

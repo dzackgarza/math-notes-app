@@ -251,7 +251,7 @@ const api = {
   conflictCount: reading(conflictCount), noteConflicts: reading(noteConflicts), resolveConflict,
   importPdf,
   applyTemplate: writing(applyTemplate), listTemplates: reading(listTemplates), finishFigure, figureSource,
-  thumbnail: reading(thumbnail), tagColors: TAG_COLORS,
+  thumbnail, tagColors: TAG_COLORS,
   cacheApp, paperPreview: reading(paperPreview), exportPdf, sharePdf, insertImage, checkPlatform, loadEngine, startRoot, pickRoot, requestPermission, watchRoot,
   library,
   createNotebook, openNotebook, ExternalChangesError,

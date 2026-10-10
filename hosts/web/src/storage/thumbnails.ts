@@ -6,6 +6,7 @@
 // invariant 3).
 import type { Engine } from "../engine/engine.ts";
 import { EngineError, Status } from "../engine/engine.ts";
+import { files } from "./folder.ts";
 import { directoryAt, type Note, pathKey } from "./library.ts";
 
 export const THUMBNAIL_WIDTH = 240;
@@ -85,7 +86,11 @@ function imagePaths(file: string, svg: string): string[] {
   return [...paths].sort();
 }
 
-async function load(engine: Engine, root: FileSystemDirectoryHandle, note: Note): Promise<Blob | null> {
+type Sources = { json: Uint8Array<ArrayBuffer>; first: string; page: File; bytes: Uint8Array<ArrayBuffer>; images: { path: string; file: File }[] };
+
+// notebook.json, page 1 and the files of the images it shows, read under the
+// shared files lock; null for a note without a page 1 at `note.path`.
+async function readSources(root: FileSystemDirectoryHandle, note: Note): Promise<Sources | null> {
   // A note that moved or went to the trash after the library listed it has
   // no thumbnail at that path; the next listing asks for its new path.
   let dir: FileSystemDirectoryHandle;
@@ -104,12 +109,21 @@ async function load(engine: Engine, root: FileSystemDirectoryHandle, note: Note)
   const page = await fileAt(dir, first);
   if (!page) return null;
   const bytes = new Uint8Array(await page.arrayBuffer());
-  const svg = new TextDecoder().decode(bytes);
   const images: { path: string; file: File }[] = [];
-  for (const path of imagePaths(first, svg)) {
+  for (const path of imagePaths(first, new TextDecoder().decode(bytes))) {
     const file = await fileAt(dir, path);
     if (file) images.push({ path, file });
   }
+  return { json, first, page, bytes, images };
+}
+
+// The note's files are read under the shared files lock; the cache lookup,
+// the render and the cache write touch no note file and run outside it, so
+// a rename or a save does not wait for a render.
+async function load(engine: Engine, root: FileSystemDirectoryHandle, note: Note): Promise<Blob | null> {
+  const sources = await files(() => readSources(root, note), "shared");
+  if (!sources) return null;
+  const { json, first, page, bytes, images } = sources;
 
   // The key: page 1's file and each image it shows, by name, modification
   // time and size.
@@ -129,7 +143,7 @@ async function load(engine: Engine, root: FileSystemDirectoryHandle, note: Note)
     if (!notFound(e)) throw e;
   }
 
-  const assets = await Promise.all(images.map(async (i) => ({ path: i.path, bytes: new Uint8Array(await i.file.arrayBuffer()) })));
+  const assets = await files(() => Promise.all(images.map(async (i) => ({ path: i.path, bytes: new Uint8Array(await i.file.arrayBuffer()) }))), "shared");
   const png = render(engine, json, { path: first, bytes }, assets);
   thumbnailStats.renders++;
   for await (const old of entry.keys()) await entry.removeEntry(old);
