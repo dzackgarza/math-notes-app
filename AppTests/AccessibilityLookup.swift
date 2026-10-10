@@ -1,4 +1,5 @@
 import UIKit
+import WebKit
 import XCTest
 
 // SwiftUI controls are accessibility elements, not views: the tests find them
@@ -28,8 +29,13 @@ extension XCTestCase {
   }
 }
 
+// The search stays out of web views: asking a WKWebView for its
+// accessibility elements makes WebKit build the page's whole accessibility
+// tree on the main thread, which blocked the figure editor for 17 s while the
+// test polled for its native Save and close button (run 38024495424).
 @MainActor
 private func findAccessibilityElement(_ label: String, in object: NSObject, labels: inout [String]) -> NSObject? {
+  if object is WKWebView { return nil }
   if object.isAccessibilityElement, let own = object.accessibilityLabel {
     labels.append(own)
     if own == label { return object }

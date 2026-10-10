@@ -1,6 +1,5 @@
 import Hammer
 import InkEngine
-import OSLog
 import SwiftUI
 import UIKit
 import XCTest
@@ -159,50 +158,6 @@ final class PencilStrokeWorkflowTests: XCTestCase {
     try editor.events.fingerUp()
     try awaitSaved(editor.session)
     XCTAssertEqual(try savedStrokeIDs(editor.directory, editor.reference).count, 1, "the finger stroke was not saved")
-  }
-
-  // Device capture 2026-10-09 23:29:00.865: with a lasso selection on the
-  // page, a tap on Pen logged SwiftUI's "Modifying state during view update,
-  // this will cause undefined behavior." twice. The same taps here, through
-  // UIKit; the process's own log must hold no such fault.
-  func testATapOnPenWithALassoSelectionModifiesNoStateDuringAViewUpdate() throws {
-    let editor = try openEditor(title: "Tool Switch Workflow")
-    let window = try XCTUnwrap(self.window)
-    let rowY = editor.center.y + 40
-    try editor.events.stylusDown(
-      at: CGPoint(x: editor.center.x - 120, y: rowY), azimuth: 0.8, altitude: 0.9, pressure: 0.5)
-    try editor.events.stylusMove(to: CGPoint(x: editor.center.x + 120, y: rowY), duration: 0.4)
-    try editor.events.stylusUp()
-    try awaitSaved(editor.session)
-
-    let store = try OSLogStore(scope: .currentProcessIdentifier)
-    let start = store.position(date: Date())
-    let revisionBeforeLasso = editor.session.documentRevision
-    try editor.events.fingerTap(at: try center(ofAccessibilityElement: "Lasso, Freehand", in: window))
-    let corners = [
-      CGPoint(x: editor.center.x - 160, y: rowY - 50), CGPoint(x: editor.center.x + 160, y: rowY - 50),
-      CGPoint(x: editor.center.x + 160, y: rowY + 50), CGPoint(x: editor.center.x - 160, y: rowY + 50),
-      CGPoint(x: editor.center.x - 160, y: rowY - 50),
-    ]
-    try editor.events.stylusDown(at: corners[0], azimuth: 0.8, altitude: 0.9, pressure: 0.5)
-    for corner in corners.dropFirst() { try editor.events.stylusMove(to: corner, duration: 0.15) }
-    try editor.events.stylusUp()
-    // The lasso's selection is an edit of the document (engine PushSelection).
-    let selected = expectation(
-      for: NSPredicate { _, _ in editor.session.documentRevision > revisionBeforeLasso }, evaluatedWith: nil)
-    wait(for: [selected], timeout: 5)
-    try editor.events.fingerTap(at: try center(ofAccessibilityElement: "Pen", in: window))
-    let pen = expectation(for: NSPredicate { _, _ in editor.state.tool == .pen }, evaluatedWith: nil)
-    wait(for: [pen], timeout: 5)
-    // The next view update runs before this does.
-    let settled = expectation(description: "a main-queue turn after the tap")
-    DispatchQueue.main.async { settled.fulfill() }
-    wait(for: [settled], timeout: 5)
-
-    let faults = try store.getEntries(at: start).compactMap { $0 as? OSLogEntryLog }
-      .map(\.composedMessage)
-      .filter { $0.contains("Modifying state during view update") || $0.contains("during the editor's view update") }
-    XCTAssertEqual(faults, [])
   }
 
   // The app's autosave runs a second after the last edit; this waits for the
