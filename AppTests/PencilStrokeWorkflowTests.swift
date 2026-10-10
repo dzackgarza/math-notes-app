@@ -177,6 +177,7 @@ final class PencilStrokeWorkflowTests: XCTestCase {
 
     let store = try OSLogStore(scope: .currentProcessIdentifier)
     let start = store.position(date: Date())
+    let revisionBeforeLasso = editor.session.documentRevision
     try editor.events.fingerTap(at: try center(ofAccessibilityElement: "Lasso, Freehand", in: window))
     let corners = [
       CGPoint(x: editor.center.x - 160, y: rowY - 50), CGPoint(x: editor.center.x + 160, y: rowY - 50),
@@ -186,14 +187,9 @@ final class PencilStrokeWorkflowTests: XCTestCase {
     try editor.events.stylusDown(at: corners[0], azimuth: 0.8, altitude: 0.9, pressure: 0.5)
     for corner in corners.dropFirst() { try editor.events.stylusMove(to: corner, duration: 0.15) }
     try editor.events.stylusUp()
-    // The selection bar is UIKit inside the editor; it shows once the lasso
-    // has selected the line.
+    // The lasso's selection is an edit of the document (engine PushSelection).
     let selected = expectation(
-      for: NSPredicate { _, _ in
-        self.subviews(of: UIButton.self, in: window).contains {
-          $0.accessibilityLabel == "Clear selection" && $0.window != nil && !self.hiddenInChain($0)
-        }
-      }, evaluatedWith: nil)
+      for: NSPredicate { _, _ in editor.session.documentRevision > revisionBeforeLasso }, evaluatedWith: nil)
     wait(for: [selected], timeout: 5)
     try editor.events.fingerTap(at: try center(ofAccessibilityElement: "Pen", in: window))
     let pen = expectation(for: NSPredicate { _, _ in editor.state.tool == .pen }, evaluatedWith: nil)
@@ -226,19 +222,6 @@ final class PencilStrokeWorkflowTests: XCTestCase {
     parser.delegate = counter
     XCTAssertTrue(parser.parse(), "the saved page is not well-formed: \(String(describing: parser.parserError))")
     return counter.strokes
-  }
-
-  private func subviews<T: UIView>(of type: T.Type, in view: UIView) -> [T] {
-    ((view as? T).map { [$0] } ?? []) + view.subviews.flatMap { subviews(of: type, in: $0) }
-  }
-
-  private func hiddenInChain(_ view: UIView) -> Bool {
-    var current: UIView? = view
-    while let v = current {
-      if v.isHidden || v.alpha == 0 { return true }
-      current = v.superview
-    }
-    return false
   }
 
   private func firstSubview<T: UIView>(of type: T.Type, in view: UIView) -> T? {
