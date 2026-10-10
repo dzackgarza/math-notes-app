@@ -8,14 +8,22 @@ import XCTest
 @MainActor
 extension XCTestCase {
   // The center, in screen coordinates, of the element with this label once it
-  // exists (and, when asked, is enabled). Fails listing every label it saw.
+  // exists (and, when asked, is enabled) and has stopped moving: a menu item
+  // read while the menu opens is tapped where another item lands (the Pages
+  // menu's Layers opened Pages and bookmarks, run 38025460526). Fails listing
+  // every label it saw.
   func center(ofAccessibilityElement label: String, enabled: Bool = false, in window: UIWindow) throws -> CGPoint {
     var labels: [String] = []
+    var previous: CGRect?
     let found = XCTNSPredicateExpectation(
       predicate: NSPredicate { _, _ in
         labels = []
-        guard let element = findAccessibilityElement(label, in: window, labels: &labels) else { return false }
-        return !enabled || !element.accessibilityTraits.contains(.notEnabled)
+        guard let element = findAccessibilityElement(label, in: window, labels: &labels),
+          !enabled || !element.accessibilityTraits.contains(.notEnabled)
+        else { return false }
+        let frame = element.accessibilityFrame
+        defer { previous = frame }
+        return frame == previous
       },
       object: nil)
     let result = XCTWaiter().wait(for: [found], timeout: 20)
