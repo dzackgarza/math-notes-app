@@ -250,7 +250,7 @@ class Editor {
     Point last;         // page coordinates
     double radius = 0;  // pt
     std::string time;   // gesture start, for shapes turned into strokes
-    std::set<std::string> hit;                    // stroke eraser: ids
+    std::set<const Element *> hit;                // stroke eraser: whole elements of the page
     std::map<std::string, FreeErased> free;       // free eraser: by element id
     std::map<std::string, std::vector<ink::Stroke>> meshes;  // hit-test strokes by id
     Document shown;
@@ -305,6 +305,7 @@ class Editor {
   void CommitErase();
   // The gesture's page with hit elements removed and cut ones replaced by
   // their pieces; with `ids`, each piece gets a new id.
+  Elements Erased(const Elements &elements, IdGenerator *ids) const;
   Page ErasedPage(IdGenerator *ids) const;
 
   ink::StrokeInput ToStrokeInput(const InkPenSample &sample, double t0) const;

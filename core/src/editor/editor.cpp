@@ -79,11 +79,36 @@ bool ReplaceStroke(Elements &elements, const std::string &id, const Stroke &repl
 
 constexpr uint32_t kEraserButtons = 32;  // PointerEvent.buttons bit of a pen's eraser end
 
-// The id of a stroke or shape, the elements the erasers act on; null otherwise.
+// The id of a stroke or shape, the ink the erasers act on; null otherwise.
 const std::string *ErasableId(const Element &element) {
   if (const auto *s = std::get_if<Stroke>(&element.value)) return &s->id;
   if (const auto *s = std::get_if<Shape>(&element.value)) return &s->id;
   return nullptr;
+}
+
+// The children of a link or a bookmark, whose ink the erasers reach as
+// Write's do in a multistroke group (selection.cpp PathSelector::isNearPoint,
+// element.cpp Element::getEraseSubPaths). A figure's ink is edited in the
+// figure editor.
+const Elements *ErasableChildren(const Element &element) {
+  if (const auto *link = std::get_if<Link>(&element.value)) return &link->children;
+  if (const auto *bookmark = std::get_if<Bookmark>(&element.value)) return &bookmark->children;
+  return nullptr;
+}
+
+// Each stroke and shape of an element, inside links and bookmarks too.
+template <typename F>
+void ForEachErasable(const Element &element, F &&f) {
+  if (ErasableId(element)) return f(element);
+  if (const Elements *children = ErasableChildren(element))
+    for (const immer::box<Element> &child : *children) ForEachErasable(*child, f);
+}
+
+Element WithChildren(const Element &group, Elements children) {
+  Element revised = group;
+  if (auto *link = std::get_if<Link>(&revised.value)) link->children = std::move(children);
+  else std::get<Bookmark>(revised.value).children = std::move(children);
+  return revised;
 }
 
 const Transform &ElementTransform(const Element &element) {
@@ -530,75 +555,93 @@ void Editor::EraseAlong(Point from, Point to) {
     if (meta != doc.notebook.layers.end() && (meta->hidden || meta->locked)) continue;
     for (const immer::box<Element> &box : layer.elements) {
       const Element &element = *box;
-      const std::string *id = ErasableId(element);
-      if (!id || g.hit.contains(*id) || !NearInk(element, from, to, g.radius)) continue;
-
       if (g.kind == INK_ERASER_STROKE) {
-        // google/ink Intersects(PartitionedMesh, AffineTransform, Quad)
-        // (ink/geometry/intersects.h:35-88), as in Google's Cahier sample
-        // DrawingCanvasViewModel.kt; the element transform maps the mesh to the page.
-        const Transform &m = ElementTransform(element);
-        ink::AffineTransform to_page(float(m.a), float(m.c), float(m.e), float(m.b), float(m.d),
-                                     float(m.f));
-        for (const ink::Stroke &s : HitStrokes(*id, element)) {
-          if (!ink::Intersects(s.GetShape(), to_page, quad)) continue;
-          g.hit.insert(*id);
+        // A link or a bookmark goes whole when its ink is touched, as Write's
+        // stroke eraser takes a multistroke group.
+        if (g.hit.contains(&element)) continue;
+        bool touched = false;
+        ForEachErasable(element, [&](const Element &ink) {
+          if (touched || !NearInk(ink, from, to, g.radius)) return;
+          // google/ink Intersects(PartitionedMesh, AffineTransform, Quad)
+          // (ink/geometry/intersects.h:35-88), as in Google's Cahier sample
+          // DrawingCanvasViewModel.kt; the element transform maps the mesh to the page.
+          const Transform &m = ElementTransform(ink);
+          ink::AffineTransform to_page(float(m.a), float(m.c), float(m.e), float(m.b), float(m.d),
+                                       float(m.f));
+          for (const ink::Stroke &s : HitStrokes(*ErasableId(ink), ink))
+            if (ink::Intersects(s.GetShape(), to_page, quad)) touched = true;
+        });
+        if (touched) {
+          g.hit.insert(&element);
           changed = true;
-          break;
         }
         continue;
       }
 
-      auto found = g.free.find(*id);
-      if (found == g.free.end()) {
-        // A shape becomes pen strokes along its geometry, which are then cut.
-        FreeErased candidate;
-        if (const auto *stroke = std::get_if<Stroke>(&element.value)) {
-          candidate.strokes = {*stroke};
-        } else {
-          candidate.strokes = ShapeStrokes(std::get<Shape>(element.value), g.time);
+      ForEachErasable(element, [&](const Element &ink) {
+        const std::string &id = *ErasableId(ink);
+        if (!NearInk(ink, from, to, g.radius)) return;
+        auto found = g.free.find(id);
+        if (found == g.free.end()) {
+          // A shape becomes pen strokes along its geometry, which are then cut.
+          FreeErased candidate;
+          if (const auto *stroke = std::get_if<Stroke>(&ink.value)) {
+            candidate.strokes = {*stroke};
+          } else {
+            candidate.strokes = ShapeStrokes(std::get<Shape>(ink.value), g.time);
+          }
+          candidate.erased.resize(candidate.strokes.size());
+          found = g.free.emplace(id, std::move(candidate)).first;
         }
-        candidate.erased.resize(candidate.strokes.size());
-        found = g.free.emplace(*id, std::move(candidate)).first;
-      }
-      FreeErased &f = found->second;
-      for (size_t k = 0; k < f.strokes.size(); ++k) {
-        ErasedSections before = f.erased[k];
-        EraseCapsule(PagePath(f.strokes[k]), from, to, g.radius, f.erased[k]);
-        f.stale = f.stale || f.erased[k] != before;
-      }
-      if (f.stale) {
-        changed = true;
-      } else if (std::all_of(f.erased.begin(), f.erased.end(), [](const auto &e) { return e.empty(); })) {
-        g.free.erase(found);
-      }
+        FreeErased &f = found->second;
+        for (size_t k = 0; k < f.strokes.size(); ++k) {
+          ErasedSections before = f.erased[k];
+          EraseCapsule(PagePath(f.strokes[k]), from, to, g.radius, f.erased[k]);
+          f.stale = f.stale || f.erased[k] != before;
+        }
+        if (f.stale) {
+          changed = true;
+        } else if (std::all_of(f.erased.begin(), f.erased.end(), [](const auto &e) { return e.empty(); })) {
+          g.free.erase(found);
+        }
+      });
     }
   }
   if (changed) UpdateShown();
 }
 
-Page Editor::ErasedPage(IdGenerator *ids) const {
+Elements Editor::Erased(const Elements &elements, IdGenerator *ids) const {
   const EraseGesture &g = *erase_;
-  Page page = *document().pages[g.page];
-  for (LayerContent &layer : page.layers) {
-    Elements kept;
-    for (const immer::box<Element> &box : layer.elements) {
-      const std::string *id = ErasableId(*box);
-      if (id && g.hit.contains(*id)) continue;
-      auto found = id ? g.free.find(*id) : g.free.end();
-      if (found == g.free.end()) {
-        kept = std::move(kept).push_back(box);
-        continue;
-      }
-      // The pieces take the original's z-position (Write element.cpp:396-446
-      // getEraseSubPaths, scribblearea.cpp:1989-2017).
-      for (Stroke piece : found->second.pieces) {
-        if (ids) piece.id = ids->StrokeId();
-        kept = std::move(kept).push_back(immer::box<Element>(Element{std::move(piece)}));
-      }
+  Elements kept;
+  for (const immer::box<Element> &box : elements) {
+    if (g.hit.contains(&*box)) continue;
+    if (const Elements *children = ErasableChildren(*box)) {
+      // Write keeps the group with what is left of its ink and drops it once
+      // none is left (Element::getEraseSubPaths).
+      Elements left = Erased(*children, ids);
+      if (!left.empty())
+        kept = std::move(kept).push_back(immer::box<Element>(WithChildren(*box, std::move(left))));
+      continue;
     }
-    layer.elements = std::move(kept);
+    const std::string *id = ErasableId(*box);
+    auto found = id ? g.free.find(*id) : g.free.end();
+    if (found == g.free.end()) {
+      kept = std::move(kept).push_back(box);
+      continue;
+    }
+    // The pieces take the original's z-position (Write element.cpp:396-446
+    // getEraseSubPaths, scribblearea.cpp:1989-2017).
+    for (Stroke piece : found->second.pieces) {
+      if (ids) piece.id = ids->StrokeId();
+      kept = std::move(kept).push_back(immer::box<Element>(Element{std::move(piece)}));
+    }
   }
+  return kept;
+}
+
+Page Editor::ErasedPage(IdGenerator *ids) const {
+  Page page = *document().pages[erase_->page];
+  for (LayerContent &layer : page.layers) layer.elements = Erased(layer.elements, ids);
   return page;
 }
 
