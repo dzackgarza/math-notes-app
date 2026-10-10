@@ -177,7 +177,7 @@ final class PencilStrokeWorkflowTests: XCTestCase {
 
     let store = try OSLogStore(scope: .currentProcessIdentifier)
     let start = store.position(date: Date())
-    try editor.events.fingerTap(at: try center(ofAccessibilityElement: "Lasso", in: window))
+    try editor.events.fingerTap(at: try center(ofAccessibilityElement: "Lasso, Freehand", in: window))
     let corners = [
       CGPoint(x: editor.center.x - 160, y: rowY - 50), CGPoint(x: editor.center.x + 160, y: rowY - 50),
       CGPoint(x: editor.center.x + 160, y: rowY + 50), CGPoint(x: editor.center.x - 160, y: rowY + 50),
