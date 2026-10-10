@@ -6,7 +6,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/semantics.dart';
 import 'package:provider/provider.dart';
 import 'package:pull_down_button/pull_down_button.dart';
-import 'package:toastification/toastification.dart';
+import 'package:overlay_support/overlay_support.dart';
 import 'package:web/web.dart' as web;
 
 import 'activity.dart';
@@ -62,7 +62,7 @@ class MathNotes extends StatelessWidget {
         ),
       ),
     ],
-    child: ToastificationWrapper(
+    child: OverlaySupport.global(
       child: CupertinoApp(
         title: 'Math Notes',
         theme: cupertinoTheme,

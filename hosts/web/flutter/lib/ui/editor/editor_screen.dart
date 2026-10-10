@@ -12,7 +12,7 @@ import 'package:flex_color_picker/flex_color_picker.dart' show ColorWheelPicker;
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:popover/popover.dart';
 import 'package:pull_down_button/pull_down_button.dart';
-import 'package:toastification/toastification.dart';
+import 'package:overlay_support/overlay_support.dart' show OverlaySupportEntry;
 import 'package:web/web.dart' as web;
 
 import '../../errors.dart';
@@ -28,6 +28,7 @@ import '../modal.dart';
 import '../notes_ui.dart' show HoverTint, withEnabledState;
 import '../settings_sheet.dart';
 import '../theme.dart';
+import '../toast.dart';
 import 'editor_input.dart';
 import 'editor_view_model.dart';
 import 'tools_view_model.dart';

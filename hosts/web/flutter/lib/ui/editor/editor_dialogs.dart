@@ -126,7 +126,10 @@ extension _EditorDialogs on _EditorScreenState {
   // once, as the toolbar sheet's switches do.
   Future<void> paperMenu() async {
     final templates =
-        (await native.host.listTemplates(widget.note.root, widget.note.engine).toDart).toDart
+        (await native.host
+                .listTemplates(widget.note.root, widget.note.engine)
+                .toDart)
+            .toDart
             .map((name) => name.toDart)
             .toList()
           ..sort(
@@ -175,9 +178,10 @@ extension _EditorDialogs on _EditorScreenState {
                           ? null
                           : () {
                               update(() => applying = true);
-                              applied = run(
-                                () => applyTemplate(name),
-                              ).whenComplete(() => update(() => applying = false));
+                              applied = run(() => applyTemplate(name))
+                                  .whenComplete(
+                                    () => update(() => applying = false),
+                                  );
                             },
                       child: Row(
                         children: [
@@ -268,42 +272,32 @@ extension _EditorDialogs on _EditorScreenState {
       widget.note.document.deletePage(page);
       page = page.clamp(0, widget.note.document.pageCount() - 1);
     });
-    toastification.showCustom(
+    late final OverlaySupportEntry toast;
+    toast = showToast(
       alignment: Alignment.bottomCenter,
-      autoCloseDuration: const Duration(seconds: 6),
-      builder: (context, toast) => Center(
-        child: Container(
-          margin: const EdgeInsets.all(16),
-          padding: const EdgeInsets.only(left: 16),
-          decoration: BoxDecoration(
-            color: surface2,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: floatingShadow,
-          ),
-          // The status and the Undo button are separate nodes. Without
-          // container, the toast was one status node named "Page 4 deleted
-          // Undo", with no Undo button.
-          child: Semantics(
-            explicitChildNodes: true,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Semantics(
-                  container: true,
-                  role: SemanticsRole.status,
-                  liveRegion: true,
-                  child: Text('Page $number deleted', style: callout),
-                ),
-                CupertinoButton(
-                  onPressed: () {
-                    toastification.dismiss(toast);
-                    history(false);
-                  },
-                  child: Text('Undo', style: subhead),
-                ),
-              ],
+      closeAfter: const Duration(seconds: 6),
+      // The status and the Undo button are separate nodes. Without
+      // container, the toast was one status node named "Page 4 deleted
+      // Undo", with no Undo button.
+      child: Semantics(
+        explicitChildNodes: true,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Semantics(
+              container: true,
+              role: SemanticsRole.status,
+              liveRegion: true,
+              child: Text('Page $number deleted', style: callout),
             ),
-          ),
+            CupertinoButton(
+              onPressed: () {
+                toast.dismiss();
+                history(false);
+              },
+              child: Text('Undo', style: subhead),
+            ),
+          ],
         ),
       ),
     );
