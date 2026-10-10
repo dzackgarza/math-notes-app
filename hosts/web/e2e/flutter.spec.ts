@@ -978,8 +978,10 @@ test("Flutter erases handwriting inside a link and a bookmark", async ({ page })
   await group(rows[1], () => button("Bookmark selection").click());
   expect((await savedPages(page, "Grouped ink"))[0].strokes, "the three lines are saved").toBe(3);
 
+  // A tap on the current tool opens its popover.
   const eraser = async (kind: string) => {
-    await button("Eraser").click();
+    if (await button("Eraser").getAttribute("aria-current") !== "true") await button("Eraser").click();
+    await expect(button("Eraser")).toHaveAttribute("aria-current", "true");
     await button("Eraser").click();
     await button(kind).click();
     await closePopover(page);
