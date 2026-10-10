@@ -4032,9 +4032,9 @@ test("Flutter applies a paper style chosen while a file task is under way", asyn
 });
 
 // CI's runners draw a frame every few hundred milliseconds. The delete toast
-// closes in 600 ms, and the toast layer is torn down by a 650 ms timer after
-// Undo, not by the end of the animation. Here, as on a late CI frame, the
-// frame that would end the animation waits until that timer has run.
+// closes in 600 ms; toastification tore its layer down by a 650 ms timer
+// after Undo, not at the end of the animation. Here, as on a late CI frame,
+// the frame that would end the animation waits until such a timer has run.
 test("Flutter undoes a page delete from its toast while frames are slow", async ({ page }) => {
   test.setTimeout(120_000);
   const button = (name: string) => page.getByRole("button", { name, exact: true });
@@ -4049,14 +4049,23 @@ test("Flutter undoes a page delete from its toast while frames are slow", async 
   await page.evaluate(() => {
     let undo: number | undefined;
     let held: FrameRequestCallback[] | undefined = [];
-    window.addEventListener("pointerup", () => { undo ??= performance.now(); }, true);
     const timeout = window.setTimeout.bind(window);
     const frame = window.requestAnimationFrame.bind(window);
-    window.setTimeout = ((callback: () => void, delay?: number) => timeout(() => {
-      callback();
-      if (undo === undefined || delay !== 650 || !held) return;
+    const release = () => {
+      if (!held) return;
       for (const waiting of held) frame(waiting);
       held = undefined;
+    };
+    // The held frames run after a 650 ms timer set after Undo, or 720 ms
+    // after Undo where none is set.
+    window.addEventListener("pointerup", () => {
+      if (undo !== undefined) return;
+      undo = performance.now();
+      timeout(release, 720);
+    }, true);
+    window.setTimeout = ((callback: () => void, delay?: number) => timeout(() => {
+      callback();
+      if (undo !== undefined && delay === 650) release();
     }, delay)) as typeof window.setTimeout;
     window.requestAnimationFrame = (callback) => {
       if (undo === undefined || !held || performance.now() < undo + 300) return frame(callback);
