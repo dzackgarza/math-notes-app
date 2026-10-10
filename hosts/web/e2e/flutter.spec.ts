@@ -947,6 +947,54 @@ test("Flutter partial and whole-stroke erases each undo and redo", async ({ page
   await expectStrokes(0);
 });
 
+// Handwriting made into a link or a bookmark is still handwriting: the stroke
+// eraser takes a linked line as it takes a plain one, and the partial eraser
+// cuts a bookmarked one
+// (Write: PathSelector::isNearPoint and Element::getEraseSubPaths descend
+// into groups).
+test("Flutter erases handwriting inside a link and a bookmark", async ({ page }) => {
+  test.setTimeout(120_000);
+  const button = (name: string) => page.getByRole("button", { name, exact: true });
+  const { box, cdp } = await openNewNote(page, "Grouped ink");
+  const rows = [box.y + 200, box.y + 320, box.y + 440];
+  for (const y of rows) await penStroke(cdp, line(box.x + 200, box.x + 420, y), 0.6);
+  await button("Lasso").click();
+  const group = async (y: number, action: () => Promise<void>) => {
+    await penStroke(cdp, [
+      { x: box.x + 170, y: y - 40 }, { x: box.x + 450, y: y - 40 },
+      { x: box.x + 450, y: y + 40 }, { x: box.x + 170, y: y + 40 },
+      { x: box.x + 170, y: y - 40 },
+    ], 0.6);
+    await action();
+    await button("Clear selection").click();
+  };
+  await group(rows[0], async () => {
+    await button("Link selected content").click();
+    await button("URL or relative notebook path").click();
+    await enterText(page.getByRole("textbox"), "https://example.org/");
+    await button("Link").click();
+    await expect(button("Library")).toBeVisible();
+  });
+  await group(rows[1], () => button("Bookmark selection").click());
+  expect((await savedPages(page, "Grouped ink"))[0].strokes, "the three lines are saved").toBe(3);
+
+  const eraser = async (kind: string) => {
+    await button("Eraser").click();
+    await button("Eraser").click();
+    await button(kind).click();
+    await closePopover(page);
+  };
+  const across = (y: number) => penStroke(cdp, [{ x: box.x + 300, y: y - 30 }, { x: box.x + 300, y }, { x: box.x + 300, y: y + 30 }], 0.6);
+  await eraser("Stroke");
+  await across(rows[2]);
+  expect((await savedPages(page, "Grouped ink"))[0].strokes, "the plain line is erased").toBe(2);
+  await across(rows[0]);
+  expect((await savedPages(page, "Grouped ink"))[0].strokes, "the linked line is erased").toBe(1);
+  await eraser("Partial");
+  await across(rows[1]);
+  expect((await savedPages(page, "Grouped ink"))[0].strokes, "the bookmarked line is cut in two").toBe(2);
+});
+
 test("Flutter page overview duplicates, deletes, reorders, and opens pages", async ({ page }, info) => {
   test.setTimeout(90_000);
   await page.goto("?root=opfs");
