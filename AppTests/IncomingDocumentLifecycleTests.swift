@@ -26,4 +26,16 @@ final class IncomingDocumentLifecycleTests: XCTestCase {
     }
     XCTAssertNil(delegate.incomingDocument)
   }
+
+  // SideStore's Open button launches the app with its own scheme (device
+  // capture 2026-10-09 23:27:21: "url: sidestore-dev.zack.mathnotes.73DJ2N3GT2://").
+  // That launch carries no document, so nothing is imported and no
+  // "Math Notes can import PDF files." alert appears.
+  @MainActor
+  func testSideStoreLaunchURLIsNoIncomingDocument() throws {
+    let delegate = MathNotesSceneDelegate()
+    let bundle = try XCTUnwrap(Bundle.main.bundleIdentifier)
+    delegate.receiveIncomingDocumentURL(try XCTUnwrap(URL(string: "sidestore-\(bundle)://")))
+    XCTAssertNil(delegate.incomingDocument)
+  }
 }
