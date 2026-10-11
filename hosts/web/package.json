@@ -7,6 +7,7 @@
     "@types/node": "^26.6.2",
     "@types/wicg-file-system-access": "^2023.10.7",
     "@vitest/browser-playwright": "^5.0.2",
+    "fast-check": "4.10.2",
     "playwright": "^1.63.0",
     "typescript": "~5.9",
     "vite": "^8.3.1",

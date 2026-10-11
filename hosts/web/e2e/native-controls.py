@@ -35,4 +35,29 @@ def locate(node, name):
     return None
 
 
-print(json.dumps(locate(Atspi.get_desktop(0), sys.argv[1])))
+desktop = Atspi.get_desktop(0)
+if len(sys.argv) > 2:
+    # The observed native chooser window identifies its owning application.
+    # Do not traverse the entire Flutter document to find a GTK entry.
+    owner = int(sys.argv[2])
+    result = None
+    for index in range(desktop.get_child_count()):
+        app = desktop.get_child_at_index(index)
+        if app is not None and app.get_process_id() == owner:
+            # GTK owns its tree search. One Collection query avoids a D-Bus
+            # round trip for every row in a populated native file chooser.
+            rule = Atspi.MatchRule.new(
+                Atspi.StateSet.new([Atspi.StateType.FOCUSED]),
+                Atspi.CollectionMatchType.ALL,
+                {}, Atspi.CollectionMatchType.EMPTY,
+                [Atspi.Role.ENTRY, Atspi.Role.TEXT], Atspi.CollectionMatchType.ANY,
+                [], Atspi.CollectionMatchType.EMPTY, False,
+            )
+            matches = Atspi.Collection.get_matches(
+                app, rule, Atspi.CollectionSortOrder.CANONICAL, 1, True
+            )
+            result = locate(matches[0], sys.argv[1]) if matches else None
+            break
+else:
+    result = locate(desktop, sys.argv[1])
+print(json.dumps(result))

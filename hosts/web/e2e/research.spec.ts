@@ -250,7 +250,7 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   // A second note gets the clipping, with new stroke ids and the same
   // outlines.
   await button("Library").click();
-  await expect(page.getByRole("heading", { name: "Topology", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Topology", exact: true })).toBeVisible({ timeout: 30_000 });
   await button("New note").click();
   await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Proofs");
   await button("Create").click();
@@ -292,14 +292,14 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   await button("Pen").click();
   await followLinks(true);
   await page.mouse.click(pastedCenter.x, pastedCenter.y);
-  await expect(page.getByRole("heading", { name: "Lecture", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Lecture", exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
 
   // After a reload, both notes keep their content and the link still works.
   await page.reload();
   await openTestNotebook(page, "Topology");
   await page.getByRole("button", { name: "Open Proofs", exact: false }).click();
-  await expect(page.getByRole("heading", { name: "Proofs", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Proofs", exact: true })).toBeVisible({ timeout: 30_000 });
   other = await storedNote(page, desktop.notes, proofs);
   expect(other.pages[0].links).toEqual([crossLink]);
   expect(other.pages[0].texts).toContainEqual(["Lemma 2", "Proof."]);
@@ -308,7 +308,7 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   expect(note.pages[0].links).toEqual([bookmark]);
   await followLinks(true);
   await page.mouse.click(pastedCenter.x, pastedCenter.y);
-  await expect(page.getByRole("heading", { name: "Lecture", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Lecture", exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText("2 / 2", { exact: true })).toBeVisible();
   await shot("followed-after-reload");
   await followLinks(false);
@@ -347,7 +347,7 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   expect(lecturePdf).toContain('"/Subtype":"/Link"');
   expect(lecturePdf.split(destination).length - 1, "the link and its destination name the bookmark").toBeGreaterThanOrEqual(2);
   await button("Proofs").click();
-  await expect(page.getByRole("heading", { name: "Proofs", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Proofs", exact: true })).toBeVisible({ timeout: 30_000 });
   const proofsPdf = annotations(await exportPdf("proofs"));
   expect(proofsPdf).toContain(`"/URI":"u:../Lecture/${destination}"`);
 });

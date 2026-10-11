@@ -1,6 +1,6 @@
 import { test as base, expect, chromium, type BrowserContext, type Page } from "@playwright/test";
 import { execFile, spawn, type ChildProcess } from "node:child_process";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,6 +23,7 @@ interface Desktop {
   chooseFolder(path?: string): Promise<void>;
   allow(name: "Allow" | "Allow this time" | "Don't allow"): Promise<void>;
   restart(): Promise<Page>;
+  freshProfile(): Promise<Page>;
 }
 
 // Playwright owns browser actions and recording. Xvfb, D-Bus, Openbox and
@@ -30,11 +31,12 @@ interface Desktop {
 // Chrome permission prompts. No File System Access or application API changes.
 export const test = base.extend<{ desktop: Desktop }>({
   desktop: async ({ baseURL }, use, info) => {
-    const profile = await mkdtemp(join(tmpdir(), "math-notes-browser-"));
+    let profile = await mkdtemp(join(tmpdir(), "math-notes-browser-"));
     const notes = info.outputPath("notes");
     await mkdir(notes, { recursive: true });
     const services: ChildProcess[] = [];
     const errors: string[] = [];
+    const diagnostics: unknown[] = [];
     let context: BrowserContext | undefined;
     try {
       const display = spawn("Xvfb", ["-displayfd", "1", "-screen", "0", "1280x1024x24", "-nolisten", "tcp", "-ac"],
@@ -63,6 +65,8 @@ export const test = base.extend<{ desktop: Desktop }>({
           args: ["--force-renderer-accessibility"],
         });
         context.setDefaultTimeout(30_000);
+        context.on("console", message => diagnostics.push({ type: message.type(), text: message.text(), location: message.location() }));
+        context.on("requestfailed", request => diagnostics.push({ url: request.url(), failure: request.failure() }));
         const page = context.pages()[0];
         page.on("pageerror", error => errors.push(error.stack ?? error.message));
         await page.goto(baseURL!);
@@ -95,13 +99,19 @@ export const test = base.extend<{ desktop: Desktop }>({
         async chooseFolder(path = notes) {
           await desktop.page.getByRole("button", { name: "Choose notes folder", exact: true }).click();
           const dialog = await input("search", "--sync", "--onlyvisible", "--name", "Select where this site can save changes");
-          await input("windowfocus", "--sync", dialog.stdout.trim().split("\n")[0]);
+          const dialogWindow = dialog.stdout.trim().split("\n")[0];
+          await input("windowfocus", "--sync", dialogWindow);
+          const dialogPid = (await input("getwindowpid", dialogWindow)).stdout.trim();
           await exec("import", ["-window", "root", info.outputPath("folder-chooser.png")], { env: nativeEnv });
           await input("key", "--clearmodifiers", "ctrl+l");
           const location = `${path}/`;
           await input("type", "--clearmodifiers", "--delay", "1", location);
-          const entry = async () => JSON.parse((await exec("/usr/bin/python3", [controls, "--focused-entry"],
-            { env: nativeEnv, timeout: 10_000 })).stdout) as { text: string; selection: [number, number] | null } | null;
+          const entry = async () => {
+            const value = JSON.parse((await exec("/usr/bin/python3", [controls, "--focused-entry", dialogPid],
+              { env: nativeEnv, timeout: 10_000 })).stdout) as { text: string; selection: [number, number] | null } | null;
+            diagnostics.push({ expectedLocation: location, entry: value });
+            return value;
+          };
           // GTK selects its inline completion. Remove only that observed
           // suffix; otherwise Enter can grant the only child of this folder.
           await expect.poll(async () => {
@@ -123,6 +133,13 @@ export const test = base.extend<{ desktop: Desktop }>({
           desktop.page = await open();
           return desktop.page;
         },
+        async freshProfile() {
+          await close();
+          await rm(profile, { recursive: true, force: true });
+          profile = await mkdtemp(join(tmpdir(), "math-notes-browser-"));
+          desktop.page = await open();
+          return desktop.page;
+        },
       };
       await use(desktop);
       expect(errors, "uncaught errors in the application").toEqual([]);
@@ -134,6 +151,7 @@ export const test = base.extend<{ desktop: Desktop }>({
           await context.close();
         }
       } finally {
+        await writeFile(info.outputPath("desktop-diagnostics.json"), JSON.stringify(diagnostics, null, 2));
         for (const service of services.reverse()) service.kill();
         await rm(profile, { recursive: true, force: true });
       }
