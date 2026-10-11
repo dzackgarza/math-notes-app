@@ -56,11 +56,19 @@ class NotesFolder extends ChangeNotifier {
   }
 
   Future<void> connect(native.Directory chosen) async {
+    final connection = ++connections;
+    ++reads;
+    observer?.disconnect();
+    observer = null;
+    changes?.cancel();
     root = chosen;
     reconnect = false;
     library = null;
     notifyListeners();
-    await watch();
+    // Chromium schedules local directory observers as BEST_EFFORT work,
+    // which can wait for browser startup. The initial read is independent:
+    // show the library while the platform attaches its watcher.
+    unawaited(watch(chosen, connection).then((_) {}, onError: showError));
     await refresh();
   }
 
@@ -83,19 +91,30 @@ class NotesFolder extends ChangeNotifier {
   // another program (for example a sync client) reads the folder again.
   native.RootObserver? observer;
   Timer? changes;
-  Future<void> watch() async {
-    observer?.disconnect();
-    observer = await native.host
+  int connections = 0;
+  Future<void> watch(native.Directory chosen, int connection) async {
+    final attached = await native.host
         .watchRoot(
-          root!,
+          chosen,
           (() {
+            if (connection != connections) return;
             changes?.cancel();
             changes = Timer(const Duration(milliseconds: 500), () {
-              if (following) refresh().then((_) {}, onError: showError);
+              if (connection == connections && following) {
+                unawaited(refresh().then((_) {}, onError: showError));
+              }
             });
           }).toJS,
         )
         .toDart;
+    if (connection != connections) {
+      attached.disconnect();
+      return;
+    }
+    observer = attached;
+    // Changes before observation began do not produce notifications. Read
+    // again now that subsequent changes are covered by the platform watcher.
+    await refresh();
   }
 
   Future<void> queue = Future.value();
@@ -273,6 +292,8 @@ class NotesFolder extends ChangeNotifier {
 
   @override
   void dispose() {
+    ++connections;
+    ++reads;
     observer?.disconnect();
     changes?.cancel();
     super.dispose();
