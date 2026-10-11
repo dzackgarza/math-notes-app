@@ -34,6 +34,7 @@ export const test = base.extend<{ desktop: Desktop }>({
     const notes = info.outputPath("notes");
     await mkdir(notes, { recursive: true });
     const services: ChildProcess[] = [];
+    const errors: string[] = [];
     let context: BrowserContext | undefined;
     try {
       const display = spawn("Xvfb", ["-displayfd", "1", "-screen", "0", "1280x1024x24", "-nolisten", "tcp", "-ac"],
@@ -53,7 +54,7 @@ export const test = base.extend<{ desktop: Desktop }>({
       const wm = spawn("openbox", ["--config-file", process.env.MATH_NOTES_OPENBOX_CONFIG ?? "/etc/xdg/openbox/rc.xml", "--sm-disable"],
         { env: nativeEnv, stdio: ["ignore", "ignore", "inherit"] });
       services.push(wm);
-      await expect.poll(async () => (await exec("xprop", ["-root", "_NET_SUPPORTING_WM_CHECK"], { env: nativeEnv })).stdout)
+      await expect.poll(async () => (await exec("xprop", ["-root", "_NET_SUPPORTING_WM_CHECK"], { env: nativeEnv })).stdout, { timeout: 30_000 })
         .toContain("window id");
       const input = (...args: string[]) => exec("xdotool", args, { env: nativeEnv, timeout: 10_000 });
       const open = async () => {
@@ -63,6 +64,7 @@ export const test = base.extend<{ desktop: Desktop }>({
         });
         context.setDefaultTimeout(30_000);
         const page = context.pages()[0];
+        page.on("pageerror", error => errors.push(error.stack ?? error.message));
         await page.goto(baseURL!);
         return page;
       };
@@ -85,7 +87,9 @@ export const test = base.extend<{ desktop: Desktop }>({
           await new Promise(resolve => setTimeout(resolve, 600));
           const point = await locate();
           if (!point) throw new Error(`Native permission button disappeared: ${name}`);
-          await input("mousemove", "--sync", String(point[0]), String(point[1]), "click", "1");
+          // xdotool 3 waits forever with --sync when a repeated prompt puts
+          // the button under the unchanged pointer (upstream issue #463).
+          await input("mousemove", String(point[0]), String(point[1]), "click", "1");
           await expect.poll(locate, { timeout: 10_000 }).toBeNull();
         },
         async chooseFolder(path = notes) {
@@ -94,7 +98,23 @@ export const test = base.extend<{ desktop: Desktop }>({
           await input("windowfocus", "--sync", dialog.stdout.trim().split("\n")[0]);
           await exec("import", ["-window", "root", info.outputPath("folder-chooser.png")], { env: nativeEnv });
           await input("key", "--clearmodifiers", "ctrl+l");
-          await input("type", "--clearmodifiers", "--delay", "1", path);
+          const location = `${path}/`;
+          await input("type", "--clearmodifiers", "--delay", "1", location);
+          const entry = async () => JSON.parse((await exec("/usr/bin/python3", [controls, "--focused-entry"],
+            { env: nativeEnv, timeout: 10_000 })).stdout) as { text: string; selection: [number, number] | null } | null;
+          // GTK selects its inline completion. Remove only that observed
+          // suffix; otherwise Enter can grant the only child of this folder.
+          await expect.poll(async () => {
+            const value = await entry();
+            return value?.text.slice(0, value.selection?.[0] ?? value.text.length);
+          }).toBe(location);
+          const value = (await entry())!;
+          if (value.text !== location) {
+            expect(value.selection).toEqual([location.length, value.text.length]);
+            await input("key", "--clearmodifiers", "BackSpace");
+          }
+          await expect.poll(async () => (await entry())?.text).toBe(location);
+          await exec("import", ["-window", "root", info.outputPath("folder-location.png")], { env: nativeEnv });
           await input("key", "--clearmodifiers", "Return");
           await desktop.allow("Allow");
         },
@@ -105,6 +125,7 @@ export const test = base.extend<{ desktop: Desktop }>({
         },
       };
       await use(desktop);
+      expect(errors, "uncaught errors in the application").toEqual([]);
       await close();
     } finally {
       try {

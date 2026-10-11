@@ -10,6 +10,18 @@ from gi.repository import Atspi
 
 
 def locate(node, name):
+    # A native dialog can disappear between reading its child count and
+    # obtaining a child. AT-SPI returns no accessible for the removed node.
+    if node is None:
+        return None
+    if name == "--focused-entry" and node.get_role_name() in ("text", "entry"):
+        if node.get_state_set().contains(Atspi.StateType.FOCUSED):
+            text = Atspi.Text.get_text(node, 0, -1)
+            selection = None
+            if Atspi.Text.get_n_selections(node):
+                selected = Atspi.Text.get_selection(node, 0)
+                selection = [selected.start_offset, selected.end_offset]
+            return {"text": text, "selection": selection}
     if node.get_role_name() == "push button" and node.get_name() == name:
         states = node.get_state_set()
         if states.contains(Atspi.StateType.SENSITIVE):
