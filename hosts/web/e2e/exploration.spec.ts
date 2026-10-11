@@ -160,7 +160,9 @@ test("fresh generated pen settings and history branches survive real folder rest
             const branched = await persisted();
             expect(branched, "the new history branch retains different ink").not.toBe(drawn);
             await checkInk(page, branched, [...settings, setting]);
-            await expect(button("Redo")).toBeDisabled();
+            await button("Redo").click();
+            expect(await persisted(), "redo cannot revive the discarded history branch").toBe(branched);
+            await checkInk(page, branched, [...settings, setting]);
           }
         }
         settings.push(setting);

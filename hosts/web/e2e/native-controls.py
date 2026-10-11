@@ -6,10 +6,21 @@ import sys
 import gi
 
 gi.require_version("Atspi", "2.0")
-from gi.repository import Atspi
+from gi.repository import Atspi, GLib
 
 
 def locate(node, name):
+    try:
+        return locate_present(node, name)
+    except GLib.Error as error:
+        # Chrome can remove a permission bubble during traversal. The bridge
+        # reports that vanished object either as None or this D-Bus error.
+        if error.domain == "atspi_error" and "does not exist" in error.message:
+            return None
+        raise
+
+
+def locate_present(node, name):
     # A native dialog can disappear between reading its child count and
     # obtaining a child. AT-SPI returns no accessible for the removed node.
     if node is None:
@@ -47,16 +58,20 @@ if len(sys.argv) > 2:
             # GTK owns its tree search. One Collection query avoids a D-Bus
             # round trip for every row in a populated native file chooser.
             rule = Atspi.MatchRule.new(
-                Atspi.StateSet.new([Atspi.StateType.FOCUSED]),
+                Atspi.StateSet.new([Atspi.StateType.SHOWING]),
                 Atspi.CollectionMatchType.ALL,
-                {}, Atspi.CollectionMatchType.EMPTY,
+                {}, Atspi.CollectionMatchType.ALL,
                 [Atspi.Role.ENTRY, Atspi.Role.TEXT], Atspi.CollectionMatchType.ANY,
-                [], Atspi.CollectionMatchType.EMPTY, False,
+                [], Atspi.CollectionMatchType.ALL, False,
             )
             matches = Atspi.Collection.get_matches(
-                app, rule, Atspi.CollectionSortOrder.CANONICAL, 1, True
+                app, rule, Atspi.CollectionSortOrder.CANONICAL, 0, True
             )
-            result = locate(matches[0], sys.argv[1]) if matches else None
+            for match in matches:
+                match.clear_cache()
+                result = locate(match, sys.argv[1])
+                if result is not None:
+                    break
             break
 else:
     result = locate(desktop, sys.argv[1])

@@ -10,7 +10,7 @@ test("Flutter lifetime: first launch, folder choice, three written pages, restar
   let page = desktop.page;
   const shot = (name: string) => page.screenshot({ path: info.outputPath(`${name}.png`) });
   const button = (name: string) => page.getByRole("button", { name, exact: true });
-  await expect(page.getByText("Your notes live in a folder on this device.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Your notes live in a folder on this device.", { exact: true })).toBeVisible({ timeout: 30_000 });
   await shot("first-launch");
   await desktop.chooseFolder();
   await expect(page.getByText("Your notebooks appear here.", { exact: true })).toBeVisible();

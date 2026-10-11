@@ -172,15 +172,11 @@ export async function longPressDrag(page: Page, from: Box, to: Box): Promise<voi
   const y = from.y + from.height / 2;
   await page.mouse.move(x, y);
   await settled(page, from);
-  const resting = await capture(page, from);
   await page.mouse.down();
-  let nudge = 0;
-  await expect(async () => {
-    nudge = 0.5 - nudge;
-    await page.mouse.move(x + nudge, y);
-    await frames(page);
-    expect(await capture(page, from), "the held item follows the pointer").not.toEqual(resting);
-  }).toPass();
+  // This is the held input gesture, not a readiness wait. Flutter's
+  // kLongPressTimeout is 500 ms (gestures/constants.dart); pressed-state
+  // pixels can change earlier and do not establish a recognized long press.
+  await new Promise(resolve => setTimeout(resolve, 600));
   await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
   // The drop takes the slot the dragged item has settled into: release once
   // the items between start and target stop moving.
