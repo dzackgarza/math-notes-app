@@ -20,7 +20,7 @@ function firstLine(child: ChildProcess): Promise<string> {
 interface Desktop {
   page: Page;
   notes: string;
-  chooseFolder(): Promise<void>;
+  chooseFolder(path?: string): Promise<void>;
   allow(name: "Allow" | "Allow this time" | "Don't allow"): Promise<void>;
   restart(): Promise<Page>;
 }
@@ -88,13 +88,13 @@ export const test = base.extend<{ desktop: Desktop }>({
           await input("mousemove", "--sync", String(point[0]), String(point[1]), "click", "1");
           await expect.poll(locate, { timeout: 10_000 }).toBeNull();
         },
-        async chooseFolder() {
+        async chooseFolder(path = notes) {
           await desktop.page.getByRole("button", { name: "Choose notes folder", exact: true }).click();
           const dialog = await input("search", "--sync", "--onlyvisible", "--name", "Select where this site can save changes");
           await input("windowfocus", "--sync", dialog.stdout.trim().split("\n")[0]);
           await exec("import", ["-window", "root", info.outputPath("folder-chooser.png")], { env: nativeEnv });
           await input("key", "--clearmodifiers", "ctrl+l");
-          await input("type", "--clearmodifiers", "--delay", "1", notes);
+          await input("type", "--clearmodifiers", "--delay", "1", path);
           await input("key", "--clearmodifiers", "Return");
           await desktop.allow("Allow");
         },

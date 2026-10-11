@@ -1,6 +1,6 @@
 """Checks the InkML traces of written pages with Wacom's universal-ink-library.
 
-Run: uvx --with universal-ink-library==2.1.1 python core/tests/inkml_check.py <dir>...
+Run: uvx --with universal-ink-library==2.1.1 --with 'bitstring<5' python core/tests/inkml_check.py <dir>...
 Each <dir> is an expected-output notebook from core/tests/fixtures/documents
 (pages/*.svg and samples.json, the engine's samples of every stroke).
 

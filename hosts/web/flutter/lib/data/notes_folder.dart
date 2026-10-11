@@ -8,8 +8,9 @@ import '../errors.dart';
 import '../host.dart' as native;
 
 // The repository for the notes folder: the engine, the folder handle, and the
-// library read from it. Changes to the folder go through a queue, so two
-// read-modify-write changes of the library metadata never interleave.
+// library read from it. Each queued change captures its destination and
+// includes its metadata write, so compound changes never cross folders or
+// interleave their read-modify-write steps.
 class NotesFolder extends ChangeNotifier {
   native.Engine? engine;
   native.Directory? root;
@@ -118,8 +119,9 @@ class NotesFolder extends ChangeNotifier {
   }
 
   Future<void> queue = Future.value();
-  Future<T> serial<T>(Future<T> Function() task) {
-    final result = queue.then((_) => task());
+  Future<T> serial<T>(Future<T> Function(native.Directory) task) {
+    final destination = root!;
+    final result = queue.then((_) => task(destination));
     queue = result.then((_) {}, onError: (_) {});
     return result;
   }
@@ -135,10 +137,10 @@ class NotesFolder extends ChangeNotifier {
   // Reads the metadata file, applies `change`, writes it, and reads the
   // library again.
   Future<void> updateMetadata(void Function(native.LibraryMetadata) change) =>
-      serial(() async {
-        final metadata = await native.host.readMetadata(root!).toDart;
+      serial((destination) async {
+        final metadata = await native.host.readMetadata(destination).toDart;
         change(metadata);
-        await native.host.writeMetadata(root!, metadata).toDart;
+        await native.host.writeMetadata(destination, metadata).toDart;
       }).then((_) => refresh());
 
   // Adds each unknown tag name with the next palette color.
@@ -190,13 +192,13 @@ class NotesFolder extends ChangeNotifier {
     JSArray<JSString>? parent,
     String name,
   ) async {
-    final to = await serial(() async {
+    final to = await serial((destination) async {
       final to = parent == null
-          ? await native.host.moveToTrash(root!, path).toDart
-          : await native.host.moveEntry(root!, path, parent, name).toDart;
-      final metadata = await native.host.readMetadata(root!).toDart;
+          ? await native.host.moveToTrash(destination, path).toDart
+          : await native.host.moveEntry(destination, path, parent, name).toDart;
+      final metadata = await native.host.readMetadata(destination).toDart;
       await native.host
-          .writeMetadata(root!, native.host.moveNotes(metadata, path, to))
+          .writeMetadata(destination, native.host.moveNotes(metadata, path, to))
           .toDart;
       return to;
     });
@@ -209,10 +211,17 @@ class NotesFolder extends ChangeNotifier {
     String name,
     native.FolderMetadata values,
   ) async {
-    final created = await serial(
-      () => native.host.createFolder(root!, parent, name).toDart,
-    );
-    await saveFolder(created, values);
+    final created = await serial((destination) async {
+      final created = await native.host
+          .createFolder(destination, parent, name)
+          .toDart;
+      final metadata = await native.host.readMetadata(destination).toDart;
+      metadata.folders[native.pathKey(created)] = values;
+      registerTags(metadata, values.tags);
+      await native.host.writeMetadata(destination, metadata).toDart;
+      return created;
+    });
+    await refresh();
     return created;
   }
 
@@ -224,26 +233,28 @@ class NotesFolder extends ChangeNotifier {
     String orientation,
     JSArray<JSString> tags,
   ) async {
-    final note = await serial(
-      () => native.host
+    final note = await serial((destination) async {
+      final note = await native.host
           .createNotebook(
             engine!,
-            root!,
+            destination,
             parent,
             name,
             paper,
             size,
             orientation,
           )
-          .toDart,
-    );
-    await updateMetadata((metadata) {
+          .toDart;
+      final metadata = await native.host.readMetadata(destination).toDart;
       final values = native.host.emptyNote();
       values.tags = tags;
       metadata.notes[native.pathKey(note.path)] = values;
       registerTags(metadata, tags);
       metadata.clearDraft();
+      await native.host.writeMetadata(destination, metadata).toDart;
+      return note;
     });
+    await refresh();
     return note;
   }
 
@@ -259,10 +270,10 @@ class NotesFolder extends ChangeNotifier {
   ) async {
     try {
       return await serial(
-        () => native.host
+        (destination) => native.host
             .importPdf(
               engine!,
-              root!,
+              destination,
               parent,
               ((JSNumber completed, JSNumber total) => progress(
                 completed.toDartInt,
@@ -287,7 +298,7 @@ class NotesFolder extends ChangeNotifier {
     native.NoteConflict conflict,
     String choice,
   ) => serial(
-    () => native.host.resolveConflict(engine!, dir, conflict, choice).toDart,
+    (_) => native.host.resolveConflict(engine!, dir, conflict, choice).toDart,
   );
 
   @override

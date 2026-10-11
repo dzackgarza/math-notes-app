@@ -184,8 +184,7 @@ class LibraryViewModel extends ChangeNotifier {
     );
   }
 
-  Future<void> chooseRoot() async {
-    final chosen = await folder.pick();
+  Future<void> chooseRoot(native.Directory chosen) async {
     await session.closeAll();
     notebookPath = null;
     await folder.connect(chosen);
