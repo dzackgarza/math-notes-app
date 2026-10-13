@@ -34,7 +34,8 @@ test('a captured doodle opens the visual editor and keeps its ink and TikZ sourc
   await page.mouse.up();
   await page.context().grantPermissions(['clipboard-read']);
   await page.getByRole('button', { name: 'Copy TikZ', exact: true }).click();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('workbench-ink:');
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toContain('workbench-ink:');
   await page.getByRole('button', { name: 'Save and close', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Save and close', exact: true })).toHaveCount(0);
   await save(page);
