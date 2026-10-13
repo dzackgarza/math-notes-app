@@ -25,17 +25,18 @@ test('a captured doodle opens the visual editor and keeps its ink and TikZ sourc
   const drawing = editor.frameLocator('iframe[title="TikZ visual editor"]');
   await expect(editor.getByRole('button', { name: 'Draw', exact: true })).toBeVisible();
   await expect(drawing.locator('[data-canvas-viewport="true"]')).toBeVisible();
-  await expect(drawing.locator('[data-source-id]').first()).toBeVisible();
+  await expect.poll(() => drawing.locator('[data-source-id]').count()).toBeGreaterThan(0);
   await editor.getByRole('button', { name: 'Draw', exact: true }).click();
   const drawingBox = (await drawing.locator('[data-canvas-viewport="true"]').boundingBox())!;
   await page.mouse.move(drawingBox.x + drawingBox.width * .4, drawingBox.y + drawingBox.height * .45);
   await page.mouse.down();
   await page.mouse.move(drawingBox.x + drawingBox.width * .6, drawingBox.y + drawingBox.height * .55, { steps: 12 });
   await page.mouse.up();
-  await page.context().grantPermissions(['clipboard-read']);
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.getByRole('button', { name: 'Copy TikZ', exact: true }).click();
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()))
     .toContain('workbench-ink:');
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
   await page.getByRole('button', { name: 'Save and close', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Save and close', exact: true })).toHaveCount(0);
   await save(page);
@@ -47,13 +48,19 @@ test('a captured doodle opens the visual editor and keeps its ink and TikZ sourc
     const svg = await (await (await note.getDirectoryHandle('pages')).getFileHandle('0001.svg')).getFile().then(file => file.text());
     const figure = /<g id="(f-[^"]+)" class="mn-figure"/.exec(svg)?.[1];
     if (!figure) throw new Error('No figure in the saved page');
-    const tikz = await (await (await note.getDirectoryHandle('assets')).getFileHandle(`${figure}.tikz`)).getFile().then(file => file.text());
-    return { figure, svg, tikz };
+    const original = await (await (await note.getDirectoryHandle('assets')).getFileHandle(`${figure}.tikz`)).getFile().then(file => file.text());
+    const draftHref = new RegExp(`<g id="${figure}"[^>]*mn:draft="([^"]+)"`).exec(svg)?.[1];
+    if (!draftHref) throw new Error('The saved figure does not link its edited draft');
+    const draftName = draftHref.split('/').at(-1)!;
+    const tikz = await (await (await note.getDirectoryHandle('assets')).getFileHandle(draftName)).getFile().then(file => file.text());
+    return { figure, svg, original, draftName, tikz };
   });
   const before = await stored();
   expect(before.svg).toContain('<path id="s-');
+  expect(before.original).toContain('\\begin{tikzpicture}');
   expect(before.tikz).toContain('\\begin{tikzpicture}');
   expect(before.tikz).toContain('workbench-ink:');
+  expect(before.tikz).toBe(copied);
 
   await page.reload();
   await page.getByRole('button', { name: /^Open Diagrams/ }).click();
