@@ -1,5 +1,5 @@
 import { test, expect } from "./native-desktop.ts";
-import { save, enterText, penStroke, line, type PenPoint, type Rgb, createTestNotebook, boxOf, screenPixels, inkAt, closePopover, pageIn, isInk, pixelBounds, isOutline, openTestNotebook, longPressDrag } from "./workflow-actions.ts";
+import { save, enterText, penStroke, line, type PenPoint, type Rgb, createTestNotebook, boxOf, frames, screenPixels, inkAt, closePopover, pageIn, isInk, pixelBounds, isOutline, openTestNotebook, longPressDrag } from "./workflow-actions.ts";
 import { storedNote } from "./workflow-files.ts";
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
@@ -256,12 +256,14 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   await button("Create").click();
   await expect(page.getByRole("heading", { name: "Proofs", exact: true })).toBeVisible({ timeout: 30_000 });
   await button("Clippings").click();
-  // The Flutter list must receive a physical scroll; scrolling its semantics
-  // element alone leaves the fifth card below the painted viewport.
-  await page.mouse.move(1160, 600);
-  await page.mouse.wheel(0, 700);
   await clipping(5);
-  await button("Insert clipping 5").click();
+  // The Flutter list must receive a physical scroll after it mounts. The
+  // semantics element can be visible while its painted card is still below.
+  await page.mouse.move(1160, 600);
+  await page.mouse.wheel(0, 1000);
+  await frames(page);
+  await shot("proofs-clipping-visible");
+  await page.mouse.click(1160, 780);
   await expect.poll(async () => (await storedNote(page, desktop.notes, proofs)).pages[0].groups.flatMap((group) => group.strokes).length, { timeout: 15_000 }).toBe(lectureStrokes.length);
   await button("Clippings").click();
   let other = await saved(proofs);
