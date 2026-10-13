@@ -178,15 +178,9 @@ export async function longPressDrag(page: Page, from: Box, to: Box): Promise<voi
   // pixels can change earlier and do not establish a recognized long press.
   await new Promise(resolve => setTimeout(resolve, 600));
   await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
-  // The drop takes the slot the dragged item has settled into: release once
-  // the items between start and target stop moving.
-  const left = Math.min(from.x, to.x);
-  const top = Math.min(from.y, to.y);
-  await settled(page, {
-    x: left, y: top,
-    width: Math.max(from.x + from.width, to.x + to.width) - left,
-    height: Math.max(from.y + from.height, to.y + to.height) - top,
-  });
+  // LongPressDraggable shows this feedback only after accepting the gesture.
+  // The large clipped view can keep changing while the drag is held.
+  await expect(page.getByText("Copy selection", { exact: true })).toBeVisible();
   await page.mouse.up();
 }
 
