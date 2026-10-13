@@ -37,7 +37,7 @@ async function source(url, revision, directory) {
 }
 
 await source('https://github.com/dzackgarza/visual-tikz-editor.git', 'fd4c64be3cabac18ad6247e5931e5cb7c60c6bf9', editor);
-await source('https://github.com/dzackgarza/freetikz.git', '9e5fb05c22dbc5637ff7cebf99f3dbee6f962b68', freetikz);
+await source('https://github.com/dzackgarza/freetikz.git', '23a6d3483a21bb30b741e960374dca2bfd2a578a', freetikz);
 const output = process.argv[2] ? path.resolve(root, process.argv[2]) : path.join(root, 'hosts/web/flutter/build/web/tikz-editor');
 await mkdir(output, { recursive: true });
 await cp(path.join(editor, 'vendor/tikz-editor/src'), output, { recursive: true });

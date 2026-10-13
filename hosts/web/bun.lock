@@ -5,7 +5,7 @@
     "": {
       "name": "math-notes-web",
       "dependencies": {
-        "@dzackgarza/freetikz": "github:dzackgarza/freetikz#9e5fb05c22dbc5637ff7cebf99f3dbee6f962b68",
+        "@dzackgarza/freetikz": "github:dzackgarza/freetikz#23a6d3483a21bb30b741e960374dca2bfd2a578a",
         "idb-keyval": "^6.3.0",
         "mupdf": "1.28.0",
       },
@@ -210,7 +210,7 @@
 
     "@blazediff/core": ["@blazediff/core@1.10.0", "", {}, "sha512-AOQff0zgR7cGsZL+4E7hVkmujoPUpm0J9xzWGWZj5wCjd3gmxESXAPfKyuzs93VdpQNFhHlBhfOjrcZ+XTERtQ=="],
 
-    "@dzackgarza/freetikz": ["@dzackgarza/freetikz@github:dzackgarza/freetikz#9e5fb05", {}, "dzackgarza-freetikz-9e5fb05", "sha512-VwTV/YdQ8SZoA4CBQA4zn4Hhngakvr2SUY2d8iifdKJ0gS0UO9RKnhNS+saiSHonjmqV0JoTxRr4lAzR94XZGQ=="],
+    "@dzackgarza/freetikz": ["@dzackgarza/freetikz@github:dzackgarza/freetikz#23a6d34", {}, "dzackgarza-freetikz-23a6d34", "sha512-8gUuL85AdfbkddDMf1Y++ba2NIGpOX8tMLt33BE8yXYS+5ex8ZWmt3RFqzLGv3yrSVJgksUvu8wb6SFBlO++Ng=="],
 
     "@isaacs/cliui": ["@isaacs/cliui@9.0.0", "", {}, "sha512-AokJm4tuBHillT+FpMtxQ60n8ObyXBatq7jD2/JA9dxbDDokKQm8KMht5ibGzLVU9IJDIKK4TPKgMHEYMn3lMg=="],
 

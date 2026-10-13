@@ -26,12 +26,18 @@ test('a captured doodle opens the visual editor and keeps its ink and TikZ sourc
   await expect(editor.getByRole('button', { name: 'Draw', exact: true })).toBeVisible();
   await expect(drawing.locator('[data-canvas-viewport="true"]')).toBeVisible();
   await expect.poll(() => drawing.locator('[data-source-id]').count()).toBeGreaterThan(0);
+  const capturedGeometry = drawing.locator('[data-source-id]').first();
+  const capturedBefore = (await capturedGeometry.boundingBox())!;
+  const originalPathCount = await drawing.locator('[data-source-id]').count();
   await editor.getByRole('button', { name: 'Draw', exact: true }).click();
   const drawingBox = (await drawing.locator('[data-canvas-viewport="true"]').boundingBox())!;
   await page.mouse.move(drawingBox.x + drawingBox.width * .4, drawingBox.y + drawingBox.height * .45);
   await page.mouse.down();
   await page.mouse.move(drawingBox.x + drawingBox.width * .6, drawingBox.y + drawingBox.height * .55, { steps: 12 });
   await page.mouse.up();
+  await expect.poll(() => drawing.locator('[data-source-id]').count()).toBeGreaterThan(originalPathCount);
+  const capturedAfter = (await capturedGeometry.boundingBox())!;
+  expect(capturedAfter.width).toBeGreaterThan(capturedBefore.width * .6);
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.getByRole('button', { name: 'Copy TikZ', exact: true }).click();
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()))
