@@ -35,8 +35,10 @@ test('a captured doodle opens the visual editor and keeps its ink and TikZ sourc
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.getByRole('button', { name: 'Copy TikZ', exact: true }).click();
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText()))
-    .toContain('workbench-ink:');
+    .toContain('\\draw');
   const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copied).not.toContain('workbench-ink:');
+  await page.screenshot({ path: test.info().outputPath('figure-workbench.png') });
   await page.getByRole('button', { name: 'Save and close', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Save and close', exact: true })).toHaveCount(0);
   await save(page);
@@ -60,7 +62,9 @@ test('a captured doodle opens the visual editor and keeps its ink and TikZ sourc
   expect(before.original).toContain('\\begin{tikzpicture}');
   expect(before.tikz).toContain('\\begin{tikzpicture}');
   expect(before.tikz).toContain('workbench-ink:');
-  expect(before.tikz).toBe(copied);
+  expect(copied).toContain('\\begin{tikzpicture}');
+  expect(copied.match(/\\draw\b/g)?.length ?? 0)
+    .toBeGreaterThan(before.original.match(/\\draw\b/g)?.length ?? 0);
 
   await page.reload();
   await page.getByRole('button', { name: /^Open Diagrams/ }).click();

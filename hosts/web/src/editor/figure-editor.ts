@@ -9,6 +9,7 @@ interface EditorMessage {
   revision?: number;
   requestId?: string;
   source?: string;
+  paperSource?: string;
   error?: string;
   message?: string;
 }
@@ -20,13 +21,14 @@ export class FigureEditor extends EventTarget {
   private readonly sessionId = crypto.randomUUID();
   private readonly revision = 1;
   private readonly requests = new Map<string, {
-    resolve: (source: string) => void;
+    resolve: (value: { source: string; paperSource: string }) => void;
     reject: (reason: Error) => void;
     timer: ReturnType<typeof setTimeout>;
   }>();
   ready = false;
   error = '';
   source: string;
+  paperSource = '';
   private saving = false;
 
   private readonly receive = (event: MessageEvent<string>) => {
@@ -40,7 +42,12 @@ export class FigureEditor extends EventTarget {
       return;
     }
     if (message.sessionId !== this.sessionId || message.revision !== this.revision) return;
-    if (message.event === 'loaded') this.ready = true;
+    if (message.event === 'loaded') {
+      if (typeof message.paperSource === 'string') {
+        this.paperSource = message.paperSource;
+        this.ready = true;
+      } else this.error = 'The figure editor did not return its paper source.';
+    }
     if (message.event === 'reply' && message.action === 'load' && message.status === 'failed') {
       this.error = `Figure editor load failed: ${message.error ?? 'unknown error'}`;
     }
@@ -49,12 +56,19 @@ export class FigureEditor extends EventTarget {
       if (request) {
         clearTimeout(request.timer);
         this.requests.delete(message.requestId);
-        if (message.status === 'ok' && typeof message.source === 'string') request.resolve(message.source);
+        if (message.status === 'ok' && typeof message.source === 'string' &&
+            typeof message.paperSource === 'string') {
+          request.resolve({ source: message.source, paperSource: message.paperSource });
+        }
         else request.reject(new Error(message.error ?? 'The figure source is unavailable.'));
       }
     }
     if (this.ready && (message.event === 'change' || message.event === 'save') && typeof message.source === 'string') {
-      try { this.persist(message.source); }
+      try {
+        if (typeof message.paperSource !== 'string') throw new Error('The figure editor did not return its paper source.');
+        this.persist(message.source);
+        this.paperSource = message.paperSource;
+      }
       catch (error) { this.error = error instanceof Error ? error.message : String(error); }
     }
     if (message.event === 'error') this.error = message.message ?? 'Figure editor error.';
@@ -86,7 +100,7 @@ export class FigureEditor extends EventTarget {
     this.error = '';
   }
 
-  private requestSource(): Promise<string> {
+  private requestSource(): Promise<{ source: string; paperSource: string }> {
     const requestId = crypto.randomUUID();
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -100,12 +114,13 @@ export class FigureEditor extends EventTarget {
     });
   }
 
-  async latestSource(): Promise<string> {
+  async latestPaperSource(): Promise<string> {
     if (!this.ready) throw new Error('The figure editor is still loading.');
-    const source = await this.requestSource();
+    const { source, paperSource } = await this.requestSource();
     this.persist(source);
+    this.paperSource = paperSource;
     this.dispatchEvent(new Event('change'));
-    return source;
+    return paperSource;
   }
 
   async save(): Promise<void> {
@@ -113,7 +128,7 @@ export class FigureEditor extends EventTarget {
     if (this.saving) throw new Error('The figure source is already saving.');
     this.saving = true;
     try {
-      await this.latestSource();
+      await this.latestPaperSource();
       await this.note.saver.save();
     } catch (error) {
       this.error = error instanceof Error ? error.message : String(error);

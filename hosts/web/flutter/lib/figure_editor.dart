@@ -38,10 +38,10 @@ class _FigureEditorState extends State<FigureEditor> {
     frame.style.border = '0';
     ui_web.platformViewRegistry.registerViewFactory(viewType, (_) => frame);
     editor = native.host.mountFigureEditor(widget.note, widget.id, frame);
-    sourceText.text = editor.source;
+    sourceText.text = editor.paperSource;
     listener = ((web.Event event) {
       if (mounted) {
-        if (sourceText.text != editor.source) sourceText.text = editor.source;
+        if (sourceText.text != editor.paperSource) sourceText.text = editor.paperSource;
         setState(() {});
       }
     }).toJS;
@@ -147,7 +147,7 @@ class _FigureEditorState extends State<FigureEditor> {
                           onPressed: editor.ready
                               ? () async {
                                   try {
-                                    final source = (await editor.latestSource().toDart).toDart;
+                                    final source = (await editor.latestPaperSource().toDart).toDart;
                                     await Clipboard.setData(ClipboardData(text: source));
                                   } catch (error, stack) {
                                     showError(error, stack);

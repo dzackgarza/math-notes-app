@@ -1,4 +1,4 @@
-// The released standalone editor supplies the visual canvas and embed protocol.
+// The pinned standalone editor supplies the hosted workbench and embed protocol.
 import { cp, mkdir, access } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -36,7 +36,7 @@ async function source(url, revision, directory) {
   if (stdout.trim() !== revision) throw new Error(`Source revision differs in ${directory}`);
 }
 
-await source('https://github.com/dzackgarza/visual-tikz-editor.git', 'b2d1bcf1002607d50b1002fd494e6836d61338d5', editor);
+await source('https://github.com/dzackgarza/visual-tikz-editor.git', 'fd4c64be3cabac18ad6247e5931e5cb7c60c6bf9', editor);
 await source('https://github.com/dzackgarza/freetikz.git', '9e5fb05c22dbc5637ff7cebf99f3dbee6f962b68', freetikz);
 const output = process.argv[2] ? path.resolve(root, process.argv[2]) : path.join(root, 'hosts/web/flutter/build/web/tikz-editor');
 await mkdir(output, { recursive: true });

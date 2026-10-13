@@ -508,7 +508,8 @@ extension type FigureEditor(JSObject value) implements JSObject {
   external bool get ready;
   external String get error;
   external String get source;
-  external JSPromise<JSString> latestSource();
+  external String get paperSource;
+  external JSPromise<JSString> latestPaperSource();
   external JSPromise<VoidResult> save();
   external void dispose();
   external void addEventListener(String type, JSFunction listener);
