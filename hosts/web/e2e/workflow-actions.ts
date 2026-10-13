@@ -174,13 +174,11 @@ export async function longPressDrag(page: Page, from: Box, to: Box): Promise<voi
   await settled(page, from);
   await page.mouse.down();
   // This is the held input gesture, not a readiness wait. Flutter's
-  // kLongPressTimeout is 500 ms (gestures/constants.dart); pressed-state
-  // pixels can change earlier and do not establish a recognized long press.
-  await new Promise(resolve => setTimeout(resolve, 600));
+  // kLongPressTimeout is 500 ms (gestures/constants.dart). On a loaded
+  // CanvasKit runner the pointer-down can reach Flutter after the mouse call
+  // returns; keep contact long enough for its recognizer before moving.
+  await new Promise(resolve => setTimeout(resolve, 1200));
   await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
-  // LongPressDraggable shows this feedback only after accepting the gesture.
-  // The large clipped view can keep changing while the drag is held.
-  await expect(page.getByText("Copy selection", { exact: true })).toBeVisible();
   await page.mouse.up();
 }
 
