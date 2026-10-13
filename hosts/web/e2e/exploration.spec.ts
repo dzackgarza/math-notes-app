@@ -3,10 +3,13 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "./native-desktop.ts";
-import { boxOf, capture, closePopover, enterText, line, openColors, penStroke, save } from "./workflow-actions.ts";
+import { boxOf, capture, closePopover, enterText, frames, line, openColors, penStroke, save } from "./workflow-actions.ts";
 import { storedPages } from "./workflow-files.ts";
 
-test.use({ trace: "on" });
+// The action log and explicit screenshots hold visual evidence. Keep the
+// Playwright trace's input and network events small enough to finalize after
+// a 24-action session within the runner's separate trace teardown deadline.
+test.use({ trace: { mode: "on", screenshots: false, snapshots: false, sources: false } });
 
 // fast-check owns data generation, replay and shrinking. These inputs drive
 // production controls; the observations are pixels and files outside the app.
@@ -18,6 +21,7 @@ const editing = fc.record({
   dy: fc.integer({ min: 0, max: 5 }),
   length: fc.integer({ min: 60, max: 140 }),
   history: fc.constantFrom("retain", "undo-redo", "branch"),
+  interruption: fc.constantFrom("export-cancel", "page-cancel", "settings", "none"),
 });
 
 type PenSetting = { color: string; width: number };
@@ -67,7 +71,7 @@ async function checkInk(page: Page, svg: string, settings: PenSetting[]) {
   }
 }
 
-test("fresh generated pen settings and history branches survive real folder restart", async ({ desktop }, info) => {
+test("generated pen, history, and dialog interruptions survive real folder restart", async ({ desktop }, info) => {
   test.setTimeout(1_200_000);
   let attempt = 0;
   const parameters = {
@@ -90,10 +94,16 @@ test("fresh generated pen settings and history branches survive real folder rest
     try {
       await desktop.chooseFolder(root);
       await button("New notebook").click();
-      await enterText(page.getByRole("textbox", { name: "Notebook title", exact: true }), "Exploration");
+      const notebookTitle = page.getByRole("textbox", { name: "Notebook title", exact: true });
+      await expect(notebookTitle).toBeVisible();
+      await frames(page);
+      await enterText(notebookTitle, "Exploration");
       await button("Create").click();
       await button("New note").click();
-      await enterText(page.getByRole("textbox", { name: "Title", exact: true }), "Working calculation");
+      const noteTitle = page.getByRole("textbox", { name: "Title", exact: true });
+      await expect(noteTitle).toBeVisible();
+      await frames(page);
+      await enterText(noteTitle, "Working calculation");
       await button("Plain").click();
       await button("A4").click();
       await button("Create").click();
@@ -144,7 +154,9 @@ test("fresh generated pen settings and history branches survive real folder rest
         const pixels = await capture(page, region);
         const y = box.y + 125 + index * 14 + action.dy;
         await penStroke(cdp, line(box.x + action.x, box.x + action.x + action.length, y), action.pressure / 10);
-        await expect.poll(() => capture(page, region)).not.toEqual(pixels);
+        // A committed stroke can reach the file before SwiftShader presents
+        // the corresponding WebGL frame during a long headed session.
+        await expect.poll(() => capture(page, region), { timeout: 30_000, message: "the newly written ink appears on the page" }).not.toEqual(pixels);
         const drawn = await persisted();
         await checkInk(page, drawn, [...settings, setting]);
         if (action.history !== "retain") {
@@ -164,6 +176,27 @@ test("fresh generated pen settings and history branches survive real folder rest
             expect(await persisted(), "redo cannot revive the discarded history branch").toBe(branched);
             await checkInk(page, branched, [...settings, setting]);
           }
+        }
+        const interruption = index === 0 ? "export-cancel" : index === 1 ? "page-cancel" : index === 2 ? "settings" : action.interruption;
+        if (interruption !== "none") {
+          const beforeInterruption = await persisted();
+          await discover({ attemptedInterruption: interruption });
+          await button(interruption === "page-cancel" ? "Pages" : "More").click();
+          await button(interruption === "export-cancel" ? "Export PDF" : interruption === "page-cancel" ? "Go to page" : "Settings").click();
+          if (interruption === "settings") {
+            const finger = page.getByRole("switch", { name: "Draw with finger", exact: true });
+            const original = await finger.isChecked();
+            await finger.click();
+            expect(await finger.isChecked()).toBe(!original);
+            await finger.click();
+            expect(await finger.isChecked()).toBe(original);
+          }
+          const dismiss = interruption === "settings" ? "Done" : "Cancel";
+          await expect(button(dismiss)).toBeVisible();
+          await button(dismiss).click();
+          await expect(button("Library")).toBeVisible();
+          expect(await persisted(), `${interruption} preserves the authored page`).toBe(beforeInterruption);
+          await discover({ executedInterruption: interruption }, "the note remains available and unchanged");
         }
         settings.push(setting);
         await discover({ executed: action }, `stroke ${index + 1} persisted`);

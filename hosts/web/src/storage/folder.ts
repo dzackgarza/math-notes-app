@@ -101,7 +101,17 @@ type ExclusiveWritableOptions = FileSystemCreateWritableOptions & { mode: "exclu
 
 // Writes or deletes each file under `dir`, creating directories on the way.
 export async function writeFiles(dir: FileSystemDirectoryHandle, files: readonly FileChange[]): Promise<void> {
-  for (const file of files) {
+  const phase = (file: FileChange): number => {
+    if (file.kind === "delete") return 4;
+    if (file.path.startsWith("assets/")) return 0;
+    if (file.path.startsWith("pages/")) return 1;
+    if (file.path === "notebook.json") return 3;
+    return 2;
+  };
+  // Make referenced bytes durable before publishing the index. A failed page
+  // or asset write may leave an unlisted file, but not an index pointing at
+  // missing content. Retire obsolete files only after the new index is written.
+  for (const file of [...files].sort((left, right) => phase(left) - phase(right))) {
     const parts = file.path.split("/");
     let parent = dir;
     for (const part of parts.slice(0, -1)) parent = await parent.getDirectoryHandle(part, { create: true });
