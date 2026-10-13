@@ -17,7 +17,7 @@
 #include <sstream>
 #include <stdexcept>
 
-#include "src/base/SkUTF.h"
+#include "src/core/SkUTF.h"
 
 #include <pugixml.hpp>
 
