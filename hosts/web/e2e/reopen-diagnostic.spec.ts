@@ -34,4 +34,5 @@ test('diagnose thin ink redraw and reopen', async ({desktop},info)=>{
  await page.locator('canvas[id^="ink-canvas-"]:visible').waitFor();
  const reopenedAgain=await capture(page,region);
  await writeFile(info.outputPath('observations.json'),JSON.stringify({reopenRepeat:diff(reopened,reopenedAgain),sameFile:original===await readFile(path,'utf8'),beforeRedraw:diff(before,redraw),beforeReopen:diff(before,reopened),redrawReopen:diff(redraw,reopened)},null,2));
+ expect(diff(before,reopened).pixels, 'saved ink paints the same pixels after a real reopen').toBe(0);
 });
