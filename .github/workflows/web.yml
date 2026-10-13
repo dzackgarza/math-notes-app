@@ -58,7 +58,7 @@ jobs:
           bunx playwright install --with-deps chromium
       - name: Deploy to nginx
         run: |
-          sudo apt-get install -y nginx poppler-utils qpdf
+          sudo apt-get install -y nginx poppler-utils qpdf xvfb dbus-x11 openbox xdotool imagemagick python3-gi gir1.2-atspi-2.0 at-spi2-core x11-utils xdg-desktop-portal-gtk
           sudo mkdir -p /var/www/math-notes
           sudo cp -r flutter/build/web/. /var/www/math-notes/
           printf 'server {\n  listen 80 default_server;\n  include %s;\n}\n' "$PWD/deploy/nginx-math-notes.conf" \

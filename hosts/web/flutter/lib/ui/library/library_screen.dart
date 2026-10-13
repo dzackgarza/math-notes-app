@@ -36,6 +36,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
   OpenNotes get session => context.read<OpenNotes>();
   Future<void> run(Future<void> Function() action) =>
       context.read<Activity>().run(action);
+  Future<void> chooseRoot() =>
+      context.read<Activity>().switchFolder(folder.pick, vm.chooseRoot);
 
   @override
   void dispose() {
@@ -669,7 +671,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ),
         withEnabledState(
           CupertinoButton(
-            onPressed: folder.started ? () => run(vm.chooseRoot) : null,
+            onPressed: folder.started ? chooseRoot : null,
             child: const Text('Choose notes folder'),
           ),
         ),
@@ -857,7 +859,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 onPressed: () => run(
                   () => showSettings(
                     context,
-                    onChooseFolder: () => run(vm.chooseRoot),
+                    onChooseFolder: chooseRoot,
                   ),
                 ),
               ),

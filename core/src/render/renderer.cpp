@@ -19,6 +19,7 @@
 #include "include/effects/SkDashPathEffect.h"
 #include "include/gpu/ganesh/GrDirectContext.h"
 #include "include/gpu/ganesh/SkSurfaceGanesh.h"
+#include "format/page_svg.h"
 #include "selection/selection.h"
 #include "render/text_layout.h"
 #include "strokes/outline.h"
@@ -113,7 +114,9 @@ const Renderer::CachedElement &Renderer::Cached(const immer::box<Element> &box) 
       [&](const auto &e) {
         using T = std::decay_t<decltype(e)>;
         if constexpr (std::is_same_v<T, Stroke>) {
-          entry.path = OutlinePath(e.outline);
+          // Paint the coordinates the page SVG will retain. Otherwise the
+          // first reopen changes thin ink at antialiased pixel boundaries.
+          entry.path = OutlinePath(ReadPathData(WritePathData(e.outline, /*closed=*/true)));
           entry.bounds = ToSkMatrix(e.transform).mapRect(entry.path.getBounds());
         } else if constexpr (std::is_same_v<T, Shape>) {
           entry.path = ShapePath(e);

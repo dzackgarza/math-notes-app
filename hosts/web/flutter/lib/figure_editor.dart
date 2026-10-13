@@ -3,6 +3,7 @@ import 'dart:js_interop';
 import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:web/web.dart' as web;
 
 import 'errors.dart';
@@ -24,6 +25,7 @@ class _FigureEditorState extends State<FigureEditor> {
   late final String viewType;
   late final native.FigureEditor editor;
   late final JSFunction listener;
+  final sourceText = TextEditingController();
   bool closing = false;
   bool allowPop = false;
 
@@ -36,8 +38,12 @@ class _FigureEditorState extends State<FigureEditor> {
     frame.style.border = '0';
     ui_web.platformViewRegistry.registerViewFactory(viewType, (_) => frame);
     editor = native.host.mountFigureEditor(widget.note, widget.id, frame);
+    sourceText.text = editor.paperSource;
     listener = ((web.Event event) {
-      if (mounted) setState(() {});
+      if (mounted) {
+        if (sourceText.text != editor.paperSource) sourceText.text = editor.paperSource;
+        setState(() {});
+      }
     }).toJS;
     editor.addEventListener('change', listener);
   }
@@ -62,6 +68,7 @@ class _FigureEditorState extends State<FigureEditor> {
   void dispose() {
     editor.removeEventListener('change', listener);
     editor.dispose();
+    sourceText.dispose();
     super.dispose();
   }
 
@@ -99,7 +106,62 @@ class _FigureEditorState extends State<FigureEditor> {
                 padding: EdgeInsets.all(8),
                 child: CupertinoActivityIndicator(),
               ),
-            Expanded(child: HtmlElementView(viewType: viewType)),
+            Expanded(
+              child: Row(
+                children: [
+                  Expanded(child: HtmlElementView(viewType: viewType)),
+                  Container(
+                    width: 300,
+                    decoration: const BoxDecoration(
+                      color: surface2,
+                      border: Border(left: BorderSide(color: separator)),
+                    ),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text('TikZ source', style: subhead),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Copy this skeleton into your figure editor for final typesetting.',
+                          style: callout.copyWith(color: secondaryLabel),
+                        ),
+                        const SizedBox(height: 12),
+                        Expanded(
+                          child: CupertinoTextField(
+                            controller: sourceText,
+                            readOnly: true,
+                            expands: true,
+                            maxLines: null,
+                            decoration: fieldDecoration,
+                            padding: const EdgeInsets.all(12),
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 13,
+                              color: label,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        CupertinoButton.filled(
+                          onPressed: editor.ready
+                              ? () async {
+                                  try {
+                                    final source = (await editor.latestPaperSource().toDart).toDart;
+                                    await Clipboard.setData(ClipboardData(text: source));
+                                  } catch (error, stack) {
+                                    showError(error, stack);
+                                  }
+                                }
+                              : null,
+                          child: const Text('Copy TikZ'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),

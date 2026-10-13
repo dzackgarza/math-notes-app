@@ -381,7 +381,10 @@ extension type Host(JSObject value) implements JSObject {
     Document document,
     String name,
   );
-  external JSPromise<JSArray<JSString>> listTemplates(Directory root, Engine engine);
+  external JSPromise<JSArray<JSString>> listTemplates(
+    Directory root,
+    Engine engine,
+  );
   external String finishFigure(Canvas canvas);
   external String figureSource(OpenNote note, Canvas canvas, bool capturing);
   external JSPromise<JSUint8Array?> thumbnail(
@@ -504,6 +507,9 @@ extension type Host(JSObject value) implements JSObject {
 extension type FigureEditor(JSObject value) implements JSObject {
   external bool get ready;
   external String get error;
+  external String get source;
+  external String get paperSource;
+  external JSPromise<JSString> latestPaperSource();
   external JSPromise<VoidResult> save();
   external void dispose();
   external void addEventListener(String type, JSFunction listener);

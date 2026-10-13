@@ -74,7 +74,7 @@ jobs:
           out="$BUILD_DIR/documents"
           node "$BUILD_DIR/tests/write_documents.js" tests/documents "$out" full custom-size
           xmllint --noout "$out"/*/pages/*.svg
-          uvx --with universal-ink-library==2.1.1 python core/tests/inkml_check.py "$out"/*
+          uvx --with universal-ink-library==2.1.1 --with 'bitstring<5' python core/tests/inkml_check.py "$out"/*
 
       - name: Check the wasm uses no threads
         run: |
