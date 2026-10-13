@@ -1,6 +1,6 @@
 import { addTag, darkestPixel } from "./workflow-actions.ts";
 import { size, pickColor, openColors, COLORS, inkRow } from "./workflow-actions.ts";
-import { createTestNotebook, boxOf, inView, screenPixels, inkAt, brightness, closePopover, pageIn, isInk, pixelBounds, type Bounds, isOutline, openTestNotebook, longPressDrag, settled } from "./workflow-actions.ts";
+import { createTestNotebook, boxOf, inView, screenPixels, inkAt, brightness, closePopover, pageIn, isInk, pixelBounds, type Bounds, isOutline, openTestNotebook, touchLongPressDrag, settled } from "./workflow-actions.ts";
 import { focusText, enterText, save, goToPage, closeNote, penStroke, line, pngPixels, capture, type Box, type PenPoint, type Rgb } from "./workflow-actions.ts";
 import { expect, test, type CDPSession, type Locator, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
@@ -957,7 +957,7 @@ test("Flutter page overview duplicates, deletes, reorders, and opens pages", asy
   await expect(page.getByText(/^\d \/ 3$/)).toBeVisible();
   await page.getByRole("button", { name: "Pages", exact: true }).click();
   await page.getByRole("button", { name: "Page overview", exact: true }).click();
-  const tile = (n: number) => page.getByRole("button", { name: `Page ${n}`, exact: true });
+  const tile = (n: number) => page.getByRole("img", { name: `Page ${n}`, exact: true });
   await expect(tile(3)).toBeVisible();
 
   const act = async (n: number, action: string) => {
@@ -971,7 +971,10 @@ test("Flutter page overview duplicates, deletes, reorders, and opens pages", asy
 
   const from = await boxOf(tile(1));
   const to = await boxOf(tile(3));
-  await longPressDrag(page, from, to);
+  await touchLongPressDrag(page, from, to);
+  await expect.poll(async () => (await storedPages(page, "Overview")).map((entry) => entry.file), { timeout: 10_000 }).toEqual([
+    "pages/0004.svg", "pages/0002.svg", "pages/0001.svg",
+  ]);
   await page.screenshot({ path: info.outputPath("page-overview.png") });
 
   await tile(2).click();
@@ -1028,7 +1031,7 @@ test("Flutter writes on three pages and returns to page one", async ({ page }) =
   }
   await page.getByRole("button", { name: "Pages", exact: true }).click();
   await page.getByRole("button", { name: "Page overview", exact: true }).click();
-  await page.getByRole("button", { name: "Page 1", exact: true }).click();
+  await page.getByRole("button", { name: "Open page 1", exact: true }).click();
   await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
   await save(page);
   await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");

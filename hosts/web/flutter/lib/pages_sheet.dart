@@ -5,7 +5,6 @@ import 'package:reorderable_grid/reorderable_grid.dart';
 
 import 'host.dart' as native;
 import 'ui/modal.dart';
-import 'ui/notes_ui.dart';
 import 'ui/theme.dart';
 
 /// The notebook's pages as a thumbnail grid. A long press drags a page to a
@@ -120,24 +119,30 @@ Future<int?> overviewPages(
                             child: Column(
                               children: [
                                 Expanded(
-                                  child: TapTarget(
+                                  child: Semantics(
                                     label: 'Page ${index + 1}',
+                                    image: true,
                                     selected: marked(index),
-                                    onTap: (_) => Navigator.pop(context, index),
-                                    child: DecoratedBox(
-                                      position: DecorationPosition.foreground,
-                                      decoration: BoxDecoration(
-                                        border: Border.all(
-                                          color: marked(index)
-                                              ? accentText
-                                              : paperEdge,
-                                          width: marked(index) ? 3 : 1,
+                                    child: ExcludeSemantics(
+                                      child: GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onTap: () => Navigator.pop(context, index),
+                                        child: DecoratedBox(
+                                          position: DecorationPosition.foreground,
+                                          decoration: BoxDecoration(
+                                            border: Border.all(
+                                              color: marked(index)
+                                                  ? accentText
+                                                  : paperEdge,
+                                              width: marked(index) ? 3 : 1,
+                                            ),
+                                          ),
+                                          child: Image.memory(
+                                            thumbnails[index],
+                                            fit: BoxFit.contain,
+                                            excludeFromSemantics: true,
+                                          ),
                                         ),
-                                      ),
-                                      child: Image.memory(
-                                        thumbnails[index],
-                                        fit: BoxFit.contain,
-                                        excludeFromSemantics: true,
                                       ),
                                     ),
                                   ),
@@ -145,7 +150,19 @@ Future<int?> overviewPages(
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Text('${index + 1}'),
+                                    Semantics(
+                                      label: 'Open page ${index + 1}',
+                                      button: true,
+                                      onTap: () => Navigator.pop(context, index),
+                                      child: ExcludeSemantics(
+                                        child: CupertinoButton(
+                                          padding: const EdgeInsets.all(4),
+                                          minimumSize: const Size.square(32),
+                                          onPressed: () => Navigator.pop(context, index),
+                                          child: Text('${index + 1}'),
+                                        ),
+                                      ),
+                                    ),
                                     CupertinoButton(
                                       padding: const EdgeInsets.all(4),
                                       minimumSize: const Size.square(32),

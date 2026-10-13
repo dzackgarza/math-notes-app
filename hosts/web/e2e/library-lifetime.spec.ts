@@ -127,9 +127,9 @@ test("Flutter lifetime: first launch, folder choice, three written pages, restar
   await shot("page-3-written");
   await button("Pages").click();
   await button("Page overview").click();
-  for (const number of [1, 2, 3]) await expect(button(`Page ${number}`)).toBeVisible();
+  for (const number of [1, 2, 3]) await expect(page.getByRole("img", { name: `Page ${number}`, exact: true })).toBeVisible();
   await shot("page-overview");
-  await button("Page 1").click();
+  await page.getByRole("img", { name: "Page 1", exact: true }).click();
   await expect(page.getByText("1 / 3", { exact: true })).toBeVisible();
   await expect(async () => expect(await inked()).toEqual([true, false, false, true])).toPass();
 

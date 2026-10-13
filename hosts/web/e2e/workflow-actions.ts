@@ -190,6 +190,23 @@ export async function longPressDrag(page: Page, from: Box, to: Box): Promise<voi
   await page.mouse.up();
 }
 
+export async function touchLongPressDrag(page: Page, from: Box, to: Box): Promise<void> {
+  const start = { x: from.x + from.width / 2, y: from.y + from.height / 2, id: 1 };
+  const end = { x: to.x + to.width / 2, y: to.y + to.height / 2, id: 1 };
+  const cdp = await page.context().newCDPSession(page);
+  await settled(page, from);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [start] });
+  await new Promise(resolve => setTimeout(resolve, 600));
+  for (let step = 1; step <= 20; step++) {
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x: start.x + (end.x - start.x) * step / 20, y: start.y + (end.y - start.y) * step / 20, id: 1 }],
+    });
+  }
+  await new Promise(resolve => setTimeout(resolve, 300));
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+}
+
 export async function closePopover(page: Page): Promise<void> {
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("Page has no viewport");

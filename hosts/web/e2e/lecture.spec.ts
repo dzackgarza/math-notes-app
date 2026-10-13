@@ -1,5 +1,5 @@
 import { test, expect } from "./native-desktop.ts";
-import { enterText, penStroke, line, type PenPoint, type Rgb, createTestNotebook, boxOf, screenPixels, inkAt, closePopover, isInk, pixelBounds, type Bounds, isOutline, openTestNotebook, longPressDrag, settled, size, pickColor, openColors, inkRow, goToPage, pngPixels } from "./workflow-actions.ts";
+import { enterText, penStroke, line, type PenPoint, type Rgb, createTestNotebook, boxOf, screenPixels, inkAt, closePopover, isInk, pixelBounds, type Bounds, isOutline, openTestNotebook, touchLongPressDrag, settled, size, pickColor, openColors, inkRow, goToPage, pngPixels } from "./workflow-actions.ts";
 import { storedNote, storedPages, savedPages, storedFills } from "./workflow-files.ts";
 import { execFileSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
@@ -220,7 +220,7 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   await choose("Pages", "Insert page before");
   await expect(page.getByText(/^\d \/ 4$/)).toBeVisible();
   await choose("Pages", "Page overview");
-  const tile = (n: number) => button(`Page ${n}`);
+  const tile = (n: number) => page.getByRole("img", { name: `Page ${n}`, exact: true });
   const act = async (n: number, action: string) => {
     await button(`Page ${n} actions`).click();
     await button(action).click();
@@ -231,7 +231,7 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   await expect(tile(4)).toBeVisible();
   const from = await boxOf(tile(2));
   const to = await boxOf(tile(4));
-  await longPressDrag(page, from, to);
+  await touchLongPressDrag(page, from, to);
   await shot("overview");
   await tile(1).click();
   await expect(page.getByText("1 / 4", { exact: true })).toBeVisible();
