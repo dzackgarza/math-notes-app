@@ -1,5 +1,5 @@
 import { test, expect } from "./native-desktop.ts";
-import { save, enterText, penStroke, line, type PenPoint, type Rgb, createTestNotebook, boxOf, screenPixels, inkAt, closePopover, pageIn, isInk, pixelBounds, isOutline, openTestNotebook, longPressDrag } from "./workflow-actions.ts";
+import { save, enterText, penStroke, line, type PenPoint, type Rgb, createTestNotebook, boxOf, inView, screenPixels, inkAt, closePopover, pageIn, isInk, pixelBounds, isOutline, openTestNotebook, longPressDrag } from "./workflow-actions.ts";
 import { storedNote } from "./workflow-files.ts";
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
@@ -257,7 +257,9 @@ test("Flutter research session: layers, clippings, bookmarks, links between note
   await expect(page.getByRole("heading", { name: "Proofs", exact: true })).toBeVisible({ timeout: 30_000 });
   await button("Clippings").click();
   await clipping(5);
+  await inView(button("Insert clipping 5"));
   await button("Insert clipping 5").click();
+  await expect.poll(async () => (await storedNote(page, desktop.notes, proofs)).pages[0].groups.flatMap((group) => group.strokes).length, { timeout: 15_000 }).toBe(lectureStrokes.length);
   await button("Clippings").click();
   let other = await saved(proofs);
   const pasted = other.pages[0].groups.flatMap((group) => group.strokes);

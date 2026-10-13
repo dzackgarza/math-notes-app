@@ -977,7 +977,7 @@ test("Flutter page overview duplicates, deletes, reorders, and opens pages", asy
   ]);
   await page.screenshot({ path: info.outputPath("page-overview.png") });
 
-  await tile(2).click();
+  await page.getByRole("button", { name: "Open page 2", exact: true }).click();
   await expect(page.getByText("2 / 3", { exact: true })).toBeVisible();
   await save(page);
   await expect(page.getByRole("status", { name: /^Notebook save/ })).toHaveAccessibleName("Notebook save Saved");

@@ -233,7 +233,7 @@ test("Flutter lecture session: every core tool on one note, pages, a PDF beside 
   const to = await boxOf(tile(4));
   await touchLongPressDrag(page, from, to);
   await shot("overview");
-  await tile(1).click();
+  await button("Open page 1").click();
   await expect(page.getByText("1 / 4", { exact: true })).toBeVisible();
   let saved = await pages();
   // A new page file takes the number after the highest of the note's pages
