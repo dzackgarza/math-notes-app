@@ -65,8 +65,8 @@ test("keeps queued creation and metadata in their originating folder while switc
   await desktop.chooseFolder(desktop.notes, false);
   await expect(page.getByRole("button", { name: /^Open Folder A work/ })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole("button", { name: /^Open B subsequent work/ })).toHaveCount(0);
-  await expect(page.getByText("Belongs only to A", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: /^Open Folder A work/ }).click();
   await expect(page.getByRole("heading", { name: "Folder A work", exact: true })).toBeVisible();
+  await expect(page.getByText("Belongs only to A", { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath("reopened-originating-folder.png") });
 });
