@@ -329,3 +329,7 @@ I compared the [deployed library](/tmp/math-notes-library.png), [editor](/tmp/ma
 | 6 | **Share and export still read as separate technical commands.** | Use one Share flow: choose content and format, then choose a destination such as download or print. |
 
 The [Goodnotes pen popup](</home/dzack/math-notes-ui-reference/goodnotes/pen-popup.png>) also shows a caution: it is rich, but crowded. The [Noteful layer panel](</home/dzack/math-notes-ui-reference/noteful/layers.png>) is a stronger reference for grouping and placing controls beside the item they affect. These are findings from the inspected screens and an empty Math Notes document; they do not yet cover every populated state or interaction.
+
+# Interaction and behavior complaints
+
+Observed iPad defects affect tool selection, ink and image editing, figure editing and saving, navigation, visual layout, error reporting, and application stability.
