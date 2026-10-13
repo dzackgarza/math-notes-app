@@ -61,7 +61,8 @@ test("keeps queued creation and metadata in their originating folder while switc
   await expect(page.getByRole("heading", { name: "B subsequent work", exact: true })).toBeVisible();
   await button("Library").click();
   await button("Settings").click();
-  await desktop.chooseFolder(desktop.notes);
+  // Chrome already granted this folder earlier in the same profile.
+  await desktop.chooseFolder(desktop.notes, false);
   await expect(page.getByRole("button", { name: /^Open Folder A work/ })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole("button", { name: /^Open B subsequent work/ })).toHaveCount(0);
   await expect(page.getByText("Belongs only to A", { exact: true })).toBeVisible();

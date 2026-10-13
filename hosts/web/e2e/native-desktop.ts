@@ -20,7 +20,7 @@ function firstLine(child: ChildProcess): Promise<string> {
 interface Desktop {
   page: Page;
   notes: string;
-  chooseFolder(path?: string): Promise<void>;
+  chooseFolder(path?: string, permissionPrompt?: boolean): Promise<void>;
   allow(name: "Allow" | "Allow this time" | "Don't allow"): Promise<void>;
   restart(): Promise<Page>;
   freshProfile(): Promise<Page>;
@@ -96,7 +96,7 @@ export const test = base.extend<{ desktop: Desktop }>({
           await input("mousemove", String(point[0]), String(point[1]), "click", "1");
           await expect.poll(locate, { timeout: 10_000 }).toBeNull();
         },
-        async chooseFolder(path = notes) {
+        async chooseFolder(path = notes, permissionPrompt = true) {
           await desktop.page.getByRole("button", { name: "Choose notes folder", exact: true }).click();
           const dialog = await input("search", "--sync", "--onlyvisible", "--name", "Select where this site can save changes");
           const dialogWindow = dialog.stdout.trim().split("\n")[0];
@@ -126,7 +126,7 @@ export const test = base.extend<{ desktop: Desktop }>({
           await expect.poll(async () => (await entry())?.text).toBe(location);
           await exec("import", ["-window", "root", info.outputPath("folder-location.png")], { env: nativeEnv });
           await input("key", "--clearmodifiers", "Return");
-          await desktop.allow("Allow");
+          if (permissionPrompt) await desktop.allow("Allow");
         },
         async restart() {
           await close();
