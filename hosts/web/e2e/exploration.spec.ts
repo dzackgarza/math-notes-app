@@ -169,7 +169,9 @@ test("fresh generated pen settings and history branches survive real folder rest
         await discover({ executed: action }, `stroke ${index + 1} persisted`);
       }
       const original = await persisted();
+      await writeFile(info.outputPath(`attempt-${id}`, "before-restart.svg"), original);
       const visible = await capture(page, region);
+      await page.screenshot({ path: info.outputPath(`attempt-${id}`, "ink-before-restart.png"), clip: region });
       const pages = await storedPages(page, root, "Working calculation", "Exploration");
       expect(pages[0].strokes).toBe(actions.length);
       await page.screenshot({ path: info.outputPath(`attempt-${id}`, "before-restart.png") });
@@ -181,10 +183,15 @@ test("fresh generated pen settings and history branches survive real folder rest
       canvas = page.locator('canvas[id^="ink-canvas-"]:visible');
       await canvas.waitFor();
       expect(await boxOf(canvas)).toEqual(box);
-      await expect.poll(() => capture(page, region)).toEqual(visible);
       const reopened = await readFile(join(root, "Exploration", "Working calculation", "pages", "0001.svg"), "utf8");
+      await writeFile(info.outputPath(`attempt-${id}`, "reopened.svg"), reopened);
       expect(reopened).toBe(original);
       await checkInk(page, reopened, settings);
+      await page.screenshot({ path: info.outputPath(`attempt-${id}`, "ink-reopened.png"), clip: region });
+      await expect.poll(async () => {
+        const pixels = await capture(page, region);
+        return pixels.filter((pixel, index) => pixel.some((channel, c) => channel !== visible[index][c])).length;
+      }, { message: "reopening preserves every observed ink pixel" }).toBe(0);
       await discover("reopened", "pixels and authored SVG unchanged");
       await page.screenshot({ path: info.outputPath(`attempt-${id}`, "reopened.png") });
     } catch (error) {

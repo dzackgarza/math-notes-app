@@ -4,8 +4,8 @@ import { mkdir, readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 
 test("keeps queued creation and metadata in their originating folder while switching", async ({ desktop }, info) => {
-  test.setTimeout(240_000);
-  const page = desktop.page;
+  test.setTimeout(360_000);
+  let page = desktop.page;
   const button = (name: string) => page.getByRole("button", { name, exact: true });
   await desktop.chooseFolder();
   await button("New notebook").click({ timeout: 90_000 });
@@ -51,4 +51,21 @@ test("keeps queued creation and metadata in their originating folder while switc
     await held;
     await other.close();
   }
+
+  page = await desktop.restart();
+  await button("Reconnect folder").click();
+  await desktop.allow("Allow this time");
+  await expect(page.getByRole("button", { name: /^Open B existing/ })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("button", { name: /^Open Folder A work/ })).toHaveCount(0);
+  await page.getByRole("button", { name: /^Open B subsequent work/ }).click();
+  await expect(page.getByRole("heading", { name: "B subsequent work", exact: true })).toBeVisible();
+  await button("Library").click();
+  await button("Settings").click();
+  await desktop.chooseFolder(desktop.notes);
+  await expect(page.getByRole("button", { name: /^Open Folder A work/ })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("button", { name: /^Open B subsequent work/ })).toHaveCount(0);
+  await expect(page.getByText("Belongs only to A", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /^Open Folder A work/ }).click();
+  await expect(page.getByRole("heading", { name: "Folder A work", exact: true })).toBeVisible();
+  await page.screenshot({ path: info.outputPath("reopened-originating-folder.png") });
 });
