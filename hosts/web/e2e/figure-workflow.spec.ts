@@ -22,6 +22,9 @@ test('a captured doodle opens the visual editor and keeps its ink and TikZ sourc
   await page.getByRole('button', { name: 'Complete drawing', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Save and close', exact: true })).toBeVisible();
   await expect(page.frameLocator('iframe[title="TikZ figure editor"]').getByRole('img', { name: 'TikZ SVG preview' })).toBeVisible();
+  await page.context().grantPermissions(['clipboard-read']);
+  await page.getByRole('button', { name: 'Copy TikZ', exact: true }).click();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('\\begin{tikzpicture}');
   await page.getByRole('button', { name: 'Save and close', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Save and close', exact: true })).toHaveCount(0);
   await save(page);

@@ -3,6 +3,7 @@ import 'dart:js_interop';
 import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:web/web.dart' as web;
 
 import 'errors.dart';
@@ -99,7 +100,60 @@ class _FigureEditorState extends State<FigureEditor> {
                 padding: EdgeInsets.all(8),
                 child: CupertinoActivityIndicator(),
               ),
-            Expanded(child: HtmlElementView(viewType: viewType)),
+            Expanded(
+              child: Row(
+                children: [
+                  Expanded(child: HtmlElementView(viewType: viewType)),
+                  Container(
+                    width: 300,
+                    decoration: const BoxDecoration(
+                      color: surface2,
+                      border: Border(left: BorderSide(color: separator)),
+                    ),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text('TikZ source', style: subhead),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Copy this skeleton into your figure editor for final typesetting.',
+                          style: callout.copyWith(color: secondaryLabel),
+                        ),
+                        const SizedBox(height: 12),
+                        Expanded(
+                          child: DecoratedBox(
+                            decoration: fieldDecoration,
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.all(12),
+                              child: SelectableText(
+                                editor.source,
+                                style: const TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontSize: 13,
+                                  color: label,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        CupertinoButton.filled(
+                          onPressed: editor.ready
+                              ? () async {
+                                  await Clipboard.setData(
+                                    ClipboardData(text: editor.source),
+                                  );
+                                }
+                              : null,
+                          child: const Text('Copy TikZ'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),

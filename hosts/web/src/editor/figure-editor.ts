@@ -26,6 +26,7 @@ export class FigureEditor extends EventTarget {
   }>();
   ready = false;
   error = '';
+  source: string;
   private saving = false;
 
   private readonly receive = (event: MessageEvent<string>) => {
@@ -34,7 +35,7 @@ export class FigureEditor extends EventTarget {
     try { message = JSON.parse(event.data); }
     catch { return; }
     if (message.event === 'init') {
-      this.send({ action: 'load', source: this.note.document.figureSource(this.id),
+      this.send({ action: 'load', source: this.source,
         fileName: `${this.id}.tikz`, autosave: 0 });
       return;
     }
@@ -65,6 +66,7 @@ export class FigureEditor extends EventTarget {
     this.note = note;
     this.id = id;
     this.frame = frame;
+    this.source = note.document.figureSource(id);
     window.addEventListener('message', this.receive);
     frame.title = 'TikZ figure editor';
     frame.src = new URL('tikz-editor/index.html', document.baseURI).href;
@@ -80,10 +82,11 @@ export class FigureEditor extends EventTarget {
   private persist(source: string): void {
     this.note.document.saveFigureDraft(this.id, source);
     this.note.saver.schedule();
+    this.source = source;
     this.error = '';
   }
 
-  private source(): Promise<string> {
+  private requestSource(): Promise<string> {
     const requestId = crypto.randomUUID();
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -102,7 +105,7 @@ export class FigureEditor extends EventTarget {
     if (this.saving) throw new Error('The figure source is already saving.');
     this.saving = true;
     try {
-      this.persist(await this.source());
+      this.persist(await this.requestSource());
       await this.note.saver.save();
     } catch (error) {
       this.error = error instanceof Error ? error.message : String(error);
