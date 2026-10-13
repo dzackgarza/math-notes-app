@@ -147,3 +147,19 @@ TEST_CASE("A TikZ figure stays visible in standalone SVG and retains its editabl
   CHECK(std::get<Bookmark>(reopened.layers[0].elements[1]->value).id == "b-27r4cq9ax6mh");
   CHECK(WritePage(reopened) == bytes);
 }
+
+TEST_CASE("Text line SVG preserves UTF-8 across UTF-16 line offsets") {
+  Page page{.id = "p-script", .file = "pages/0001.svg", .width = 595.28, .height = 841.89};
+  LayerContent layer{.layer_id = "l-script"};
+  Text text{.id = "t-script", .x = 36, .y = 72,
+            .lines = {"नमस्ते 🌟", "نظرية الجبر"}};
+  layer.elements = layer.elements.push_back(immer::box<Element>(Element{text}));
+  page.layers.push_back(layer);
+
+  const std::string svg = WritePage(page);
+  CHECK(svg.find(">नमस्ते 🌟</tspan>") != std::string::npos);
+  CHECK(svg.find(">نظرية الجبر</tspan>") != std::string::npos);
+  const Page reopened = ReadPage(svg, page.file, {layer.layer_id});
+  REQUIRE_FALSE(reopened.error.has_value());
+  CHECK(std::get<Text>(reopened.layers[0].elements[0]->value).lines == text.lines);
+}
