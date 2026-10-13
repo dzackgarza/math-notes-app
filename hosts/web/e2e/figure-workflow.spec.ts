@@ -21,10 +21,20 @@ test('a captured doodle opens the visual editor and keeps its ink and TikZ sourc
   ], .8);
   await page.getByRole('button', { name: 'Complete drawing', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Save and close', exact: true })).toBeVisible();
-  await expect(page.frameLocator('iframe[title="TikZ figure editor"]').getByRole('img', { name: 'TikZ SVG preview' })).toBeVisible();
+  const editor = page.frameLocator('iframe[title="TikZ figure editor"]');
+  const drawing = editor.frameLocator('iframe[title="TikZ visual editor"]');
+  await expect(editor.getByRole('button', { name: 'Draw', exact: true })).toBeVisible();
+  await expect(drawing.locator('[data-canvas-viewport="true"]')).toBeVisible();
+  await expect(drawing.locator('[data-source-id]').first()).toBeVisible();
+  await editor.getByRole('button', { name: 'Draw', exact: true }).click();
+  const drawingBox = (await drawing.locator('[data-canvas-viewport="true"]').boundingBox())!;
+  await page.mouse.move(drawingBox.x + drawingBox.width * .4, drawingBox.y + drawingBox.height * .45);
+  await page.mouse.down();
+  await page.mouse.move(drawingBox.x + drawingBox.width * .6, drawingBox.y + drawingBox.height * .55, { steps: 12 });
+  await page.mouse.up();
   await page.context().grantPermissions(['clipboard-read']);
   await page.getByRole('button', { name: 'Copy TikZ', exact: true }).click();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('\\begin{tikzpicture}');
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('workbench-ink:');
   await page.getByRole('button', { name: 'Save and close', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Save and close', exact: true })).toHaveCount(0);
   await save(page);
@@ -42,6 +52,7 @@ test('a captured doodle opens the visual editor and keeps its ink and TikZ sourc
   const before = await stored();
   expect(before.svg).toContain('<path id="s-');
   expect(before.tikz).toContain('\\begin{tikzpicture}');
+  expect(before.tikz).toContain('workbench-ink:');
 
   await page.reload();
   await page.getByRole('button', { name: /^Open Diagrams/ }).click();

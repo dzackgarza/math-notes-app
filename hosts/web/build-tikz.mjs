@@ -36,12 +36,19 @@ async function source(url, revision, directory) {
   if (stdout.trim() !== revision) throw new Error(`Source revision differs in ${directory}`);
 }
 
-await source('https://github.com/dzackgarza/visual-tikz-editor.git', '73dddad8551ff5d48c2cb0886aac9efb01b1822c', editor);
+await source('https://github.com/dzackgarza/visual-tikz-editor.git', 'b2d1bcf1002607d50b1002fd494e6836d61338d5', editor);
 await source('https://github.com/dzackgarza/freetikz.git', '9e5fb05c22dbc5637ff7cebf99f3dbee6f962b68', freetikz);
 const output = process.argv[2] ? path.resolve(root, process.argv[2]) : path.join(root, 'hosts/web/flutter/build/web/tikz-editor');
 await mkdir(output, { recursive: true });
 await cp(path.join(editor, 'vendor/tikz-editor/src'), output, { recursive: true });
 await cp(path.join(editor, 'vendor/tikz-editor/LICENSE'), path.join(output, 'LICENSE'));
+
+if (!process.argv[2]) {
+  await run('bun', ['install', '--frozen-lockfile'], editor);
+  await run('bun', ['run', 'build'], editor);
+  const workbench = path.join(path.dirname(output), 'tikz-workbench');
+  await cp(path.join(editor, 'standalone/dist'), workbench, { recursive: true });
+}
 
 const runtime = process.argv[3] ? path.resolve(root, process.argv[3]) : null;
 if (runtime) {

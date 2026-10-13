@@ -146,9 +146,12 @@ class _FigureEditorState extends State<FigureEditor> {
                         CupertinoButton.filled(
                           onPressed: editor.ready
                               ? () async {
-                                  await Clipboard.setData(
-                                    ClipboardData(text: editor.source),
-                                  );
+                                  try {
+                                    final source = (await editor.latestSource().toDart).toDart;
+                                    await Clipboard.setData(ClipboardData(text: source));
+                                  } catch (error, stack) {
+                                    showError(error, stack);
+                                  }
                                 }
                               : null,
                           child: const Text('Copy TikZ'),

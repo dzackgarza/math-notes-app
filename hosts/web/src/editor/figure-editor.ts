@@ -69,7 +69,7 @@ export class FigureEditor extends EventTarget {
     this.source = note.document.figureSource(id);
     window.addEventListener('message', this.receive);
     frame.title = 'TikZ figure editor';
-    frame.src = new URL('tikz-editor/index.html', document.baseURI).href;
+    frame.src = new URL('tikz-workbench/hosted.html', document.baseURI).href;
   }
 
   private send(command: Record<string, unknown>): void {
@@ -100,12 +100,20 @@ export class FigureEditor extends EventTarget {
     });
   }
 
+  async latestSource(): Promise<string> {
+    if (!this.ready) throw new Error('The figure editor is still loading.');
+    const source = await this.requestSource();
+    this.persist(source);
+    this.dispatchEvent(new Event('change'));
+    return source;
+  }
+
   async save(): Promise<void> {
     if (!this.ready) throw new Error('The figure editor is still loading.');
     if (this.saving) throw new Error('The figure source is already saving.');
     this.saving = true;
     try {
-      this.persist(await this.requestSource());
+      await this.latestSource();
       await this.note.saver.save();
     } catch (error) {
       this.error = error instanceof Error ? error.message : String(error);
