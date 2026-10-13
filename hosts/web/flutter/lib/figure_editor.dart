@@ -25,6 +25,7 @@ class _FigureEditorState extends State<FigureEditor> {
   late final String viewType;
   late final native.FigureEditor editor;
   late final JSFunction listener;
+  final sourceText = TextEditingController();
   bool closing = false;
   bool allowPop = false;
 
@@ -37,8 +38,12 @@ class _FigureEditorState extends State<FigureEditor> {
     frame.style.border = '0';
     ui_web.platformViewRegistry.registerViewFactory(viewType, (_) => frame);
     editor = native.host.mountFigureEditor(widget.note, widget.id, frame);
+    sourceText.text = editor.source;
     listener = ((web.Event event) {
-      if (mounted) setState(() {});
+      if (mounted) {
+        if (sourceText.text != editor.source) sourceText.text = editor.source;
+        setState(() {});
+      }
     }).toJS;
     editor.addEventListener('change', listener);
   }
@@ -63,6 +68,7 @@ class _FigureEditorState extends State<FigureEditor> {
   void dispose() {
     editor.removeEventListener('change', listener);
     editor.dispose();
+    sourceText.dispose();
     super.dispose();
   }
 
@@ -122,18 +128,17 @@ class _FigureEditorState extends State<FigureEditor> {
                         ),
                         const SizedBox(height: 12),
                         Expanded(
-                          child: DecoratedBox(
+                          child: CupertinoTextField(
+                            controller: sourceText,
+                            readOnly: true,
+                            expands: true,
+                            maxLines: null,
                             decoration: fieldDecoration,
-                            child: SingleChildScrollView(
-                              padding: const EdgeInsets.all(12),
-                              child: SelectableText(
-                                editor.source,
-                                style: const TextStyle(
-                                  fontFamily: 'monospace',
-                                  fontSize: 13,
-                                  color: label,
-                                ),
-                              ),
+                            padding: const EdgeInsets.all(12),
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 13,
+                              color: label,
                             ),
                           ),
                         ),
