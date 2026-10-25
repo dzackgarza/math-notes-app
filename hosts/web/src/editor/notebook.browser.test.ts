@@ -102,3 +102,32 @@ test("pending notebook edits can be saved after a filesystem writer releases its
     await root.removeEntry(name, { recursive: true });
   }
 });
+
+test("a failed page write leaves the previous notebook index intact", async () => {
+  const root = await navigator.storage.getDirectory();
+  const name = `test-save-order-${crypto.randomUUID()}`;
+  const dir = await root.getDirectoryHandle(name, { create: true });
+  const oldIndex = new TextEncoder().encode('{"pages":["pages/0001.svg"]}');
+  const newIndex = new TextEncoder().encode('{"pages":["pages/0001.svg","pages/0002.svg"]}');
+  const oldPage = new TextEncoder().encode('<svg id="old"/>');
+  const newPage = new TextEncoder().encode('<svg id="new"/>');
+  try {
+    await writeFiles(dir, [
+      { kind: "write", path: "notebook.json", bytes: oldIndex },
+      { kind: "write", path: "pages/0001.svg", bytes: oldPage },
+    ]);
+    const page = await (await dir.getDirectoryHandle("pages")).getFileHandle("0001.svg");
+    const writer = await page.createWritable({ keepExistingData: true, mode: "exclusive" } as FileSystemCreateWritableOptions & { mode: "exclusive" });
+    try {
+      await expect(writeFiles(dir, [
+        { kind: "write", path: "notebook.json", bytes: newIndex },
+        { kind: "write", path: "pages/0001.svg", bytes: newPage },
+      ])).rejects.toMatchObject({ name: "NoModificationAllowedError" });
+      expect(new Uint8Array(await (await (await dir.getFileHandle("notebook.json")).getFile()).arrayBuffer())).toEqual(oldIndex);
+    } finally {
+      await writer.close();
+    }
+  } finally {
+    await root.removeEntry(name, { recursive: true });
+  }
+});

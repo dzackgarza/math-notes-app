@@ -1,0 +1,19 @@
+% Three page sizes for the PDF import workflow. Generate with:
+% SOURCE_DATE_EPOCH=1700000000 pdflatex -interaction=nonstopmode -halt-on-error mixed-pages.tex
+\documentclass{article}
+\pdfinfoomitdate=1
+\pdftrailerid{}
+\pagestyle{empty}
+\begin{document}
+\pdfpagewidth=595bp \pdfpageheight=842bp
+\noindent\rule{200bp}{20bp}\par
+Page one: A4.
+\newpage
+\pdfpagewidth=960bp \pdfpageheight=540bp
+\noindent\rule{400bp}{20bp}\par
+Page two: 16:9.
+\newpage
+\pdfpagewidth=595bp \pdfpageheight=842bp
+\noindent\rule{300bp}{20bp}\par
+Page three: A4.
+\end{document}

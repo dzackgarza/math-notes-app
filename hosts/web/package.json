@@ -7,6 +7,7 @@
     "@types/node": "^26.6.2",
     "@types/wicg-file-system-access": "^2023.10.7",
     "@vitest/browser-playwright": "^5.0.2",
+    "fast-check": "4.10.2",
     "playwright": "^1.63.0",
     "typescript": "~5.9",
     "vite": "^8.3.1",
@@ -14,7 +15,7 @@
     "workbox-build": "7.4.1"
   },
   "dependencies": {
-    "@dzackgarza/freetikz": "github:dzackgarza/freetikz#9e5fb05c22dbc5637ff7cebf99f3dbee6f962b68",
+    "@dzackgarza/freetikz": "github:dzackgarza/freetikz#23a6d3483a21bb30b741e960374dca2bfd2a578a",
     "idb-keyval": "^6.3.0",
     "mupdf": "1.28.0"
   }

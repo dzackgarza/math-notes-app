@@ -1,4 +1,4 @@
-// TeXlyre's b98714d3 build-from-upstream.cjs, with pinned sources and Bun.
+// The pinned standalone editor supplies the hosted workbench and embed protocol.
 import { cp, mkdir, access } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -7,8 +7,7 @@ import path from 'node:path';
 
 const execute = promisify(execFile);
 const root = fileURLToPath(new URL('../../', import.meta.url));
-const editor = path.join(root, '.ci/tikz-editor');
-const mirror = path.join(root, '.ci/tikz-embed');
+const editor = path.join(root, '.ci/visual-tikz-editor');
 const freetikz = path.join(root, '.ci/freetikz');
 
 async function run(command, args, cwd) {
@@ -37,22 +36,19 @@ async function source(url, revision, directory) {
   if (stdout.trim() !== revision) throw new Error(`Source revision differs in ${directory}`);
 }
 
-await source('https://github.com/DominikPeters/tikz-editor.git', 'b8b0d0019790c512466b62ebd444b95e9db0b1fc', editor);
-await source('https://github.com/TeXlyre/tikz-editor-embed-mirror.git', 'b98714d3584ee849178f19cf44c7768ff9063f6e', mirror);
-await source('https://github.com/dzackgarza/freetikz.git', '9e5fb05c22dbc5637ff7cebf99f3dbee6f962b68', freetikz);
-const embed = path.join(editor, 'apps/texlyre-embed');
-await cp(path.join(mirror, 'embed'), embed, { recursive: true });
-await cp(path.join(root, 'hosts/web/tikz-embed.html'), path.join(embed, 'index.html'));
-await run('bun', ['install'], editor);
-await run('bun', ['run', 'generate:grammar'], path.join(editor, 'packages/lezer-tikz'));
-for (const name of ['lezer-tikz', 'lang-tikz', 'core']) {
-  await run('bunx', ['tsc', '-p', 'tsconfig.json'], path.join(editor, 'packages', name));
-}
-await run('bunx', ['vite', 'build'], embed);
+await source('https://github.com/dzackgarza/visual-tikz-editor.git', 'fd4c64be3cabac18ad6247e5931e5cb7c60c6bf9', editor);
+await source('https://github.com/dzackgarza/freetikz.git', '23a6d3483a21bb30b741e960374dca2bfd2a578a', freetikz);
 const output = process.argv[2] ? path.resolve(root, process.argv[2]) : path.join(root, 'hosts/web/flutter/build/web/tikz-editor');
 await mkdir(output, { recursive: true });
-await cp(path.join(embed, 'dist'), output, { recursive: true });
-await cp(path.join(editor, 'LICENSE'), path.join(output, 'LICENSE'));
+await cp(path.join(editor, 'vendor/tikz-editor/src'), output, { recursive: true });
+await cp(path.join(editor, 'vendor/tikz-editor/LICENSE'), path.join(output, 'LICENSE'));
+
+if (!process.argv[2]) {
+  await run('bun', ['install', '--frozen-lockfile'], editor);
+  await run('bun', ['run', 'build'], editor);
+  const workbench = path.join(path.dirname(output), 'tikz-workbench');
+  await cp(path.join(editor, 'standalone/dist'), workbench, { recursive: true });
+}
 
 const runtime = process.argv[3] ? path.resolve(root, process.argv[3]) : null;
 if (runtime) {

@@ -12,8 +12,13 @@
 #include <cctype>
 #include <cmath>
 #include <cstdio>
+#include <limits>
 #include <map>
 #include <sstream>
+#include <stdexcept>
+#include <vector>
+
+#include "src/core/SkUTF.h"
 
 #include <pugixml.hpp>
 
@@ -433,11 +438,31 @@ void WriteText(pugi::xml_node &parent, const Text &text) {
   Set(node, "xml:space", "preserve");
   auto layout = LayoutText(text);
   node.append_child("metadata").append_child("mn:text").text() = layout.source.c_str();
+  // SkParagraph line offsets count UTF-16 code units. SVG text is UTF-8; use
+  // Skia's UTF-8 decoder to map each valid UTF-16 boundary to a byte offset.
+  const int utf16_size = SkUTF::UTF8ToUTF16(nullptr, 0, layout.source.data(), layout.source.size());
+  if (utf16_size < 0) throw std::runtime_error("invalid UTF-8 in text");
+  std::vector<size_t> byte_offsets(size_t(utf16_size) + 1, std::numeric_limits<size_t>::max());
+  const char *cursor = layout.source.data();
+  const char *end = cursor + layout.source.size();
+  size_t utf16_index = 0;
+  while (cursor < end) {
+    byte_offsets[utf16_index] = size_t(cursor - layout.source.data());
+    utf16_index += SkUTF::ToUTF16(SkUTF::NextUTF8(&cursor, end), nullptr);
+  }
+  byte_offsets[utf16_index] = layout.source.size();
   for (const auto &metric : layout.lines) {
+    if (metric.fStartIndex >= byte_offsets.size() || metric.fEndIndex >= byte_offsets.size() ||
+        byte_offsets[metric.fStartIndex] == std::numeric_limits<size_t>::max() ||
+        byte_offsets[metric.fEndIndex] == std::numeric_limits<size_t>::max()) {
+      throw std::runtime_error("invalid text line boundary");
+    }
+    const size_t start = byte_offsets[metric.fStartIndex];
+    const size_t finish = byte_offsets[metric.fEndIndex];
     pugi::xml_node line = node.append_child("tspan");
     Set(line, "x", Coord(text.x + metric.fLeft + (text.rtl ? metric.fWidth : 0)));
     Set(line, "y", Coord(text.y - layout.paragraph->getAlphabeticBaseline() + metric.fBaseline));
-    line.text() = layout.source.substr(metric.fStartIndex, metric.fEndIndex - metric.fStartIndex).c_str();
+    line.text() = layout.source.substr(start, finish - start).c_str();
   }
 }
 
