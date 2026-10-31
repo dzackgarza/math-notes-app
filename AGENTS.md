@@ -1,5 +1,10 @@
 # AGENTS.md
 
+Use the [shared math container](https://github.com/dzackgarza/ai-review-ci/blob/main/SAGE-CONTAINER.md#use-the-image)
+(`ghcr.io/dzackgarza/sage:develop`) for Lean/elan, Sage with mypy, GAP,
+Julia/Oscar, Macaulay2, and Singular. The guide covers image pull/run commands,
+CI use, and the host launchers.
+
 Read README.md (pipeline, layout) and TRAPS.md (known failures) first.
 
 Builds run in CI, not on this machine: commit, push, `gh run watch --interval 60` the
